@@ -15,12 +15,13 @@ test:"Hello DS"
 .then(r=>r.json())
 .then(res=>{
 console.log(res);
-alert("成功");
+alert("送出成功");
 })
 .catch(err=>{
 console.error(err);
 });
 
 }
+
 
 
