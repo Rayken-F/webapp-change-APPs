@@ -8,7 +8,4 @@ site:"PWA",
 work:"測試提交"
 
 }
-
-submitDailyReport(data)
-
 }
