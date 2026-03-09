@@ -1,5 +1,5 @@
 function submitTest(){
-
+alert("按鈕有觸發")
 const data = {
 date:"2026-03-09",
 person:"測試",
@@ -25,3 +25,4 @@ alert("送出失敗")
 })
 
 }
+
