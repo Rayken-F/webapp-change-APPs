@@ -1,6 +1,6 @@
 const API_URL =
-"https://script.google.com/macros/s/AKfycbxjcr4dCeIvBV0rNZitR5VzZNFFwlCigJ1ugt01_BwtyaID5oi5AJSn9QVxDJXGSw56XA/exec
-
+"https://script.google.com/macros/s/AKfycbzjwQZZn2nkko-WtLUSfY1_1xfgOXnESt6kQ-SMLlbFDthIowENSoXfrOhMH-dDCy7wPQ/exec"
+  
 function submitDailyReport(data){
 
 fetch(API_URL,{
@@ -16,5 +16,6 @@ body:JSON.stringify(data)
 alert("送出成功")
 
 })
+
 
 }
