@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
+ <title>鼎世日報系統</title>
 <link rel="icon" href="./favicon.ico">
 <link rel="apple-touch-icon" href="./icons/icon-192.png">
 <link rel="manifest" href="./manifest.json">
@@ -449,7 +450,7 @@ user-scalable=no">
 
       <div class="btn-row">
         <button type="button" onclick="prevPage('page1')">返回</button>
-        <button type="button" onclick="nextPage('page7')">預覽</button>
+        <button type="button" onclick="handlePreviewNavigation()">預覽</button>
       </div>
     </div>
 
@@ -486,7 +487,7 @@ user-scalable=no">
 
       <div class="btn-row">
         <button type="button" onclick="prevPage('page1')">返回</button>
-        <button type="button" onclick="nextPage('page7')">預覽</button>
+        <button type="button" onclick="handlePreviewNavigation()">預覽</button>
       </div>
     </div>
 
@@ -528,7 +529,7 @@ user-scalable=no">
 
       <div class="btn-row">
         <button type="button" onclick="prevPage('page1')">返回</button>
-        <button type="button" onclick="nextPage('page7')">預覽</button>
+        <button type="button" onclick="handlePreviewNavigation()">預覽</button>
       </div>
     </div>
 
@@ -593,7 +594,7 @@ user-scalable=no">
 
       <div class="btn-row">
         <button type="button" onclick="prevPage('page1')">返回</button>
-        <button type="button" onclick="nextPage('page7')">預覽</button>
+        <button type="button" onclick="handlePreviewNavigation()">預覽</button>
       </div>
     </div>
 
@@ -660,7 +661,7 @@ user-scalable=no">
 
       <div class="btn-row">
         <button type="button" onclick="prevPage('page1')">返回</button>
-        <button type="button" onclick="nextPage('page7')">預覽</button>
+        <button type="button" onclick="handlePreviewNavigation()">預覽</button>
       </div>
     </div>
 
@@ -698,8 +699,10 @@ user-scalable=no">
 
 <script>
   const STORAGE_KEY = "ds_report_draft_v2";
-
-  const formData = {
+  const VISIBLE_ERROR_ATTR = "data-has-visible-error";
+  const ERROR_DISPLAY_MS = 3000;
+ 
+  const formData = { 
     date:"",
     person:"",
     site:"",
@@ -841,6 +844,33 @@ user-scalable=no">
   function getActivePageId(){
     const active = document.querySelector(".page.active");
     return active ? active.id : "page1";
+  }
+
+  function getFirstVisibleErrorCard(){
+   return document.querySelector(`[${VISIBLE_ERROR_ATTR}="true"]`);
+ }
+
+  function handlePreviewNavigation(){
+    const visibleErrorCard = getFirstVisibleErrorCard();
+  
+    if(visibleErrorCard){
+      visibleErrorCard.scrollIntoView({
+        behavior:"smooth",
+        block:"center"
+      });
+  
+      visibleErrorCard.classList.remove("shake");
+      void visibleErrorCard.offsetWidth;
+      visibleErrorCard.classList.add("shake");
+  
+      setTimeout(()=>{
+        visibleErrorCard.classList.remove("shake");
+      }, 450);
+  
+      return;
+    }
+  
+    nextPage("page7");
   }
 
   function saveData(){
@@ -1026,13 +1056,65 @@ user-scalable=no">
   }
 
   function clearDraft(showMessage){
+    const confirmed = window.confirm("是否清除草稿？\n清除後，當前所有未送出的資料都會消失。");
+  
+    if(!confirmed){
+      return;
+    }
+  
     localStorage.removeItem(STORAGE_KEY);
-
+  
+    Object.keys(formData).forEach(key => {
+      if(Array.isArray(formData[key])){
+        formData[key] = [];
+      }
+      else{
+        formData[key] = "";
+      }
+    });
+  
+    formData.workers = [];
+  
     scanState.sb_frame_scan = [];
     scanState.sb_cylinder_scan = [];
-
+  
+    document.querySelectorAll("input, textarea, select").forEach(el => {
+      const type = (el.type || "").toLowerCase();
+  
+      if(type === "radio" || type === "checkbox"){
+        el.checked = false;
+      }
+      else if(type === "file"){
+        el.value = "";
+      }
+      else{
+        el.value = "";
+      }
+    });
+  
+    const today = new Date().toISOString().split("T")[0];
+    const dateInput = document.getElementById("date");
+    if(dateInput){
+      dateInput.value = today;
+      formData.date = today;
+    }
+  
+    const savedPerson = localStorage.getItem("report_person");
+    const personInput = document.getElementById("person");
+    if(savedPerson && personInput){
+      personInput.value = savedPerson;
+      formData.person = savedPerson;
+    }
+  
+    renderScanDisplay("sb_frame_scan");
+    renderScanDisplay("sb_cylinder_scan");
+    clearErrors();
+    goToPageImmediately("page1");
+    updateStep(1);
+    window.scrollTo({top:0,behavior:"smooth"});
+  
     if(showMessage){
-      showDraftBanner("草稿已清除");
+      showDraftBanner("草稿已清除，已返回首頁");
     }
   }
 
@@ -1125,23 +1207,25 @@ user-scalable=no">
     const config = getCardIds(fieldKey);
     const card = document.getElementById(config.cardId);
     const errorEl = document.getElementById(config.errorId);
-
+  
     errorEl.innerText = message;
-
+  
     card.classList.remove("shake");
     void card.offsetWidth;
     card.classList.add("scan-card-error","shake");
-
+    card.setAttribute(VISIBLE_ERROR_ATTR, "true");
+  
     beepError();
-
+  
     setTimeout(()=>{
       card.classList.remove("shake");
-    }, 400);
-
+    }, 450);
+  
     setTimeout(()=>{
       card.classList.remove("scan-card-error");
+      card.removeAttribute(VISIBLE_ERROR_ATTR);
       errorEl.innerText = "";
-    }, 1800);
+    }, ERROR_DISPLAY_MS);
   }
 
   function renderScanDisplay(fieldKey){
@@ -1575,4 +1659,5 @@ user-scalable=no">
 </script>
 </body>
 </html>
+
 
