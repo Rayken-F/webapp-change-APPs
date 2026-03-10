@@ -1,40 +1,1573 @@
 <!DOCTYPE html>
 <html>
-
 <head>
-
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="viewport"
+content="width=device-width,
+initial-scale=1,
+maximum-scale=1,
+user-scalable=no">
 
-<title>DS日報系統</title>
+<style>
+  *{
+    box-sizing:border-box;
+  }
 
-<link rel="manifest" href="manifest.json">
-<link rel="stylesheet" href="style.css">
+  body{
+    font-family:Arial,sans-serif;
+    background:linear-gradient(180deg,#0f1020,#1b1f3a);
+    color:white;
+    margin:0;
+    padding:20px;
+  }
 
-<link rel="icon" href="favicon.ico">
+  .wrap{
+    max-width:620px;
+    margin:auto;
+    padding:10px;
+  }
 
+  .form-card{
+    background:rgba(255,255,255,0.06);
+    border-radius:16px;
+    padding:22px;
+    margin-bottom:26px;
+    border:1px solid rgba(255,255,255,0.08);
+    backdrop-filter:blur(8px);
+    box-shadow:0 8px 30px rgba(0,0,0,0.35);
+    transition:transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+  }
+
+  .form-card:hover{
+    transform:translateY(-2px);
+    box-shadow:
+      0 6px 16px rgba(0,0,0,0.35),
+      0 14px 40px rgba(0,0,0,0.45);
+  }
+
+  .form-title{
+    font-size:16px;
+    font-weight:700;
+    margin-bottom:14px;
+    letter-spacing:0.5px;
+  }
+
+  .form-title-line{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:12px;
+    margin-bottom:14px;
+    flex-wrap:wrap;
+  }
+
+  .form-title-line .form-title{
+    margin-bottom:0;
+  }
+
+  .count-text{
+    font-size:14px;
+    color:#d1d5ff;
+    white-space:nowrap;
+  }
+
+  .form-input{
+    width:100%;
+    padding:14px;
+    border-radius:10px;
+    border:none;
+    background:rgba(255,255,255,0.9);
+    font-size:15px;
+    color:#111827;
+    box-shadow:inset 0 2px 6px rgba(0,0,0,0.15);
+  }
+
+  .required{
+    color:#ff4d4f;
+  }
+
+  .radio-group label,
+  .checkbox-group label{
+    display:flex;
+    align-items:center;
+    gap:14px;
+    padding:8px 4px;
+    margin:6px 0;
+    cursor:pointer;
+    font-size:16px;
+  }
+
+  .radio-group input,
+  .checkbox-group input{
+    transform:scale(1.2);
+    accent-color:#7b68ee;
+    transition:all 0.15s ease;
+  }
+
+  .checkbox-group label:hover,
+  .radio-group label:hover{
+    background:rgba(255,255,255,0.05);
+    border-radius:8px;
+    padding-left:4px;
+  }
+
+  button{
+    width:100%;
+    padding:15px;
+    border:none;
+    border-radius:12px;
+    background:linear-gradient(135deg,#6d5dfc,#4f46e5);
+    color:white;
+    font-size:16px;
+    font-weight:600;
+    cursor:pointer;
+    box-shadow:0 6px 20px rgba(0,0,0,0.35);
+    transition:all .15s ease;
+  }
+
+  button:hover{
+    transform:translateY(-1px);
+    box-shadow:0 10px 25px rgba(0,0,0,0.45);
+  }
+
+  button:active{
+    transform:scale(0.96);
+  }
+
+  .btn-row{
+    display:flex;
+    gap:14px;
+    margin-bottom:12px;
+  }
+
+  .btn-row button{
+    flex:1;
+  }
+
+  .page{
+    display:none;
+    opacity:0;
+    transform:translateX(60px);
+    transition:all .3s ease;
+  }
+
+  .page.active{
+    display:block;
+    opacity:1;
+    transform:translateX(0);
+    animation:pageIn .25s ease;
+  }
+
+  .page.exit{
+    transform:translateX(-100%);
+    opacity:0;
+  }
+
+  @keyframes pageIn{
+    from{
+      opacity:0;
+      transform:translateY(20px);
+    }
+    to{
+      opacity:1;
+      transform:translateY(0);
+    }
+  }
+
+  .page-title{
+    text-align:center;
+    font-size:24px;
+    font-weight:700;
+    margin:20px 0 28px 0;
+    letter-spacing:1px;
+  }
+
+  .error-card{
+    border:2px solid #ff4d4f !important;
+  }
+
+  .error-text{
+    color:#ff4d4f;
+    font-size:14px;
+    margin-top:8px;
+  }
+
+  textarea{
+    resize:none;
+  }
+
+  .step-bar{
+    display:flex;
+    justify-content:space-between;
+    margin-bottom:20px;
+  }
+
+  .step{
+    flex:1;
+    text-align:center;
+    padding:8px;
+    font-size:13px;
+    opacity:0.5;
+    border-bottom:2px solid rgba(255,255,255,0.2);
+  }
+
+  .step.active{
+    opacity:1;
+    border-bottom:3px solid #7b68ee;
+    font-weight:600;
+  }
+
+  .scan-input{
+    min-height:88px;
+    line-height:1.5;
+    margin-bottom:12px;
+  }
+
+  .scan-display{
+    width:100%;
+    height:220px;
+    overflow-y:auto;
+    border-radius:10px;
+    background:rgba(255,255,255,0.9);
+    color:#111827;
+    box-shadow:inset 0 2px 6px rgba(0,0,0,0.15);
+    padding:10px 14px;
+    font-size:15px;
+    line-height:1.6;
+    white-space:pre-wrap;
+    word-break:break-all;
+  }
+
+  .scan-display.empty{
+    color:#6b7280;
+  }
+
+  .scan-tip{
+    font-size:13px;
+    color:#d1d5db;
+    margin-bottom:10px;
+    line-height:1.5;
+  }
+
+  .scan-error{
+    color:#ff8f8f;
+    font-size:14px;
+    margin-top:10px;
+    min-height:20px;
+  }
+
+  .scan-card-error{
+    border:2px solid #ff4d4f !important;
+    box-shadow:0 0 0 2px rgba(255,77,79,0.15), 0 8px 30px rgba(0,0,0,0.35) !important;
+  }
+
+  .shake{
+    animation:shakeCard .35s ease;
+  }
+
+  @keyframes shakeCard{
+    0%{ transform:translateX(0); }
+    20%{ transform:translateX(-8px); }
+    40%{ transform:translateX(8px); }
+    60%{ transform:translateX(-6px); }
+    80%{ transform:translateX(6px); }
+    100%{ transform:translateX(0); }
+  }
+
+  .draft-banner{
+    display:none;
+    margin-bottom:16px;
+    padding:12px 14px;
+    border-radius:12px;
+    background:rgba(34,197,94,0.16);
+    border:1px solid rgba(34,197,94,0.35);
+    color:#dcfce7;
+    font-size:14px;
+  }
+
+  .draft-actions{
+    margin-top:10px;
+    display:flex;
+    gap:10px;
+  }
+
+  .draft-actions button{
+    padding:10px 12px;
+    font-size:14px;
+  }
+
+  .btn-danger{
+    background:linear-gradient(135deg,#ef4444,#dc2626);
+  }
+
+  .confirm-block{
+    line-height:1.8;
+    word-break:break-word;
+  }
+
+  .confirm-section{
+    margin-top:16px;
+    padding-top:12px;
+    border-top:1px solid rgba(255,255,255,0.12);
+  }
+</style>
 </head>
 
 <body>
+  <div class="wrap">
+    <div id="draftBanner" class="draft-banner"></div>
 
-<h1>DS日報系統</h1>
+    <div class="step-bar">
+      <div class="step active" id="step1">基本資料</div>
+      <div class="step" id="step2">站別填寫</div>
+      <div class="step" id="step3">確認送出</div>
+    </div>
 
-<button onclick="submitTest()">測試送出</button>
+    <div class="page-title">
+      鼎世日報系統（三福版）
+    </div>
 
-<script src="api.js"></script>
-<script src="app.js"></script>
+    <!-- =================== 首頁 ====================== -->
+    <div id="page1" class="page active">
+      <div id="card-date" class="form-card">
+        <div class="form-title">📅 日期 <span class="required">*</span></div>
+        <input id="date" type="date" class="form-input">
+        <div id="error-date" class="error-text"></div>
+      </div>
+
+      <div id="card-person" class="form-card">
+        <div class="form-title">👤 填表人員 <span class="required">*</span></div>
+        <select id="person" class="form-input">
+          <option value="">請選擇</option>
+          <option>士軒</option>
+          <option>晨光</option>
+          <option>閎元</option>
+          <option>柏晟</option>
+          <option>偉晉</option>
+          <option>長盛</option>
+          <option>俊頡</option>
+          <option>瑋璿</option>
+          <option>涵柔</option>
+        </select>
+        <div id="error-person" class="error-text"></div>
+      </div>
+
+      <div id="card-site" class="form-card">
+        <div class="form-title">🏭 站別 <span class="required">*</span></div>
+        <div class="radio-group">
+          <label><input type="radio" name="site" value="自動噴砂站">⚙️ 自動噴砂站</label>
+          <label><input type="radio" name="site" value="UT站">🔍 UT站</label>
+          <label><input type="radio" name="site" value="鋼印鋼瓶站">🔩 鋼印鋼瓶站</label>
+          <label><input type="radio" name="site" value="集束中心">📦 集束中心</label>
+          <label><input type="radio" name="site" value="專案">🚀 專案</label>
+        </div>
+        <div id="error-site" class="error-text"></div>
+      </div>
+
+      <div class="form-card">
+        <div class="form-title">👥 人員姓名</div>
+        <div class="btn-row">
+          <button type="button" onclick="selectAllWorkers()">全選</button>
+          <button type="button" onclick="clearWorkers()">清除</button>
+        </div>
+
+        <div class="checkbox-group">
+          <label><input type="checkbox" value="士軒">士軒</label>
+          <label><input type="checkbox" value="晨光">晨光</label>
+          <label><input type="checkbox" value="閎元">閎元</label>
+          <label><input type="checkbox" value="柏晟">柏晟</label>
+          <label><input type="checkbox" value="偉晉">偉晉</label>
+          <label><input type="checkbox" value="長盛">長盛</label>
+          <label><input type="checkbox" value="俊頡">俊頡</label>
+          <label><input type="checkbox" value="瑋璿">瑋璿</label>
+          <label><input type="checkbox" value="涵柔">涵柔</label>
+        </div>
+      </div>
+
+      <div class="btn-row">
+        <button type="button" class="btn-danger" onclick="clearDraft(true)">清除草稿</button>
+        <button type="button" onclick="validatePage1()">下一步</button>
+      </div>
+    </div>
+
+    <!-- 自動噴砂站 -->
+    <div id="pageSandblast" class="page">
+      <div class="form-card">
+        <div class="form-title">自動噴砂站</div>
+      </div>
+
+      <div class="form-card">
+        <div class="form-title">框架編號（拆卸）</div>
+        <textarea id="sb_frame_remove" class="form-input"></textarea>
+      </div>
+
+      <div class="form-card">
+        <div class="form-title">前置完全（框）</div>
+        <input type="number" id="sb_pre_complete" class="form-input">
+      </div>
+
+      <div class="form-card">
+        <div class="form-title">前置瓶頸研磨</div>
+        <input type="number" id="sb_neck_grind" class="form-input">
+      </div>
+
+      <div class="form-card">
+        <div class="form-title">前置CTN防護</div>
+        <input type="number" id="sb_pre_ctn_protect" class="form-input">
+      </div>
+
+      <div id="scan-card-frame" class="form-card">
+        <div class="form-title-line">
+          <div class="form-title">框架CTN掃描</div>
+          <div id="frame-count-text" class="count-text">目前數量：0</div>
+        </div>
+        <div class="scan-tip">CTN 固定 7 碼英數混合，可單筆掃描或一次貼上多行；系統會自動轉大寫、即時累計並驗證跨卡片重複。</div>
+        <textarea id="sb_frame_scan_input" class="form-input scan-input" placeholder="請掃描或貼上 CTN，每行一組"></textarea>
+        <div id="sb_frame_scan_display" class="scan-display empty">尚未掃描任何 CTN</div>
+        <div id="sb_frame_scan_error" class="scan-error"></div>
+      </div>
+
+      <div id="scan-card-cylinder" class="form-card">
+        <div class="form-title-line">
+          <div class="form-title">散支鋼瓶CTN掃描</div>
+          <div id="cylinder-count-text" class="count-text">目前數量：0</div>
+        </div>
+        <div class="scan-tip">CTN 固定 7 碼英數混合，可單筆掃描或一次貼上多行；系統會自動轉大寫、即時累計並驗證跨卡片重複。</div>
+        <textarea id="sb_cylinder_scan_input" class="form-input scan-input" placeholder="請掃描或貼上 CTN，每行一組"></textarea>
+        <div id="sb_cylinder_scan_display" class="scan-display empty">尚未掃描任何 CTN</div>
+        <div id="sb_cylinder_scan_error" class="scan-error"></div>
+      </div>
+
+      <div class="form-card">
+        <div class="form-title">噴砂備註</div>
+        <textarea id="sb_note" class="form-input"></textarea>
+      </div>
+
+      <div class="btn-row">
+        <button type="button" onclick="prevPage('page1')">返回</button>
+        <button type="button" onclick="nextPage('page7')">預覽</button>
+      </div>
+    </div>
+
+    <!-- UT站 -->
+    <div id="pageUT" class="page">
+      <div class="form-card">
+        <div class="form-title">UT站</div>
+      </div>
+
+      <div class="form-card">
+        <div class="form-title">UT上下料鋼瓶數量（支）</div>
+        <input type="number" id="ut_load_count" class="form-input">
+      </div>
+
+      <div class="form-card">
+        <div class="form-title">噴砂後下框（框）</div>
+        <input type="number" id="ut_unload_frame" class="form-input">
+      </div>
+
+      <div class="form-card">
+        <div class="form-title">治具安裝（框）</div>
+        <input type="number" id="ut_fixture_install" class="form-input">
+      </div>
+
+      <div class="form-card">
+        <div class="form-title">噴砂數量（隻）</div>
+        <input type="number" id="ut_sand_count" class="form-input">
+      </div>
+
+      <div class="form-card">
+        <div class="form-title">UT站別備註</div>
+        <textarea id="ut_note" class="form-input"></textarea>
+      </div>
+
+      <div class="btn-row">
+        <button type="button" onclick="prevPage('page1')">返回</button>
+        <button type="button" onclick="nextPage('page7')">預覽</button>
+      </div>
+    </div>
+
+    <!-- 鋼印鋼瓶站 -->
+    <div id="pageStamp" class="page">
+      <div class="form-card">
+        <div class="form-title">鋼印鋼瓶站</div>
+      </div>
+
+      <div class="form-card">
+        <div class="form-title">HT鋼印（支）</div>
+        <input type="number" id="stamp_ht_mark" class="form-input">
+      </div>
+
+      <div class="form-card">
+        <div class="form-title">UT鋼印（支）</div>
+        <input type="number" id="stamp_ut_mark" class="form-input">
+      </div>
+
+      <div class="form-card">
+        <div class="form-title">待噴砂鋼瓶（框）</div>
+        <input type="number" id="stamp_wait_sand" class="form-input">
+      </div>
+
+      <div class="form-card">
+        <div class="form-title">改瓶數量（支）</div>
+        <input type="number" id="stamp_rework_count" class="form-input">
+      </div>
+
+      <div class="form-card">
+        <div class="form-title">出貨（框）</div>
+        <input type="number" id="stamp_ship" class="form-input">
+      </div>
+
+      <div class="form-card">
+        <div class="form-title">鋼印鎖瓶站備註</div>
+        <textarea id="stamp_note" class="form-input"></textarea>
+      </div>
+
+      <div class="btn-row">
+        <button type="button" onclick="prevPage('page1')">返回</button>
+        <button type="button" onclick="nextPage('page7')">預覽</button>
+      </div>
+    </div>
+
+    <!-- 集束中心 -->
+    <div id="pageBundle" class="page">
+      <div class="form-card">
+        <div class="form-title">集束中心</div>
+      </div>
+
+      <div class="form-card">
+        <div class="form-title">入框數量</div>
+        <input type="number" id="bundle_in_count" class="form-input">
+      </div>
+
+      <div class="form-card">
+        <div class="form-title">集束狀態</div>
+        <select id="bundle_status" class="form-input">
+          <option value="">請選擇</option>
+          <option value="完成">完成</option>
+          <option value="未完成">未完成</option>
+          <option value="維修中">維修中</option>
+        </select>
+      </div>
+
+      <div class="form-card">
+        <div class="form-title">集束類別</div>
+        <select id="bundle_type" class="form-input">
+          <option value="">請選擇</option>
+          <option value="一般集束">一般集束</option>
+          <option value="特殊集束">特殊集束</option>
+        </select>
+      </div>
+
+      <div class="form-card">
+        <div class="form-title">框架種類</div>
+        <select id="frame_type" class="form-input">
+          <option value="">請選擇</option>
+          <option value="一般框">一般框</option>
+          <option value="特殊框">特殊框</option>
+        </select>
+      </div>
+
+      <div class="form-card">
+        <div class="form-title">框架編號（組裝）</div>
+        <input type="text" id="frame_id" class="form-input">
+      </div>
+
+      <div class="form-card">
+        <div class="form-title">RT料號</div>
+        <input type="text" id="rt_no" class="form-input">
+      </div>
+
+      <div class="form-card">
+        <div class="form-title">框架CTN（組裝）</div>
+        <input type="text" id="frame_ctn" class="form-input">
+      </div>
+
+      <div class="form-card">
+        <div class="form-title">集束備註</div>
+        <textarea id="bundle_note" class="form-input"></textarea>
+      </div>
+
+      <div class="btn-row">
+        <button type="button" onclick="prevPage('page1')">返回</button>
+        <button type="button" onclick="nextPage('page7')">預覽</button>
+      </div>
+    </div>
+
+    <!-- 專案 -->
+    <div id="pageProject" class="page">
+      <div class="form-card">
+        <div class="form-title">專案</div>
+      </div>
+
+      <div class="form-card">
+        <div class="form-title">專案項目</div>
+        <select id="project_item" class="form-input">
+          <option value="">請選擇</option>
+          <option value="專案A">專案A</option>
+          <option value="專案B">專案B</option>
+          <option value="其他">其他</option>
+        </select>
+      </div>
+
+      <div class="form-card">
+        <div class="form-title">新鋼瓶下棧板（支）</div>
+        <input type="number" id="proj_new_cylinder" class="form-input">
+      </div>
+
+      <div class="form-card">
+        <div class="form-title">鋼瓶註冊（支）</div>
+        <input type="number" id="proj_register" class="form-input">
+      </div>
+
+      <div class="form-card">
+        <div class="form-title">瓶閥安裝（支）</div>
+        <input type="number" id="proj_valve_install" class="form-input">
+      </div>
+
+      <div class="form-card">
+        <div class="form-title">鋼瓶入框（框）</div>
+        <input type="number" id="proj_cylinder_frame" class="form-input">
+      </div>
+
+      <div class="form-card">
+        <div class="form-title">集束安裝（框）</div>
+        <input type="number" id="proj_bundle_install" class="form-input">
+      </div>
+
+      <div class="form-card">
+        <div class="form-title">集束測漏（框）</div>
+        <input type="number" id="proj_bundle_leak" class="form-input">
+      </div>
+
+      <div class="form-card">
+        <div class="form-title">維修框架CTN</div>
+        <textarea id="proj_repair_ctn" class="form-input"></textarea>
+      </div>
+
+      <div class="form-card">
+        <div class="form-title">專案備註</div>
+        <textarea id="proj_note" class="form-input"></textarea>
+      </div>
+
+      <div class="form-card">
+        <div class="form-title">照片上傳</div>
+        <input type="file" id="proj_photo" class="form-input">
+      </div>
+
+      <div class="btn-row">
+        <button type="button" onclick="prevPage('page1')">返回</button>
+        <button type="button" onclick="nextPage('page7')">預覽</button>
+      </div>
+    </div>
+
+    <!-- 預覽介面 -->
+    <div id="page7" class="page">
+      <div class="form-card">
+        <div class="form-title">確認送出</div>
+        <div id="confirm" class="confirm-block"></div>
+      </div>
+
+      <div class="btn-row">
+        <button type="button" onclick="backToSite()">返回</button>
+        <button type="button" onclick="submitReport()">送出</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="loadingBox" style="
+    display:none;
+    position:fixed;
+    top:0;
+    left:0;
+    width:100%;
+    height:100%;
+    background:rgba(0,0,0,0.6);
+    justify-content:center;
+    align-items:center;
+    z-index:9999;
+    color:white;
+    font-size:20px;
+    font-weight:600;
+  ">
+    送出中...
+  </div>
 
 <script>
+  const STORAGE_KEY = "ds_report_draft_v2";
 
-if ("serviceWorker" in navigator) {
+  const formData = {
+    date:"",
+    person:"",
+    site:"",
+    workers:[],
 
-navigator.serviceWorker.register("sw.js")
+    sb_frame_remove:"",
+    sb_pre_complete:"",
+    sb_neck_grind:"",
+    sb_pre_ctn_protect:"",
+    sb_frame_scan:"",
+    sb_cylinder_scan:"",
+    sb_note:"",
 
-}
+    ut_load_count:"",
+    ut_unload_frame:"",
+    ut_fixture_install:"",
+    ut_sand_count:"",
+    ut_note:"",
 
+    stamp_ht_mark:"",
+    stamp_ut_mark:"",
+    stamp_wait_sand:"",
+    stamp_rework_count:"",
+    stamp_ship:"",
+    stamp_note:"",
+
+    bundle_in_count:"",
+    bundle_status:"",
+    bundle_type:"",
+    frame_type:"",
+    frame_id:"",
+    rt_no:"",
+    frame_ctn:"",
+    bundle_note:"",
+
+    project_item:"",
+    proj_new_cylinder:"",
+    proj_register:"",
+    proj_valve_install:"",
+    proj_cylinder_frame:"",
+    proj_bundle_install:"",
+    proj_bundle_leak:"",
+    proj_repair_ctn:"",
+    proj_note:"",
+    photo:""
+  };
+
+  const scanState = {
+    sb_frame_scan:[],
+    sb_cylinder_scan:[]
+  };
+
+  let sending = false;
+
+  function getValue(id){
+    const el = document.getElementById(id);
+    return el ? el.value : "";
+  }
+
+  function nextPage(pageId){
+    saveData();
+
+    const current = document.querySelector(".page.active");
+    const next = document.getElementById(pageId);
+
+    if(!next || !current) return;
+
+    current.classList.add("exit");
+
+    setTimeout(()=>{
+      current.classList.remove("active","exit");
+      next.classList.add("active");
+    },200);
+
+    if(pageId === "page7"){
+      renderConfirm();
+      updateStep(3);
+    }
+    else{
+      updateStep(2);
+    }
+
+    persistDraft();
+    window.scrollTo({top:0,behavior:"smooth"});
+  }
+
+  function prevPage(pageId){
+    saveData();
+
+    const current = document.querySelector(".page.active");
+    const prev = document.getElementById(pageId);
+
+    if(!prev || !current) return;
+
+    current.style.transform = "translateX(100%)";
+
+    setTimeout(()=>{
+      current.classList.remove("active");
+      current.style.transform = "";
+      prev.classList.add("active");
+
+      if(pageId === "page1"){
+        updateStep(1);
+      }
+      else{
+        updateStep(2);
+      }
+    },200);
+
+    persistDraft();
+    window.scrollTo({top:0,behavior:"smooth"});
+  }
+
+  function backToSite(){
+    let targetPage = "";
+
+    if(formData.site === "自動噴砂站"){
+      targetPage = "pageSandblast";
+    }
+    else if(formData.site === "UT站"){
+      targetPage = "pageUT";
+    }
+    else if(formData.site === "鋼印鋼瓶站"){
+      targetPage = "pageStamp";
+    }
+    else if(formData.site === "集束中心"){
+      targetPage = "pageBundle";
+    }
+    else if(formData.site === "專案"){
+      targetPage = "pageProject";
+    }
+    else{
+      targetPage = "page1";
+    }
+
+    prevPage(targetPage);
+  }
+
+  function getActivePageId(){
+    const active = document.querySelector(".page.active");
+    return active ? active.id : "page1";
+  }
+
+  function saveData(){
+    formData.date = getValue("date");
+    formData.person = getValue("person");
+
+    const site = document.querySelector('input[name="site"]:checked');
+    formData.site = site ? site.value : "";
+
+    const workers = [];
+    document.querySelectorAll(".checkbox-group input:checked").forEach(c => workers.push(c.value));
+    formData.workers = workers;
+
+    formData.sb_frame_remove = getValue("sb_frame_remove");
+    formData.sb_pre_complete = getValue("sb_pre_complete");
+    formData.sb_neck_grind = getValue("sb_neck_grind");
+    formData.sb_pre_ctn_protect = getValue("sb_pre_ctn_protect");
+    formData.sb_frame_scan = scanState.sb_frame_scan.join("\n");
+    formData.sb_cylinder_scan = scanState.sb_cylinder_scan.join("\n");
+    formData.sb_note = getValue("sb_note");
+
+    formData.ut_load_count = getValue("ut_load_count");
+    formData.ut_unload_frame = getValue("ut_unload_frame");
+    formData.ut_fixture_install = getValue("ut_fixture_install");
+    formData.ut_sand_count = getValue("ut_sand_count");
+    formData.ut_note = getValue("ut_note");
+
+    formData.stamp_ht_mark = getValue("stamp_ht_mark");
+    formData.stamp_ut_mark = getValue("stamp_ut_mark");
+    formData.stamp_wait_sand = getValue("stamp_wait_sand");
+    formData.stamp_rework_count = getValue("stamp_rework_count");
+    formData.stamp_ship = getValue("stamp_ship");
+    formData.stamp_note = getValue("stamp_note");
+
+    formData.bundle_in_count = getValue("bundle_in_count");
+    formData.bundle_status = getValue("bundle_status");
+    formData.bundle_type = getValue("bundle_type");
+    formData.frame_type = getValue("frame_type");
+    formData.frame_id = getValue("frame_id");
+    formData.rt_no = getValue("rt_no");
+    formData.frame_ctn = getValue("frame_ctn");
+    formData.bundle_note = getValue("bundle_note");
+
+    formData.project_item = getValue("project_item");
+    formData.proj_new_cylinder = getValue("proj_new_cylinder");
+    formData.proj_register = getValue("proj_register");
+    formData.proj_valve_install = getValue("proj_valve_install");
+    formData.proj_cylinder_frame = getValue("proj_cylinder_frame");
+    formData.proj_bundle_install = getValue("proj_bundle_install");
+    formData.proj_bundle_leak = getValue("proj_bundle_leak");
+    formData.proj_repair_ctn = getValue("proj_repair_ctn");
+    formData.proj_note = getValue("proj_note");
+  }
+
+  function persistDraft(){
+    saveData();
+
+    const draft = {
+      formData: JSON.parse(JSON.stringify(formData)),
+      scanState: JSON.parse(JSON.stringify(scanState)),
+      activePageId: getActivePageId(),
+      savedAt: new Date().toISOString()
+    };
+
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(draft));
+
+    if(formData.person){
+      localStorage.setItem("report_person", formData.person);
+    }
+  }
+
+  function loadDraft(){
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if(!raw) return;
+
+    try{
+      const draft = JSON.parse(raw);
+      if(!draft || !draft.formData) return;
+
+      Object.keys(formData).forEach(key => {
+        if(draft.formData.hasOwnProperty(key)){
+          formData[key] = draft.formData[key];
+        }
+      });
+
+      if(draft.scanState){
+        scanState.sb_frame_scan = Array.isArray(draft.scanState.sb_frame_scan) ? draft.scanState.sb_frame_scan : [];
+        scanState.sb_cylinder_scan = Array.isArray(draft.scanState.sb_cylinder_scan) ? draft.scanState.sb_cylinder_scan : [];
+      }
+
+      applyFormDataToUI(draft.activePageId || "page1");
+      showDraftBanner("已恢復上次未送出的草稿");
+    }
+    catch(err){
+      console.error("草稿讀取失敗", err);
+    }
+  }
+
+  function applyFormDataToUI(activePageId){
+    document.getElementById("date").value = formData.date || "";
+    document.getElementById("person").value = formData.person || "";
+
+    if(formData.site){
+      const siteRadio = document.querySelector(`input[name="site"][value="${formData.site}"]`);
+      if(siteRadio){
+        siteRadio.checked = true;
+      }
+    }
+
+    document.querySelectorAll(".checkbox-group input").forEach(c => {
+      c.checked = formData.workers.includes(c.value);
+    });
+
+    const fillMap = {
+      sb_frame_remove:"sb_frame_remove",
+      sb_pre_complete:"sb_pre_complete",
+      sb_neck_grind:"sb_neck_grind",
+      sb_pre_ctn_protect:"sb_pre_ctn_protect",
+      sb_note:"sb_note",
+
+      ut_load_count:"ut_load_count",
+      ut_unload_frame:"ut_unload_frame",
+      ut_fixture_install:"ut_fixture_install",
+      ut_sand_count:"ut_sand_count",
+      ut_note:"ut_note",
+
+      stamp_ht_mark:"stamp_ht_mark",
+      stamp_ut_mark:"stamp_ut_mark",
+      stamp_wait_sand:"stamp_wait_sand",
+      stamp_rework_count:"stamp_rework_count",
+      stamp_ship:"stamp_ship",
+      stamp_note:"stamp_note",
+
+      bundle_in_count:"bundle_in_count",
+      bundle_status:"bundle_status",
+      bundle_type:"bundle_type",
+      frame_type:"frame_type",
+      frame_id:"frame_id",
+      rt_no:"rt_no",
+      frame_ctn:"frame_ctn",
+      bundle_note:"bundle_note",
+
+      project_item:"project_item",
+      proj_new_cylinder:"proj_new_cylinder",
+      proj_register:"proj_register",
+      proj_valve_install:"proj_valve_install",
+      proj_cylinder_frame:"proj_cylinder_frame",
+      proj_bundle_install:"proj_bundle_install",
+      proj_bundle_leak:"proj_bundle_leak",
+      proj_repair_ctn:"proj_repair_ctn",
+      proj_note:"proj_note"
+    };
+
+    Object.keys(fillMap).forEach(key => {
+      const el = document.getElementById(fillMap[key]);
+      if(el){
+        el.value = formData[key] || "";
+      }
+    });
+
+    renderScanDisplay("sb_frame_scan");
+    renderScanDisplay("sb_cylinder_scan");
+
+    goToPageImmediately(activePageId);
+  }
+
+  function goToPageImmediately(pageId){
+    document.querySelectorAll(".page").forEach(page => page.classList.remove("active","exit"));
+
+    const target = document.getElementById(pageId) || document.getElementById("page1");
+    target.classList.add("active");
+
+    if(pageId === "page1"){
+      updateStep(1);
+    }
+    else if(pageId === "page7"){
+      renderConfirm();
+      updateStep(3);
+    }
+    else{
+      updateStep(2);
+    }
+  }
+
+  function clearDraft(showMessage){
+    localStorage.removeItem(STORAGE_KEY);
+
+    scanState.sb_frame_scan = [];
+    scanState.sb_cylinder_scan = [];
+
+    if(showMessage){
+      showDraftBanner("草稿已清除");
+    }
+  }
+
+  function showDraftBanner(message){
+    const banner = document.getElementById("draftBanner");
+    banner.innerHTML = `
+      <div>${message}</div>
+      <div class="draft-actions">
+        <button type="button" class="btn-danger" onclick="clearDraft(true)">清除草稿</button>
+      </div>
+    `;
+    banner.style.display = "block";
+
+    setTimeout(()=>{
+      banner.style.display = "none";
+    }, 3500);
+  }
+
+  function normalizeCTN(value){
+    return (value || "").trim().toUpperCase();
+  }
+
+  function isValidCTN(value){
+    return /^(?=.*[A-Z])(?=.*\d)[A-Z0-9]{7}$/.test(value);
+  }
+
+  function getCardIds(fieldKey){
+    if(fieldKey === "sb_frame_scan"){
+      return {
+        cardId:"scan-card-frame",
+        errorId:"sb_frame_scan_error",
+        displayId:"sb_frame_scan_display",
+        inputId:"sb_frame_scan_input",
+        countId:"frame-count-text",
+        title:"框架CTN掃描"
+      };
+    }
+
+    return {
+      cardId:"scan-card-cylinder",
+      errorId:"sb_cylinder_scan_error",
+      displayId:"sb_cylinder_scan_display",
+      inputId:"sb_cylinder_scan_input",
+      countId:"cylinder-count-text",
+      title:"散支鋼瓶CTN掃描"
+    };
+  }
+
+  function findDuplicateOwner(ctn){
+    if(scanState.sb_frame_scan.includes(ctn)){
+      return "框架CTN掃描";
+    }
+
+    if(scanState.sb_cylinder_scan.includes(ctn)){
+      return "散支鋼瓶CTN掃描";
+    }
+
+    return "";
+  }
+
+  function beepError(){
+    try{
+      const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+      if(!AudioContextClass) return;
+
+      const ctx = new AudioContextClass();
+      const oscillator = ctx.createOscillator();
+      const gainNode = ctx.createGain();
+
+      oscillator.type = "square";
+      oscillator.frequency.setValueAtTime(680, ctx.currentTime);
+      gainNode.gain.setValueAtTime(0.12, ctx.currentTime);
+
+      oscillator.connect(gainNode);
+      gainNode.connect(ctx.destination);
+
+      oscillator.start();
+      oscillator.stop(ctx.currentTime + 0.15);
+
+      oscillator.onended = function(){
+        ctx.close();
+      };
+    }
+    catch(err){
+      console.warn("提示音播放失敗", err);
+    }
+  }
+
+  function showScanError(fieldKey, message){
+    const config = getCardIds(fieldKey);
+    const card = document.getElementById(config.cardId);
+    const errorEl = document.getElementById(config.errorId);
+
+    errorEl.innerText = message;
+
+    card.classList.remove("shake");
+    void card.offsetWidth;
+    card.classList.add("scan-card-error","shake");
+
+    beepError();
+
+    setTimeout(()=>{
+      card.classList.remove("shake");
+    }, 400);
+
+    setTimeout(()=>{
+      card.classList.remove("scan-card-error");
+      errorEl.innerText = "";
+    }, 1800);
+  }
+
+  function renderScanDisplay(fieldKey){
+    const config = getCardIds(fieldKey);
+    const list = scanState[fieldKey];
+
+    const displayEl = document.getElementById(config.displayId);
+    const countEl = document.getElementById(config.countId);
+
+    countEl.innerText = `目前數量：${list.length}`;
+
+    if(list.length === 0){
+      displayEl.classList.add("empty");
+      displayEl.innerText = "尚未掃描任何 CTN";
+    }
+    else{
+      displayEl.classList.remove("empty");
+      displayEl.innerText = list.join("\n");
+      displayEl.scrollTop = displayEl.scrollHeight;
+    }
+
+    formData[fieldKey] = list.join("\n");
+  }
+
+  function processScanInput(fieldKey){
+    const config = getCardIds(fieldKey);
+    const inputEl = document.getElementById(config.inputId);
+
+    const raw = inputEl.value;
+    if(!raw || !raw.trim()) return;
+
+    const lines = raw
+      .split(/\r?\n/)
+      .map(normalizeCTN)
+      .filter(Boolean);
+
+    if(lines.length === 0){
+      inputEl.value = "";
+      return;
+    }
+
+    const invalidList = [];
+    const duplicateList = [];
+    const batchSeen = new Set();
+    const validList = [];
+
+    lines.forEach(line => {
+      if(!isValidCTN(line)){
+        invalidList.push(line);
+        return;
+      }
+
+      if(batchSeen.has(line)){
+        duplicateList.push(`${line}（本次輸入重複）`);
+        return;
+      }
+
+      const owner = findDuplicateOwner(line);
+      if(owner){
+        duplicateList.push(`${line}（已存在於${owner}）`);
+        return;
+      }
+
+      batchSeen.add(line);
+      validList.push(line);
+    });
+
+    if(validList.length > 0){
+      scanState[fieldKey].push(...validList);
+      renderScanDisplay(fieldKey);
+      persistDraft();
+    }
+
+    inputEl.value = "";
+
+    if(invalidList.length > 0){
+      showScanError(fieldKey, `格式錯誤：${invalidList.slice(0,3).join("、")}${invalidList.length > 3 ? "..." : ""}`);
+      return;
+    }
+
+    if(duplicateList.length > 0){
+      showScanError(fieldKey, `CTN重複：${duplicateList.slice(0,2).join("、")}${duplicateList.length > 2 ? "..." : ""}`);
+    }
+  }
+
+  function bindScanInput(fieldKey){
+    const config = getCardIds(fieldKey);
+    const inputEl = document.getElementById(config.inputId);
+
+    inputEl.addEventListener("blur", function(){
+      processScanInput(fieldKey);
+    });
+
+    inputEl.addEventListener("keydown", function(e){
+      if(e.key === "Enter" && !e.shiftKey){
+        setTimeout(()=>{
+          processScanInput(fieldKey);
+        }, 0);
+      }
+    });
+
+    inputEl.addEventListener("paste", function(){
+      setTimeout(()=>{
+        processScanInput(fieldKey);
+      }, 0);
+    });
+  }
+
+  function renderConfirm(){
+    saveData();
+
+    const el = document.getElementById("confirm");
+
+    let html = `
+      <div>日期：${escapeHtml(formData.date)}</div>
+      <div>填表人：${escapeHtml(formData.person)}</div>
+      <div>站別：${escapeHtml(formData.site)}</div>
+      <div>人員：${escapeHtml(formData.workers.join(", "))}</div>
+    `;
+
+    if(formData.site === "自動噴砂站"){
+      html += `
+        <div class="confirm-section">
+          <div>框架編號（拆卸）：${nl2br(formData.sb_frame_remove)}</div>
+          <div>前置完全（框）：${escapeHtml(formData.sb_pre_complete)}</div>
+          <div>前置瓶頸研磨：${escapeHtml(formData.sb_neck_grind)}</div>
+          <div>前置CTN防護：${escapeHtml(formData.sb_pre_ctn_protect)}</div>
+          <div>框架CTN掃描（${scanState.sb_frame_scan.length}）：${nl2br(formData.sb_frame_scan)}</div>
+          <div>散支鋼瓶CTN掃描（${scanState.sb_cylinder_scan.length}）：${nl2br(formData.sb_cylinder_scan)}</div>
+          <div>噴砂備註：${nl2br(formData.sb_note)}</div>
+        </div>
+      `;
+    }
+
+    if(formData.site === "UT站"){
+      html += `
+        <div class="confirm-section">
+          <div>UT上下料鋼瓶數量（支）：${escapeHtml(formData.ut_load_count)}</div>
+          <div>噴砂後下框（框）：${escapeHtml(formData.ut_unload_frame)}</div>
+          <div>治具安裝（框）：${escapeHtml(formData.ut_fixture_install)}</div>
+          <div>噴砂數量（隻）：${escapeHtml(formData.ut_sand_count)}</div>
+          <div>UT站別備註：${nl2br(formData.ut_note)}</div>
+        </div>
+      `;
+    }
+
+    if(formData.site === "鋼印鋼瓶站"){
+      html += `
+        <div class="confirm-section">
+          <div>HT鋼印（支）：${escapeHtml(formData.stamp_ht_mark)}</div>
+          <div>UT鋼印（支）：${escapeHtml(formData.stamp_ut_mark)}</div>
+          <div>待噴砂鋼瓶（框）：${escapeHtml(formData.stamp_wait_sand)}</div>
+          <div>改瓶數量（支）：${escapeHtml(formData.stamp_rework_count)}</div>
+          <div>出貨（框）：${escapeHtml(formData.stamp_ship)}</div>
+          <div>鋼印鎖瓶站備註：${nl2br(formData.stamp_note)}</div>
+        </div>
+      `;
+    }
+
+    if(formData.site === "集束中心"){
+      html += `
+        <div class="confirm-section">
+          <div>入框數量：${escapeHtml(formData.bundle_in_count)}</div>
+          <div>集束狀態：${escapeHtml(formData.bundle_status)}</div>
+          <div>集束類別：${escapeHtml(formData.bundle_type)}</div>
+          <div>框架種類：${escapeHtml(formData.frame_type)}</div>
+          <div>框架編號（組裝）：${escapeHtml(formData.frame_id)}</div>
+          <div>RT料號：${escapeHtml(formData.rt_no)}</div>
+          <div>框架CTN（組裝）：${escapeHtml(formData.frame_ctn)}</div>
+          <div>集束備註：${nl2br(formData.bundle_note)}</div>
+        </div>
+      `;
+    }
+
+    if(formData.site === "專案"){
+      html += `
+        <div class="confirm-section">
+          <div>專案項目：${escapeHtml(formData.project_item)}</div>
+          <div>新鋼瓶下棧板（支）：${escapeHtml(formData.proj_new_cylinder)}</div>
+          <div>鋼瓶註冊（支）：${escapeHtml(formData.proj_register)}</div>
+          <div>瓶閥安裝（支）：${escapeHtml(formData.proj_valve_install)}</div>
+          <div>鋼瓶入框（框）：${escapeHtml(formData.proj_cylinder_frame)}</div>
+          <div>集束安裝（框）：${escapeHtml(formData.proj_bundle_install)}</div>
+          <div>集束測漏（框）：${escapeHtml(formData.proj_bundle_leak)}</div>
+          <div>維修框架CTN：${nl2br(formData.proj_repair_ctn)}</div>
+          <div>專案備註：${nl2br(formData.proj_note)}</div>
+          <div>照片上傳：${document.getElementById("proj_photo").files.length ? "已選擇檔案（重新開頁不恢復）" : "未選擇"}</div>
+        </div>
+      `;
+    }
+
+    el.innerHTML = html;
+  }
+
+  function escapeHtml(value){
+    return String(value || "")
+      .replaceAll("&","&amp;")
+      .replaceAll("<","&lt;")
+      .replaceAll(">","&gt;")
+      .replaceAll('"',"&quot;")
+      .replaceAll("'","&#39;");
+  }
+
+  function nl2br(value){
+    const safe = escapeHtml(value);
+    return safe ? safe.replace(/\n/g,"<br>") : "";
+  }
+
+  function selectAllWorkers(){
+    document.querySelectorAll(".checkbox-group input").forEach(c => {
+      c.checked = true;
+    });
+    persistDraft();
+  }
+
+  function clearWorkers(){
+    document.querySelectorAll(".checkbox-group input").forEach(c => {
+      c.checked = false;
+    });
+    persistDraft();
+  }
+
+  function submitReport(){
+    if(sending) return;
+
+    saveData();
+
+    const fileInput = document.getElementById("proj_photo");
+    const hasFile = fileInput && fileInput.files.length > 0;
+
+    const doSubmit = () => {
+      sending = true;
+      document.getElementById("loadingBox").innerText = "送出中...";
+      document.getElementById("loadingBox").style.display = "flex";
+
+      if(typeof google !== "undefined" && google.script && google.script.run){
+        google.script.run
+          .withSuccessHandler(()=>{
+            clearDraft(false);
+            document.getElementById("loadingBox").innerText = "✅ 送出成功";
+
+            setTimeout(()=>{
+              location.reload();
+            }, 1200);
+          })
+          .withFailureHandler((err)=>{
+            sending = false;
+            console.error("送出失敗", err);
+            document.getElementById("loadingBox").innerText = "❌ 送出失敗";
+
+            setTimeout(()=>{
+              document.getElementById("loadingBox").style.display = "none";
+            }, 1500);
+          })
+          .submitDailyReport(formData);
+      }
+      else{
+        sending = false;
+        console.log("目前為前端測試模式，尚未串接後台。送出資料如下：", formData);
+        document.getElementById("loadingBox").innerText = "⚠️ 目前是前端測試版，尚未串接後台";
+
+        setTimeout(()=>{
+          document.getElementById("loadingBox").style.display = "none";
+        }, 1800);
+      }
+    };
+
+    if(hasFile){
+      const reader = new FileReader();
+
+      reader.onload = function(e){
+        formData.photo = e.target.result;
+        doSubmit();
+      };
+
+      reader.readAsDataURL(fileInput.files[0]);
+    }
+    else{
+      formData.photo = "";
+      doSubmit();
+    }
+  }
+
+  function validatePage1(){
+    clearErrors();
+
+    const date = document.getElementById("date").value;
+    const person = document.getElementById("person").value;
+    const site = document.querySelector('input[name="site"]:checked');
+
+    let firstError = null;
+
+    if(!date){
+      showError("date","card-date","請填寫日期");
+      if(!firstError) firstError = "card-date";
+    }
+
+    if(!person){
+      showError("person","card-person","請選擇填表人員");
+      if(!firstError) firstError = "card-person";
+    }
+
+    if(!site){
+      showError("site","card-site","請選擇站別");
+      if(!firstError) firstError = "card-site";
+    }
+
+    if(firstError){
+      document.getElementById(firstError).scrollIntoView({behavior:"smooth",block:"start"});
+      return;
+    }
+
+    const siteValue = site.value;
+    let targetPage = "page1";
+
+    if(siteValue === "自動噴砂站"){
+      targetPage = "pageSandblast";
+    }
+    else if(siteValue === "UT站"){
+      targetPage = "pageUT";
+    }
+    else if(siteValue === "鋼印鋼瓶站"){
+      targetPage = "pageStamp";
+    }
+    else if(siteValue === "集束中心"){
+      targetPage = "pageBundle";
+    }
+    else if(siteValue === "專案"){
+      targetPage = "pageProject";
+    }
+
+    nextPage(targetPage);
+  }
+
+  function showError(name,cardId,msg){
+    document.getElementById(cardId).classList.add("error-card");
+    document.getElementById("error-" + name).innerText = msg;
+  }
+
+  function clearErrors(){
+    document.querySelectorAll(".error-card").forEach(el => {
+      el.classList.remove("error-card");
+    });
+
+    document.querySelectorAll(".error-text").forEach(el => {
+      el.innerText = "";
+    });
+  }
+
+  function loadPerson(){
+    const saved = localStorage.getItem("report_person");
+    if(saved && !formData.person){
+      document.getElementById("person").value = saved;
+      formData.person = saved;
+    }
+  }
+
+  function updateStep(step){
+    document.querySelectorAll(".step").forEach(s => {
+      s.classList.remove("active");
+    });
+
+    document.getElementById("step" + step).classList.add("active");
+  }
+
+  function bindAutoSave(){
+    const selectors = [
+      "#date",
+      "#person",
+      "input[name='site']",
+      ".checkbox-group input",
+      "#sb_frame_remove",
+      "#sb_pre_complete",
+      "#sb_neck_grind",
+      "#sb_pre_ctn_protect",
+      "#sb_note",
+      "#ut_load_count",
+      "#ut_unload_frame",
+      "#ut_fixture_install",
+      "#ut_sand_count",
+      "#ut_note",
+      "#stamp_ht_mark",
+      "#stamp_ut_mark",
+      "#stamp_wait_sand",
+      "#stamp_rework_count",
+      "#stamp_ship",
+      "#stamp_note",
+      "#bundle_in_count",
+      "#bundle_status",
+      "#bundle_type",
+      "#frame_type",
+      "#frame_id",
+      "#rt_no",
+      "#frame_ctn",
+      "#bundle_note",
+      "#project_item",
+      "#proj_new_cylinder",
+      "#proj_register",
+      "#proj_valve_install",
+      "#proj_cylinder_frame",
+      "#proj_bundle_install",
+      "#proj_bundle_leak",
+      "#proj_repair_ctn",
+      "#proj_note"
+    ];
+
+    selectors.forEach(selector => {
+      document.querySelectorAll(selector).forEach(el => {
+        el.addEventListener("input", persistDraft);
+        el.addEventListener("change", persistDraft);
+      });
+    });
+  }
+
+  window.onload = function(){
+    updateStep(1);
+
+    const today = new Date().toISOString().split("T")[0];
+    const dateInput = document.getElementById("date");
+
+    if(!dateInput.value){
+      dateInput.value = today;
+    }
+
+    bindScanInput("sb_frame_scan");
+    bindScanInput("sb_cylinder_scan");
+    bindAutoSave();
+    loadPerson();
+    loadDraft();
+  };
 </script>
-
 </body>
-
-
 </html>
