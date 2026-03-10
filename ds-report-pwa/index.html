@@ -1,6 +1,10 @@
 <!DOCTYPE html>
 <html>
 <head>
+<link rel="icon" href="./favicon.ico">
+<link rel="apple-touch-icon" href="./icons/icon-192.png">
+<link rel="manifest" href="./manifest.json">
+<meta name="theme-color" content="#0f1020">
 <meta charset="UTF-8">
 <meta name="viewport"
 content="width=device-width,
@@ -1052,7 +1056,7 @@ user-scalable=no">
   }
 
   function isValidCTN(value){
-    return /^(?=.*[A-Z])(?=.*\d)[A-Z0-9]{7}$/.test(value);
+    return /^[A-Z]{2}\d{2}[A-Z]{2}[A-Z0-9]$/.test(value);
   }
 
   function getCardIds(fieldKey){
@@ -1265,8 +1269,8 @@ user-scalable=no">
           <div>前置完全（框）：${escapeHtml(formData.sb_pre_complete)}</div>
           <div>前置瓶頸研磨：${escapeHtml(formData.sb_neck_grind)}</div>
           <div>前置CTN防護：${escapeHtml(formData.sb_pre_ctn_protect)}</div>
-          <div>框架CTN掃描（${scanState.sb_frame_scan.length}）：${nl2br(formData.sb_frame_scan)}</div>
-          <div>散支鋼瓶CTN掃描（${scanState.sb_cylinder_scan.length}）：${nl2br(formData.sb_cylinder_scan)}</div>
+          <div>框架CTN掃描數量：${scanState.sb_frame_scan.length}</div>
+          <div>散支鋼瓶CTN掃描數量：${scanState.sb_cylinder_scan.length}</div>
           <div>噴砂備註：${nl2br(formData.sb_note)}</div>
         </div>
       `;
@@ -1571,3 +1575,4 @@ user-scalable=no">
 </script>
 </body>
 </html>
+
