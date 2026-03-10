@@ -963,6 +963,8 @@ user-scalable=no">
 
       applyFormDataToUI(draft.activePageId || "page1");
       showDraftBanner("已恢復上次未送出的草稿");
+       autoHide: true,
+       duration: 4000
     }
     catch(err){
       console.error("草稿讀取失敗", err);
@@ -1118,19 +1120,43 @@ user-scalable=no">
     }
   }
 
-  function showDraftBanner(message){
+  function showDraftBanner(message, options = {}){
+    const {
+      autoHide = true,
+      duration = 5000
+    } = options;
+  
     const banner = document.getElementById("draftBanner");
+  
     banner.innerHTML = `
       <div>${message}</div>
       <div class="draft-actions">
-        <button type="button" class="btn-danger" onclick="clearDraft(true)">清除草稿</button>
+        <button type="button" class="btn-danger" onclick="hideDraftBanner()">關閉提示</button>
       </div>
     `;
+  
     banner.style.display = "block";
-
-    setTimeout(()=>{
-      banner.style.display = "none";
-    }, 3500);
+  
+    if(window.__draftBannerTimer){
+      clearTimeout(window.__draftBannerTimer);
+      window.__draftBannerTimer = null;
+    }
+  
+    if(autoHide){
+      window.__draftBannerTimer = setTimeout(()=>{
+        hideDraftBanner();
+      }, duration);
+    }
+  }
+  
+  function hideDraftBanner(){
+    const banner = document.getElementById("draftBanner");
+    banner.style.display = "none";
+  
+    if(window.__draftBannerTimer){
+      clearTimeout(window.__draftBannerTimer);
+      window.__draftBannerTimer = null;
+    }
   }
 
   function normalizeCTN(value){
@@ -1659,5 +1685,6 @@ user-scalable=no">
 </script>
 </body>
 </html>
+
 
 
