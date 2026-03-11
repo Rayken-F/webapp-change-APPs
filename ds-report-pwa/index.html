@@ -1451,33 +1451,60 @@ user-scalable=no">
   }
 
   function showDraftBanner(message, options = {}){
-    const {
-      autoHide = true,
-      duration = 5000
-    } = options;
-  
-    const banner = document.getElementById("draftBanner");
-  
-    banner.innerHTML = `
-      <div>${message}</div>
-      <div class="draft-actions">
-        <button type="button" class="btn-danger" onclick="hideDraftBanner()">關閉提示</button>
-      </div>
-    `;
-  
-    banner.style.display = "block";
-  
-    if(window.__draftBannerTimer){
-      clearTimeout(window.__draftBannerTimer);
-      window.__draftBannerTimer = null;
-    }
-  
-    if(autoHide){
-      window.__draftBannerTimer = setTimeout(()=>{
-        hideDraftBanner();
-      }, duration);
-    }
-  }
+	  const {
+	    autoHide = true,
+	    duration = 5000,
+	    countdown = false
+	  } = options;
+	
+	  const banner = document.getElementById("draftBanner");
+	
+	  if(window.__draftBannerTimer){
+	    clearTimeout(window.__draftBannerTimer);
+	    window.__draftBannerTimer = null;
+	  }
+	
+	  if(window.__draftBannerCountdownTimer){
+	    clearInterval(window.__draftBannerCountdownTimer);
+	    window.__draftBannerCountdownTimer = null;
+	  }
+	
+	  const closeButtonId = "draftBannerCloseBtn";
+	
+	  banner.innerHTML = `
+	    <div>${message}</div>
+	    <div class="draft-actions">
+	      <button type="button" class="btn-danger" id="${closeButtonId}" onclick="hideDraftBanner()">關閉提示</button>
+	    </div>
+	  `;
+	
+	  banner.style.display = "block";
+	
+	  if(autoHide){
+	    if(countdown){
+	      const btn = document.getElementById(closeButtonId);
+	      let remain = Math.ceil(duration / 1000);
+	
+	      if(btn){
+	        btn.innerText = `關閉提示(${remain})`;
+	      }
+	
+	      window.__draftBannerCountdownTimer = setInterval(()=>{
+	        remain--;
+	
+	        if(remain > 0){
+	          if(btn){
+	            btn.innerText = `關閉提示(${remain})`;
+	          }
+	        }
+	      }, 1000);
+	    }
+	
+	    window.__draftBannerTimer = setTimeout(()=>{
+	      hideDraftBanner();
+	    }, duration);
+	  }
+	}
   
   function hideDraftBanner(){
     const banner = document.getElementById("draftBanner");
@@ -2384,6 +2411,7 @@ function escapeAttribute(value){
 </script>
 </body>
 </html>
+
 
 
 
