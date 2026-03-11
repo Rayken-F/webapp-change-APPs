@@ -1688,7 +1688,58 @@ user-scalable=no">
     persistDraft();
   }
 
-  function submitReport(){
+  async function submitReport(){
+   if(sending) return;
+ 
+   saveData();
+ 
+   if(formData.site !== "自動噴砂站"){
+     alert("目前先只開放測試自動噴砂站送出");
+     return;
+   }
+ 
+   const payload = {
+     "日期": formData.date || "",
+     "填表人員": formData.person || "",
+     "站別": formData.site || "",
+     "人員姓名": Array.isArray(formData.workers) ? formData.workers.join(", ") : "",
+ 
+     "框架編號(拆卸)": formData.sb_frame_remove || "",
+     "前置完全(框)": formData.sb_pre_complete || "",
+     "前置瓶頸研磨": formData.sb_neck_grind || "",
+     "前置CTN防護": formData.sb_pre_ctn_protect || "",
+     "框架CTN掃描": formData.sb_frame_scan || "",
+     "散支鋼瓶CTN掃描": formData.sb_cylinder_scan || "",
+     "噴砂備註": formData.sb_note || ""
+   };
+ 
+   try {
+     sending = true;
+     document.getElementById("loadingBox").innerText = "送出中...";
+     document.getElementById("loadingBox").style.display = "flex";
+ 
+     const result = await submitDailyReportAPI(payload);
+     console.log("送出成功：", result);
+ 
+     clearDraft(false);
+     document.getElementById("loadingBox").innerText = "✅ 送出成功";
+ 
+     setTimeout(()=>{
+       location.reload();
+     }, 1200);
+ 
+   } catch (err) {
+     console.error("送出失敗", err);
+     sending = false;
+     document.getElementById("loadingBox").innerText = `❌ 送出失敗：${err.message || "未知錯誤"}`;
+ 
+     setTimeout(()=>{
+       document.getElementById("loadingBox").style.display = "none";
+     }, 2200);
+   }
+ }
+  //舊版備份
+  /*function submitReport(){
     if(sending) return;
 
     saveData();
@@ -1747,7 +1798,7 @@ user-scalable=no">
       formData.photo = "";
       doSubmit();
     }
-  }
+  }*/
 
   function validatePage1(){
     clearErrors();
@@ -1899,6 +1950,7 @@ user-scalable=no">
 </script>
 </body>
 </html>
+
 
 
 
