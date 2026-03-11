@@ -1443,7 +1443,8 @@ user-scalable=no">
   
     if(showMessage){
       showDraftBanner("草稿已清除，已返回首頁", {
-        autoHide: false
+        autoHide = true,
+      	duration = 3000
       });
     }
   }
@@ -2382,15 +2383,3 @@ function escapeAttribute(value){
 </script>
 </body>
 </html>
-
-
-
-
-
-
-
-
-
-
-
-
