@@ -1728,7 +1728,7 @@ user-scalable=no">
           <div>UT上下料鋼瓶數量（支）：${escapeHtml(formData.ut_load_count)}</div>
           <div>噴砂後下框（框）：${escapeHtml(formData.ut_unload_frame)}</div>
           <div>治具安裝（框）：${escapeHtml(formData.ut_fixture_install)}</div>
-          <div>噴砂數量（隻）：${escapeHtml(formData.ut_sand_count)}</div>
+          <div>噴砂數量(支)：${escapeHtml(formData.ut_sand_count)}</div>
           <div>UT站別備註：${nl2br(formData.ut_note)}</div>
         </div>
       `;
@@ -1853,7 +1853,7 @@ user-scalable=no">
 		    "UT上下料鋼瓶數量(支)": formData.ut_load_count || "",
 		    "噴砂後下框(框)": formData.ut_unload_frame || "",
 		    "治具安裝(框)": formData.ut_fixture_install || "",
-		    "噴砂數量(隻)": formData.ut_sand_count || "",
+		    "噴砂數量(支)": formData.ut_sand_count || "",
 		    "UT站別備註": formData.ut_note || ""
 		  };
 		}
@@ -2429,6 +2429,7 @@ function toUpperSafe(value){
 </script>
 </body>
 </html>
+
 
 
 
