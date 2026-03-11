@@ -1795,7 +1795,7 @@ user-scalable=no">
 		        <div>框架編號（組裝）：${escapeHtml(frame.frameId)}</div>
 		        <div>RT料號：${escapeHtml(frame.rtNo)}</div>
 		        <div>框架CTN（組裝）：${escapeHtml(frame.frameCtn)}</div>
-		        <div>集束備註：${nl2br(frame.note)}</div>
+		        <div>集束備註：${nl2br(buildBundleNoteText(frame))}</div>
 		      </div>
 		    `;
 		  });
@@ -2111,6 +2111,24 @@ function getDefaultBundleNote(inDate = "", doneDate = ""){
   return `${inText}\n${doneText}`;
 }
 
+function buildBundleNoteText(frame){
+  const lines = [];
+
+  if(frame.inDate){
+    lines.push(`${frame.inDate} 入框`);
+  }
+
+  if(frame.doneDate){
+    lines.push(`${frame.doneDate} 完成`);
+  }
+
+  if(frame.extraNote && String(frame.extraNote).trim()){
+    lines.push(String(frame.extraNote).trim());
+  }
+
+  return lines.join("\n");
+}
+
 function createEmptyBundleFrame(index){
   return {
     frameNo:index + 1,
@@ -2122,7 +2140,7 @@ function createEmptyBundleFrame(index){
     frameCtn:"",
     inDate:"",
     doneDate:"",
-    note:getDefaultBundleNote("", "")
+    extraNote:""
   };
 }
 
@@ -2145,18 +2163,18 @@ function ensureBundleFramesLength(targetCount){
     formData.bundle_frames = formData.bundle_frames.slice(0, targetCount);
   }
 
-	formData.bundle_frames = formData.bundle_frames.map((frame, index) => ({
-	  frameNo:index + 1,
-	  status:frame.status || "",
-	  type:frame.type || "",
-	  frameType:frame.frameType || "",
-	  frameId:frame.frameId || "",
-	  rtNo:frame.rtNo || "",
-	  frameCtn:frame.frameCtn || "",
-	  inDate:frame.inDate || "",
-	  doneDate:frame.doneDate || "",
-	  note:frame.note || getDefaultBundleNote(frame.inDate || "", frame.doneDate || "")
-	}));
+  formData.bundle_frames = formData.bundle_frames.map((frame, index) => ({
+    frameNo:index + 1,
+    status:frame.status || "",
+    type:frame.type || "",
+    frameType:frame.frameType || "",
+    frameId:frame.frameId || "",
+    rtNo:frame.rtNo || "",
+    frameCtn:frame.frameCtn || "",
+    inDate:frame.inDate || "",
+    doneDate:frame.doneDate || "",
+    extraNote:frame.extraNote || ""
+  }));
 }
 
 function renderBundleCards(){
@@ -2258,27 +2276,34 @@ function renderBundleCards(){
       </div>
 
       <div class="bundle-field-block">
-			  <div class="form-title">集束備註</div>
-			
-			  <div class="bundle-note-date-row">
-			    <input
-			      type="date"
-			      class="bundle-in-date"
-			      data-frame-index="${index}"
-			      value="${escapeAttribute(frame.inDate || "")}"
-			    >
-			    <span class="bundle-note-fixed-text">入框</span>
-			  </div>
-			
-			  <div class="bundle-note-date-row">
-			    <input
-			      type="date"
-			      class="bundle-done-date"
-			      data-frame-index="${index}"
-			      value="${escapeAttribute(frame.doneDate || "")}"
-			    >
-			    <span class="bundle-note-fixed-text">完成</span>
-			  </div>
+        <div class="form-title">集束備註</div>
+      
+        <div class="bundle-note-date-row">
+          <input
+            type="date"
+            class="bundle-in-date"
+            data-frame-index="${index}"
+            value="${escapeAttribute(frame.inDate || "")}"
+          >
+          <span class="bundle-note-fixed-text">入框</span>
+        </div>
+      
+        <div class="bundle-note-date-row">
+          <input
+            type="date"
+            class="bundle-done-date"
+            data-frame-index="${index}"
+            value="${escapeAttribute(frame.doneDate || "")}"
+          >
+          <span class="bundle-note-fixed-text">完成</span>
+        </div>
+      
+        <textarea
+          class="form-input bundle-note-textarea"
+          data-frame-index="${index}"
+          placeholder="請輸入其他集束備註..."
+        >${escapeHtml(frame.extraNote || "")}</textarea>
+      </div>
 			
 			  <div class="bundle-note-preview">${escapeHtml(getDefaultBundleNote(frame.inDate || "", frame.doneDate || ""))}</div>
 			</div>
@@ -2315,24 +2340,26 @@ function collectBundleFramesFromUI(){
     const frameIdEl = document.querySelector(`.bundle-frame-id[data-frame-index="${i}"]`);
     const rtNoEl = document.querySelector(`.bundle-rt-no[data-frame-index="${i}"]`);
     const frameCtnEl = document.querySelector(`.bundle-frame-ctn[data-frame-index="${i}"]`);
-		const inDateEl = document.querySelector(`.bundle-in-date[data-frame-index="${i}"]`);
-		const doneDateEl = document.querySelector(`.bundle-done-date[data-frame-index="${i}"]`);
-		
-		const inDate = inDateEl ? inDateEl.value : "";
-		const doneDate = doneDateEl ? doneDateEl.value : "";
-		
-		frames.push({
-		  frameNo:i + 1,
-		  status:statusEl ? statusEl.value : "",
-		  type:typeEl ? typeEl.value : "",
-		  frameType:frameTypeEl ? frameTypeEl.value : "",
-		  frameId:frameIdEl ? frameIdEl.value : "",
-		  rtNo:rtNoEl ? rtNoEl.value : "",
-		  frameCtn:frameCtnEl ? frameCtnEl.value : "",
-		  inDate:inDate,
-		  doneDate:doneDate,
-		  note:getDefaultBundleNote(inDate, doneDate)
-		});
+    const inDateEl = document.querySelector(`.bundle-in-date[data-frame-index="${i}"]`);
+    const doneDateEl = document.querySelector(`.bundle-done-date[data-frame-index="${i}"]`);
+    const extraNoteEl = document.querySelector(`.bundle-note-textarea[data-frame-index="${i}"]`);
+    
+    const inDate = inDateEl ? inDateEl.value : "";
+    const doneDate = doneDateEl ? doneDateEl.value : "";
+    const extraNote = extraNoteEl ? extraNoteEl.value : "";
+    
+    frames.push({
+      frameNo:i + 1,
+      status:statusEl ? statusEl.value : "",
+      type:typeEl ? typeEl.value : "",
+      frameType:frameTypeEl ? frameTypeEl.value : "",
+      frameId:frameIdEl ? frameIdEl.value : "",
+      rtNo:rtNoEl ? rtNoEl.value : "",
+      frameCtn:frameCtnEl ? frameCtnEl.value : "",
+      inDate:inDate,
+      doneDate:doneDate,
+      extraNote:extraNote
+    });
   }
 
   formData.bundle_frame_count = count;
@@ -2419,6 +2446,7 @@ function escapeAttribute(value){
 </script>
 </body>
 </html>
+
 
 
 
