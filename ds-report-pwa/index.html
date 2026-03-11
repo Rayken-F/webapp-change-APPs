@@ -1825,39 +1825,53 @@ user-scalable=no">
 	
 	  saveData();
 	
-	  let payload = null;
-	
-	  if(formData.site === "自動噴砂站"){
-	    payload = {
-	      "日期": formData.date || "",
-	      "填表人員": formData.person || "",
-	      "站別": formData.site || "",
-	      "人員姓名": Array.isArray(formData.workers) ? formData.workers.join(", ") : "",
-	
-	      "框架編號(拆卸)": formData.sb_frame_remove || "",
-	      "前置完全(框)": formData.sb_pre_complete || "",
-	      "前置瓶頸研磨": formData.sb_neck_grind || "",
-	      "前置CTN防護": formData.sb_pre_ctn_protect || "",
-	      "框架CTN掃描": formData.sb_frame_scan || "",
-	      "散支鋼瓶CTN掃描": formData.sb_cylinder_scan || "",
-	      "噴砂備註": formData.sb_note || ""
-	    };
-	  }
-	  else if(formData.site === "集束中心"){
-	    collectBundleFramesFromUI();
-	
-	    payload = {
-	      "日期": formData.date || "",
-	      "填表人員": formData.person || "",
-	      "站別": formData.site || "",
-	      "人員姓名": Array.isArray(formData.workers) ? formData.workers.join(", ") : "",
-	      "bundle_frames": Array.isArray(formData.bundle_frames) ? formData.bundle_frames : []
-	    };
-	  }
-	  else{
-	    alert("目前先開放測試：自動噴砂站、集束中心");
-	    return;
-	  }
+	 	let payload = null;
+
+		if(formData.site === "自動噴砂站"){
+		  payload = {
+		    "日期": formData.date || "",
+		    "填表人員": formData.person || "",
+		    "站別": formData.site || "",
+		    "人員姓名": Array.isArray(formData.workers) ? formData.workers.join(", ") : "",
+		
+		    "框架編號(拆卸)": formData.sb_frame_remove || "",
+		    "前置完全(框)": formData.sb_pre_complete || "",
+		    "前置瓶頸研磨": formData.sb_neck_grind || "",
+		    "前置CTN防護": formData.sb_pre_ctn_protect || "",
+		    "框架CTN掃描": formData.sb_frame_scan || "",
+		    "散支鋼瓶CTN掃描": formData.sb_cylinder_scan || "",
+		    "噴砂備註": formData.sb_note || ""
+		  };
+		}
+		else if(formData.site === "UT站"){
+		  payload = {
+		    "日期": formData.date || "",
+		    "填表人員": formData.person || "",
+		    "站別": formData.site || "",
+		    "人員姓名": Array.isArray(formData.workers) ? formData.workers.join(", ") : "",
+		
+		    "UT上下料鋼瓶數量(支)": formData.ut_load_count || "",
+		    "噴砂後下框(框)": formData.ut_unload_frame || "",
+		    "治具安裝(框)": formData.ut_fixture_install || "",
+		    "噴砂數量(隻)": formData.ut_sand_count || "",
+		    "UT站別備註": formData.ut_note || ""
+		  };
+		}
+		else if(formData.site === "集束中心"){
+		  collectBundleFramesFromUI();
+		
+		  payload = {
+		    "日期": formData.date || "",
+		    "填表人員": formData.person || "",
+		    "站別": formData.site || "",
+		    "人員姓名": Array.isArray(formData.workers) ? formData.workers.join(", ") : "",
+		    "bundle_frames": Array.isArray(formData.bundle_frames) ? formData.bundle_frames : []
+		  };
+		}
+		else{
+		  alert("目前先開放測試：自動噴砂站、UT站、集束中心");
+		  return;
+		}
 	
 	  try {
 	    sending = true;
@@ -2415,6 +2429,7 @@ function toUpperSafe(value){
 </script>
 </body>
 </html>
+
 
 
 
