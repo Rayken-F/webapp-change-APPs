@@ -1883,8 +1883,27 @@ user-scalable=no">
 		    "鋼印鎖瓶站備註": formData.stamp_note || ""
 		  };
 		}
+    else if(formData.site === "專案"){
+      payload = {
+        "日期": formData.date || "",
+        "填表人員": formData.person || "",
+        "站別": formData.site || "",
+        "人員姓名": Array.isArray(formData.workers) ? formData.workers.join(", ") : "",
+    
+        "專案項目": formData.project_item || "",
+        "新鋼瓶下棧板（支）": formData.proj_new_cylinder || "",
+        "鋼瓶註冊（支）": formData.proj_register || "",
+        "瓶閥安裝（支）": formData.proj_valve_install || "",
+        "鋼瓶入框（框）": formData.proj_cylinder_frame || "",
+        "集束安裝（框）": formData.proj_bundle_install || "",
+        "集束測漏（框）": formData.proj_bundle_leak || "",
+        "維修框架CTN": formData.proj_repair_ctn || "",
+        "專案備註": formData.proj_note || "",
+        "照片上傳": ""
+      };
+    }
 		else{
-		  alert("目前先開放測試：自動噴砂站、UT站、鋼印鋼瓶站、集束中心");
+		  //alert("目前先開放測試：自動噴砂站、UT站、鋼印鋼瓶站、集束中心、專案");
 		  return;
 		}
 	
@@ -2444,6 +2463,7 @@ function toUpperSafe(value){
 </script>
 </body>
 </html>
+
 
 
 
