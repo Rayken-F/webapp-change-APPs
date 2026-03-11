@@ -876,12 +876,24 @@ user-scalable=no">
 
       <div class="form-card">
         <div class="form-title">專案項目</div>
-        <select id="project_item" class="form-input">
-          <option value="">請選擇</option>
-          <option value="專案A">專案A</option>
-          <option value="專案B">專案B</option>
-          <option value="其他">其他</option>
-        </select>
+		<select id="project_item" class="form-input">
+		  <option value="">請選擇</option>
+		  <option value="新集束 He 30組 2025/12月出15組，剩餘1組manifold維修延至2026/4月">
+		    新集束 He 30組 2025/12月出15組，剩餘1組manifold維修延至2026/4月
+		  </option>
+		  <option value="新集束 H2 43組 2026/02/28前已出 150bar 15框，200bar延長到2026/4月">
+		    新集束 H2 43組 2026/02/28前已出 150bar 15框，200bar延長到2026/4月
+		  </option>
+		  <option value="新鋼瓶組裝 150支 GCA718， 40支 JIS L22 (2026/3/3啟動,deadline 3/15前)">
+		    新鋼瓶組裝 150支 GCA718， 40支 JIS L22 (2026/3/3啟動,deadline 3/15前)
+		  </option>
+		  <option value="舊鋼瓶 安南LINX轉集束 60組">
+		    舊鋼瓶 安南LINX轉集束 60組
+		  </option>
+		  <option value="報廢鋼瓶">
+		    報廢鋼瓶
+		  </option>
+		</select>
       </div>
 
       <div class="form-card">
@@ -1170,7 +1182,7 @@ user-scalable=no">
     formData.proj_cylinder_frame = getValue("proj_cylinder_frame");
     formData.proj_bundle_install = getValue("proj_bundle_install");
     formData.proj_bundle_leak = getValue("proj_bundle_leak");
-    formData.proj_repair_ctn = getValue("proj_repair_ctn");
+    formData.proj_repair_ctn = toUpperSafe(getValue("proj_repair_ctn"));
     formData.proj_note = getValue("proj_note");
   }
 
@@ -1315,8 +1327,12 @@ user-scalable=no">
         el.value = formData[key] || "";
       }
     });
+	const projRepairCtnEl = document.getElementById("proj_repair_ctn");
+	if(projRepairCtnEl){
+	  projRepairCtnEl.value = toUpperSafe(projRepairCtnEl.value);
+	}
 
-		const bundleCountInput = document.getElementById("bundle_frame_count");
+	const bundleCountInput = document.getElementById("bundle_frame_count");
     if(bundleCountInput){
       bundleCountInput.value = normalizeBundleFrameCount(formData.bundle_frame_count || 1);
     }
@@ -2059,29 +2075,34 @@ user-scalable=no">
     });
   }
 
-  function bindUppercaseInputs(){
-    const sbFrameRemove = document.getElementById("sb_frame_remove");
-  
-    if(sbFrameRemove){
-      sbFrameRemove.addEventListener("input", function(){
-        const start = this.selectionStart;
-        const end = this.selectionEnd;
-  
-        this.value = toUpperSafe(this.value);
-  
-        if(typeof start === "number" && typeof end === "number"){
-          this.setSelectionRange(start, end);
-        }
-  
-        persistDraft();
-      });
-  
-      sbFrameRemove.addEventListener("change", function(){
-        this.value = toUpperSafe(this.value);
-        persistDraft();
-      });
-    }
-  }
+	function bindUppercaseInputs(){
+	  const uppercaseTargets = [
+	    document.getElementById("sb_frame_remove"),
+	    document.getElementById("proj_repair_ctn")
+	  ];
+	
+	  uppercaseTargets.forEach(target => {
+	    if(!target) return;
+	
+	    target.addEventListener("input", function(){
+	      const start = this.selectionStart;
+	      const end = this.selectionEnd;
+	
+	      this.value = toUpperSafe(this.value);
+	
+	      if(typeof start === "number" && typeof end === "number"){
+	        this.setSelectionRange(start, end);
+	      }
+	
+	      persistDraft();
+	    });
+	
+	    target.addEventListener("change", function(){
+	      this.value = toUpperSafe(this.value);
+	      persistDraft();
+	    });
+	  });
+	}
 
   window.onload = function(){
     updateStep(1);
@@ -2463,6 +2484,7 @@ function toUpperSafe(value){
 </script>
 </body>
 </html>
+
 
 
 
