@@ -1116,26 +1116,67 @@ user-scalable=no">
   function loadDraft(){
     const raw = localStorage.getItem(STORAGE_KEY);
     if(!raw) return;
-
+  
     try{
       const draft = JSON.parse(raw);
       if(!draft || !draft.formData) return;
-
+  
+      const today = new Date().toISOString().split("T")[0];
+      const draftDate = draft.formData.date || "";
+      const isCrossDayDraft = draftDate && draftDate !== today;
+  
+      if(isCrossDayDraft){
+        const shouldApply = window.confirm(
+          `偵測到前一日未送出草稿（${draftDate}），是否套用內容到今天？`
+        );
+  
+        if(!shouldApply){
+          localStorage.removeItem(STORAGE_KEY);
+          showDraftBanner("已略過前一日草稿，系統將以今日空白表單開始", {
+            autoHide: true,
+            duration: 5000
+          });
+          return;
+        }
+      }
+  
       Object.keys(formData).forEach(key => {
         if(draft.formData.hasOwnProperty(key)){
-          formData[key] = draft.formData[key];
+          if(key === "date"){
+            formData.date = today;
+          }
+          else{
+            formData[key] = draft.formData[key];
+          }
         }
       });
-
+  
       if(draft.scanState){
-        scanState.sb_frame_scan = Array.isArray(draft.scanState.sb_frame_scan) ? draft.scanState.sb_frame_scan : [];
-        scanState.sb_cylinder_scan = Array.isArray(draft.scanState.sb_cylinder_scan) ? draft.scanState.sb_cylinder_scan : [];
+        scanState.sb_frame_scan = Array.isArray(draft.scanState.sb_frame_scan)
+          ? draft.scanState.sb_frame_scan
+          : [];
+  
+        scanState.sb_cylinder_scan = Array.isArray(draft.scanState.sb_cylinder_scan)
+          ? draft.scanState.sb_cylinder_scan
+          : [];
       }
-
+  
       applyFormDataToUI(draft.activePageId || "page1");
-      showDraftBanner("已恢復上次未送出的草稿");
-       autoHide = true,
-       duration = 4000
+  
+      if(isCrossDayDraft){
+        showDraftBanner(`已套用 ${draftDate} 的未送出草稿內容，日期已更新為今天`, {
+          autoHide: true,
+          duration: 5000
+        });
+      }
+      else{
+        showDraftBanner("已恢復上次未送出的草稿", {
+          autoHide: true,
+          duration: 5000
+        });
+      }
+  
+      persistDraft();
     }
     catch(err){
       console.error("草稿讀取失敗", err);
@@ -1858,6 +1899,7 @@ user-scalable=no">
 </script>
 </body>
 </html>
+
 
 
 
