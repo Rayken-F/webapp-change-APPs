@@ -1271,11 +1271,17 @@ user-scalable=no">
     }
   }
 
-  function clearDraft(showMessage){
-    const confirmed = window.confirm("是否清除草稿？\n清除後，當前所有未送出的資料都會消失。");
+  function clearDraft(showMessage, options = {}){
+    const {
+      requireConfirm = true
+    } = options;
   
-    if(!confirmed){
-      return;
+    if(requireConfirm){
+      const confirmed = window.confirm("是否清除草稿？\n清除後，當前所有未送出的資料都會消失。");
+  
+      if(!confirmed){
+        return;
+      }
     }
   
     localStorage.removeItem(STORAGE_KEY);
@@ -1330,7 +1336,9 @@ user-scalable=no">
     window.scrollTo({top:0,behavior:"smooth"});
   
     if(showMessage){
-      showDraftBanner("草稿已清除，已返回首頁");
+      showDraftBanner("草稿已清除，已返回首頁", {
+        autoHide: false
+      });
     }
   }
 
@@ -1721,7 +1729,9 @@ user-scalable=no">
      const result = await submitDailyReportAPI(payload);
      console.log("送出成功：", result);
  
-     clearDraft(false);
+     clearDraft(false, {
+       requireConfirm: false
+     });
      document.getElementById("loadingBox").innerText = "✅ 送出成功";
  
      setTimeout(()=>{
@@ -1950,6 +1960,7 @@ user-scalable=no">
 </script>
 </body>
 </html>
+
 
 
 
