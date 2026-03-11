@@ -1241,7 +1241,8 @@ user-scalable=no">
           localStorage.removeItem(STORAGE_KEY);
           showDraftBanner("已略過前一日草稿，系統將以今日空白表單開始", {
             autoHide: true,
-            duration: 5000
+            duration: 5000,
+			countdown: true
           });
           return;
         }
@@ -1480,6 +1481,12 @@ user-scalable=no">
 	  `;
 	
 	  banner.style.display = "block";
+	  setTimeout(() => {
+	  window.scrollTo({
+	    top: 0,
+	    behavior: "smooth"
+	  });
+	}, 50);
 	
 	  if(autoHide){
 	    if(countdown){
@@ -2412,6 +2419,7 @@ function escapeAttribute(value){
 </script>
 </body>
 </html>
+
 
 
 
