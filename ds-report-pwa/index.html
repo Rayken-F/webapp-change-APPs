@@ -1443,7 +1443,9 @@ user-scalable=no">
   
     if(showMessage){
       showDraftBanner("草稿已清除，已返回首頁", {
-        autoHide = flase;
+        autoHide: true,
+	    duration: 3000,
+	    countdown: true
       });
     }
   }
@@ -2382,6 +2384,7 @@ function escapeAttribute(value){
 </script>
 </body>
 </html>
+
 
 
 
