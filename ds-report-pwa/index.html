@@ -600,8 +600,46 @@ user-scalable=no">
   .bundle-note-textarea{
     min-height:120px;
     white-space:pre-wrap;
+  } 
+
+	.bundle-note-date-row{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    margin-bottom:10px;
+    flex-wrap:wrap;
   }
 
+  .bundle-note-date-row input[type="date"]{
+    width:170px;
+    padding:10px 12px;
+    border:none;
+    outline:none;
+    border-radius:12px;
+    background:rgba(255,255,255,0.10);
+    color:#fff;
+    font-size:14px;
+    border:1px solid rgba(255,255,255,0.12);
+  }
+
+  .bundle-note-fixed-text{
+    color:rgba(240,244,255,0.92);
+    font-weight:700;
+    font-size:14px;
+  }
+
+  .bundle-note-preview{
+    margin-top:10px;
+    padding:12px 14px;
+    border-radius:14px;
+    background:rgba(255,255,255,0.05);
+    border:1px solid rgba(255,255,255,0.08);
+    color:rgba(240,244,255,0.88);
+    line-height:1.8;
+    white-space:pre-line;
+    font-size:14px;
+  }
+	
   @media (max-width:768px){
     .bundle-radio-grid{
       grid-template-columns:repeat(2,minmax(0,1fr));
@@ -2030,8 +2068,10 @@ user-scalable=no">
     loadDraft();
   };
 /** 集束中心功能區*/
-function getDefaultBundleNote(){
-  return "____/__/__ 入框\n____/__/__ 完成";
+function getDefaultBundleNote(inDate = "", doneDate = ""){
+  const inText = inDate ? `${inDate} 入框` : "入框";
+  const doneText = doneDate ? `${doneDate} 完成` : "完成";
+  return `${inText}\n${doneText}`;
 }
 
 function createEmptyBundleFrame(index){
@@ -2043,7 +2083,9 @@ function createEmptyBundleFrame(index){
     frameId:"",
     rtNo:"",
     frameCtn:"",
-    note:getDefaultBundleNote()
+    inDate:"",
+    doneDate:"",
+    note:getDefaultBundleNote("", "")
   };
 }
 
@@ -2066,16 +2108,18 @@ function ensureBundleFramesLength(targetCount){
     formData.bundle_frames = formData.bundle_frames.slice(0, targetCount);
   }
 
-  formData.bundle_frames = formData.bundle_frames.map((frame, index) => ({
-    frameNo:index + 1,
-    status:frame.status || "",
-    type:frame.type || "",
-    frameType:frame.frameType || "",
-    frameId:frame.frameId || "",
-    rtNo:frame.rtNo || "",
-    frameCtn:frame.frameCtn || "",
-    note:frame.note || getDefaultBundleNote()
-  }));
+	formData.bundle_frames = formData.bundle_frames.map((frame, index) => ({
+	  frameNo:index + 1,
+	  status:frame.status || "",
+	  type:frame.type || "",
+	  frameType:frame.frameType || "",
+	  frameId:frame.frameId || "",
+	  rtNo:frame.rtNo || "",
+	  frameCtn:frame.frameCtn || "",
+	  inDate:frame.inDate || "",
+	  doneDate:frame.doneDate || "",
+	  note:frame.note || getDefaultBundleNote(frame.inDate || "", frame.doneDate || "")
+	}));
 }
 
 function renderBundleCards(){
@@ -2177,12 +2221,30 @@ function renderBundleCards(){
       </div>
 
       <div class="bundle-field-block">
-        <div class="form-title">集束備註</div>
-        <textarea
-          class="form-input bundle-note-textarea"
-          data-frame-index="${index}"
-        >${escapeHtml(frame.note)}</textarea>
-      </div>
+			  <div class="form-title">集束備註</div>
+			
+			  <div class="bundle-note-date-row">
+			    <input
+			      type="date"
+			      class="bundle-in-date"
+			      data-frame-index="${index}"
+			      value="${escapeAttribute(frame.inDate || "")}"
+			    >
+			    <span class="bundle-note-fixed-text">入框</span>
+			  </div>
+			
+			  <div class="bundle-note-date-row">
+			    <input
+			      type="date"
+			      class="bundle-done-date"
+			      data-frame-index="${index}"
+			      value="${escapeAttribute(frame.doneDate || "")}"
+			    >
+			    <span class="bundle-note-fixed-text">完成</span>
+			  </div>
+			
+			  <div class="bundle-note-preview">${escapeHtml(getDefaultBundleNote(frame.inDate || "", frame.doneDate || ""))}</div>
+			</div>
     </div>
   `).join("");
 }
@@ -2216,18 +2278,24 @@ function collectBundleFramesFromUI(){
     const frameIdEl = document.querySelector(`.bundle-frame-id[data-frame-index="${i}"]`);
     const rtNoEl = document.querySelector(`.bundle-rt-no[data-frame-index="${i}"]`);
     const frameCtnEl = document.querySelector(`.bundle-frame-ctn[data-frame-index="${i}"]`);
-    const noteEl = document.querySelector(`.bundle-note-textarea[data-frame-index="${i}"]`);
-
-    frames.push({
-      frameNo:i + 1,
-      status:statusEl ? statusEl.value : "",
-      type:typeEl ? typeEl.value : "",
-      frameType:frameTypeEl ? frameTypeEl.value : "",
-      frameId:frameIdEl ? frameIdEl.value : "",
-      rtNo:rtNoEl ? rtNoEl.value : "",
-      frameCtn:frameCtnEl ? frameCtnEl.value : "",
-      note:noteEl ? noteEl.value : getDefaultBundleNote()
-    });
+		const inDateEl = document.querySelector(`.bundle-in-date[data-frame-index="${i}"]`);
+		const doneDateEl = document.querySelector(`.bundle-done-date[data-frame-index="${i}"]`);
+		
+		const inDate = inDateEl ? inDateEl.value : "";
+		const doneDate = doneDateEl ? doneDateEl.value : "";
+		
+		frames.push({
+		  frameNo:i + 1,
+		  status:statusEl ? statusEl.value : "",
+		  type:typeEl ? typeEl.value : "",
+		  frameType:frameTypeEl ? frameTypeEl.value : "",
+		  frameId:frameIdEl ? frameIdEl.value : "",
+		  rtNo:rtNoEl ? rtNoEl.value : "",
+		  frameCtn:frameCtnEl ? frameCtnEl.value : "",
+		  inDate:inDate,
+		  doneDate:doneDate,
+		  note:getDefaultBundleNote(inDate, doneDate)
+		});
   }
 
   formData.bundle_frame_count = count;
@@ -2238,24 +2306,58 @@ function bindBundleEvents(){
   const countInput = document.getElementById("bundle_frame_count");
   const container = document.getElementById("bundleCardsContainer");
 
-  if(countInput){
-    countInput.addEventListener("change", function(){
-      const count = normalizeBundleFrameCount(this.value);
-      this.value = count;
-
-      collectBundleFramesFromUI();
-      ensureBundleFramesLength(count);
-      renderBundleCards();
-      persistDraft();
-    });
-
-    countInput.addEventListener("input", function(){
-      const count = normalizeBundleFrameCount(this.value);
-      if(String(count) !== String(this.value)){
-        this.value = count;
-      }
-    });
-  }
+	if(countInput){
+	  countInput.addEventListener("focus", function(){
+	    if(String(this.value).trim() === "1"){
+	      this.select();
+	    }
+	  });
+	
+	  countInput.addEventListener("input", function(){
+	    const raw = String(this.value).trim();
+	
+	    if(raw === ""){
+	      return;
+	    }
+	
+	    const onlyDigits = raw.replace(/[^\d]/g, "");
+	    if(raw !== onlyDigits){
+	      this.value = onlyDigits;
+	    }
+	  });
+	
+	  countInput.addEventListener("blur", function(){
+	    let raw = String(this.value).trim();
+	
+	    if(raw === ""){
+	      raw = "1";
+	    }
+	
+	    const count = normalizeBundleFrameCount(raw);
+	    this.value = count;
+	
+	    collectBundleFramesFromUI();
+	    ensureBundleFramesLength(count);
+	    renderBundleCards();
+	    persistDraft();
+	  });
+	
+	  countInput.addEventListener("change", function(){
+	    let raw = String(this.value).trim();
+	
+	    if(raw === ""){
+	      raw = "1";
+	    }
+	
+	    const count = normalizeBundleFrameCount(raw);
+	    this.value = count;
+	
+	    collectBundleFramesFromUI();
+	    ensureBundleFramesLength(count);
+	    renderBundleCards();
+	    persistDraft();
+	  });
+	}
 
   if(container){
     container.addEventListener("input", function(){
@@ -2280,6 +2382,7 @@ function escapeAttribute(value){
 </script>
 </body>
 </html>
+
 
 
 
