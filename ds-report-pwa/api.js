@@ -1,27 +1,19 @@
-const API_URL =
-"https://script.google.com/macros/s/AKfycbzjwQZZn2nkko-WtLUSfY1_1xfgOXnESt6kQ-SMLlbFDthIowENSoXfrOhMH-dDCy7wPQ/exec";
-  
-function submitTest(){
+const API_URL = "https://script.google.com/macros/s/AKfycbwYjPR-mHy_UCRAAsvU84-3T_MMQcfKHX9PSR8Da7E2gQq3xVEcK0Fnz0JvrHaIHpem/exec";
 
-fetch(API_URL,{
-method:"POST",
-headers:{
-"Content-Type":"application/json"
-},
-body:JSON.stringify({
-test:"Hello DS"
-})
-})
-.then(r=>r.json())
-.then(res=>{
-console.log(res);
-alert("送出成功");
-})
-.catch(err=>{
-console.error(err);
-});
+async function submitDailyReportAPI(payload) {
+  const res = await fetch(API_URL, {
+    method: "POST",
+    headers: {
+      "Content-Type": "text/plain;charset=utf-8"
+    },
+    body: JSON.stringify(payload)
+  });
 
+  const result = await res.json();
+
+  if (!result.ok) {
+    throw new Error(result.message || "送出失敗");
+  }
+
+  return result;
 }
-
-
-
