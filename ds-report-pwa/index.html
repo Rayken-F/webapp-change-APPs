@@ -1140,7 +1140,7 @@ user-scalable=no">
     document.querySelectorAll(".checkbox-group input:checked").forEach(c => workers.push(c.value));
     formData.workers = workers;
 
-    formData.sb_frame_remove = getValue("sb_frame_remove");
+    formData.sb_frame_remove = toUpperSafe(getValue("sb_frame_remove"));
     formData.sb_pre_complete = getValue("sb_pre_complete");
     formData.sb_neck_grind = getValue("sb_neck_grind");
     formData.sb_pre_ctn_protect = getValue("sb_pre_ctn_protect");
@@ -2011,6 +2011,30 @@ user-scalable=no">
     });
   }
 
+  function bindUppercaseInputs(){
+    const sbFrameRemove = document.getElementById("sb_frame_remove");
+  
+    if(sbFrameRemove){
+      sbFrameRemove.addEventListener("input", function(){
+        const start = this.selectionStart;
+        const end = this.selectionEnd;
+  
+        this.value = toUpperSafe(this.value);
+  
+        if(typeof start === "number" && typeof end === "number"){
+          this.setSelectionRange(start, end);
+        }
+  
+        persistDraft();
+      });
+  
+      sbFrameRemove.addEventListener("change", function(){
+        this.value = toUpperSafe(this.value);
+        persistDraft();
+      });
+    }
+  }
+
   window.onload = function(){
     updateStep(1);
 
@@ -2024,6 +2048,7 @@ user-scalable=no">
     bindScanInput("sb_frame_scan");
     bindScanInput("sb_cylinder_scan");
     bindAutoSave();
+    bindUppercaseInputs();
 		renderBundleCards();
     bindBundleEvents();
     loadPerson();
@@ -2390,6 +2415,7 @@ function toUpperSafe(value){
 </script>
 </body>
 </html>
+
 
 
 
