@@ -667,7 +667,7 @@ user-scalable=no">
         <div class="radio-group">
           <label><input type="radio" name="site" value="自動噴砂站">⚙️ 自動噴砂站</label>
           <label><input type="radio" name="site" value="UT站">🔍 UT站</label>
-          <label><input type="radio" name="site" value="鋼印鋼瓶站">🔩 鋼印鋼瓶站</label>
+          <label><input type="radio" name="site" value="鋼印鎖瓶站">🔩 鋼印鎖瓶站</label>
           <label><input type="radio" name="site" value="集束中心">📦 集束中心</label>
           <label><input type="radio" name="site" value="專案">🚀 專案</label>
         </div>
@@ -796,10 +796,10 @@ user-scalable=no">
       </div>
     </div>
 
-    <!-- 鋼印鋼瓶站 -->
+    <!-- 鋼印鎖瓶站 -->
     <div id="pageStamp" class="page">
       <div class="form-card">
-        <div class="form-title">鋼印鋼瓶站</div>
+        <div class="form-title">鋼印鎖瓶站</div>
       </div>
 
       <div class="form-card">
@@ -818,7 +818,7 @@ user-scalable=no">
       </div>
 
       <div class="form-card">
-        <div class="form-title">改瓶數量（支）</div>
+        <div class="form-title">改瓶數量(支)</div>
         <input type="number" id="stamp_rework_count" class="form-input">
       </div>
 
@@ -1081,7 +1081,7 @@ user-scalable=no">
     else if(formData.site === "UT站"){
       targetPage = "pageUT";
     }
-    else if(formData.site === "鋼印鋼瓶站"){
+    else if(formData.site === "鋼印鎖瓶站"){
       targetPage = "pageStamp";
     }
     else if(formData.site === "集束中心"){
@@ -1734,13 +1734,13 @@ user-scalable=no">
       `;
     }
 
-    if(formData.site === "鋼印鋼瓶站"){
+    if(formData.site === "鋼印鎖瓶站"){
       html += `
         <div class="confirm-section">
           <div>HT鋼印（支）：${escapeHtml(formData.stamp_ht_mark)}</div>
           <div>UT鋼印（支）：${escapeHtml(formData.stamp_ut_mark)}</div>
           <div>待噴砂鋼瓶（框）：${escapeHtml(formData.stamp_wait_sand)}</div>
-          <div>改瓶數量（支）：${escapeHtml(formData.stamp_rework_count)}</div>
+          <div>改瓶數量(支)：${escapeHtml(formData.stamp_rework_count)}</div>
           <div>出貨（框）：${escapeHtml(formData.stamp_ship)}</div>
           <div>鋼印鎖瓶站備註：${nl2br(formData.stamp_note)}</div>
         </div>
@@ -1868,8 +1868,23 @@ user-scalable=no">
 		    "bundle_frames": Array.isArray(formData.bundle_frames) ? formData.bundle_frames : []
 		  };
 		}
+		else if(formData.site === "鋼印鎖瓶站"){
+		  payload = {
+		    "日期": formData.date || "",
+		    "填表人員": formData.person || "",
+		    "站別": formData.site || "",
+		    "人員姓名": Array.isArray(formData.workers) ? formData.workers.join(", ") : "",
+		
+		    "HT鋼印(支)": formData.stamp_ht_mark || "",
+		    "UT鋼印(支)": formData.stamp_ut_mark || "",
+		    "待噴砂鋼瓶(框)": formData.stamp_wait_sand || "",
+		    "改瓶數量(支)": formData.stamp_rework_count || "",
+		    "出貨(框)": formData.stamp_ship || "",
+		    "鋼印鎖瓶站備註": formData.stamp_note || ""
+		  };
+		}
 		else{
-		  alert("目前先開放測試：自動噴砂站、UT站、集束中心");
+		  alert("目前先開放測試：自動噴砂站、UT站、鋼印鋼瓶站、集束中心");
 		  return;
 		}
 	
@@ -1940,7 +1955,7 @@ user-scalable=no">
     else if(siteValue === "UT站"){
       targetPage = "pageUT";
     }
-    else if(siteValue === "鋼印鋼瓶站"){
+    else if(siteValue === "鋼印鎖瓶站"){
       targetPage = "pageStamp";
     }
     else if(siteValue === "集束中心"){
@@ -2429,6 +2444,7 @@ function toUpperSafe(value){
 </script>
 </body>
 </html>
+
 
 
 
