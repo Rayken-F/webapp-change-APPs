@@ -2222,7 +2222,7 @@ function renderBundleCards(){
           type="text"
           class="form-input bundle-frame-id"
           data-frame-index="${index}"
-          value="${escapeAttribute(frame.frameId)}"
+          value="${escapeAttribute(toUpperSafe(frame.frameId))}"
         >
       </div>
 
@@ -2242,7 +2242,7 @@ function renderBundleCards(){
           type="text"
           class="form-input bundle-frame-ctn"
           data-frame-index="${index}"
-          value="${escapeAttribute(frame.frameCtn)}"
+          value="${escapeAttribute(toUpperSafe(frame.frameCtn))}"
         >
       </div>
 
@@ -2322,9 +2322,9 @@ function collectBundleFramesFromUI(){
       status:statusEl ? statusEl.value : "",
       type:typeEl ? typeEl.value : "",
       frameType:frameTypeEl ? frameTypeEl.value : "",
-      frameId:frameIdEl ? frameIdEl.value : "",
+      frameId:frameIdEl ? toUpperSafe(frameIdEl.value) : "",
       rtNo:rtNoEl ? rtNoEl.value : "",
-      frameCtn:frameCtnEl ? frameCtnEl.value : "",
+      frameCtn:frameCtnEl ? toUpperSafe(frameCtnEl.value) : "",
       inDate:inDate,
       doneDate:doneDate,
       extraNote:extraNote
@@ -2393,12 +2393,30 @@ function bindBundleEvents(){
 	}
 
   if(container){
-    container.addEventListener("input", function(){
+    container.addEventListener("input", function(e){
+      const target = e.target;
+  
+      if(target.classList.contains("bundle-frame-id") || target.classList.contains("bundle-frame-ctn")){
+        const start = target.selectionStart;
+        const end = target.selectionEnd;
+        target.value = toUpperSafe(target.value);
+  
+        if(typeof start === "number" && typeof end === "number"){
+          target.setSelectionRange(start, end);
+        }
+      }
+  
       collectBundleFramesFromUI();
       persistDraft();
     });
-
-    container.addEventListener("change", function(){
+  
+    container.addEventListener("change", function(e){
+      const target = e.target;
+  
+      if(target.classList.contains("bundle-frame-id") || target.classList.contains("bundle-frame-ctn")){
+        target.value = toUpperSafe(target.value);
+      }
+  
       collectBundleFramesFromUI();
       persistDraft();
     });
@@ -2412,9 +2430,13 @@ function escapeAttribute(value){
     .replaceAll("<","&lt;")
     .replaceAll(">","&gt;");
 }
+function toUpperSafe(value){
+  return String(value || "").toUpperCase();
+}
 </script>
 </body>
 </html>
+
 
 
 
