@@ -495,6 +495,122 @@ user-scalable=no">
       height:190px;
     }
   }
+	.bundle-count-input{
+    width:88px;
+    margin-left:8px;
+    padding:6px 10px;
+    border:none;
+    outline:none;
+    border-radius:12px;
+    background:rgba(255,255,255,0.12);
+    color:#fff;
+    font-size:15px;
+    font-weight:700;
+    text-align:center;
+    border:1px solid rgba(255,255,255,0.16);
+  }
+
+  .bundle-slider-wrap{
+    overflow:hidden;
+    margin-bottom:18px;
+  }
+
+  .bundle-slider{
+    display:flex;
+    gap:16px;
+    overflow-x:auto;
+    scroll-snap-type:x mandatory;
+    padding-bottom:8px;
+    scrollbar-width:thin;
+    scrollbar-color:rgba(193,204,255,0.36) transparent;
+  }
+
+  .bundle-slider::-webkit-scrollbar{
+    height:8px;
+  }
+
+  .bundle-slider::-webkit-scrollbar-thumb{
+    background:rgba(193,204,255,0.36);
+    border-radius:12px;
+  }
+
+  .bundle-frame-card{
+    flex:0 0 100%;
+    scroll-snap-align:start;
+  }
+
+  .bundle-frame-title{
+    font-size:18px;
+    font-weight:800;
+    margin-bottom:14px;
+    color:#ffffff;
+    text-shadow:0 0 16px rgba(125,112,255,0.22);
+  }
+
+  .bundle-subtitle{
+    font-size:13px;
+    font-weight:800;
+    color:rgba(234,240,255,0.72);
+    margin:10px 0 6px;
+    letter-spacing:.4px;
+  }
+
+  .bundle-radio-grid{
+    display:grid;
+    grid-template-columns:repeat(3,minmax(0,1fr));
+    gap:8px;
+    margin-top:8px;
+  }
+
+  .bundle-radio-grid.two-col{
+    grid-template-columns:repeat(2,minmax(0,1fr));
+  }
+
+  .bundle-radio-grid label{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    padding:10px 10px;
+    border-radius:14px;
+    background:rgba(255,255,255,0.04);
+    border:1px solid rgba(255,255,255,0.08);
+    color:rgba(240,244,255,0.88);
+    cursor:pointer;
+    transition:all .16s ease;
+    min-height:46px;
+    font-size:14px;
+    line-height:1.4;
+  }
+
+  .bundle-radio-grid label:hover{
+    background:rgba(255,255,255,0.08);
+    transform:translateY(-1px);
+  }
+
+  .bundle-radio-grid input{
+    accent-color:#8c7bff;
+    transform:scale(1.08);
+    flex-shrink:0;
+  }
+
+  .bundle-field-block{
+    margin-bottom:16px;
+  }
+
+  .bundle-note-textarea{
+    min-height:120px;
+    white-space:pre-wrap;
+  }
+
+  @media (max-width:768px){
+    .bundle-radio-grid{
+      grid-template-columns:repeat(2,minmax(0,1fr));
+    }
+
+    .bundle-frame-card{
+      flex:0 0 100%;
+    }
+  }
 </style>
 </head>
 
@@ -715,14 +831,33 @@ user-scalable=no">
 
     <!-- 集束中心 -->
     <div id="pageBundle" class="page">
-      <div class="form-card">
-        <div class="form-title">集束中心</div>
-      </div>
-
-      <div class="form-card">
-        <div class="form-title">入框數量</div>
-        <input type="number" id="bundle_in_count" class="form-input">
-      </div>
+     <div class="form-card">
+       <div class="form-title-line">
+         <div class="form-title">集束中心</div>
+         <div class="count-text">
+           完成框數：
+           <input
+             type="number"
+             id="bundle_frame_count"
+             class="bundle-count-input"
+             min="1"
+             step="1"
+             value="1"
+           >
+         </div>
+       </div>
+       <div class="scan-tip">完成框數會決定下方要產生幾張集束卡片，可左右滑動切換不同框別資料。</div>
+     </div>
+   
+     <div class="bundle-slider-wrap">
+       <div id="bundleCardsContainer" class="bundle-slider"></div>
+     </div>
+   
+     <div class="btn-row">
+       <button type="button" onclick="prevPage('page1')">返回</button>
+       <button type="button" onclick="handlePreviewNavigation()">預覽</button>
+     </div>
+   </div>
 
       <div class="form-card">
         <div class="form-title">集束狀態</div>
@@ -909,13 +1044,8 @@ user-scalable=no">
     stamp_ship:"",
     stamp_note:"",
 
-    bundle_in_count:"",
-    bundle_status:"",
-    bundle_type:"",
-    frame_type:"",
-    frame_id:"",
-    rt_no:"",
-    frame_ctn:"",
+    bundle_frame_count:1,
+    bundle_frames:[],
     bundle_note:"",
 
     project_item:"",
@@ -1076,14 +1206,7 @@ user-scalable=no">
     formData.stamp_ship = getValue("stamp_ship");
     formData.stamp_note = getValue("stamp_note");
 
-    formData.bundle_in_count = getValue("bundle_in_count");
-    formData.bundle_status = getValue("bundle_status");
-    formData.bundle_type = getValue("bundle_type");
-    formData.frame_type = getValue("frame_type");
-    formData.frame_id = getValue("frame_id");
-    formData.rt_no = getValue("rt_no");
-    formData.frame_ctn = getValue("frame_ctn");
-    formData.bundle_note = getValue("bundle_note");
+    collectBundleFramesFromUI();
 
     formData.project_item = getValue("project_item");
     formData.proj_new_cylinder = getValue("proj_new_cylinder");
@@ -1218,15 +1341,6 @@ user-scalable=no">
       stamp_ship:"stamp_ship",
       stamp_note:"stamp_note",
 
-      bundle_in_count:"bundle_in_count",
-      bundle_status:"bundle_status",
-      bundle_type:"bundle_type",
-      frame_type:"frame_type",
-      frame_id:"frame_id",
-      rt_no:"rt_no",
-      frame_ctn:"frame_ctn",
-      bundle_note:"bundle_note",
-
       project_item:"project_item",
       proj_new_cylinder:"proj_new_cylinder",
       proj_register:"proj_register",
@@ -1244,6 +1358,14 @@ user-scalable=no">
         el.value = formData[key] || "";
       }
     });
+
+		const bundleCountInput = document.getElementById("bundle_frame_count");
+    if(bundleCountInput){
+      bundleCountInput.value = normalizeBundleFrameCount(formData.bundle_frame_count || 1);
+    }
+
+    ensureBundleFramesLength(normalizeBundleFrameCount(formData.bundle_frame_count || 1));
+    renderBundleCards();
 
     renderScanDisplay("sb_frame_scan");
     renderScanDisplay("sb_cylinder_scan");
@@ -1633,20 +1755,30 @@ user-scalable=no">
       `;
     }
 
-    if(formData.site === "集束中心"){
-      html += `
-        <div class="confirm-section">
-          <div>入框數量：${escapeHtml(formData.bundle_in_count)}</div>
-          <div>集束狀態：${escapeHtml(formData.bundle_status)}</div>
-          <div>集束類別：${escapeHtml(formData.bundle_type)}</div>
-          <div>框架種類：${escapeHtml(formData.frame_type)}</div>
-          <div>框架編號（組裝）：${escapeHtml(formData.frame_id)}</div>
-          <div>RT料號：${escapeHtml(formData.rt_no)}</div>
-          <div>框架CTN（組裝）：${escapeHtml(formData.frame_ctn)}</div>
-          <div>集束備註：${nl2br(formData.bundle_note)}</div>
-        </div>
-      `;
-    }
+		if(formData.site === "集束中心"){
+		  collectBundleFramesFromUI();
+		
+		  html += `
+		    <div class="confirm-section">
+		      <div>完成框數：${escapeHtml(formData.bundle_frame_count)}</div>
+		    </div>
+		  `;
+		
+		  formData.bundle_frames.forEach((frame, index) => {
+		    html += `
+		      <div class="confirm-section">
+		        <div><strong>第${index + 1}框</strong></div>
+		        <div>集束狀態：${escapeHtml(frame.status)}</div>
+		        <div>集束類別：${escapeHtml(frame.type)}</div>
+		        <div>框架種類：${escapeHtml(frame.frameType)}</div>
+		        <div>框架編號（組裝）：${escapeHtml(frame.frameId)}</div>
+		        <div>RT料號：${escapeHtml(frame.rtNo)}</div>
+		        <div>框架CTN（組裝）：${escapeHtml(frame.frameCtn)}</div>
+		        <div>集束備註：${nl2br(frame.note)}</div>
+		      </div>
+		    `;
+		  });
+		}
 
     if(formData.site === "專案"){
       html += `
@@ -1914,14 +2046,6 @@ user-scalable=no">
       "#stamp_rework_count",
       "#stamp_ship",
       "#stamp_note",
-      "#bundle_in_count",
-      "#bundle_status",
-      "#bundle_type",
-      "#frame_type",
-      "#frame_id",
-      "#rt_no",
-      "#frame_ctn",
-      "#bundle_note",
       "#project_item",
       "#proj_new_cylinder",
       "#proj_register",
@@ -1954,12 +2078,263 @@ user-scalable=no">
     bindScanInput("sb_frame_scan");
     bindScanInput("sb_cylinder_scan");
     bindAutoSave();
+		renderBundleCards();
+    bindBundleEvents();
     loadPerson();
     loadDraft();
   };
+/** 集束中心功能區*/
+function getDefaultBundleNote(){
+  return "____/__/__ 入框\n____/__/__ 完成";
+}
+
+function createEmptyBundleFrame(index){
+  return {
+    frameNo:index + 1,
+    status:"",
+    type:"",
+    frameType:"",
+    frameId:"",
+    rtNo:"",
+    frameCtn:"",
+    note:getDefaultBundleNote()
+  };
+}
+
+function normalizeBundleFrameCount(value){
+  const n = parseInt(value, 10);
+  if(isNaN(n) || n < 1) return 1;
+  return n;
+}
+
+function ensureBundleFramesLength(targetCount){
+  if(!Array.isArray(formData.bundle_frames)){
+    formData.bundle_frames = [];
+  }
+
+  while(formData.bundle_frames.length < targetCount){
+    formData.bundle_frames.push(createEmptyBundleFrame(formData.bundle_frames.length));
+  }
+
+  if(formData.bundle_frames.length > targetCount){
+    formData.bundle_frames = formData.bundle_frames.slice(0, targetCount);
+  }
+
+  formData.bundle_frames = formData.bundle_frames.map((frame, index) => ({
+    frameNo:index + 1,
+    status:frame.status || "",
+    type:frame.type || "",
+    frameType:frame.frameType || "",
+    frameId:frame.frameId || "",
+    rtNo:frame.rtNo || "",
+    frameCtn:frame.frameCtn || "",
+    note:frame.note || getDefaultBundleNote()
+  }));
+}
+
+function renderBundleCards(){
+  const input = document.getElementById("bundle_frame_count");
+  const container = document.getElementById("bundleCardsContainer");
+
+  if(!input || !container) return;
+
+  const count = normalizeBundleFrameCount(input.value);
+  input.value = count;
+  formData.bundle_frame_count = count;
+
+  ensureBundleFramesLength(count);
+
+  container.innerHTML = formData.bundle_frames.map((frame, index) => `
+    <div class="form-card bundle-frame-card">
+      <div class="bundle-frame-title">第${index + 1}框</div>
+
+      <div class="bundle-field-block">
+        <div class="form-title">集束狀態</div>
+        <div class="bundle-radio-grid">
+          ${renderBundleRadioOptions(`bundle_status_${index}`, frame.status, [
+            { value:"OCYL", label:"OCYL" },
+            { value:"MNT1", label:"MNT1" },
+            { value:"入框", label:"入框" }
+          ])}
+        </div>
+      </div>
+
+      <div class="bundle-field-block">
+        <div class="form-title">集束類別</div>
+        <div class="bundle-subtitle">單一氣體</div>
+        <div class="bundle-radio-grid">
+          ${renderBundleRadioOptions(`bundle_type_${index}`, frame.type, [
+            { value:"H2", label:"H2" },
+            { value:"He", label:"He" },
+            { value:"N2", label:"N2" },
+            { value:"Ar", label:"Ar" },
+            { value:"O2", label:"O2" },
+            { value:"Co2", label:"Co2" }
+          ])}
+        </div>
+
+        <div class="bundle-subtitle">混合氣體</div>
+        <div class="bundle-radio-grid">
+          ${renderBundleRadioOptions(`bundle_type_${index}`, frame.type, [
+            { value:"A/C", label:"A/C" },
+            { value:"HN", label:"HN" },
+            { value:"H2Ar", label:"H2Ar" },
+            { value:"H2He", label:"H2He" },
+            { value:"ArN2", label:"ArN2" },
+            { value:"other", label:"other" }
+          ])}
+        </div>
+      </div>
+
+      <div class="bundle-field-block">
+        <div class="form-title">框架種類</div>
+        <div class="bundle-radio-grid two-col">
+          ${renderBundleRadioOptions(`bundle_frame_type_${index}`, frame.frameType, [
+            { value:"H2 200bar", label:"H2 200bar" },
+            { value:"H2 150bar", label:"H2 150bar" },
+            { value:"MEGA", label:"MEGA" },
+            { value:"n12", label:"n12" },
+            { value:"7m", label:"7m" },
+            { value:"6m", label:"6m" }
+          ])}
+        </div>
+      </div>
+
+      <div class="bundle-field-block">
+        <div class="form-title">框架編號（組裝）</div>
+        <input
+          type="text"
+          class="form-input bundle-frame-id"
+          data-frame-index="${index}"
+          value="${escapeAttribute(frame.frameId)}"
+        >
+      </div>
+
+      <div class="bundle-field-block">
+        <div class="form-title">RT料號</div>
+        <input
+          type="text"
+          class="form-input bundle-rt-no"
+          data-frame-index="${index}"
+          value="${escapeAttribute(frame.rtNo)}"
+        >
+      </div>
+
+      <div class="bundle-field-block">
+        <div class="form-title">框架CTN（組裝）</div>
+        <input
+          type="text"
+          class="form-input bundle-frame-ctn"
+          data-frame-index="${index}"
+          value="${escapeAttribute(frame.frameCtn)}"
+        >
+      </div>
+
+      <div class="bundle-field-block">
+        <div class="form-title">集束備註</div>
+        <textarea
+          class="form-input bundle-note-textarea"
+          data-frame-index="${index}"
+        >${escapeHtml(frame.note)}</textarea>
+      </div>
+    </div>
+  `).join("");
+}
+
+function renderBundleRadioOptions(groupName, currentValue, options){
+  return options.map(option => `
+    <label>
+      <input
+        type="radio"
+        name="${groupName}"
+        value="${escapeAttribute(option.value)}"
+        ${currentValue === option.value ? "checked" : ""}
+      >
+      <span>${escapeHtml(option.label)}</span>
+    </label>
+  `).join("");
+}
+
+function collectBundleFramesFromUI(){
+  const countInput = document.getElementById("bundle_frame_count");
+  const count = normalizeBundleFrameCount(countInput ? countInput.value : 1);
+
+  ensureBundleFramesLength(count);
+
+  const frames = [];
+
+  for(let i = 0; i < count; i++){
+    const statusEl = document.querySelector(`input[name="bundle_status_${i}"]:checked`);
+    const typeEl = document.querySelector(`input[name="bundle_type_${i}"]:checked`);
+    const frameTypeEl = document.querySelector(`input[name="bundle_frame_type_${i}"]:checked`);
+    const frameIdEl = document.querySelector(`.bundle-frame-id[data-frame-index="${i}"]`);
+    const rtNoEl = document.querySelector(`.bundle-rt-no[data-frame-index="${i}"]`);
+    const frameCtnEl = document.querySelector(`.bundle-frame-ctn[data-frame-index="${i}"]`);
+    const noteEl = document.querySelector(`.bundle-note-textarea[data-frame-index="${i}"]`);
+
+    frames.push({
+      frameNo:i + 1,
+      status:statusEl ? statusEl.value : "",
+      type:typeEl ? typeEl.value : "",
+      frameType:frameTypeEl ? frameTypeEl.value : "",
+      frameId:frameIdEl ? frameIdEl.value : "",
+      rtNo:rtNoEl ? rtNoEl.value : "",
+      frameCtn:frameCtnEl ? frameCtnEl.value : "",
+      note:noteEl ? noteEl.value : getDefaultBundleNote()
+    });
+  }
+
+  formData.bundle_frame_count = count;
+  formData.bundle_frames = frames;
+}
+
+function bindBundleEvents(){
+  const countInput = document.getElementById("bundle_frame_count");
+  const container = document.getElementById("bundleCardsContainer");
+
+  if(countInput){
+    countInput.addEventListener("change", function(){
+      const count = normalizeBundleFrameCount(this.value);
+      this.value = count;
+
+      collectBundleFramesFromUI();
+      ensureBundleFramesLength(count);
+      renderBundleCards();
+      persistDraft();
+    });
+
+    countInput.addEventListener("input", function(){
+      const count = normalizeBundleFrameCount(this.value);
+      if(String(count) !== String(this.value)){
+        this.value = count;
+      }
+    });
+  }
+
+  if(container){
+    container.addEventListener("input", function(){
+      collectBundleFramesFromUI();
+      persistDraft();
+    });
+
+    container.addEventListener("change", function(){
+      collectBundleFramesFromUI();
+      persistDraft();
+    });
+  }
+}
+
+function escapeAttribute(value){
+  return String(value || "")
+    .replaceAll("&","&amp;")
+    .replaceAll('"',"&quot;")
+    .replaceAll("<","&lt;")
+    .replaceAll(">","&gt;");
+}
 </script>
 </body>
 </html>
+
 
 
 
