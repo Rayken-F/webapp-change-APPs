@@ -2304,9 +2304,7 @@ function renderBundleCards(){
           placeholder="請輸入其他集束備註..."
         >${escapeHtml(frame.extraNote || "")}</textarea>
       </div>
-			
-			  <div class="bundle-note-preview">${escapeHtml(getDefaultBundleNote(frame.inDate || "", frame.doneDate || ""))}</div>
-			</div>
+		  </div>
     </div>
   `).join("");
 }
@@ -2446,6 +2444,7 @@ function escapeAttribute(value){
 </script>
 </body>
 </html>
+
 
 
 
