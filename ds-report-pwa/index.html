@@ -1800,7 +1800,7 @@ user-scalable=no">
           <div>集束測漏（框）：${escapeHtml(formData.proj_bundle_leak)}</div>
           <div>維修框架CTN：${nl2br(formData.proj_repair_ctn)}</div>
           <div>專案備註：${nl2br(formData.proj_note)}</div>
-          <div>照片上傳：${document.getElementById("proj_photo").files.length ? "已選擇檔案（重新開頁不恢復）" : "未選擇"}</div>
+          <div>照片上傳：${document.getElementById("proj_photo").files.length ? `已選擇 ${document.getElementById("proj_photo").files.length} 張照片（重新開頁不恢復）` : "未選擇"}</div>
         </div>
       `;
     }
@@ -2510,6 +2510,7 @@ function toUpperSafe(value){
 </script>
 </body>
 </html>
+
 
 
 
