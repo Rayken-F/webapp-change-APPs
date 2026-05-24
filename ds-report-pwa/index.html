@@ -935,7 +935,7 @@ user-scalable=no">
           <div class="form-title">散支鋼瓶CTN掃描</div>
           <div id="cylinder-count-text" class="count-text">目前數量：0</div>
         </div>
-        <div class="scan-tip">CTN 可用一維或二維條碼掃描，也可手動貼上；系統會自動轉大寫、即時累計並驗證跨卡片重複。</div>
+        <div class="scan-tip">CTN 可由一維或二維條碼帶入，也可手動貼上多行；系統會自動轉大寫、即時累計並驗證跨卡片重複。</div>
         <textarea id="sb_cylinder_scan_input" class="form-input scan-input" placeholder="請掃描或貼上 CTN，每行一組"></textarea>
         <div id="sb_cylinder_scan_display" class="scan-display empty">尚未掃描任何 CTN</div>
         <div id="sb_cylinder_scan_error" class="scan-error"></div>
@@ -1805,7 +1805,8 @@ user-scalable=no">
   }
 
   function isValidCTN(value){
-    return /^[A-Z0-9\-_/]{4,40}$/.test(String(value || "").trim().toUpperCase());
+    const v = normalizeCTN(value);
+    return /^[A-Z0-9\-]{4,40}$/.test(v);
   }
 
   function getCardIds(fieldKey){
@@ -1874,23 +1875,25 @@ user-scalable=no">
       if(!AudioContextClass) return;
 
       const ctx = new AudioContextClass();
-      const oscillator = ctx.createOscillator();
       const gainNode = ctx.createGain();
-
-      oscillator.type = "sine";
-      oscillator.frequency.setValueAtTime(880, ctx.currentTime);
-      oscillator.frequency.linearRampToValueAtTime(1174, ctx.currentTime + 0.12);
-      gainNode.gain.setValueAtTime(0.0001, ctx.currentTime);
-      gainNode.gain.linearRampToValueAtTime(0.10, ctx.currentTime + 0.02);
-      gainNode.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.18);
-
-      oscillator.connect(gainNode);
       gainNode.connect(ctx.destination);
+      gainNode.gain.setValueAtTime(0.08, ctx.currentTime);
 
-      oscillator.start();
-      oscillator.stop(ctx.currentTime + 0.18);
+      const osc1 = ctx.createOscillator();
+      osc1.type = "sine";
+      osc1.frequency.setValueAtTime(880, ctx.currentTime);
+      osc1.connect(gainNode);
+      osc1.start();
+      osc1.stop(ctx.currentTime + 0.08);
 
-      oscillator.onended = function(){
+      const osc2 = ctx.createOscillator();
+      osc2.type = "sine";
+      osc2.frequency.setValueAtTime(1175, ctx.currentTime + 0.09);
+      osc2.connect(gainNode);
+      osc2.start(ctx.currentTime + 0.09);
+      osc2.stop(ctx.currentTime + 0.18);
+
+      osc2.onended = function(){
         ctx.close();
       };
     }
@@ -2032,23 +2035,41 @@ user-scalable=no">
     }
 
     scanState.sb_frame_pairs = nextRows.length > 0 ? nextRows : [createFramePairRow()];
-    renderFramePairTable();
   }
 
   function bindFramePairTableEvents(){
     const body = document.getElementById("frame-pair-table-body");
     if(!body) return;
 
+    let persistTimer = null;
+
     body.addEventListener("input", function(e){
       const target = e.target;
       if(target.classList.contains("js-frame-id")){
+        const start = target.selectionStart;
+        const end = target.selectionEnd;
         target.value = toUpperSafe(target.value);
+        if(typeof start === "number" && typeof end === "number"){
+          target.setSelectionRange(start, end);
+        }
       }
       if(target.classList.contains("js-frame-ctn")){
+        const start = target.selectionStart;
+        const end = target.selectionEnd;
         target.value = normalizeCTN(target.value);
+        if(typeof start === "number" && typeof end === "number"){
+          target.setSelectionRange(start, end);
+        }
       }
+
       collectFramePairRowsFromUI();
-      persistDraft();
+
+      if(persistTimer){
+        clearTimeout(persistTimer);
+      }
+      persistTimer = setTimeout(() => {
+        persistDraft();
+      }, 300);
     });
 
     body.addEventListener("change", function(e){
@@ -2105,12 +2126,12 @@ user-scalable=no">
     const roi = document.getElementById("scanRoiBox");
     const primaryBtn = document.getElementById("scanPrimaryAction");
 
-    title.textContent = mode === "frame_ocr" ? "掃框架編號（手動OCR）" : "掃框架CTN條碼";
+    title.textContent = mode === "frame_ocr" ? "掃框架編號" : "掃框架CTN條碼";
     tip.textContent = mode === "frame_ocr"
       ? "請把框架編號放進橘色框內。系統會先做灰階、對比、二值化、銳化、去噪與 ROI 裁切，再做 OCR。"
       : "請把一維或二維條碼放在鏡頭中央。掃到後會直接帶入目前選取列的 CTN。";
     status.textContent = "正在啟動相機...";
-    primaryBtn.textContent = mode === "frame_ocr" ? "手動 OCR 辨識" : "開始條碼掃描";
+    primaryBtn.textContent = mode === "frame_ocr" ? "開始 OCR 辨識" : "開始條碼掃描";
     roi.style.display = mode === "frame_ocr" ? "block" : "none";
 
     modal.style.display = "flex";
@@ -2124,7 +2145,7 @@ user-scalable=no">
       const video = document.getElementById("scanVideo");
       video.srcObject = stream;
       await video.play();
-      status.textContent = mode === "frame_ocr" ? "相機已啟動，對準框架編號後按手動 OCR 辨識" : "相機已啟動，按開始條碼掃描";
+      status.textContent = mode === "frame_ocr" ? "相機已啟動，對準框架編號後按開始 OCR 辨識" : "相機已啟動，先讓條碼充滿畫面，再按開始條碼掃描";
     } catch(err){
       status.textContent = "相機啟動失敗：" + (err.message || "未知錯誤");
     }
@@ -2197,27 +2218,36 @@ user-scalable=no">
     const cropY = Math.floor(canvas.height * 0.34);
     const cropW = Math.floor(canvas.width * 0.80);
     const cropH = Math.floor(canvas.height * 0.20);
-    const imageData = ctx.getImageData(cropX, cropY, cropW, cropH);
-    const data = imageData.data;
 
+    const src = ctx.getImageData(cropX, cropY, cropW, cropH);
+    const processed = document.createElement("canvas");
+    const scale = 2;
+    processed.width = cropW * scale;
+    processed.height = cropH * scale;
+    const pctx = processed.getContext("2d");
+
+    // 先放大
+    const temp = document.createElement("canvas");
+    temp.width = cropW;
+    temp.height = cropH;
+    temp.getContext("2d").putImageData(src, 0, 0);
+
+    pctx.imageSmoothingEnabled = false;
+    pctx.drawImage(temp, 0, 0, processed.width, processed.height);
+
+    // 灰階 + 對比 + 輕量二值化
+    const img = pctx.getImageData(0, 0, processed.width, processed.height);
+    const data = img.data;
     for(let i = 0; i < data.length; i += 4){
-      const gray = Math.round(data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114);
-      let value = gray;
-      value = (value - 128) * 1.7 + 128; // 提高對比
-      value = Math.max(0, Math.min(255, value));
-      value = value > 150 ? 255 : 0; // 二值化
+      let gray = Math.round(data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114);
+      gray = Math.max(0, Math.min(255, (gray - 128) * 1.35 + 128));
+      const value = gray > 135 ? 255 : 0;
       data[i] = value;
       data[i + 1] = value;
       data[i + 2] = value;
+      data[i + 3] = 255;
     }
-
-    const processed = document.createElement("canvas");
-    processed.width = cropW;
-    processed.height = cropH;
-    const pctx = processed.getContext("2d");
-    pctx.putImageData(imageData, 0, 0);
-    pctx.filter = "contrast(170%) grayscale(100%)";
-    pctx.drawImage(processed, 0, 0);
+    pctx.putImageData(img, 0, 0);
     return processed;
   }
 
@@ -2228,16 +2258,29 @@ user-scalable=no">
       const { canvas, ctx } = getVideoCanvasData();
       const processed = preprocessFrameForOcr(canvas, ctx);
       const result = await Tesseract.recognize(processed, "eng", {
+        tessedit_pageseg_mode: 7,
         tessedit_char_whitelist: "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-",
+        preserve_interword_spaces: 0,
         logger: () => {}
       });
-      let text = String(result?.data?.text || "").toUpperCase().replace(/[^A-Z0-9-]/g, "");
-      if(!text){
-        throw new Error("沒有辨識到框架編號，請靠近一點再試一次");
+
+      let text = String(result?.data?.text || "")
+        .toUpperCase()
+        .replace(/[^A-Z0-9-]/g, "");
+
+      // 常見誤判修正
+      text = text
+        .replace(/O/g, "0")
+        .replace(/I/g, "1")
+        .replace(/Z/g, "2");
+
+      if(!text || text.length < 2){
+        throw new Error("沒有辨識到有效框架編號，請手動裁準框內文字再試一次");
       }
+
       applyScannedFrameId(text);
-      status.textContent = "OCR 完成，已帶入框架編號：" + text;
       beepSuccess();
+      status.textContent = "OCR 完成，已帶入框架編號：" + text;
     } catch(err){
       status.textContent = "OCR 失敗：" + (err.message || "未知錯誤");
     }
@@ -2247,56 +2290,58 @@ user-scalable=no">
     return ["qr_code","code_128","code_39","ean_13","ean_8","upc_a","upc_e","itf","data_matrix","pdf417","codabar"];
   }
 
+  async function scanBarcodeFromCanvas(video){
+    const canvas = document.getElementById("ocrCanvas");
+    if(!video.videoWidth || !video.videoHeight){
+      throw new Error("相機畫面尚未準備完成");
+    }
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const ctx = canvas.getContext("2d");
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+    if("BarcodeDetector" in window){
+      if(!scanModalState.detector){
+        scanModalState.detector = new BarcodeDetector({ formats: getSupportedBarcodeFormats() });
+      }
+      const barcodes = await scanModalState.detector.detect(canvas);
+      if(barcodes && barcodes.length){
+        return String(barcodes[0].rawValue || "").trim().toUpperCase();
+      }
+    }
+
+    if(window.ZXingBrowser && ZXingBrowser.BrowserMultiFormatReader){
+      const hints = new Map();
+      const reader = new ZXingBrowser.BrowserMultiFormatReader(hints);
+      const result = await reader.decodeFromCanvas(canvas);
+      if(result && result.text){
+        return String(result.text || "").trim().toUpperCase();
+      }
+    }
+
+    return "";
+  }
+
   async function runBarcodeScan(singleShot = false){
     const status = document.getElementById("scanCameraStatus");
     status.textContent = "條碼掃描中...";
     try{
       const video = document.getElementById("scanVideo");
 
-      const detectWithBarcodeDetector = async () => {
-        if(!("BarcodeDetector" in window)){
-          return "";
-        }
-        if(!scanModalState.detector){
-          scanModalState.detector = new BarcodeDetector({ formats: getSupportedBarcodeFormats() });
-        }
-        const barcodes = await scanModalState.detector.detect(video);
-        if(!barcodes || !barcodes.length) return "";
-        return String(barcodes[0].rawValue || "").trim().toUpperCase();
-      };
-
-      const detectWithZXing = async () => {
-        if(!(window.ZXingBrowser && window.ZXingBrowser.BrowserMultiFormatReader)){
-          return "";
-        }
-        if(!scanModalState.zxingReader){
-          scanModalState.zxingReader = new window.ZXingBrowser.BrowserMultiFormatReader();
-        }
-        const result = await scanModalState.zxingReader.decodeOnceFromVideoElement(video);
-        return String(result && result.text || "").trim().toUpperCase();
-      };
-
-      const tryApplyValue = (rawValue) => {
+      const detectOnce = async () => {
+        const rawValue = await scanBarcodeFromCanvas(video);
         if(!rawValue) return false;
         applyScannedCtn(rawValue);
-        status.textContent = "已掃到條碼：" + rawValue;
         beepSuccess();
+        status.textContent = "已掃到條碼：" + rawValue;
         closeScanModal();
         return true;
       };
 
       if(singleShot){
-        let rawValue = "";
-        try{
-          rawValue = await detectWithBarcodeDetector();
-        } catch(err){}
-        if(!rawValue){
-          try{
-            rawValue = await detectWithZXing();
-          } catch(err){}
-        }
-        if(!tryApplyValue(rawValue)){
-          status.textContent = "尚未掃到條碼，請調整距離、亮度或改用手動輸入";
+        const hit = await detectOnce();
+        if(!hit){
+          status.textContent = "尚未掃到條碼，請讓條碼更靠近鏡頭、充滿畫面 40% 以上，並避免反光";
         }
         return;
       }
@@ -2304,31 +2349,13 @@ user-scalable=no">
       if(scanModalState.intervalId){
         clearInterval(scanModalState.intervalId);
       }
-
       scanModalState.intervalId = setInterval(async () => {
         try{
-          let rawValue = "";
-          try{
-            rawValue = await detectWithBarcodeDetector();
-          } catch(err){}
-          if(!rawValue){
-            status.textContent = "BarcodeDetector 不可用，改用 ZXing 掃描中...";
-            clearInterval(scanModalState.intervalId);
-            scanModalState.intervalId = null;
-            try{
-              rawValue = await detectWithZXing();
-            } catch(err){
-              status.textContent = "ZXing 條碼掃描失敗：" + (err.message || "未知錯誤");
-              return;
-            }
-          }
-          if(rawValue){
-            tryApplyValue(rawValue);
-          }
+          await detectOnce();
         } catch(err){
           status.textContent = "掃描中：" + (err.message || "請稍候");
         }
-      }, 450);
+      }, 650);
     } catch(err){
       status.textContent = "條碼掃描失敗：" + (err.message || "未知錯誤");
     }
@@ -2344,7 +2371,6 @@ user-scalable=no">
     }
     renderFramePairTable();
     persistDraft();
-    beepSuccess();
   }
 
   function applyScannedCtn(ctn){
@@ -2363,7 +2389,6 @@ user-scalable=no">
     }
     renderFramePairTable();
     persistDraft();
-    beepSuccess();
   }
 
 
