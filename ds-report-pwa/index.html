@@ -639,169 +639,6 @@ user-scalable=no">
     }
   }
 
-  .scan-pair-card .scan-tip{margin-bottom:14px;}
-  .pair-toolbar{
-    position:relative;
-    z-index:1;
-    display:flex;
-    flex-wrap:wrap;
-    gap:10px;
-    margin-bottom:14px;
-  }
-  .pair-toolbar button{
-    width:auto;
-    flex:1 1 160px;
-    padding:12px 14px;
-    font-size:14px;
-    border-radius:14px;
-  }
-  .pair-table-wrap{
-    position:relative;
-    z-index:1;
-    overflow-x:auto;
-    border:1px solid rgba(231,238,255,0.16);
-    border-radius:16px;
-    background:rgba(10,24,72,0.18);
-  }
-  .pair-table{
-    width:100%;
-    border-collapse:collapse;
-    min-width:420px;
-  }
-  .pair-table th,
-  .pair-table td{
-    border-bottom:1px solid rgba(231,238,255,0.12);
-    border-right:1px solid rgba(231,238,255,0.10);
-    padding:10px 10px;
-    vertical-align:middle;
-  }
-  .pair-table th:last-child,
-  .pair-table td:last-child{
-    border-right:none;
-  }
-  .pair-table tr:last-child td{
-    border-bottom:none;
-  }
-  .pair-table th{
-    color:#ffb56d;
-    font-size:15px;
-    font-weight:800;
-    text-align:center;
-    background:rgba(255,255,255,0.04);
-  }
-  .pair-table-input{
-    width:100%;
-    border:none;
-    outline:none;
-    background:transparent;
-    color:#fff;
-    font-size:16px;
-    padding:4px 0;
-  }
-  .pair-table-delete{
-    width:100%;
-    padding:10px 12px !important;
-    font-size:13px !important;
-    border-radius:12px !important;
-  }
-  .pair-empty{
-    position:relative;
-    z-index:1;
-    color:rgba(234,240,255,0.45);
-    padding:14px 4px 2px;
-    font-size:14px;
-  }
-  .scan-camera-modal{
-    position:fixed;
-    inset:0;
-    display:none;
-    align-items:center;
-    justify-content:center;
-    background:rgba(3,8,30,0.82);
-    z-index:10000;
-    padding:18px;
-  }
-  .scan-camera-panel{
-    width:min(92vw,720px);
-    background:linear-gradient(180deg, rgba(45,70,160,0.42), rgba(35,49,124,0.34));
-    border:1px solid rgba(214,225,255,0.32);
-    border-radius:22px;
-    box-shadow:0 18px 50px rgba(0,0,0,0.38);
-    overflow:hidden;
-    backdrop-filter:blur(16px);
-  }
-  .scan-camera-header{
-    display:flex;
-    align-items:center;
-    justify-content:space-between;
-    gap:12px;
-    padding:16px 18px;
-    border-bottom:1px solid rgba(255,255,255,0.1);
-  }
-  .scan-camera-title{
-    font-size:18px;
-    font-weight:800;
-  }
-  .scan-camera-close{
-    width:auto !important;
-    padding:10px 14px !important;
-    font-size:14px !important;
-    border-radius:14px !important;
-  }
-  .scan-camera-body{
-    padding:16px 18px 18px;
-  }
-  .camera-preview-wrap{
-    position:relative;
-    border-radius:18px;
-    overflow:hidden;
-    background:#07112b;
-    border:1px solid rgba(255,255,255,0.14);
-  }
-  #scanVideo{
-    width:100%;
-    max-height:56vh;
-    display:block;
-    object-fit:cover;
-    background:#07112b;
-  }
-  .scan-roi{
-    position:absolute;
-    border:2px solid rgba(255,181,109,0.95);
-    box-shadow:0 0 0 9999px rgba(0,0,0,0.24);
-    border-radius:14px;
-    pointer-events:none;
-  }
-  .scan-roi.frame{
-    left:10%;
-    top:34%;
-    width:80%;
-    height:20%;
-  }
-  .scan-camera-tip{
-    margin-top:12px;
-    font-size:13px;
-    color:rgba(231,237,255,0.72);
-    line-height:1.7;
-  }
-  .scan-camera-actions{
-    display:flex;
-    flex-wrap:wrap;
-    gap:10px;
-    margin-top:14px;
-  }
-  .scan-camera-actions button{
-    flex:1 1 150px;
-    padding:12px 14px;
-    font-size:14px;
-    border-radius:14px;
-  }
-  .scan-camera-status{
-    margin-top:12px;
-    min-height:22px;
-    font-size:14px;
-    color:rgba(242,246,255,0.92);
-  }
 
 </style>
 </head>
@@ -908,11 +745,9 @@ user-scalable=no">
           <div class="form-title">框架CTN掃描</div>
           <div id="frame-count-text" class="count-text">目前數量：0</div>
         </div>
-        <div class="scan-tip">左邊填框架編號，右邊填框架CTN。CTN 優先用條碼掃描；框架編號可用固定框拍照辨識。前端會先擋重複，送出前後端也會再驗證一次。</div>
+        <div class="scan-tip">左邊填框架編號，右邊填框架CTN。框架編號可手動輸入，框架CTN可直接手動輸入或使用藍牙條碼掃描器。前端會先擋重複，送出前後端也會再驗證一次。</div>
         <div class="pair-toolbar">
           <button type="button" onclick="addFramePairRow()">新增一列</button>
-          <button type="button" onclick="openFrameScanModal()">掃框架編號</button>
-          <button type="button" onclick="openCtnScanModal()">掃框架CTN條碼</button>
         </div>
         <div class="pair-table-wrap">
           <table class="pair-table">
@@ -935,7 +770,7 @@ user-scalable=no">
           <div class="form-title">散支鋼瓶CTN掃描</div>
           <div id="cylinder-count-text" class="count-text">目前數量：0</div>
         </div>
-        <div class="scan-tip">CTN 可由一維或二維條碼帶入，也可手動貼上多行；系統會自動轉大寫、即時累計並驗證跨卡片重複。</div>
+        <div class="scan-tip">CTN 固定 7 碼英數混合，可單筆掃描或一次貼上多行；系統會自動轉大寫、即時累計並驗證跨卡片重複。</div>
         <textarea id="sb_cylinder_scan_input" class="form-input scan-input" placeholder="請掃描或貼上 CTN，每行一組"></textarea>
         <div id="sb_cylinder_scan_display" class="scan-display empty">尚未掃描任何 CTN</div>
         <div id="sb_cylinder_scan_error" class="scan-error"></div>
@@ -951,18 +786,6 @@ user-scalable=no">
         <button type="button" onclick="handlePreviewNavigation()">預覽</button>
       </div>
     </div>
-
-    <div id="scanCameraModal" class="scan-camera-modal">
-      <div class="scan-camera-panel">
-        <div class="scan-camera-header">
-          <div class="scan-camera-title" id="scanCameraTitle">掃描</div>
-          <button type="button" class="btn-danger scan-camera-close" onclick="closeScanModal()">關閉</button>
-        </div>
-        <div class="scan-camera-body">
-          <div class="camera-preview-wrap">
-            <video id="scanVideo" playsinline autoplay muted></video>
-            <div id="scanRoiBox" class="scan-roi frame"></div>
-          </div>
           <div class="scan-camera-tip" id="scanCameraTip"></div>
           <div class="scan-camera-actions">
             <button type="button" id="scanPrimaryAction" onclick="handlePrimaryScanAction()">開始辨識</button>
@@ -1173,8 +996,6 @@ user-scalable=no">
   ">
     <div class="loading-text">送出中...</div>
   </div>
-<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@zxing/browser@0.1.5/umd/index.min.js"></script>
 <script src="./api.js"></script>
 <script>
   const STORAGE_KEY = "ds_report_draft_v2";
@@ -1227,14 +1048,6 @@ user-scalable=no">
   const scanState = {
     sb_frame_pairs:[],
     sb_cylinder_scan:[]
-  };
-
-  const scanModalState = {
-    mode:"",
-    stream:null,
-    detector:null,
-    intervalId:null,
-    targetRowId:""
   };
 
   let sending = false;
@@ -1805,8 +1618,7 @@ user-scalable=no">
   }
 
   function isValidCTN(value){
-    const v = normalizeCTN(value);
-    return /^[A-Z0-9\-]{4,40}$/.test(v);
+    return /^[A-Z]{2}\d{2}[A-Z]{2}[A-Z0-9]$/.test(value);
   }
 
   function getCardIds(fieldKey){
@@ -1866,39 +1678,6 @@ user-scalable=no">
     }
     catch(err){
       console.warn("提示音播放失敗", err);
-    }
-  }
-
-  function beepSuccess(){
-    try{
-      const AudioContextClass = window.AudioContext || window.webkitAudioContext;
-      if(!AudioContextClass) return;
-
-      const ctx = new AudioContextClass();
-      const gainNode = ctx.createGain();
-      gainNode.connect(ctx.destination);
-      gainNode.gain.setValueAtTime(0.08, ctx.currentTime);
-
-      const osc1 = ctx.createOscillator();
-      osc1.type = "sine";
-      osc1.frequency.setValueAtTime(880, ctx.currentTime);
-      osc1.connect(gainNode);
-      osc1.start();
-      osc1.stop(ctx.currentTime + 0.08);
-
-      const osc2 = ctx.createOscillator();
-      osc2.type = "sine";
-      osc2.frequency.setValueAtTime(1175, ctx.currentTime + 0.09);
-      osc2.connect(gainNode);
-      osc2.start(ctx.currentTime + 0.09);
-      osc2.stop(ctx.currentTime + 0.18);
-
-      osc2.onended = function(){
-        ctx.close();
-      };
-    }
-    catch(err){
-      console.warn("成功提示音播放失敗", err);
     }
   }
 
@@ -2041,55 +1820,65 @@ user-scalable=no">
     const body = document.getElementById("frame-pair-table-body");
     if(!body) return;
 
-    let persistTimer = null;
-
     body.addEventListener("input", function(e){
       const target = e.target;
+      const rowId = target.dataset.rowId || "";
+      const row = scanState.sb_frame_pairs.find(item => item.rowId === rowId);
+      if(!row) return;
+
       if(target.classList.contains("js-frame-id")){
-        const start = target.selectionStart;
-        const end = target.selectionEnd;
-        target.value = toUpperSafe(target.value);
-        if(typeof start === "number" && typeof end === "number"){
-          target.setSelectionRange(start, end);
-        }
+        const upper = toUpperSafe(target.value);
+        target.value = upper;
+        row.frameId = upper;
       }
+
       if(target.classList.contains("js-frame-ctn")){
-        const start = target.selectionStart;
-        const end = target.selectionEnd;
-        target.value = normalizeCTN(target.value);
-        if(typeof start === "number" && typeof end === "number"){
-          target.setSelectionRange(start, end);
-        }
+        const normalized = normalizeCTN(target.value);
+        target.value = normalized;
+        row.ctn = normalized;
       }
 
-      collectFramePairRowsFromUI();
-
-      if(persistTimer){
-        clearTimeout(persistTimer);
-      }
-      persistTimer = setTimeout(() => {
-        persistDraft();
-      }, 300);
+      updateFramePairCountOnly();
+      persistDraftDebounced();
     });
 
-    body.addEventListener("change", function(e){
+    body.addEventListener("blur", function(e){
       const target = e.target;
-      if(target.classList.contains("js-frame-id")){
-        target.value = toUpperSafe(target.value);
+      if(!target.classList.contains("js-frame-ctn")) return;
+
+      const rowId = target.dataset.rowId || "";
+      const ctn = normalizeCTN(target.value || "");
+      const owner = findDuplicateOwnerExcludingRow(ctn, rowId);
+
+      if(ctn && owner){
+        target.value = "";
+        const row = scanState.sb_frame_pairs.find(item => item.rowId === rowId);
+        if(row) row.ctn = "";
+        showScanError("sb_frame_scan", `${ctn} 已存在於${owner}`);
       }
-      if(target.classList.contains("js-frame-ctn")){
-        const ctn = normalizeCTN(target.value);
-        const owner = findDuplicateOwnerExcludingRow(ctn, target.dataset.rowId || "");
-        if(ctn && owner){
-          target.value = "";
-          showScanError("sb_frame_scan", `${ctn} 已存在於${owner}`);
-        } else {
-          target.value = ctn;
-        }
-      }
-      collectFramePairRowsFromUI();
+
+      updateFramePairCountOnly();
       persistDraft();
-    });
+    }, true);
+  }
+
+  function updateFramePairCountOnly(){
+    const countEl = document.getElementById("frame-count-text");
+    const emptyEl = document.getElementById("frame-pair-empty");
+    if(countEl){
+      const filledCount = scanState.sb_frame_pairs.filter(item => item.frameId || item.ctn).length;
+      countEl.innerText = `目前數量：${filledCount}`;
+    }
+    if(emptyEl){
+      emptyEl.style.display = scanState.sb_frame_pairs.some(item => item.frameId || item.ctn) ? "none" : "block";
+    }
+  }
+
+  function persistDraftDebounced(){
+    clearTimeout(window.__pairDraftTimer);
+    window.__pairDraftTimer = setTimeout(() => {
+      persistDraft();
+    }, 200);
   }
 
   function findDuplicateOwnerExcludingRow(ctn, rowId){
@@ -2115,282 +1904,6 @@ user-scalable=no">
       return { duplicates: [] };
     }
   }
-
-  async function openCameraModal(mode){
-    scanModalState.mode = mode;
-    scanModalState.targetRowId = getActivePairRowId();
-    const modal = document.getElementById("scanCameraModal");
-    const title = document.getElementById("scanCameraTitle");
-    const tip = document.getElementById("scanCameraTip");
-    const status = document.getElementById("scanCameraStatus");
-    const roi = document.getElementById("scanRoiBox");
-    const primaryBtn = document.getElementById("scanPrimaryAction");
-
-    title.textContent = mode === "frame_ocr" ? "掃框架編號" : "掃框架CTN條碼";
-    tip.textContent = mode === "frame_ocr"
-      ? "請把框架編號放進橘色框內。系統會先做灰階、對比、二值化、銳化、去噪與 ROI 裁切，再做 OCR。"
-      : "請把一維或二維條碼放在鏡頭中央。掃到後會直接帶入目前選取列的 CTN。";
-    status.textContent = "正在啟動相機...";
-    primaryBtn.textContent = mode === "frame_ocr" ? "開始 OCR 辨識" : "開始條碼掃描";
-    roi.style.display = mode === "frame_ocr" ? "block" : "none";
-
-    modal.style.display = "flex";
-
-    try{
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: { ideal: "environment" } },
-        audio: false
-      });
-      scanModalState.stream = stream;
-      const video = document.getElementById("scanVideo");
-      video.srcObject = stream;
-      await video.play();
-      status.textContent = mode === "frame_ocr" ? "相機已啟動，對準框架編號後按開始 OCR 辨識" : "相機已啟動，先讓條碼充滿畫面，再按開始條碼掃描";
-    } catch(err){
-      status.textContent = "相機啟動失敗：" + (err.message || "未知錯誤");
-    }
-  }
-
-  function openFrameScanModal(){
-    openCameraModal("frame_ocr");
-  }
-
-  function openCtnScanModal(){
-    openCameraModal("ctn_barcode");
-  }
-
-  function closeScanModal(){
-    const modal = document.getElementById("scanCameraModal");
-    modal.style.display = "none";
-    const video = document.getElementById("scanVideo");
-    if(video){
-      video.pause();
-      video.srcObject = null;
-    }
-    if(scanModalState.intervalId){
-      clearInterval(scanModalState.intervalId);
-      scanModalState.intervalId = null;
-    }
-    if(scanModalState.stream){
-      scanModalState.stream.getTracks().forEach(track => track.stop());
-      scanModalState.stream = null;
-    }
-  }
-
-  function getActivePairRowId(){
-    collectFramePairRowsFromUI();
-    const firstEmpty = scanState.sb_frame_pairs.find(item => !item.ctn);
-    if(firstEmpty) return firstEmpty.rowId;
-    return scanState.sb_frame_pairs[scanState.sb_frame_pairs.length - 1]?.rowId || "";
-  }
-
-  function handlePrimaryScanAction(){
-    if(scanModalState.mode === "frame_ocr"){
-      runFrameOcr();
-      return;
-    }
-    runBarcodeScan();
-  }
-
-  function captureCurrentFrame(){
-    if(scanModalState.mode === "frame_ocr"){
-      runFrameOcr();
-    } else {
-      runBarcodeScan(true);
-    }
-  }
-
-  function getVideoCanvasData(){
-    const video = document.getElementById("scanVideo");
-    const canvas = document.getElementById("ocrCanvas");
-    if(!video || !canvas || !video.videoWidth || !video.videoHeight){
-      throw new Error("相機畫面尚未準備完成");
-    }
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    const ctx = canvas.getContext("2d");
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-    return { video, canvas, ctx };
-  }
-
-  function preprocessFrameForOcr(canvas, ctx){
-    const cropX = Math.floor(canvas.width * 0.10);
-    const cropY = Math.floor(canvas.height * 0.34);
-    const cropW = Math.floor(canvas.width * 0.80);
-    const cropH = Math.floor(canvas.height * 0.20);
-
-    const src = ctx.getImageData(cropX, cropY, cropW, cropH);
-    const processed = document.createElement("canvas");
-    const scale = 2;
-    processed.width = cropW * scale;
-    processed.height = cropH * scale;
-    const pctx = processed.getContext("2d");
-
-    // 先放大
-    const temp = document.createElement("canvas");
-    temp.width = cropW;
-    temp.height = cropH;
-    temp.getContext("2d").putImageData(src, 0, 0);
-
-    pctx.imageSmoothingEnabled = false;
-    pctx.drawImage(temp, 0, 0, processed.width, processed.height);
-
-    // 灰階 + 對比 + 輕量二值化
-    const img = pctx.getImageData(0, 0, processed.width, processed.height);
-    const data = img.data;
-    for(let i = 0; i < data.length; i += 4){
-      let gray = Math.round(data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114);
-      gray = Math.max(0, Math.min(255, (gray - 128) * 1.35 + 128));
-      const value = gray > 135 ? 255 : 0;
-      data[i] = value;
-      data[i + 1] = value;
-      data[i + 2] = value;
-      data[i + 3] = 255;
-    }
-    pctx.putImageData(img, 0, 0);
-    return processed;
-  }
-
-  async function runFrameOcr(){
-    const status = document.getElementById("scanCameraStatus");
-    status.textContent = "OCR 辨識中...";
-    try{
-      const { canvas, ctx } = getVideoCanvasData();
-      const processed = preprocessFrameForOcr(canvas, ctx);
-      const result = await Tesseract.recognize(processed, "eng", {
-        tessedit_pageseg_mode: 7,
-        tessedit_char_whitelist: "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-",
-        preserve_interword_spaces: 0,
-        logger: () => {}
-      });
-
-      let text = String(result?.data?.text || "")
-        .toUpperCase()
-        .replace(/[^A-Z0-9-]/g, "");
-
-      // 常見誤判修正
-      text = text
-        .replace(/O/g, "0")
-        .replace(/I/g, "1")
-        .replace(/Z/g, "2");
-
-      if(!text || text.length < 2){
-        throw new Error("沒有辨識到有效框架編號，請手動裁準框內文字再試一次");
-      }
-
-      applyScannedFrameId(text);
-      beepSuccess();
-      status.textContent = "OCR 完成，已帶入框架編號：" + text;
-    } catch(err){
-      status.textContent = "OCR 失敗：" + (err.message || "未知錯誤");
-    }
-  }
-
-  function getSupportedBarcodeFormats(){
-    return ["qr_code","code_128","code_39","ean_13","ean_8","upc_a","upc_e","itf","data_matrix","pdf417","codabar"];
-  }
-
-  async function scanBarcodeFromCanvas(video){
-    const canvas = document.getElementById("ocrCanvas");
-    if(!video.videoWidth || !video.videoHeight){
-      throw new Error("相機畫面尚未準備完成");
-    }
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    const ctx = canvas.getContext("2d");
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-    if("BarcodeDetector" in window){
-      if(!scanModalState.detector){
-        scanModalState.detector = new BarcodeDetector({ formats: getSupportedBarcodeFormats() });
-      }
-      const barcodes = await scanModalState.detector.detect(canvas);
-      if(barcodes && barcodes.length){
-        return String(barcodes[0].rawValue || "").trim().toUpperCase();
-      }
-    }
-
-    if(window.ZXingBrowser && ZXingBrowser.BrowserMultiFormatReader){
-      const hints = new Map();
-      const reader = new ZXingBrowser.BrowserMultiFormatReader(hints);
-      const result = await reader.decodeFromCanvas(canvas);
-      if(result && result.text){
-        return String(result.text || "").trim().toUpperCase();
-      }
-    }
-
-    return "";
-  }
-
-  async function runBarcodeScan(singleShot = false){
-    const status = document.getElementById("scanCameraStatus");
-    status.textContent = "條碼掃描中...";
-    try{
-      const video = document.getElementById("scanVideo");
-
-      const detectOnce = async () => {
-        const rawValue = await scanBarcodeFromCanvas(video);
-        if(!rawValue) return false;
-        applyScannedCtn(rawValue);
-        beepSuccess();
-        status.textContent = "已掃到條碼：" + rawValue;
-        closeScanModal();
-        return true;
-      };
-
-      if(singleShot){
-        const hit = await detectOnce();
-        if(!hit){
-          status.textContent = "尚未掃到條碼，請讓條碼更靠近鏡頭、充滿畫面 40% 以上，並避免反光";
-        }
-        return;
-      }
-
-      if(scanModalState.intervalId){
-        clearInterval(scanModalState.intervalId);
-      }
-      scanModalState.intervalId = setInterval(async () => {
-        try{
-          await detectOnce();
-        } catch(err){
-          status.textContent = "掃描中：" + (err.message || "請稍候");
-        }
-      }, 650);
-    } catch(err){
-      status.textContent = "條碼掃描失敗：" + (err.message || "未知錯誤");
-    }
-  }
-
-  function applyScannedFrameId(frameId){
-    const rowId = scanModalState.targetRowId || getActivePairRowId();
-    const row = scanState.sb_frame_pairs.find(item => item.rowId === rowId);
-    if(!row){
-      scanState.sb_frame_pairs.push(createFramePairRow({ frameId }));
-    } else {
-      row.frameId = toUpperSafe(frameId);
-    }
-    renderFramePairTable();
-    persistDraft();
-  }
-
-  function applyScannedCtn(ctn){
-    const normalized = normalizeCTN(ctn);
-    const rowId = scanModalState.targetRowId || getActivePairRowId();
-    const owner = findDuplicateOwnerExcludingRow(normalized, rowId);
-    if(owner){
-      showScanError("sb_frame_scan", `${normalized} 已存在於${owner}`);
-      return;
-    }
-    const row = scanState.sb_frame_pairs.find(item => item.rowId === rowId);
-    if(!row){
-      scanState.sb_frame_pairs.push(createFramePairRow({ ctn: normalized }));
-    } else {
-      row.ctn = normalized;
-    }
-    renderFramePairTable();
-    persistDraft();
-  }
-
 
   function processScanInput(fieldKey){
     const config = getCardIds(fieldKey);
