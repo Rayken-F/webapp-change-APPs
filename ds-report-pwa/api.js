@@ -21,15 +21,12 @@ async function submitDailyReportAPI(payload) {
 
 async function fetchProjectOptions() {
   const res = await fetch(`${API_URL}?api=projects`, {
-    method: "GET",
-    headers: {
-      "Accept": "application/json"
-    }
+    method: "GET"
   });
 
   const result = await res.json();
 
-  if (!res.ok || !result.ok) {
+  if (!result.ok) {
     throw new Error(result.message || "專案清單讀取失敗");
   }
 
