@@ -876,24 +876,9 @@ user-scalable=no">
 
       <div class="form-card">
         <div class="form-title">專案項目</div>
-		<select id="project_item" class="form-input">
-		  <option value="">請選擇</option>
-		  <option value="新集束 He 30組 2025/12月出15組，剩餘1組manifold維修延至2026/4月">
-		    新集束 He 30組 2025/12月出15組，剩餘1組manifold維修延至2026/4月
-		  </option>
-		  <option value="新集束 H2 43組 2026/02/28前已出 150bar 15框，200bar延長到2026/4月">
-		    新集束 H2 43組 2026/02/28前已出 150bar 15框，200bar延長到2026/4月
-		  </option>
-		  <option value="新鋼瓶組裝 150支 GCA718， 40支 JIS L22 (2026/3/3啟動,deadline 3/15前)">
-		    新鋼瓶組裝 150支 GCA718， 40支 JIS L22 (2026/3/3啟動,deadline 3/15前)
-		  </option>
-		  <option value="舊鋼瓶 安南LINX轉集束 60組">
-		    舊鋼瓶 安南LINX轉集束 60組
-		  </option>
-		  <option value="報廢鋼瓶">
-		    報廢鋼瓶
-		  </option>
-		</select>
+        <select id="project_item" class="form-input">
+          <option value="">請選擇</option>
+        </select>
       </div>
 
       <div class="form-card">
@@ -2130,7 +2115,70 @@ user-scalable=no">
 	  });
 	}
 
-  window.onload = function(){
+
+  async function loadProjectOptions(){
+    const selectEl = document.getElementById("project_item");
+    if(!selectEl) return;
+
+    const previousValue = formData.project_item || selectEl.value || "";
+
+    selectEl.innerHTML = '<option value="">請選擇</option>';
+
+    try{
+      const items = await fetchProjectOptionsAPI();
+
+      if(!Array.isArray(items) || items.length === 0){
+        const emptyOption = document.createElement("option");
+        emptyOption.value = "";
+        emptyOption.textContent = "目前沒有可選專案";
+        selectEl.appendChild(emptyOption);
+        formData.project_item = "";
+        persistDraft();
+        return;
+      }
+
+      items.forEach(item => {
+        const projectName = typeof item === "string"
+          ? item
+          : (item && item.name ? String(item.name).trim() : "");
+
+        if(!projectName) return;
+
+        const option = document.createElement("option");
+        option.value = projectName;
+        option.textContent = projectName;
+        selectEl.appendChild(option);
+      });
+
+      const availableValues = Array.from(selectEl.options).map(option => option.value);
+      if(previousValue && availableValues.includes(previousValue)){
+        selectEl.value = previousValue;
+        formData.project_item = previousValue;
+      }
+      else{
+        selectEl.value = "";
+        formData.project_item = "";
+      }
+
+      persistDraft();
+    }
+    catch(err){
+      console.error("專案清單讀取失敗", err);
+
+      const errorOption = document.createElement("option");
+      errorOption.value = "";
+      errorOption.textContent = "專案清單載入失敗";
+      selectEl.appendChild(errorOption);
+
+      showDraftBanner(`專案清單讀取失敗：${err.message || "未知錯誤"}`, {
+        autoHide:true,
+        duration:4000,
+        countdown:true
+      });
+    }
+  }
+
+  window.onload = async function(){
     updateStep(1);
 
     const today = new Date().toISOString().split("T")[0];
@@ -2147,6 +2195,7 @@ user-scalable=no">
 		renderBundleCards();
     bindBundleEvents();
     loadPerson();
+    await loadProjectOptions();
     loadDraft();
   };
 /** 集束中心功能區*/
@@ -2510,25 +2559,3 @@ function toUpperSafe(value){
 </script>
 </body>
 </html>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
