@@ -1,7 +1,5 @@
-//版本43 沒問題的板
+// 版本43：日報輸入端獨立 deployment
 const API_URL = "https://script.google.com/macros/s/AKfycbwYjPR-mHy_UCRAAsvU84-3T_MMQcfKHX9PSR8Da7E2gQq3xVEcK0Fnz0JvrHaIHpem/exec";
-//版本59(與AP的api共用所以這是預備方案，目前不啟動)
-//const API_URL = "https://script.google.com/macros/s/AKfycbxtef9i0HrL15Y0JhBPvfr_OPC9zZFMW5zC3vrKzDZg4AWVNDniOCc5LcMSRscuR-n6/exec";
 
 async function submitDailyReportAPI(payload) {
   const res = await fetch(API_URL, {
@@ -19,4 +17,25 @@ async function submitDailyReportAPI(payload) {
   }
 
   return result;
+}
+
+async function fetchProjectOptionsAPI() {
+  const url = `${API_URL}?api=projects`;
+  const res = await fetch(url, {
+    method: "GET",
+    cache: "no-store"
+  });
+
+  let result = null;
+  try {
+    result = await res.json();
+  } catch (err) {
+    throw new Error("專案清單回傳格式錯誤");
+  }
+
+  if (!res.ok || !result || !result.ok) {
+    throw new Error((result && result.message) || "專案清單讀取失敗");
+  }
+
+  return Array.isArray(result.items) ? result.items : [];
 }
