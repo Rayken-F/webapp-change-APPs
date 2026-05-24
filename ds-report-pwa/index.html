@@ -460,6 +460,13 @@ user-scalable=no">
     border-top:1px solid rgba(230,236,255,0.14);
   }
 
+  .confirm-stack-value{
+    display:block;
+    margin-top:8px;
+    white-space:pre-wrap;
+    line-height:1.8;
+  }
+
   #loadingBox{
     backdrop-filter:blur(8px);
     -webkit-backdrop-filter:blur(8px);
@@ -2083,7 +2090,7 @@ user-scalable=no">
           <div>前置完全（框）：${escapeHtml(formData.sb_pre_complete)}</div>
           <div>前置瓶頸研磨：${escapeHtml(formData.sb_neck_grind)}</div>
           <div>前置CTN防護：${escapeHtml(formData.sb_pre_ctn_protect)}</div>
-          <div>框架編號／CTN：${nl2br(buildFramePairPreviewText())}</div>
+          <div>框架編號／CTN：<span class="confirm-stack-value">${nl2br(buildFramePairPreviewText())}</span></div>
           <div>散支鋼瓶CTN掃描數量：${scanState.sb_cylinder_scan.length}</div>
           <div>噴砂備註：${nl2br(formData.sb_note)}</div>
         </div>
@@ -2551,6 +2558,32 @@ function createEmptyBundleFrame(index){
   };
 }
 
+function getBundleMixedTypeOptions(){
+  return [
+    { value:"A/C", label:"A/C" },
+    { value:"HN", label:"HN" },
+    { value:"other", label:"other" }
+  ];
+}
+
+function getBundleKnownTypeValues(){
+  return ["H2","He","N2","Ar","O2","Co2","A/C","HN"];
+}
+
+function getBundleTypePresetValue(typeValue){
+  const value = String(typeValue || "").trim();
+  if(!value) return "";
+  if(getBundleKnownTypeValues().includes(value)) return value;
+  return "other";
+}
+
+function getBundleTypeCustomValue(typeValue){
+  const value = String(typeValue || "").trim();
+  if(!value) return "";
+  if(getBundleKnownTypeValues().includes(value)) return "";
+  return value;
+}
+
 function normalizeBundleFrameCount(value){
   const n = parseInt(value, 10);
   if(isNaN(n) || n < 1) return 1;
@@ -2605,8 +2638,7 @@ function renderBundleCards(){
         <div class="bundle-radio-grid">
           ${renderBundleRadioOptions(`bundle_status_${index}`, frame.status, [
             { value:"OCYL", label:"OCYL" },
-            { value:"MNT1", label:"MNT1" },
-            { value:"入框", label:"入框" }
+            { value:"MNT1", label:"MNT1" }
           ])}
         </div>
       </div>
@@ -2627,14 +2659,16 @@ function renderBundleCards(){
 
         <div class="bundle-subtitle">混合氣體</div>
         <div class="bundle-radio-grid">
-          ${renderBundleRadioOptions(`bundle_type_${index}`, frame.type, [
-            { value:"A/C", label:"A/C" },
-            { value:"HN", label:"HN" },
-            { value:"H2Ar", label:"H2Ar" },
-            { value:"H2He", label:"H2He" },
-            { value:"ArN2", label:"ArN2" },
-            { value:"other", label:"other" }
-          ])}
+          ${renderBundleRadioOptions(`bundle_type_${index}`, getBundleTypePresetValue(frame.type), getBundleMixedTypeOptions())}
+        </div>
+        <div class="bundle-field-block" style="margin-top:10px;">
+          <input
+            type="text"
+            class="form-input bundle-type-other-input"
+            data-frame-index="${index}"
+            placeholder="選 other 時請輸入英文字"
+            value="${escapeAttribute(getBundleTypeCustomValue(frame.type))}"
+          >
         </div>
       </div>
 
@@ -2643,7 +2677,7 @@ function renderBundleCards(){
         <div class="bundle-radio-grid two-col">
           ${renderBundleRadioOptions(`bundle_frame_type_${index}`, frame.frameType, [
             { value:"H2 200bar", label:"H2 200bar" },
-            { value:"H2 150bar", label:"H2 150bar" },
+            { value:"HP", label:"HP" },
             { value:"MEGA", label:"MEGA" },
             { value:"n12", label:"n12" },
             { value:"7m", label:"7m" },
@@ -2747,15 +2781,19 @@ function collectBundleFramesFromUI(){
     const inDateEl = document.querySelector(`.bundle-in-date[data-frame-index="${i}"]`);
     const doneDateEl = document.querySelector(`.bundle-done-date[data-frame-index="${i}"]`);
     const extraNoteEl = document.querySelector(`.bundle-note-textarea[data-frame-index="${i}"]`);
+    const typeOtherEl = document.querySelector(`.bundle-type-other-input[data-frame-index="${i}"]`);
 
     const inDate = inDateEl ? inDateEl.value : "";
     const doneDate = doneDateEl ? doneDateEl.value : "";
     const extraNote = extraNoteEl ? extraNoteEl.value : "";
+    const selectedType = typeEl ? typeEl.value : "";
+    const customType = typeOtherEl ? String(typeOtherEl.value || "").trim().toUpperCase() : "";
+    const finalType = selectedType === "other" ? customType : selectedType;
 
     frames.push({
       frameNo:i + 1,
       status:statusEl ? statusEl.value : "",
-      type:typeEl ? typeEl.value : "",
+      type:finalType,
       frameType:frameTypeEl ? frameTypeEl.value : "",
       frameId:frameIdEl ? toUpperSafe(frameIdEl.value) : "",
       rtNo:rtNoEl ? rtNoEl.value : "",
@@ -2831,7 +2869,11 @@ function bindBundleEvents(){
     container.addEventListener("input", function(e){
       const target = e.target;
 
-      if(target.classList.contains("bundle-frame-id") || target.classList.contains("bundle-frame-ctn")){
+      if(
+        target.classList.contains("bundle-frame-id") ||
+        target.classList.contains("bundle-frame-ctn") ||
+        target.classList.contains("bundle-type-other-input")
+      ){
         const start = target.selectionStart;
         const end = target.selectionEnd;
         target.value = toUpperSafe(target.value);
@@ -2848,7 +2890,11 @@ function bindBundleEvents(){
     container.addEventListener("change", function(e){
       const target = e.target;
 
-      if(target.classList.contains("bundle-frame-id") || target.classList.contains("bundle-frame-ctn")){
+      if(
+        target.classList.contains("bundle-frame-id") ||
+        target.classList.contains("bundle-frame-ctn") ||
+        target.classList.contains("bundle-type-other-input")
+      ){
         target.value = toUpperSafe(target.value);
       }
 
