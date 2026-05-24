@@ -483,6 +483,79 @@ user-scalable=no">
     margin-top:10px;
   }
 
+
+  .scan-pair-entry{
+    position:relative;
+    z-index:1;
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:12px;
+    margin-bottom:12px;
+  }
+
+  .scan-pair-input{
+    min-height:auto;
+  }
+
+  .scan-pair-actions{
+    margin-top:0;
+    margin-bottom:14px;
+  }
+
+  .scan-table-wrap{
+    position:relative;
+    z-index:1;
+    overflow-x:auto;
+    border:1px solid rgba(231,238,255,0.18);
+    border-radius:16px;
+  }
+
+  .scan-table{
+    width:100%;
+    border-collapse:collapse;
+    color:#ffffff;
+    font-size:15px;
+  }
+
+  .scan-table th,
+  .scan-table td{
+    padding:12px 10px;
+    border-bottom:1px solid rgba(231,238,255,0.14);
+    text-align:left;
+    vertical-align:middle;
+  }
+
+  .scan-table th{
+    color:#ff9b56;
+    font-weight:800;
+    background:rgba(255,255,255,0.04);
+    white-space:nowrap;
+  }
+
+  .scan-table td{
+    color:rgba(242,246,255,0.9);
+    word-break:break-all;
+  }
+
+  .scan-table td:last-child,
+  .scan-table th:last-child{
+    width:88px;
+    text-align:center;
+  }
+
+  .scan-table-empty td{
+    text-align:center !important;
+    color:rgba(234,240,255,0.42);
+  }
+
+  .scan-row-delete{
+    width:auto;
+    padding:8px 10px;
+    border-radius:12px;
+    font-size:13px;
+    min-width:64px;
+  }
+
   @media (max-width:768px){
     body{
       padding:18px 14px 30px;
@@ -511,6 +584,10 @@ user-scalable=no">
 
     .scan-display{
       height:190px;
+    }
+
+    .scan-pair-entry{
+      grid-template-columns:1fr;
     }
   }
 
@@ -723,11 +800,6 @@ user-scalable=no">
       </div>
 
       <div class="form-card">
-        <div class="form-title">框架編號（拆卸）</div>
-        <textarea id="sb_frame_remove" class="form-input"></textarea>
-      </div>
-
-      <div class="form-card">
         <div class="form-title">前置完全（框）</div>
         <input type="number" id="sb_pre_complete" class="form-input">
       </div>
@@ -747,9 +819,36 @@ user-scalable=no">
           <div class="form-title">框架CTN掃描</div>
           <div id="frame-count-text" class="count-text">目前數量：0</div>
         </div>
-        <div class="scan-tip">CTN 固定 7 碼英數混合，可單筆掃描或一次貼上多行；系統會自動轉大寫、即時累計並驗證跨卡片重複。</div>
-        <textarea id="sb_frame_scan_input" class="form-input scan-input" placeholder="請掃描或貼上 CTN，每行一組"></textarea>
-        <div id="sb_frame_scan_display" class="scan-display empty">尚未掃描任何 CTN</div>
+        <div class="scan-tip">改為 2 欄表格輸入：左邊框架編號、右邊框架 CTN。送到後台時仍會各自寫入單一儲存格並用換行對齊。CTN 仍會先擋前端重複，後端也會再擋同日重複送出。</div>
+
+        <div class="scan-pair-entry">
+          <input id="sb_frame_pair_frame_input" type="text" class="form-input scan-pair-input" placeholder="框架編號">
+          <input id="sb_frame_pair_ctn_input" type="text" class="form-input scan-pair-input" placeholder="框架CTN">
+        </div>
+
+        <div class="btn-row scan-pair-actions">
+          <button type="button" onclick="addSandblastFramePairFromInputs()">新增一列</button>
+          <button type="button" class="btn-danger" onclick="triggerFramePairCamera()">拍照辨識入口</button>
+        </div>
+
+        <input id="sb_frame_pair_camera" type="file" accept="image/*" capture="environment" style="display:none">
+
+        <div class="scan-table-wrap">
+          <table class="scan-table">
+            <thead>
+              <tr>
+                <th>框架編號</th>
+                <th>框架CTN</th>
+                <th>操作</th>
+              </tr>
+            </thead>
+            <tbody id="sb_frame_pair_tbody">
+              <tr class="scan-table-empty">
+                <td colspan="3">尚未掃描任何資料</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
         <div id="sb_frame_scan_error" class="scan-error"></div>
       </div>
 
@@ -1023,7 +1122,7 @@ user-scalable=no">
   };
 
   const scanState = {
-    sb_frame_scan:[],
+    sb_frame_pairs:[],
     sb_cylinder_scan:[]
   };
 
@@ -1200,11 +1299,11 @@ user-scalable=no">
     document.querySelectorAll(".checkbox-group input:checked").forEach(c => workers.push(c.value));
     formData.workers = workers;
 
-    formData.sb_frame_remove = toUpperSafe(getValue("sb_frame_remove"));
+    formData.sb_frame_remove = scanState.sb_frame_pairs.map(item => item.frameId).join("\n");
     formData.sb_pre_complete = getValue("sb_pre_complete");
     formData.sb_neck_grind = getValue("sb_neck_grind");
     formData.sb_pre_ctn_protect = getValue("sb_pre_ctn_protect");
-    formData.sb_frame_scan = scanState.sb_frame_scan.join("\n");
+    formData.sb_frame_scan = scanState.sb_frame_pairs.map(item => item.ctn).join("\n");
     formData.sb_cylinder_scan = scanState.sb_cylinder_scan.join("\n");
     formData.sb_note = getValue("sb_note");
 
@@ -1291,9 +1390,12 @@ user-scalable=no">
       });
 
       if(draft.scanState){
-        scanState.sb_frame_scan = Array.isArray(draft.scanState.sb_frame_scan)
-          ? draft.scanState.sb_frame_scan
-          : [];
+        scanState.sb_frame_pairs = Array.isArray(draft.scanState.sb_frame_pairs)
+          ? draft.scanState.sb_frame_pairs
+          : normalizeSandblastPairList(
+              draft.formData ? draft.formData.sb_frame_remove : "",
+              draft.formData ? draft.formData.sb_frame_scan : ""
+            );
 
         scanState.sb_cylinder_scan = Array.isArray(draft.scanState.sb_cylinder_scan)
           ? draft.scanState.sb_cylinder_scan
@@ -1339,7 +1441,6 @@ user-scalable=no">
     });
 
     const fillMap = {
-      sb_frame_remove:"sb_frame_remove",
       sb_pre_complete:"sb_pre_complete",
       sb_neck_grind:"sb_neck_grind",
       sb_pre_ctn_protect:"sb_pre_ctn_protect",
@@ -1392,7 +1493,8 @@ user-scalable=no">
     ensureBundleFramesLength(normalizeBundleFrameCount(formData.bundle_frame_count || 1));
     renderBundleCards();
 
-    renderScanDisplay("sb_frame_scan");
+    rebuildFramePairsFromStoredStrings(formData.sb_frame_remove, formData.sb_frame_scan);
+    renderFramePairsTable();
     renderScanDisplay("sb_cylinder_scan");
 
     goToPageImmediately(activePageId);
@@ -1446,7 +1548,7 @@ user-scalable=no">
     formData.bundle_frame_count = 1;
     formData.bundle_frames = [];
 
-    scanState.sb_frame_scan = [];
+    scanState.sb_frame_pairs = [];
     scanState.sb_cylinder_scan = [];
 
     document.querySelectorAll("input, textarea, select").forEach(el => {
@@ -1483,7 +1585,7 @@ user-scalable=no">
     }
 
     renderBundleCards();
-    renderScanDisplay("sb_frame_scan");
+    renderFramePairsTable();
     renderScanDisplay("sb_cylinder_scan");
     clearErrors();
     goToPageImmediately("page1");
@@ -1580,6 +1682,187 @@ user-scalable=no">
     }
   }
 
+
+  function normalizeFrameId(value){
+    return String(value || "").trim().toUpperCase();
+  }
+
+  function normalizeSandblastPairList(frameRemoveValue, frameScanValue){
+    const frameIds = String(frameRemoveValue || "")
+      .split(/\r?\n/)
+      .map(normalizeFrameId);
+
+    const ctns = String(frameScanValue || "")
+      .split(/\r?\n/)
+      .map(normalizeCTN);
+
+    const maxLen = Math.max(frameIds.length, ctns.length);
+    const pairs = [];
+
+    for(let i = 0; i < maxLen; i++){
+      const frameId = frameIds[i] || "";
+      const ctn = ctns[i] || "";
+      if(!frameId && !ctn) continue;
+      pairs.push({ frameId, ctn });
+    }
+
+    return pairs;
+  }
+
+  function rebuildFramePairsFromStoredStrings(frameRemoveValue, frameScanValue){
+    scanState.sb_frame_pairs = normalizeSandblastPairList(frameRemoveValue, frameScanValue);
+  }
+
+  function buildFramePairPreviewText(){
+    if(!scanState.sb_frame_pairs.length) return "";
+    return scanState.sb_frame_pairs
+      .map(item => `${item.frameId || "-"} ｜ ${item.ctn || "-"}`)
+      .join("\n");
+  }
+
+  function renderFramePairsTable(){
+    const tbody = document.getElementById("sb_frame_pair_tbody");
+    const countEl = document.getElementById("frame-count-text");
+    if(!tbody || !countEl) return;
+
+    countEl.innerText = `目前數量：${scanState.sb_frame_pairs.length}`;
+
+    if(!scanState.sb_frame_pairs.length){
+      tbody.innerHTML = '<tr class="scan-table-empty"><td colspan="3">尚未掃描任何資料</td></tr>';
+      formData.sb_frame_remove = "";
+      formData.sb_frame_scan = "";
+      return;
+    }
+
+    tbody.innerHTML = scanState.sb_frame_pairs.map((item, index) => `
+      <tr>
+        <td>${escapeHtml(item.frameId)}</td>
+        <td>${escapeHtml(item.ctn)}</td>
+        <td><button type="button" class="btn-danger scan-row-delete" onclick="removeSandblastFramePair(${index})">刪除</button></td>
+      </tr>
+    `).join("");
+
+    formData.sb_frame_remove = scanState.sb_frame_pairs.map(item => item.frameId).join("\n");
+    formData.sb_frame_scan = scanState.sb_frame_pairs.map(item => item.ctn).join("\n");
+  }
+
+  function addSandblastFramePairFromInputs(){
+    const frameInput = document.getElementById("sb_frame_pair_frame_input");
+    const ctnInput = document.getElementById("sb_frame_pair_ctn_input");
+    if(!frameInput || !ctnInput) return;
+
+    const frameId = normalizeFrameId(frameInput.value);
+    const ctn = normalizeCTN(ctnInput.value);
+
+    const ok = addSandblastFramePair(frameId, ctn, "manual");
+    if(!ok) return;
+
+    frameInput.value = "";
+    ctnInput.value = "";
+    frameInput.focus();
+  }
+
+  function addSandblastFramePair(frameId, ctn, source){
+    const card = document.getElementById("scan-card-frame");
+    const errorEl = document.getElementById("sb_frame_scan_error");
+    const normalizedFrameId = normalizeFrameId(frameId);
+    const normalizedCtn = normalizeCTN(ctn);
+
+    if(!normalizedFrameId || !normalizedCtn){
+      showScanError("sb_frame_scan", "框架編號與框架CTN都要填");
+      return false;
+    }
+
+    if(!isValidCTN(normalizedCtn)){
+      showScanError("sb_frame_scan", `CTN格式錯誤：${normalizedCtn}`);
+      return false;
+    }
+
+    const owner = findDuplicateOwner(normalizedCtn);
+    if(owner){
+      showScanError("sb_frame_scan", `CTN重複：${normalizedCtn}（已存在於${owner}）`);
+      return false;
+    }
+
+    scanState.sb_frame_pairs.push({
+      frameId: normalizedFrameId,
+      ctn: normalizedCtn,
+      source: source || "manual"
+    });
+
+    renderFramePairsTable();
+    persistDraft();
+    if(errorEl){
+      errorEl.innerText = "";
+    }
+    if(card){
+      card.classList.remove("scan-card-error");
+      card.removeAttribute(VISIBLE_ERROR_ATTR);
+    }
+    return true;
+  }
+
+  function removeSandblastFramePair(index){
+    if(index < 0 || index >= scanState.sb_frame_pairs.length) return;
+    scanState.sb_frame_pairs.splice(index, 1);
+    renderFramePairsTable();
+    persistDraft();
+  }
+
+  function bindSandblastFramePairInputs(){
+    const frameInput = document.getElementById("sb_frame_pair_frame_input");
+    const ctnInput = document.getElementById("sb_frame_pair_ctn_input");
+    const cameraInput = document.getElementById("sb_frame_pair_camera");
+
+    if(frameInput){
+      frameInput.addEventListener("input", function(){
+        this.value = normalizeFrameId(this.value);
+      });
+
+      frameInput.addEventListener("keydown", function(e){
+        if(e.key === "Enter"){
+          e.preventDefault();
+          const ctnEl = document.getElementById("sb_frame_pair_ctn_input");
+          if(ctnEl){
+            ctnEl.focus();
+          }
+        }
+      });
+    }
+
+    if(ctnInput){
+      ctnInput.addEventListener("input", function(){
+        this.value = normalizeCTN(this.value);
+      });
+
+      ctnInput.addEventListener("keydown", function(e){
+        if(e.key === "Enter"){
+          e.preventDefault();
+          addSandblastFramePairFromInputs();
+        }
+      });
+    }
+
+    if(cameraInput){
+      cameraInput.addEventListener("change", handleFramePairCameraCapture);
+    }
+  }
+
+  function triggerFramePairCamera(){
+    const cameraInput = document.getElementById("sb_frame_pair_camera");
+    if(cameraInput){
+      cameraInput.click();
+    }
+  }
+
+  function handleFramePairCameraCapture(e){
+    const input = e.target;
+    if(!input || !input.files || !input.files.length) return;
+
+    showScanError("sb_frame_scan", "相機入口已開好，但這版先不硬上自動OCR，避免誤判框號/CTN。先拍照留存，框號與CTN仍請人工確認後輸入。");
+    input.value = "";
+  }
+
   function normalizeCTN(value){
     return (value || "").trim().toUpperCase();
   }
@@ -1593,8 +1876,8 @@ user-scalable=no">
       return {
         cardId:"scan-card-frame",
         errorId:"sb_frame_scan_error",
-        displayId:"sb_frame_scan_display",
-        inputId:"sb_frame_scan_input",
+        displayId:"",
+        inputId:"",
         countId:"frame-count-text",
         title:"框架CTN掃描"
       };
@@ -1611,7 +1894,7 @@ user-scalable=no">
   }
 
   function findDuplicateOwner(ctn){
-    if(scanState.sb_frame_scan.includes(ctn)){
+    if(scanState.sb_frame_pairs.some(item => item.ctn === ctn)){
       return "框架CTN掃描";
     }
 
@@ -1796,11 +2079,11 @@ user-scalable=no">
     if(formData.site === "自動噴砂站"){
       html += `
         <div class="confirm-section">
-          <div>框架編號（拆卸）：${nl2br(formData.sb_frame_remove)}</div>
+          <div>框架CTN配對數量：${scanState.sb_frame_pairs.length}</div>
           <div>前置完全（框）：${escapeHtml(formData.sb_pre_complete)}</div>
           <div>前置瓶頸研磨：${escapeHtml(formData.sb_neck_grind)}</div>
           <div>前置CTN防護：${escapeHtml(formData.sb_pre_ctn_protect)}</div>
-          <div>框架CTN掃描數量：${scanState.sb_frame_scan.length}</div>
+          <div>框架編號／CTN：${nl2br(buildFramePairPreviewText())}</div>
           <div>散支鋼瓶CTN掃描數量：${scanState.sb_cylinder_scan.length}</div>
           <div>噴砂備註：${nl2br(formData.sb_note)}</div>
         </div>
@@ -2136,7 +2419,6 @@ user-scalable=no">
       "#person",
       "input[name='site']",
       ".checkbox-group input",
-      "#sb_frame_remove",
       "#sb_pre_complete",
       "#sb_neck_grind",
       "#sb_pre_ctn_protect",
@@ -2173,7 +2455,8 @@ user-scalable=no">
 
   function bindUppercaseInputs(){
     const uppercaseTargets = [
-      document.getElementById("sb_frame_remove"),
+      document.getElementById("sb_frame_pair_frame_input"),
+      document.getElementById("sb_frame_pair_ctn_input"),
       document.getElementById("proj_repair_ctn")
     ];
 
@@ -2210,7 +2493,7 @@ user-scalable=no">
       dateInput.value = today;
     }
 
-    bindScanInput("sb_frame_scan");
+    bindSandblastFramePairInputs();
     bindScanInput("sb_cylinder_scan");
     bindAutoSave();
     bindUppercaseInputs();
