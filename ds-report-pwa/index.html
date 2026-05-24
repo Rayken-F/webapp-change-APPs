@@ -974,7 +974,7 @@ user-scalable=no">
       </div>
     </div>
 
-    <div id="pageUT" class="page"> class="page">
+    <div id="pageUT" class="page">
       <div class="form-card">
         <div class="form-title">UT站</div>
       </div>
@@ -2519,13 +2519,11 @@ user-scalable=no">
         "填表人員": formData.person || "",
         "站別": formData.site || "",
         "人員姓名": Array.isArray(formData.workers) ? formData.workers.join(", ") : "",
-        "框架編號(拆卸)": scanState.sb_frame_pairs.map(item => item.frameId).filter(Boolean).join("
-"),
+        "框架編號(拆卸)": scanState.sb_frame_pairs.map(item => item.frameId).filter(Boolean).join("\n"),
         "前置完全(框)": formData.sb_pre_complete || "",
         "前置瓶頸研磨": formData.sb_neck_grind || "",
         "前置CTN防護": formData.sb_pre_ctn_protect || "",
-        "框架CTN掃描": scanState.sb_frame_pairs.map(item => item.ctn).filter(Boolean).join("
-"),
+        "框架CTN掃描": scanState.sb_frame_pairs.map(item => item.ctn).filter(Boolean).join("\n"),
         "散支鋼瓶CTN掃描": formData.sb_cylinder_scan || "",
         "噴砂備註": formData.sb_note || "",
         "框架CTN配對表": scanState.sb_frame_pairs
