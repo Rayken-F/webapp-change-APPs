@@ -935,7 +935,7 @@ user-scalable=no">
           <div class="form-title">散支鋼瓶CTN掃描</div>
           <div id="cylinder-count-text" class="count-text">目前數量：0</div>
         </div>
-        <div class="scan-tip">CTN 固定 7 碼英數混合，可單筆掃描或一次貼上多行；系統會自動轉大寫、即時累計並驗證跨卡片重複。</div>
+        <div class="scan-tip">CTN 可用一維或二維條碼掃描，也可手動貼上；系統會自動轉大寫、即時累計並驗證跨卡片重複。</div>
         <textarea id="sb_cylinder_scan_input" class="form-input scan-input" placeholder="請掃描或貼上 CTN，每行一組"></textarea>
         <div id="sb_cylinder_scan_display" class="scan-display empty">尚未掃描任何 CTN</div>
         <div id="sb_cylinder_scan_error" class="scan-error"></div>
@@ -1174,6 +1174,7 @@ user-scalable=no">
     <div class="loading-text">送出中...</div>
   </div>
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@zxing/browser@0.1.5/umd/index.min.js"></script>
 <script src="./api.js"></script>
 <script>
   const STORAGE_KEY = "ds_report_draft_v2";
@@ -1804,7 +1805,7 @@ user-scalable=no">
   }
 
   function isValidCTN(value){
-    return /^[A-Z]{2}\d{2}[A-Z]{2}[A-Z0-9]$/.test(value);
+    return /^[A-Z0-9\-_/]{4,40}$/.test(String(value || "").trim().toUpperCase());
   }
 
   function getCardIds(fieldKey){
@@ -1864,6 +1865,37 @@ user-scalable=no">
     }
     catch(err){
       console.warn("提示音播放失敗", err);
+    }
+  }
+
+  function beepSuccess(){
+    try{
+      const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+      if(!AudioContextClass) return;
+
+      const ctx = new AudioContextClass();
+      const oscillator = ctx.createOscillator();
+      const gainNode = ctx.createGain();
+
+      oscillator.type = "sine";
+      oscillator.frequency.setValueAtTime(880, ctx.currentTime);
+      oscillator.frequency.linearRampToValueAtTime(1174, ctx.currentTime + 0.12);
+      gainNode.gain.setValueAtTime(0.0001, ctx.currentTime);
+      gainNode.gain.linearRampToValueAtTime(0.10, ctx.currentTime + 0.02);
+      gainNode.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.18);
+
+      oscillator.connect(gainNode);
+      gainNode.connect(ctx.destination);
+
+      oscillator.start();
+      oscillator.stop(ctx.currentTime + 0.18);
+
+      oscillator.onended = function(){
+        ctx.close();
+      };
+    }
+    catch(err){
+      console.warn("成功提示音播放失敗", err);
     }
   }
 
@@ -2073,12 +2105,12 @@ user-scalable=no">
     const roi = document.getElementById("scanRoiBox");
     const primaryBtn = document.getElementById("scanPrimaryAction");
 
-    title.textContent = mode === "frame_ocr" ? "掃框架編號" : "掃框架CTN條碼";
+    title.textContent = mode === "frame_ocr" ? "掃框架編號（手動OCR）" : "掃框架CTN條碼";
     tip.textContent = mode === "frame_ocr"
       ? "請把框架編號放進橘色框內。系統會先做灰階、對比、二值化、銳化、去噪與 ROI 裁切，再做 OCR。"
       : "請把一維或二維條碼放在鏡頭中央。掃到後會直接帶入目前選取列的 CTN。";
     status.textContent = "正在啟動相機...";
-    primaryBtn.textContent = mode === "frame_ocr" ? "開始 OCR 辨識" : "開始條碼掃描";
+    primaryBtn.textContent = mode === "frame_ocr" ? "手動 OCR 辨識" : "開始條碼掃描";
     roi.style.display = mode === "frame_ocr" ? "block" : "none";
 
     modal.style.display = "flex";
@@ -2092,7 +2124,7 @@ user-scalable=no">
       const video = document.getElementById("scanVideo");
       video.srcObject = stream;
       await video.play();
-      status.textContent = mode === "frame_ocr" ? "相機已啟動，對準框架編號後按開始 OCR 辨識" : "相機已啟動，按開始條碼掃描";
+      status.textContent = mode === "frame_ocr" ? "相機已啟動，對準框架編號後按手動 OCR 辨識" : "相機已啟動，按開始條碼掃描";
     } catch(err){
       status.textContent = "相機啟動失敗：" + (err.message || "未知錯誤");
     }
@@ -2205,6 +2237,7 @@ user-scalable=no">
       }
       applyScannedFrameId(text);
       status.textContent = "OCR 完成，已帶入框架編號：" + text;
+      beepSuccess();
     } catch(err){
       status.textContent = "OCR 失敗：" + (err.message || "未知錯誤");
     }
@@ -2218,30 +2251,52 @@ user-scalable=no">
     const status = document.getElementById("scanCameraStatus");
     status.textContent = "條碼掃描中...";
     try{
-      if(!("BarcodeDetector" in window)){
-        throw new Error("目前瀏覽器不支援 BarcodeDetector，請改用 Chrome Android 或改手動輸入");
-      }
-      if(!scanModalState.detector){
-        scanModalState.detector = new BarcodeDetector({ formats: getSupportedBarcodeFormats() });
-      }
       const video = document.getElementById("scanVideo");
-      const detectOnce = async () => {
-        const barcodes = await scanModalState.detector.detect(video);
-        if(!barcodes || !barcodes.length) return false;
-        const rawValue = String(barcodes[0].rawValue || "").trim().toUpperCase();
-        if(!rawValue){
-          return false;
+
+      const detectWithBarcodeDetector = async () => {
+        if(!("BarcodeDetector" in window)){
+          return "";
         }
+        if(!scanModalState.detector){
+          scanModalState.detector = new BarcodeDetector({ formats: getSupportedBarcodeFormats() });
+        }
+        const barcodes = await scanModalState.detector.detect(video);
+        if(!barcodes || !barcodes.length) return "";
+        return String(barcodes[0].rawValue || "").trim().toUpperCase();
+      };
+
+      const detectWithZXing = async () => {
+        if(!(window.ZXingBrowser && window.ZXingBrowser.BrowserMultiFormatReader)){
+          return "";
+        }
+        if(!scanModalState.zxingReader){
+          scanModalState.zxingReader = new window.ZXingBrowser.BrowserMultiFormatReader();
+        }
+        const result = await scanModalState.zxingReader.decodeOnceFromVideoElement(video);
+        return String(result && result.text || "").trim().toUpperCase();
+      };
+
+      const tryApplyValue = (rawValue) => {
+        if(!rawValue) return false;
         applyScannedCtn(rawValue);
         status.textContent = "已掃到條碼：" + rawValue;
+        beepSuccess();
         closeScanModal();
         return true;
       };
 
       if(singleShot){
-        const hit = await detectOnce();
-        if(!hit){
-          status.textContent = "尚未掃到條碼，請調整距離或亮度再試一次";
+        let rawValue = "";
+        try{
+          rawValue = await detectWithBarcodeDetector();
+        } catch(err){}
+        if(!rawValue){
+          try{
+            rawValue = await detectWithZXing();
+          } catch(err){}
+        }
+        if(!tryApplyValue(rawValue)){
+          status.textContent = "尚未掃到條碼，請調整距離、亮度或改用手動輸入";
         }
         return;
       }
@@ -2249,13 +2304,31 @@ user-scalable=no">
       if(scanModalState.intervalId){
         clearInterval(scanModalState.intervalId);
       }
+
       scanModalState.intervalId = setInterval(async () => {
         try{
-          await detectOnce();
+          let rawValue = "";
+          try{
+            rawValue = await detectWithBarcodeDetector();
+          } catch(err){}
+          if(!rawValue){
+            status.textContent = "BarcodeDetector 不可用，改用 ZXing 掃描中...";
+            clearInterval(scanModalState.intervalId);
+            scanModalState.intervalId = null;
+            try{
+              rawValue = await detectWithZXing();
+            } catch(err){
+              status.textContent = "ZXing 條碼掃描失敗：" + (err.message || "未知錯誤");
+              return;
+            }
+          }
+          if(rawValue){
+            tryApplyValue(rawValue);
+          }
         } catch(err){
           status.textContent = "掃描中：" + (err.message || "請稍候");
         }
-      }, 500);
+      }, 450);
     } catch(err){
       status.textContent = "條碼掃描失敗：" + (err.message || "未知錯誤");
     }
@@ -2271,6 +2344,7 @@ user-scalable=no">
     }
     renderFramePairTable();
     persistDraft();
+    beepSuccess();
   }
 
   function applyScannedCtn(ctn){
@@ -2289,6 +2363,7 @@ user-scalable=no">
     }
     renderFramePairTable();
     persistDraft();
+    beepSuccess();
   }
 
 
