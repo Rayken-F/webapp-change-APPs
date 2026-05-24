@@ -460,13 +460,6 @@ user-scalable=no">
     border-top:1px solid rgba(230,236,255,0.14);
   }
 
-  .confirm-stack-value{
-    display:block;
-    margin-top:8px;
-    white-space:pre-wrap;
-    line-height:1.8;
-  }
-
   #loadingBox{
     backdrop-filter:blur(8px);
     -webkit-backdrop-filter:blur(8px);
@@ -488,79 +481,6 @@ user-scalable=no">
     color:rgba(231,237,255,0.70);
     line-height:1.6;
     margin-top:10px;
-  }
-
-
-  .scan-pair-entry{
-    position:relative;
-    z-index:1;
-    display:grid;
-    grid-template-columns:1fr 1fr;
-    gap:12px;
-    margin-bottom:12px;
-  }
-
-  .scan-pair-input{
-    min-height:auto;
-  }
-
-  .scan-pair-actions{
-    margin-top:0;
-    margin-bottom:14px;
-  }
-
-  .scan-table-wrap{
-    position:relative;
-    z-index:1;
-    overflow-x:auto;
-    border:1px solid rgba(231,238,255,0.18);
-    border-radius:16px;
-  }
-
-  .scan-table{
-    width:100%;
-    border-collapse:collapse;
-    color:#ffffff;
-    font-size:15px;
-  }
-
-  .scan-table th,
-  .scan-table td{
-    padding:12px 10px;
-    border-bottom:1px solid rgba(231,238,255,0.14);
-    text-align:left;
-    vertical-align:middle;
-  }
-
-  .scan-table th{
-    color:#ff9b56;
-    font-weight:800;
-    background:rgba(255,255,255,0.04);
-    white-space:nowrap;
-  }
-
-  .scan-table td{
-    color:rgba(242,246,255,0.9);
-    word-break:break-all;
-  }
-
-  .scan-table td:last-child,
-  .scan-table th:last-child{
-    width:88px;
-    text-align:center;
-  }
-
-  .scan-table-empty td{
-    text-align:center !important;
-    color:rgba(234,240,255,0.42);
-  }
-
-  .scan-row-delete{
-    width:auto;
-    padding:8px 10px;
-    border-radius:12px;
-    font-size:13px;
-    min-width:64px;
   }
 
   @media (max-width:768px){
@@ -591,10 +511,6 @@ user-scalable=no">
 
     .scan-display{
       height:190px;
-    }
-
-    .scan-pair-entry{
-      grid-template-columns:1fr;
     }
   }
 
@@ -722,6 +638,171 @@ user-scalable=no">
       flex:0 0 100%;
     }
   }
+
+  .scan-pair-card .scan-tip{margin-bottom:14px;}
+  .pair-toolbar{
+    position:relative;
+    z-index:1;
+    display:flex;
+    flex-wrap:wrap;
+    gap:10px;
+    margin-bottom:14px;
+  }
+  .pair-toolbar button{
+    width:auto;
+    flex:1 1 160px;
+    padding:12px 14px;
+    font-size:14px;
+    border-radius:14px;
+  }
+  .pair-table-wrap{
+    position:relative;
+    z-index:1;
+    overflow-x:auto;
+    border:1px solid rgba(231,238,255,0.16);
+    border-radius:16px;
+    background:rgba(10,24,72,0.18);
+  }
+  .pair-table{
+    width:100%;
+    border-collapse:collapse;
+    min-width:420px;
+  }
+  .pair-table th,
+  .pair-table td{
+    border-bottom:1px solid rgba(231,238,255,0.12);
+    border-right:1px solid rgba(231,238,255,0.10);
+    padding:10px 10px;
+    vertical-align:middle;
+  }
+  .pair-table th:last-child,
+  .pair-table td:last-child{
+    border-right:none;
+  }
+  .pair-table tr:last-child td{
+    border-bottom:none;
+  }
+  .pair-table th{
+    color:#ffb56d;
+    font-size:15px;
+    font-weight:800;
+    text-align:center;
+    background:rgba(255,255,255,0.04);
+  }
+  .pair-table-input{
+    width:100%;
+    border:none;
+    outline:none;
+    background:transparent;
+    color:#fff;
+    font-size:16px;
+    padding:4px 0;
+  }
+  .pair-table-delete{
+    width:100%;
+    padding:10px 12px !important;
+    font-size:13px !important;
+    border-radius:12px !important;
+  }
+  .pair-empty{
+    position:relative;
+    z-index:1;
+    color:rgba(234,240,255,0.45);
+    padding:14px 4px 2px;
+    font-size:14px;
+  }
+  .scan-camera-modal{
+    position:fixed;
+    inset:0;
+    display:none;
+    align-items:center;
+    justify-content:center;
+    background:rgba(3,8,30,0.82);
+    z-index:10000;
+    padding:18px;
+  }
+  .scan-camera-panel{
+    width:min(92vw,720px);
+    background:linear-gradient(180deg, rgba(45,70,160,0.42), rgba(35,49,124,0.34));
+    border:1px solid rgba(214,225,255,0.32);
+    border-radius:22px;
+    box-shadow:0 18px 50px rgba(0,0,0,0.38);
+    overflow:hidden;
+    backdrop-filter:blur(16px);
+  }
+  .scan-camera-header{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:12px;
+    padding:16px 18px;
+    border-bottom:1px solid rgba(255,255,255,0.1);
+  }
+  .scan-camera-title{
+    font-size:18px;
+    font-weight:800;
+  }
+  .scan-camera-close{
+    width:auto !important;
+    padding:10px 14px !important;
+    font-size:14px !important;
+    border-radius:14px !important;
+  }
+  .scan-camera-body{
+    padding:16px 18px 18px;
+  }
+  .camera-preview-wrap{
+    position:relative;
+    border-radius:18px;
+    overflow:hidden;
+    background:#07112b;
+    border:1px solid rgba(255,255,255,0.14);
+  }
+  #scanVideo{
+    width:100%;
+    max-height:56vh;
+    display:block;
+    object-fit:cover;
+    background:#07112b;
+  }
+  .scan-roi{
+    position:absolute;
+    border:2px solid rgba(255,181,109,0.95);
+    box-shadow:0 0 0 9999px rgba(0,0,0,0.24);
+    border-radius:14px;
+    pointer-events:none;
+  }
+  .scan-roi.frame{
+    left:10%;
+    top:34%;
+    width:80%;
+    height:20%;
+  }
+  .scan-camera-tip{
+    margin-top:12px;
+    font-size:13px;
+    color:rgba(231,237,255,0.72);
+    line-height:1.7;
+  }
+  .scan-camera-actions{
+    display:flex;
+    flex-wrap:wrap;
+    gap:10px;
+    margin-top:14px;
+  }
+  .scan-camera-actions button{
+    flex:1 1 150px;
+    padding:12px 14px;
+    font-size:14px;
+    border-radius:14px;
+  }
+  .scan-camera-status{
+    margin-top:12px;
+    min-height:22px;
+    font-size:14px;
+    color:rgba(242,246,255,0.92);
+  }
+
 </style>
 </head>
 
@@ -801,6 +882,7 @@ user-scalable=no">
       </div>
     </div>
 
+    
     <div id="pageSandblast" class="page">
       <div class="form-card">
         <div class="form-title">自動噴砂站</div>
@@ -821,41 +903,30 @@ user-scalable=no">
         <input type="number" id="sb_pre_ctn_protect" class="form-input">
       </div>
 
-      <div id="scan-card-frame" class="form-card">
+      <div id="scan-card-frame" class="form-card scan-pair-card">
         <div class="form-title-line">
           <div class="form-title">框架CTN掃描</div>
           <div id="frame-count-text" class="count-text">目前數量：0</div>
         </div>
-        <div class="scan-tip">改為 2 欄表格輸入：左邊框架編號、右邊框架 CTN。送到後台時仍會各自寫入單一儲存格並用換行對齊。CTN 仍會先擋前端重複，後端也會再擋同日重複送出。</div>
-
-        <div class="scan-pair-entry">
-          <input id="sb_frame_pair_frame_input" type="text" class="form-input scan-pair-input" placeholder="框架編號">
-          <input id="sb_frame_pair_ctn_input" type="text" class="form-input scan-pair-input" placeholder="框架CTN">
+        <div class="scan-tip">左邊填框架編號，右邊填框架CTN。CTN 優先用條碼掃描；框架編號可用固定框拍照辨識。前端會先擋重複，送出前後端也會再驗證一次。</div>
+        <div class="pair-toolbar">
+          <button type="button" onclick="addFramePairRow()">新增一列</button>
+          <button type="button" onclick="openFrameScanModal()">掃框架編號</button>
+          <button type="button" onclick="openCtnScanModal()">掃框架CTN條碼</button>
         </div>
-
-        <div class="btn-row scan-pair-actions">
-          <button type="button" onclick="addSandblastFramePairFromInputs()">新增一列</button>
-          <button type="button" class="btn-danger" onclick="triggerFramePairCamera()">拍照辨識入口</button>
-        </div>
-
-        <input id="sb_frame_pair_camera" type="file" accept="image/*" capture="environment" style="display:none">
-
-        <div class="scan-table-wrap">
-          <table class="scan-table">
+        <div class="pair-table-wrap">
+          <table class="pair-table">
             <thead>
               <tr>
-                <th>框架編號</th>
-                <th>框架CTN</th>
-                <th>操作</th>
+                <th style="width:38%;">框架編號</th>
+                <th style="width:42%;">框架CTN</th>
+                <th style="width:20%;">操作</th>
               </tr>
             </thead>
-            <tbody id="sb_frame_pair_tbody">
-              <tr class="scan-table-empty">
-                <td colspan="3">尚未掃描任何資料</td>
-              </tr>
-            </tbody>
+            <tbody id="frame-pair-table-body"></tbody>
           </table>
         </div>
+        <div id="frame-pair-empty" class="pair-empty">尚未加入任何框架／CTN配對</div>
         <div id="sb_frame_scan_error" class="scan-error"></div>
       </div>
 
@@ -881,7 +952,29 @@ user-scalable=no">
       </div>
     </div>
 
-    <div id="pageUT" class="page">
+    <div id="scanCameraModal" class="scan-camera-modal">
+      <div class="scan-camera-panel">
+        <div class="scan-camera-header">
+          <div class="scan-camera-title" id="scanCameraTitle">掃描</div>
+          <button type="button" class="btn-danger scan-camera-close" onclick="closeScanModal()">關閉</button>
+        </div>
+        <div class="scan-camera-body">
+          <div class="camera-preview-wrap">
+            <video id="scanVideo" playsinline autoplay muted></video>
+            <div id="scanRoiBox" class="scan-roi frame"></div>
+          </div>
+          <div class="scan-camera-tip" id="scanCameraTip"></div>
+          <div class="scan-camera-actions">
+            <button type="button" id="scanPrimaryAction" onclick="handlePrimaryScanAction()">開始辨識</button>
+            <button type="button" onclick="captureCurrentFrame()">手動擷取</button>
+          </div>
+          <div class="scan-camera-status" id="scanCameraStatus"></div>
+          <canvas id="ocrCanvas" style="display:none;"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <div id="pageUT" class="page"> class="page">
       <div class="form-card">
         <div class="form-title">UT站</div>
       </div>
@@ -1080,6 +1173,7 @@ user-scalable=no">
   ">
     <div class="loading-text">送出中...</div>
   </div>
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 <script src="./api.js"></script>
 <script>
   const STORAGE_KEY = "ds_report_draft_v2";
@@ -1093,6 +1187,7 @@ user-scalable=no">
     workers:[],
 
     sb_frame_remove:"",
+    sb_frame_pairs:[],
     sb_pre_complete:"",
     sb_neck_grind:"",
     sb_pre_ctn_protect:"",
@@ -1131,6 +1226,14 @@ user-scalable=no">
   const scanState = {
     sb_frame_pairs:[],
     sb_cylinder_scan:[]
+  };
+
+  const scanModalState = {
+    mode:"",
+    stream:null,
+    detector:null,
+    intervalId:null,
+    targetRowId:""
   };
 
   let sending = false;
@@ -1306,11 +1409,13 @@ user-scalable=no">
     document.querySelectorAll(".checkbox-group input:checked").forEach(c => workers.push(c.value));
     formData.workers = workers;
 
-    formData.sb_frame_remove = scanState.sb_frame_pairs.map(item => item.frameId).join("\n");
+    collectFramePairRowsFromUI();
+    formData.sb_frame_remove = scanState.sb_frame_pairs.map(item => item.frameId).filter(Boolean).join("\n");
     formData.sb_pre_complete = getValue("sb_pre_complete");
     formData.sb_neck_grind = getValue("sb_neck_grind");
     formData.sb_pre_ctn_protect = getValue("sb_pre_ctn_protect");
-    formData.sb_frame_scan = scanState.sb_frame_pairs.map(item => item.ctn).join("\n");
+    formData.sb_frame_pairs = JSON.parse(JSON.stringify(scanState.sb_frame_pairs));
+    formData.sb_frame_scan = scanState.sb_frame_pairs.map(item => item.ctn).filter(Boolean).join("\n");
     formData.sb_cylinder_scan = scanState.sb_cylinder_scan.join("\n");
     formData.sb_note = getValue("sb_note");
 
@@ -1399,10 +1504,7 @@ user-scalable=no">
       if(draft.scanState){
         scanState.sb_frame_pairs = Array.isArray(draft.scanState.sb_frame_pairs)
           ? draft.scanState.sb_frame_pairs
-          : normalizeSandblastPairList(
-              draft.formData ? draft.formData.sb_frame_remove : "",
-              draft.formData ? draft.formData.sb_frame_scan : ""
-            );
+          : [];
 
         scanState.sb_cylinder_scan = Array.isArray(draft.scanState.sb_cylinder_scan)
           ? draft.scanState.sb_cylinder_scan
@@ -1487,6 +1589,15 @@ user-scalable=no">
       }
     });
 
+    if(Array.isArray(formData.sb_frame_pairs)){
+      scanState.sb_frame_pairs = formData.sb_frame_pairs.map((item, index) => ({
+        rowId: item.rowId || ("pair_" + index + "_" + Date.now()),
+        frameId: toUpperSafe(item.frameId || ""),
+        ctn: normalizeCTN(item.ctn || "")
+      }));
+    }
+    renderFramePairTable();
+
     const projRepairCtnEl = document.getElementById("proj_repair_ctn");
     if(projRepairCtnEl){
       projRepairCtnEl.value = toUpperSafe(projRepairCtnEl.value);
@@ -1500,8 +1611,7 @@ user-scalable=no">
     ensureBundleFramesLength(normalizeBundleFrameCount(formData.bundle_frame_count || 1));
     renderBundleCards();
 
-    rebuildFramePairsFromStoredStrings(formData.sb_frame_remove, formData.sb_frame_scan);
-    renderFramePairsTable();
+    renderFramePairTable();
     renderScanDisplay("sb_cylinder_scan");
 
     goToPageImmediately(activePageId);
@@ -1592,7 +1702,7 @@ user-scalable=no">
     }
 
     renderBundleCards();
-    renderFramePairsTable();
+    renderFramePairTable();
     renderScanDisplay("sb_cylinder_scan");
     clearErrors();
     goToPageImmediately("page1");
@@ -1689,187 +1799,6 @@ user-scalable=no">
     }
   }
 
-
-  function normalizeFrameId(value){
-    return String(value || "").trim().toUpperCase();
-  }
-
-  function normalizeSandblastPairList(frameRemoveValue, frameScanValue){
-    const frameIds = String(frameRemoveValue || "")
-      .split(/\r?\n/)
-      .map(normalizeFrameId);
-
-    const ctns = String(frameScanValue || "")
-      .split(/\r?\n/)
-      .map(normalizeCTN);
-
-    const maxLen = Math.max(frameIds.length, ctns.length);
-    const pairs = [];
-
-    for(let i = 0; i < maxLen; i++){
-      const frameId = frameIds[i] || "";
-      const ctn = ctns[i] || "";
-      if(!frameId && !ctn) continue;
-      pairs.push({ frameId, ctn });
-    }
-
-    return pairs;
-  }
-
-  function rebuildFramePairsFromStoredStrings(frameRemoveValue, frameScanValue){
-    scanState.sb_frame_pairs = normalizeSandblastPairList(frameRemoveValue, frameScanValue);
-  }
-
-  function buildFramePairPreviewText(){
-    if(!scanState.sb_frame_pairs.length) return "";
-    return scanState.sb_frame_pairs
-      .map(item => `${item.frameId || "-"} ｜ ${item.ctn || "-"}`)
-      .join("\n");
-  }
-
-  function renderFramePairsTable(){
-    const tbody = document.getElementById("sb_frame_pair_tbody");
-    const countEl = document.getElementById("frame-count-text");
-    if(!tbody || !countEl) return;
-
-    countEl.innerText = `目前數量：${scanState.sb_frame_pairs.length}`;
-
-    if(!scanState.sb_frame_pairs.length){
-      tbody.innerHTML = '<tr class="scan-table-empty"><td colspan="3">尚未掃描任何資料</td></tr>';
-      formData.sb_frame_remove = "";
-      formData.sb_frame_scan = "";
-      return;
-    }
-
-    tbody.innerHTML = scanState.sb_frame_pairs.map((item, index) => `
-      <tr>
-        <td>${escapeHtml(item.frameId)}</td>
-        <td>${escapeHtml(item.ctn)}</td>
-        <td><button type="button" class="btn-danger scan-row-delete" onclick="removeSandblastFramePair(${index})">刪除</button></td>
-      </tr>
-    `).join("");
-
-    formData.sb_frame_remove = scanState.sb_frame_pairs.map(item => item.frameId).join("\n");
-    formData.sb_frame_scan = scanState.sb_frame_pairs.map(item => item.ctn).join("\n");
-  }
-
-  function addSandblastFramePairFromInputs(){
-    const frameInput = document.getElementById("sb_frame_pair_frame_input");
-    const ctnInput = document.getElementById("sb_frame_pair_ctn_input");
-    if(!frameInput || !ctnInput) return;
-
-    const frameId = normalizeFrameId(frameInput.value);
-    const ctn = normalizeCTN(ctnInput.value);
-
-    const ok = addSandblastFramePair(frameId, ctn, "manual");
-    if(!ok) return;
-
-    frameInput.value = "";
-    ctnInput.value = "";
-    frameInput.focus();
-  }
-
-  function addSandblastFramePair(frameId, ctn, source){
-    const card = document.getElementById("scan-card-frame");
-    const errorEl = document.getElementById("sb_frame_scan_error");
-    const normalizedFrameId = normalizeFrameId(frameId);
-    const normalizedCtn = normalizeCTN(ctn);
-
-    if(!normalizedFrameId || !normalizedCtn){
-      showScanError("sb_frame_scan", "框架編號與框架CTN都要填");
-      return false;
-    }
-
-    if(!isValidCTN(normalizedCtn)){
-      showScanError("sb_frame_scan", `CTN格式錯誤：${normalizedCtn}`);
-      return false;
-    }
-
-    const owner = findDuplicateOwner(normalizedCtn);
-    if(owner){
-      showScanError("sb_frame_scan", `CTN重複：${normalizedCtn}（已存在於${owner}）`);
-      return false;
-    }
-
-    scanState.sb_frame_pairs.push({
-      frameId: normalizedFrameId,
-      ctn: normalizedCtn,
-      source: source || "manual"
-    });
-
-    renderFramePairsTable();
-    persistDraft();
-    if(errorEl){
-      errorEl.innerText = "";
-    }
-    if(card){
-      card.classList.remove("scan-card-error");
-      card.removeAttribute(VISIBLE_ERROR_ATTR);
-    }
-    return true;
-  }
-
-  function removeSandblastFramePair(index){
-    if(index < 0 || index >= scanState.sb_frame_pairs.length) return;
-    scanState.sb_frame_pairs.splice(index, 1);
-    renderFramePairsTable();
-    persistDraft();
-  }
-
-  function bindSandblastFramePairInputs(){
-    const frameInput = document.getElementById("sb_frame_pair_frame_input");
-    const ctnInput = document.getElementById("sb_frame_pair_ctn_input");
-    const cameraInput = document.getElementById("sb_frame_pair_camera");
-
-    if(frameInput){
-      frameInput.addEventListener("input", function(){
-        this.value = normalizeFrameId(this.value);
-      });
-
-      frameInput.addEventListener("keydown", function(e){
-        if(e.key === "Enter"){
-          e.preventDefault();
-          const ctnEl = document.getElementById("sb_frame_pair_ctn_input");
-          if(ctnEl){
-            ctnEl.focus();
-          }
-        }
-      });
-    }
-
-    if(ctnInput){
-      ctnInput.addEventListener("input", function(){
-        this.value = normalizeCTN(this.value);
-      });
-
-      ctnInput.addEventListener("keydown", function(e){
-        if(e.key === "Enter"){
-          e.preventDefault();
-          addSandblastFramePairFromInputs();
-        }
-      });
-    }
-
-    if(cameraInput){
-      cameraInput.addEventListener("change", handleFramePairCameraCapture);
-    }
-  }
-
-  function triggerFramePairCamera(){
-    const cameraInput = document.getElementById("sb_frame_pair_camera");
-    if(cameraInput){
-      cameraInput.click();
-    }
-  }
-
-  function handleFramePairCameraCapture(e){
-    const input = e.target;
-    if(!input || !input.files || !input.files.length) return;
-
-    showScanError("sb_frame_scan", "相機入口已開好，但這版先不硬上自動OCR，避免誤判框號/CTN。先拍照留存，框號與CTN仍請人工確認後輸入。");
-    input.value = "";
-  }
-
   function normalizeCTN(value){
     return (value || "").trim().toUpperCase();
   }
@@ -1883,8 +1812,6 @@ user-scalable=no">
       return {
         cardId:"scan-card-frame",
         errorId:"sb_frame_scan_error",
-        displayId:"",
-        inputId:"",
         countId:"frame-count-text",
         title:"框架CTN掃描"
       };
@@ -1987,6 +1914,384 @@ user-scalable=no">
     formData[fieldKey] = list.join("\n");
   }
 
+
+  function createFramePairRow(data = {}){
+    return {
+      rowId: data.rowId || ("pair_" + Date.now() + "_" + Math.random().toString(36).slice(2,8)),
+      frameId: toUpperSafe(data.frameId || ""),
+      ctn: normalizeCTN(data.ctn || "")
+    };
+  }
+
+  function addFramePairRow(prefill = {}){
+    collectFramePairRowsFromUI();
+    scanState.sb_frame_pairs.push(createFramePairRow(prefill));
+    renderFramePairTable();
+    persistDraft();
+  }
+
+  function removeFramePairRow(rowId){
+    scanState.sb_frame_pairs = scanState.sb_frame_pairs.filter(item => item.rowId !== rowId);
+    renderFramePairTable();
+    persistDraft();
+  }
+
+  function renderFramePairTable(){
+    const body = document.getElementById("frame-pair-table-body");
+    const emptyEl = document.getElementById("frame-pair-empty");
+    const countEl = document.getElementById("frame-count-text");
+    if(!body) return;
+
+    if(!Array.isArray(scanState.sb_frame_pairs)){
+      scanState.sb_frame_pairs = [];
+    }
+
+    if(scanState.sb_frame_pairs.length === 0){
+      scanState.sb_frame_pairs = [createFramePairRow()];
+    }
+
+    body.innerHTML = scanState.sb_frame_pairs.map((item, index) => `
+      <tr>
+        <td>
+          <input
+            type="text"
+            class="pair-table-input js-frame-id"
+            data-row-id="${item.rowId}"
+            value="${escapeAttribute(toUpperSafe(item.frameId || ""))}"
+            placeholder="請輸入或掃描框架編號"
+          >
+        </td>
+        <td>
+          <input
+            type="text"
+            class="pair-table-input js-frame-ctn"
+            data-row-id="${item.rowId}"
+            value="${escapeAttribute(normalizeCTN(item.ctn || ""))}"
+            placeholder="請輸入或掃描CTN"
+          >
+        </td>
+        <td>
+          <button type="button" class="btn-danger pair-table-delete" onclick="removeFramePairRow('${item.rowId}')">${index === 0 && scanState.sb_frame_pairs.length === 1 ? "清空" : "刪除"}</button>
+        </td>
+      </tr>
+    `).join("");
+
+    if(countEl){
+      const filledCount = scanState.sb_frame_pairs.filter(item => item.frameId || item.ctn).length;
+      countEl.innerText = `目前數量：${filledCount}`;
+    }
+    if(emptyEl){
+      emptyEl.style.display = scanState.sb_frame_pairs.some(item => item.frameId || item.ctn) ? "none" : "block";
+    }
+  }
+
+  function collectFramePairRowsFromUI(){
+    const frameInputs = document.querySelectorAll(".js-frame-id");
+    const ctnInputs = document.querySelectorAll(".js-frame-ctn");
+    if(!frameInputs.length || !ctnInputs.length) return;
+
+    const nextRows = [];
+    for(let i = 0; i < frameInputs.length; i++){
+      const rowId = frameInputs[i].dataset.rowId || ctnInputs[i].dataset.rowId || ("pair_fallback_" + i);
+      const frameId = toUpperSafe(frameInputs[i].value || "");
+      const ctn = normalizeCTN(ctnInputs[i].value || "");
+      if(!frameId && !ctn) continue;
+      nextRows.push({ rowId, frameId, ctn });
+    }
+
+    scanState.sb_frame_pairs = nextRows.length > 0 ? nextRows : [createFramePairRow()];
+    renderFramePairTable();
+  }
+
+  function bindFramePairTableEvents(){
+    const body = document.getElementById("frame-pair-table-body");
+    if(!body) return;
+
+    body.addEventListener("input", function(e){
+      const target = e.target;
+      if(target.classList.contains("js-frame-id")){
+        target.value = toUpperSafe(target.value);
+      }
+      if(target.classList.contains("js-frame-ctn")){
+        target.value = normalizeCTN(target.value);
+      }
+      collectFramePairRowsFromUI();
+      persistDraft();
+    });
+
+    body.addEventListener("change", function(e){
+      const target = e.target;
+      if(target.classList.contains("js-frame-id")){
+        target.value = toUpperSafe(target.value);
+      }
+      if(target.classList.contains("js-frame-ctn")){
+        const ctn = normalizeCTN(target.value);
+        const owner = findDuplicateOwnerExcludingRow(ctn, target.dataset.rowId || "");
+        if(ctn && owner){
+          target.value = "";
+          showScanError("sb_frame_scan", `${ctn} 已存在於${owner}`);
+        } else {
+          target.value = ctn;
+        }
+      }
+      collectFramePairRowsFromUI();
+      persistDraft();
+    });
+  }
+
+  function findDuplicateOwnerExcludingRow(ctn, rowId){
+    if(!ctn) return "";
+    if(scanState.sb_frame_pairs.some(item => item.rowId !== rowId && item.ctn === ctn)){
+      return "框架CTN掃描";
+    }
+    if(scanState.sb_cylinder_scan.includes(ctn)){
+      return "散支鋼瓶CTN掃描";
+    }
+    return "";
+  }
+
+  async function validateSandblastPairsBeforeSubmit(reportDate, pairs){
+    const ctns = (pairs || []).map(item => normalizeCTN(item.ctn)).filter(Boolean);
+    if(ctns.length === 0){
+      return { duplicates: [] };
+    }
+    try{
+      return await validateSandblastPairsAPI(reportDate, ctns);
+    } catch(err){
+      console.error("後端CTN重複驗證失敗", err);
+      return { duplicates: [] };
+    }
+  }
+
+  async function openCameraModal(mode){
+    scanModalState.mode = mode;
+    scanModalState.targetRowId = getActivePairRowId();
+    const modal = document.getElementById("scanCameraModal");
+    const title = document.getElementById("scanCameraTitle");
+    const tip = document.getElementById("scanCameraTip");
+    const status = document.getElementById("scanCameraStatus");
+    const roi = document.getElementById("scanRoiBox");
+    const primaryBtn = document.getElementById("scanPrimaryAction");
+
+    title.textContent = mode === "frame_ocr" ? "掃框架編號" : "掃框架CTN條碼";
+    tip.textContent = mode === "frame_ocr"
+      ? "請把框架編號放進橘色框內。系統會先做灰階、對比、二值化、銳化、去噪與 ROI 裁切，再做 OCR。"
+      : "請把一維或二維條碼放在鏡頭中央。掃到後會直接帶入目前選取列的 CTN。";
+    status.textContent = "正在啟動相機...";
+    primaryBtn.textContent = mode === "frame_ocr" ? "開始 OCR 辨識" : "開始條碼掃描";
+    roi.style.display = mode === "frame_ocr" ? "block" : "none";
+
+    modal.style.display = "flex";
+
+    try{
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal: "environment" } },
+        audio: false
+      });
+      scanModalState.stream = stream;
+      const video = document.getElementById("scanVideo");
+      video.srcObject = stream;
+      await video.play();
+      status.textContent = mode === "frame_ocr" ? "相機已啟動，對準框架編號後按開始 OCR 辨識" : "相機已啟動，按開始條碼掃描";
+    } catch(err){
+      status.textContent = "相機啟動失敗：" + (err.message || "未知錯誤");
+    }
+  }
+
+  function openFrameScanModal(){
+    openCameraModal("frame_ocr");
+  }
+
+  function openCtnScanModal(){
+    openCameraModal("ctn_barcode");
+  }
+
+  function closeScanModal(){
+    const modal = document.getElementById("scanCameraModal");
+    modal.style.display = "none";
+    const video = document.getElementById("scanVideo");
+    if(video){
+      video.pause();
+      video.srcObject = null;
+    }
+    if(scanModalState.intervalId){
+      clearInterval(scanModalState.intervalId);
+      scanModalState.intervalId = null;
+    }
+    if(scanModalState.stream){
+      scanModalState.stream.getTracks().forEach(track => track.stop());
+      scanModalState.stream = null;
+    }
+  }
+
+  function getActivePairRowId(){
+    collectFramePairRowsFromUI();
+    const firstEmpty = scanState.sb_frame_pairs.find(item => !item.ctn);
+    if(firstEmpty) return firstEmpty.rowId;
+    return scanState.sb_frame_pairs[scanState.sb_frame_pairs.length - 1]?.rowId || "";
+  }
+
+  function handlePrimaryScanAction(){
+    if(scanModalState.mode === "frame_ocr"){
+      runFrameOcr();
+      return;
+    }
+    runBarcodeScan();
+  }
+
+  function captureCurrentFrame(){
+    if(scanModalState.mode === "frame_ocr"){
+      runFrameOcr();
+    } else {
+      runBarcodeScan(true);
+    }
+  }
+
+  function getVideoCanvasData(){
+    const video = document.getElementById("scanVideo");
+    const canvas = document.getElementById("ocrCanvas");
+    if(!video || !canvas || !video.videoWidth || !video.videoHeight){
+      throw new Error("相機畫面尚未準備完成");
+    }
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const ctx = canvas.getContext("2d");
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    return { video, canvas, ctx };
+  }
+
+  function preprocessFrameForOcr(canvas, ctx){
+    const cropX = Math.floor(canvas.width * 0.10);
+    const cropY = Math.floor(canvas.height * 0.34);
+    const cropW = Math.floor(canvas.width * 0.80);
+    const cropH = Math.floor(canvas.height * 0.20);
+    const imageData = ctx.getImageData(cropX, cropY, cropW, cropH);
+    const data = imageData.data;
+
+    for(let i = 0; i < data.length; i += 4){
+      const gray = Math.round(data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114);
+      let value = gray;
+      value = (value - 128) * 1.7 + 128; // 提高對比
+      value = Math.max(0, Math.min(255, value));
+      value = value > 150 ? 255 : 0; // 二值化
+      data[i] = value;
+      data[i + 1] = value;
+      data[i + 2] = value;
+    }
+
+    const processed = document.createElement("canvas");
+    processed.width = cropW;
+    processed.height = cropH;
+    const pctx = processed.getContext("2d");
+    pctx.putImageData(imageData, 0, 0);
+    pctx.filter = "contrast(170%) grayscale(100%)";
+    pctx.drawImage(processed, 0, 0);
+    return processed;
+  }
+
+  async function runFrameOcr(){
+    const status = document.getElementById("scanCameraStatus");
+    status.textContent = "OCR 辨識中...";
+    try{
+      const { canvas, ctx } = getVideoCanvasData();
+      const processed = preprocessFrameForOcr(canvas, ctx);
+      const result = await Tesseract.recognize(processed, "eng", {
+        tessedit_char_whitelist: "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-",
+        logger: () => {}
+      });
+      let text = String(result?.data?.text || "").toUpperCase().replace(/[^A-Z0-9-]/g, "");
+      if(!text){
+        throw new Error("沒有辨識到框架編號，請靠近一點再試一次");
+      }
+      applyScannedFrameId(text);
+      status.textContent = "OCR 完成，已帶入框架編號：" + text;
+    } catch(err){
+      status.textContent = "OCR 失敗：" + (err.message || "未知錯誤");
+    }
+  }
+
+  function getSupportedBarcodeFormats(){
+    return ["qr_code","code_128","code_39","ean_13","ean_8","upc_a","upc_e","itf","data_matrix","pdf417","codabar"];
+  }
+
+  async function runBarcodeScan(singleShot = false){
+    const status = document.getElementById("scanCameraStatus");
+    status.textContent = "條碼掃描中...";
+    try{
+      if(!("BarcodeDetector" in window)){
+        throw new Error("目前瀏覽器不支援 BarcodeDetector，請改用 Chrome Android 或改手動輸入");
+      }
+      if(!scanModalState.detector){
+        scanModalState.detector = new BarcodeDetector({ formats: getSupportedBarcodeFormats() });
+      }
+      const video = document.getElementById("scanVideo");
+      const detectOnce = async () => {
+        const barcodes = await scanModalState.detector.detect(video);
+        if(!barcodes || !barcodes.length) return false;
+        const rawValue = String(barcodes[0].rawValue || "").trim().toUpperCase();
+        if(!rawValue){
+          return false;
+        }
+        applyScannedCtn(rawValue);
+        status.textContent = "已掃到條碼：" + rawValue;
+        closeScanModal();
+        return true;
+      };
+
+      if(singleShot){
+        const hit = await detectOnce();
+        if(!hit){
+          status.textContent = "尚未掃到條碼，請調整距離或亮度再試一次";
+        }
+        return;
+      }
+
+      if(scanModalState.intervalId){
+        clearInterval(scanModalState.intervalId);
+      }
+      scanModalState.intervalId = setInterval(async () => {
+        try{
+          await detectOnce();
+        } catch(err){
+          status.textContent = "掃描中：" + (err.message || "請稍候");
+        }
+      }, 500);
+    } catch(err){
+      status.textContent = "條碼掃描失敗：" + (err.message || "未知錯誤");
+    }
+  }
+
+  function applyScannedFrameId(frameId){
+    const rowId = scanModalState.targetRowId || getActivePairRowId();
+    const row = scanState.sb_frame_pairs.find(item => item.rowId === rowId);
+    if(!row){
+      scanState.sb_frame_pairs.push(createFramePairRow({ frameId }));
+    } else {
+      row.frameId = toUpperSafe(frameId);
+    }
+    renderFramePairTable();
+    persistDraft();
+  }
+
+  function applyScannedCtn(ctn){
+    const normalized = normalizeCTN(ctn);
+    const rowId = scanModalState.targetRowId || getActivePairRowId();
+    const owner = findDuplicateOwnerExcludingRow(normalized, rowId);
+    if(owner){
+      showScanError("sb_frame_scan", `${normalized} 已存在於${owner}`);
+      return;
+    }
+    const row = scanState.sb_frame_pairs.find(item => item.rowId === rowId);
+    if(!row){
+      scanState.sb_frame_pairs.push(createFramePairRow({ ctn: normalized }));
+    } else {
+      row.ctn = normalized;
+    }
+    renderFramePairTable();
+    persistDraft();
+  }
+
+
   function processScanInput(fieldKey){
     const config = getCardIds(fieldKey);
     const inputEl = document.getElementById(config.inputId);
@@ -2084,13 +2389,17 @@ user-scalable=no">
     `;
 
     if(formData.site === "自動噴砂站"){
+      const pairPreview = scanState.sb_frame_pairs
+        .map(item => `${escapeHtml(item.frameId)} ｜ ${escapeHtml(item.ctn)}`)
+        .join("<br>");
+
       html += `
         <div class="confirm-section">
           <div>框架CTN配對數量：${scanState.sb_frame_pairs.length}</div>
           <div>前置完全（框）：${escapeHtml(formData.sb_pre_complete)}</div>
           <div>前置瓶頸研磨：${escapeHtml(formData.sb_neck_grind)}</div>
           <div>前置CTN防護：${escapeHtml(formData.sb_pre_ctn_protect)}</div>
-          <div>框架編號／CTN：<span class="confirm-stack-value">${nl2br(buildFramePairPreviewText())}</span></div>
+          <div>框架編號／CTN：<br>${pairPreview || "未填寫"}</div>
           <div>散支鋼瓶CTN掃描數量：${scanState.sb_cylinder_scan.length}</div>
           <div>噴砂備註：${nl2br(formData.sb_note)}</div>
         </div>
@@ -2203,19 +2512,23 @@ user-scalable=no">
     let payload = null;
 
     if(formData.site === "自動噴砂站"){
+      collectFramePairRowsFromUI();
+
       payload = {
         "日期": formData.date || "",
         "填表人員": formData.person || "",
         "站別": formData.site || "",
         "人員姓名": Array.isArray(formData.workers) ? formData.workers.join(", ") : "",
-
-        "框架編號(拆卸)": formData.sb_frame_remove || "",
+        "框架編號(拆卸)": scanState.sb_frame_pairs.map(item => item.frameId).filter(Boolean).join("
+"),
         "前置完全(框)": formData.sb_pre_complete || "",
         "前置瓶頸研磨": formData.sb_neck_grind || "",
         "前置CTN防護": formData.sb_pre_ctn_protect || "",
-        "框架CTN掃描": formData.sb_frame_scan || "",
+        "框架CTN掃描": scanState.sb_frame_pairs.map(item => item.ctn).filter(Boolean).join("
+"),
         "散支鋼瓶CTN掃描": formData.sb_cylinder_scan || "",
-        "噴砂備註": formData.sb_note || ""
+        "噴砂備註": formData.sb_note || "",
+        "框架CTN配對表": scanState.sb_frame_pairs
       };
     }
     else if(formData.site === "UT站"){
@@ -2308,6 +2621,22 @@ user-scalable=no">
     }
 
     try {
+      if(formData.site === "自動噴砂站"){
+        const emptyPair = scanState.sb_frame_pairs.find(item => !item.frameId || !item.ctn);
+        if(emptyPair){
+          showScanError("sb_frame_scan", "框架編號與CTN必須成對，請補齊後再送出");
+          backToSite();
+          return;
+        }
+
+        const serverCheck = await validateSandblastPairsBeforeSubmit(formData.date, scanState.sb_frame_pairs);
+        if(serverCheck.duplicates.length > 0){
+          showScanError("sb_frame_scan", `後端已有重複CTN：${serverCheck.duplicates.slice(0,3).join("、")}${serverCheck.duplicates.length > 3 ? "..." : ""}`);
+          backToSite();
+          return;
+        }
+      }
+
       sending = true;
       const loadingBox = document.getElementById("loadingBox");
       loadingBox.innerHTML = '<div class="loading-text">送出中...</div>';
@@ -2462,8 +2791,6 @@ user-scalable=no">
 
   function bindUppercaseInputs(){
     const uppercaseTargets = [
-      document.getElementById("sb_frame_pair_frame_input"),
-      document.getElementById("sb_frame_pair_ctn_input"),
       document.getElementById("proj_repair_ctn")
     ];
 
@@ -2500,10 +2827,11 @@ user-scalable=no">
       dateInput.value = today;
     }
 
-    bindSandblastFramePairInputs();
     bindScanInput("sb_cylinder_scan");
+    renderFramePairTable();
     bindAutoSave();
     bindUppercaseInputs();
+    bindFramePairTableEvents();
     renderBundleCards();
     bindBundleEvents();
     loadPerson();
@@ -2556,32 +2884,6 @@ function createEmptyBundleFrame(index){
     doneDate:"",
     extraNote:""
   };
-}
-
-function getBundleMixedTypeOptions(){
-  return [
-    { value:"A/C", label:"A/C" },
-    { value:"HN", label:"HN" },
-    { value:"other", label:"other" }
-  ];
-}
-
-function getBundleKnownTypeValues(){
-  return ["H2","He","N2","Ar","O2","Co2","A/C","HN"];
-}
-
-function getBundleTypePresetValue(typeValue){
-  const value = String(typeValue || "").trim();
-  if(!value) return "";
-  if(getBundleKnownTypeValues().includes(value)) return value;
-  return "other";
-}
-
-function getBundleTypeCustomValue(typeValue){
-  const value = String(typeValue || "").trim();
-  if(!value) return "";
-  if(getBundleKnownTypeValues().includes(value)) return "";
-  return value;
 }
 
 function normalizeBundleFrameCount(value){
@@ -2638,7 +2940,8 @@ function renderBundleCards(){
         <div class="bundle-radio-grid">
           ${renderBundleRadioOptions(`bundle_status_${index}`, frame.status, [
             { value:"OCYL", label:"OCYL" },
-            { value:"MNT1", label:"MNT1" }
+            { value:"MNT1", label:"MNT1" },
+            { value:"入框", label:"入框" }
           ])}
         </div>
       </div>
@@ -2659,16 +2962,14 @@ function renderBundleCards(){
 
         <div class="bundle-subtitle">混合氣體</div>
         <div class="bundle-radio-grid">
-          ${renderBundleRadioOptions(`bundle_type_${index}`, getBundleTypePresetValue(frame.type), getBundleMixedTypeOptions())}
-        </div>
-        <div class="bundle-field-block" style="margin-top:10px;">
-          <input
-            type="text"
-            class="form-input bundle-type-other-input"
-            data-frame-index="${index}"
-            placeholder="選 other 時請輸入英文字"
-            value="${escapeAttribute(getBundleTypeCustomValue(frame.type))}"
-          >
+          ${renderBundleRadioOptions(`bundle_type_${index}`, frame.type, [
+            { value:"A/C", label:"A/C" },
+            { value:"HN", label:"HN" },
+            { value:"H2Ar", label:"H2Ar" },
+            { value:"H2He", label:"H2He" },
+            { value:"ArN2", label:"ArN2" },
+            { value:"other", label:"other" }
+          ])}
         </div>
       </div>
 
@@ -2677,7 +2978,7 @@ function renderBundleCards(){
         <div class="bundle-radio-grid two-col">
           ${renderBundleRadioOptions(`bundle_frame_type_${index}`, frame.frameType, [
             { value:"H2 200bar", label:"H2 200bar" },
-            { value:"HP", label:"HP" },
+            { value:"H2 150bar", label:"H2 150bar" },
             { value:"MEGA", label:"MEGA" },
             { value:"n12", label:"n12" },
             { value:"7m", label:"7m" },
@@ -2781,19 +3082,15 @@ function collectBundleFramesFromUI(){
     const inDateEl = document.querySelector(`.bundle-in-date[data-frame-index="${i}"]`);
     const doneDateEl = document.querySelector(`.bundle-done-date[data-frame-index="${i}"]`);
     const extraNoteEl = document.querySelector(`.bundle-note-textarea[data-frame-index="${i}"]`);
-    const typeOtherEl = document.querySelector(`.bundle-type-other-input[data-frame-index="${i}"]`);
 
     const inDate = inDateEl ? inDateEl.value : "";
     const doneDate = doneDateEl ? doneDateEl.value : "";
     const extraNote = extraNoteEl ? extraNoteEl.value : "";
-    const selectedType = typeEl ? typeEl.value : "";
-    const customType = typeOtherEl ? String(typeOtherEl.value || "").trim().toUpperCase() : "";
-    const finalType = selectedType === "other" ? customType : selectedType;
 
     frames.push({
       frameNo:i + 1,
       status:statusEl ? statusEl.value : "",
-      type:finalType,
+      type:typeEl ? typeEl.value : "",
       frameType:frameTypeEl ? frameTypeEl.value : "",
       frameId:frameIdEl ? toUpperSafe(frameIdEl.value) : "",
       rtNo:rtNoEl ? rtNoEl.value : "",
@@ -2869,11 +3166,7 @@ function bindBundleEvents(){
     container.addEventListener("input", function(e){
       const target = e.target;
 
-      if(
-        target.classList.contains("bundle-frame-id") ||
-        target.classList.contains("bundle-frame-ctn") ||
-        target.classList.contains("bundle-type-other-input")
-      ){
+      if(target.classList.contains("bundle-frame-id") || target.classList.contains("bundle-frame-ctn")){
         const start = target.selectionStart;
         const end = target.selectionEnd;
         target.value = toUpperSafe(target.value);
@@ -2890,11 +3183,7 @@ function bindBundleEvents(){
     container.addEventListener("change", function(e){
       const target = e.target;
 
-      if(
-        target.classList.contains("bundle-frame-id") ||
-        target.classList.contains("bundle-frame-ctn") ||
-        target.classList.contains("bundle-type-other-input")
-      ){
+      if(target.classList.contains("bundle-frame-id") || target.classList.contains("bundle-frame-ctn")){
         target.value = toUpperSafe(target.value);
       }
 
