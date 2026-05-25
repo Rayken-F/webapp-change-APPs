@@ -639,91 +639,6 @@ user-scalable=no">
     }
   }
 
-  .pair-toolbar{
-    position:relative;
-    z-index:1;
-    display:flex;
-    flex-wrap:wrap;
-    gap:10px;
-    margin-bottom:14px;
-  }
-  .pair-toolbar button{
-    width:auto;
-    flex:1 1 160px;
-    padding:12px 14px;
-    font-size:14px;
-    border-radius:14px;
-  }
-  .pair-table-wrap{
-    position:relative;
-    z-index:1;
-    overflow-x:auto;
-    border:1px solid rgba(231,238,255,0.16);
-    border-radius:16px;
-    background:rgba(10,24,72,0.18);
-    padding:6px;
-  }
-  .pair-table{
-    width:100%;
-    border-collapse:collapse;
-    min-width:420px;
-  }
-  .pair-table th,
-  .pair-table td{
-    border-bottom:1px solid rgba(231,238,255,0.12);
-    border-right:1px solid rgba(231,238,255,0.10);
-    padding:10px 10px;
-    vertical-align:middle;
-  }
-  .pair-table th:last-child,
-  .pair-table td:last-child{
-    border-right:none;
-  }
-  .pair-table tr:last-child td{
-    border-bottom:none;
-  }
-  .pair-table th{
-    color:#ffb56d;
-    font-size:15px;
-    font-weight:800;
-    text-align:center;
-    background:rgba(255,255,255,0.04);
-  }
-  .pair-table-input{
-    width:100%;
-    min-height:44px;
-    padding:10px 12px;
-    border-radius:12px;
-    border:1px solid rgba(231,238,255,0.18);
-    outline:none;
-    background:rgba(255,255,255,0.08);
-    color:#fff;
-    font-size:16px;
-    line-height:1.4;
-    box-shadow:inset 0 1px 0 rgba(255,255,255,0.05);
-    transition:border-color .16s ease, box-shadow .16s ease, background .16s ease;
-  }
-  .pair-table-input::placeholder{
-    color:rgba(234,240,255,0.38);
-  }
-  .pair-table-input:focus{
-    border-color:rgba(151,128,255,0.95);
-    box-shadow:0 0 0 3px rgba(151,128,255,0.16);
-    background:rgba(255,255,255,0.10);
-  }
-  .pair-table-delete{
-    width:100%;
-    padding:10px 12px !important;
-    font-size:13px !important;
-    border-radius:12px !important;
-  }
-  .pair-empty{
-    position:relative;
-    z-index:1;
-    color:rgba(234,240,255,0.45);
-    padding:14px 4px 2px;
-    font-size:14px;
-  }
 
 </style>
 </head>
@@ -871,7 +786,7 @@ user-scalable=no">
         <button type="button" onclick="handlePreviewNavigation()">預覽</button>
       </div>
     </div>
-<div id="pageUT" class="page">
+    <div id="pageUT" class="page">
       <div class="form-card">
         <div class="form-title">UT站</div>
       </div>
@@ -1333,19 +1248,17 @@ user-scalable=no">
     formData.proj_note = getValue("proj_note");
   }
 
-  function buildDraftSnapshot(){
-    saveData();
-    return {
-      formData: JSON.parse(JSON.stringify(formData)),
-      scanState: JSON.parse(JSON.stringify(scanState)),
-      activePageId: getActivePageId(),
-      savedAt: new Date().toISOString()
-    };
-  }
-
   function persistDraft(){
     try{
-      const draft = buildDraftSnapshot();
+      saveData();
+
+      const draft = {
+        formData: JSON.parse(JSON.stringify(formData)),
+        scanState: JSON.parse(JSON.stringify(scanState)),
+        activePageId: getActivePageId(),
+        savedAt: new Date().toISOString()
+      };
+
       localStorage.setItem(STORAGE_KEY, JSON.stringify(draft));
 
       if(formData.person){
@@ -1693,13 +1606,29 @@ user-scalable=no">
       window.__draftBannerCountdownTimer = null;
     }
   }
+  function bindDraftLifecycleGuards(){
+    const guardedSave = () => {
+      persistDraft();
+    };
+
+    window.addEventListener("pagehide", guardedSave);
+    window.addEventListener("beforeunload", guardedSave);
+    window.addEventListener("popstate", guardedSave);
+
+    document.addEventListener("visibilitychange", function(){
+      if(document.visibilityState === "hidden"){
+        guardedSave();
+      }
+    });
+  }
+
 
   function normalizeCTN(value){
     return (value || "").trim().toUpperCase();
   }
 
   function isValidCTN(value){
-    return /^[A-Z]{2}\d{2}[A-Z]{2}[A-Z0-9]$/.test(String(value || "").trim().toUpperCase());
+    return /^[A-Z]{2}\d{2}[A-Z]{2}[A-Z0-9]$/.test(value);
   }
 
   function getCardIds(fieldKey){
@@ -1931,16 +1860,6 @@ user-scalable=no">
       const ctn = normalizeCTN(target.value || "");
       const owner = findDuplicateOwnerExcludingRow(ctn, rowId);
 
-      if(ctn && !isValidCTN(ctn)){
-        target.value = "";
-        const row = scanState.sb_frame_pairs.find(item => item.rowId === rowId);
-        if(row) row.ctn = "";
-        showScanError("sb_frame_scan", "CTN 格式錯誤：前2碼英文，第3~4碼數字，第5~6碼英文，第7碼任意英數，總長度固定 7 碼");
-        updateFramePairCountOnly();
-        persistDraft();
-        return;
-      }
-
       if(ctn && owner){
         target.value = "";
         const row = scanState.sb_frame_pairs.find(item => item.rowId === rowId);
@@ -1969,7 +1888,7 @@ user-scalable=no">
     clearTimeout(window.__pairDraftTimer);
     window.__pairDraftTimer = setTimeout(() => {
       persistDraft();
-    }, 60);
+    }, 200);
   }
 
   function findDuplicateOwnerExcludingRow(ctn, rowId){
@@ -2331,13 +2250,6 @@ user-scalable=no">
           return;
         }
 
-        const invalidPair = scanState.sb_frame_pairs.find(item => !isValidCTN(item.ctn));
-        if(invalidPair){
-          showScanError("sb_frame_scan", "CTN 格式錯誤：前2碼英文，第3~4碼數字，第5~6碼英文，第7碼任意英數，總長度固定 7 碼");
-          backToSite();
-          return;
-        }
-
         const serverCheck = await validateSandblastPairsBeforeSubmit(formData.date, scanState.sb_frame_pairs);
         if(serverCheck.duplicates.length > 0){
           showScanError("sb_frame_scan", `後端已有重複CTN：${serverCheck.duplicates.slice(0,3).join("、")}${serverCheck.duplicates.length > 3 ? "..." : ""}`);
@@ -2526,27 +2438,6 @@ user-scalable=no">
     });
   }
 
-
-  function bindDraftLifecycle(){
-    window.addEventListener("pagehide", function(){
-      persistDraft();
-    });
-
-    window.addEventListener("beforeunload", function(){
-      persistDraft();
-    });
-
-    document.addEventListener("visibilitychange", function(){
-      if(document.visibilityState === "hidden"){
-        persistDraft();
-      }
-    });
-
-    window.addEventListener("popstate", function(){
-      persistDraft();
-    });
-  }
-
   window.onload = async function(){
     updateStep(1);
 
@@ -2560,9 +2451,9 @@ user-scalable=no">
     bindScanInput("sb_cylinder_scan");
     renderFramePairTable();
     bindAutoSave();
+    bindDraftLifecycleGuards();
     bindUppercaseInputs();
     bindFramePairTableEvents();
-    bindDraftLifecycle();
     renderBundleCards();
     bindBundleEvents();
     loadPerson();
