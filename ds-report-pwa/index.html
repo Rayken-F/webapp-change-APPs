@@ -1333,20 +1333,27 @@ user-scalable=no">
     formData.proj_note = getValue("proj_note");
   }
 
-  function persistDraft(){
+  function buildDraftSnapshot(){
     saveData();
-
-    const draft = {
+    return {
       formData: JSON.parse(JSON.stringify(formData)),
       scanState: JSON.parse(JSON.stringify(scanState)),
       activePageId: getActivePageId(),
       savedAt: new Date().toISOString()
     };
+  }
 
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(draft));
+  function persistDraft(){
+    try{
+      const draft = buildDraftSnapshot();
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(draft));
 
-    if(formData.person){
-      localStorage.setItem("report_person", formData.person);
+      if(formData.person){
+        localStorage.setItem("report_person", formData.person);
+      }
+    }
+    catch(err){
+      console.error("草稿儲存失敗", err);
     }
   }
 
@@ -1962,7 +1969,7 @@ user-scalable=no">
     clearTimeout(window.__pairDraftTimer);
     window.__pairDraftTimer = setTimeout(() => {
       persistDraft();
-    }, 200);
+    }, 60);
   }
 
   function findDuplicateOwnerExcludingRow(ctn, rowId){
@@ -2519,6 +2526,27 @@ user-scalable=no">
     });
   }
 
+
+  function bindDraftLifecycle(){
+    window.addEventListener("pagehide", function(){
+      persistDraft();
+    });
+
+    window.addEventListener("beforeunload", function(){
+      persistDraft();
+    });
+
+    document.addEventListener("visibilitychange", function(){
+      if(document.visibilityState === "hidden"){
+        persistDraft();
+      }
+    });
+
+    window.addEventListener("popstate", function(){
+      persistDraft();
+    });
+  }
+
   window.onload = async function(){
     updateStep(1);
 
@@ -2534,6 +2562,7 @@ user-scalable=no">
     bindAutoSave();
     bindUppercaseInputs();
     bindFramePairTableEvents();
+    bindDraftLifecycle();
     renderBundleCards();
     bindBundleEvents();
     loadPerson();
