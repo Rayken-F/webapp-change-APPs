@@ -639,10 +639,6 @@ user-scalable=no">
     }
   }
 
-
-  .scan-pair-card .scan-tip{
-    margin-bottom:14px;
-  }
   .pair-toolbar{
     position:relative;
     z-index:1;
@@ -652,77 +648,74 @@ user-scalable=no">
     margin-bottom:14px;
   }
   .pair-toolbar button{
-    padding:13px 16px;
-    border-radius:16px;
-    font-size:15px;
+    width:auto;
+    flex:1 1 160px;
+    padding:12px 14px;
+    font-size:14px;
+    border-radius:14px;
   }
   .pair-table-wrap{
     position:relative;
     z-index:1;
     overflow-x:auto;
-    border:1px solid rgba(231,238,255,0.14);
-    border-radius:18px;
-    background:linear-gradient(180deg, rgba(8,21,66,0.34), rgba(20,37,102,0.22));
-    box-shadow:inset 0 1px 0 rgba(255,255,255,0.06);
+    border:1px solid rgba(231,238,255,0.16);
+    border-radius:16px;
+    background:rgba(10,24,72,0.18);
+    padding:6px;
   }
   .pair-table{
     width:100%;
-    border-collapse:separate;
-    border-spacing:0;
+    border-collapse:collapse;
     min-width:420px;
   }
-  .pair-table thead th{
-    position:sticky;
-    top:0;
-    z-index:1;
-    padding:14px 12px;
-    background:linear-gradient(180deg, rgba(255,255,255,0.10), rgba(255,255,255,0.04));
-    color:#f8f1df;
+  .pair-table th,
+  .pair-table td{
+    border-bottom:1px solid rgba(231,238,255,0.12);
+    border-right:1px solid rgba(231,238,255,0.10);
+    padding:10px 10px;
+    vertical-align:middle;
+  }
+  .pair-table th:last-child,
+  .pair-table td:last-child{
+    border-right:none;
+  }
+  .pair-table tr:last-child td{
+    border-bottom:none;
+  }
+  .pair-table th{
+    color:#ffb56d;
     font-size:15px;
     font-weight:800;
-    letter-spacing:.3px;
     text-align:center;
-    border-bottom:1px solid rgba(231,238,255,0.12);
-  }
-  .pair-table tbody td{
-    padding:10px 12px;
-    border-bottom:1px solid rgba(231,238,255,0.10);
-    background:rgba(255,255,255,0.02);
-  }
-  .pair-table tbody tr:last-child td{
-    border-bottom:none;
+    background:rgba(255,255,255,0.04);
   }
   .pair-table-input{
     width:100%;
-    min-height:46px;
-    padding:12px 14px;
-    border:1px solid rgba(231,238,255,0.14);
-    border-radius:14px;
-    background:linear-gradient(180deg, rgba(9,20,64,0.72), rgba(15,29,85,0.54));
-    color:#ffffff;
-    font-size:16px;
-    font-weight:700;
-    letter-spacing:.4px;
+    min-height:44px;
+    padding:10px 12px;
+    border-radius:12px;
+    border:1px solid rgba(231,238,255,0.18);
     outline:none;
-    transition:border-color .16s ease, box-shadow .16s ease, background .16s ease;
+    background:rgba(255,255,255,0.08);
+    color:#fff;
+    font-size:16px;
+    line-height:1.4;
     box-shadow:inset 0 1px 0 rgba(255,255,255,0.05);
+    transition:border-color .16s ease, box-shadow .16s ease, background .16s ease;
   }
   .pair-table-input::placeholder{
-    color:rgba(235,240,255,0.40);
-    font-weight:600;
-    letter-spacing:0;
+    color:rgba(234,240,255,0.38);
   }
   .pair-table-input:focus{
-    border-color:rgba(148,162,255,0.75);
-    background:linear-gradient(180deg, rgba(15,29,85,0.85), rgba(23,40,108,0.66));
-    box-shadow:0 0 0 3px rgba(122,124,255,0.16);
+    border-color:rgba(151,128,255,0.95);
+    box-shadow:0 0 0 3px rgba(151,128,255,0.16);
+    background:rgba(255,255,255,0.10);
   }
   .pair-table-delete{
     width:100%;
-    min-height:46px;
-    padding:12px 14px !important;
-    font-size:14px !important;
-    border-radius:14px !important;
+    padding:10px 12px !important;
+    font-size:13px !important;
+    border-radius:12px !important;
   }
   .pair-empty{
     position:relative;
@@ -730,7 +723,6 @@ user-scalable=no">
     color:rgba(234,240,255,0.45);
     padding:14px 4px 2px;
     font-size:14px;
-    font-weight:700;
   }
 
 </style>
@@ -863,7 +855,7 @@ user-scalable=no">
           <div class="form-title">散支鋼瓶CTN掃描</div>
           <div id="cylinder-count-text" class="count-text">目前數量：0</div>
         </div>
-        <div class="scan-tip">CTN 會自動轉大寫，支援手動輸入、藍牙條碼掃描器貼入，並驗證格式與跨卡片重複。</div>
+        <div class="scan-tip">CTN 固定 7 碼英數混合，可單筆掃描或一次貼上多行；系統會自動轉大寫、即時累計並驗證跨卡片重複。</div>
         <textarea id="sb_cylinder_scan_input" class="form-input scan-input" placeholder="請掃描或貼上 CTN，每行一組"></textarea>
         <div id="sb_cylinder_scan_display" class="scan-display empty">尚未掃描任何 CTN</div>
         <div id="sb_cylinder_scan_error" class="scan-error"></div>
@@ -879,7 +871,7 @@ user-scalable=no">
         <button type="button" onclick="handlePreviewNavigation()">預覽</button>
       </div>
     </div>
-    <div id="pageUT" class="page">
+<div id="pageUT" class="page">
       <div class="form-card">
         <div class="form-title">UT站</div>
       </div>
@@ -1700,7 +1692,7 @@ user-scalable=no">
   }
 
   function isValidCTN(value){
-    return /^[A-Z]{2}\d{2}[A-Z]{2}[A-Z0-9]$/.test(value);
+    return /^[A-Z]{2}\d{2}[A-Z]{2}[A-Z0-9]$/.test(String(value || "").trim().toUpperCase());
   }
 
   function getCardIds(fieldKey){
@@ -1733,27 +1725,6 @@ user-scalable=no">
     }
 
     return "";
-
-
-  function validateSingleCTNValue(ctn, fieldKey, rowId = ""){
-    if(!ctn) return true;
-
-    if(!isValidCTN(ctn)){
-      showScanError(fieldKey, `CTN格式錯誤：${ctn}`);
-      return false;
-    }
-
-    const owner = rowId
-      ? findDuplicateOwnerExcludingRow(ctn, rowId)
-      : findDuplicateOwner(ctn);
-
-    if(owner){
-      showScanError(fieldKey, `${ctn} 已存在於${owner}`);
-      return false;
-    }
-
-    return true;
-  }
   }
 
   function beepError(){
@@ -1875,10 +1846,7 @@ user-scalable=no">
             class="pair-table-input js-frame-id"
             data-row-id="${item.rowId}"
             value="${escapeAttribute(toUpperSafe(item.frameId || ""))}"
-            placeholder="請輸入框架編號"
-            autocapitalize="characters"
-            autocomplete="off"
-            spellcheck="false"
+            placeholder="請輸入或掃描框架編號"
           >
         </td>
         <td>
@@ -1888,9 +1856,6 @@ user-scalable=no">
             data-row-id="${item.rowId}"
             value="${escapeAttribute(normalizeCTN(item.ctn || ""))}"
             placeholder="請輸入或掃描CTN"
-            autocapitalize="characters"
-            autocomplete="off"
-            spellcheck="false"
           >
         </td>
         <td>
@@ -1936,13 +1901,13 @@ user-scalable=no">
       if(!row) return;
 
       if(target.classList.contains("js-frame-id")){
-        const upper = toUpperSafe(target.value).replace(/\s+/g, "");
+        const upper = toUpperSafe(target.value);
         target.value = upper;
         row.frameId = upper;
       }
 
       if(target.classList.contains("js-frame-ctn")){
-        const normalized = normalizeCTN(target.value).replace(/\s+/g, "");
+        const normalized = normalizeCTN(target.value);
         target.value = normalized;
         row.ctn = normalized;
       }
@@ -1953,24 +1918,27 @@ user-scalable=no">
 
     body.addEventListener("blur", function(e){
       const target = e.target;
-      const rowId = target.dataset.rowId || "";
-      const row = scanState.sb_frame_pairs.find(item => item.rowId === rowId);
+      if(!target.classList.contains("js-frame-ctn")) return;
 
-      if(target.classList.contains("js-frame-id")){
-        const upper = toUpperSafe(target.value).replace(/\s+/g, "");
-        target.value = upper;
-        if(row) row.frameId = upper;
+      const rowId = target.dataset.rowId || "";
+      const ctn = normalizeCTN(target.value || "");
+      const owner = findDuplicateOwnerExcludingRow(ctn, rowId);
+
+      if(ctn && !isValidCTN(ctn)){
+        target.value = "";
+        const row = scanState.sb_frame_pairs.find(item => item.rowId === rowId);
+        if(row) row.ctn = "";
+        showScanError("sb_frame_scan", "CTN 格式錯誤：前2碼英文，第3~4碼數字，第5~6碼英文，第7碼任意英數，總長度固定 7 碼");
+        updateFramePairCountOnly();
+        persistDraft();
+        return;
       }
 
-      if(target.classList.contains("js-frame-ctn")){
-        const ctn = normalizeCTN(target.value).replace(/\s+/g, "");
-        if(!validateSingleCTNValue(ctn, "sb_frame_scan", rowId)){
-          target.value = "";
-          if(row) row.ctn = "";
-        } else {
-          target.value = ctn;
-          if(row) row.ctn = ctn;
-        }
+      if(ctn && owner){
+        target.value = "";
+        const row = scanState.sb_frame_pairs.find(item => item.rowId === rowId);
+        if(row) row.ctn = "";
+        showScanError("sb_frame_scan", `${ctn} 已存在於${owner}`);
       }
 
       updateFramePairCountOnly();
@@ -2352,6 +2320,13 @@ user-scalable=no">
         const emptyPair = scanState.sb_frame_pairs.find(item => !item.frameId || !item.ctn);
         if(emptyPair){
           showScanError("sb_frame_scan", "框架編號與CTN必須成對，請補齊後再送出");
+          backToSite();
+          return;
+        }
+
+        const invalidPair = scanState.sb_frame_pairs.find(item => !isValidCTN(item.ctn));
+        if(invalidPair){
+          showScanError("sb_frame_scan", "CTN 格式錯誤：前2碼英文，第3~4碼數字，第5~6碼英文，第7碼任意英數，總長度固定 7 碼");
           backToSite();
           return;
         }
