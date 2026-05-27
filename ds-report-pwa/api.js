@@ -1,4 +1,4 @@
-// 43版：日報輸入端專用 deployment
+// 92版：日報輸入端專用 deployment
 const API_URL = "https://script.google.com/macros/s/AKfycbwYjPR-mHy_UCRAAsvU84-3T_MMQcfKHX9PSR8Da7E2gQq3xVEcK0Fnz0JvrHaIHpem/exec";
 
 async function parseApiJsonResponse(res) {
