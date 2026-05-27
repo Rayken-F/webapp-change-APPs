@@ -68,6 +68,7 @@ async function validateSandblastPairsAPI(reportDate, ctnList) {
   }
 
   return {
-    duplicates: Array.isArray(result.duplicates) ? result.duplicates : []
+    duplicates: Array.isArray(result.duplicates) ? result.duplicates : [],
+    duplicateDetails: Array.isArray(result.duplicateDetails) ? result.duplicateDetails : []
   };
 }
