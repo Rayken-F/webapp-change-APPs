@@ -1490,32 +1490,15 @@ user-scalable=no">
       const draftDate = draft.formData.date || "";
       const isCrossDayDraft = draftDate && draftDate !== today;
 
-      if(isCrossDayDraft){
-        const shouldApply = window.confirm(
-          `偵測到前一日未送出草稿（${draftDate}），是否套用內容到今天？`
-        );
-
-        if(!shouldApply){
-          localStorage.removeItem(STORAGE_KEY);
-          showDraftBanner("已略過前一日草稿，系統將以今日空白表單開始", {
-            autoHide: true,
-            duration: 5000,
-            countdown: true
-          });
-          return;
-        }
-      }
-
       Object.keys(formData).forEach(key => {
         if(draft.formData.hasOwnProperty(key)){
-          if(key === "date"){
-            formData.date = today;
-          }
-          else{
-            formData[key] = draft.formData[key];
-          }
+          formData[key] = draft.formData[key];
         }
       });
+
+      if(!formData.date){
+        formData.date = today;
+      }
 
       if(draft.scanState){
         scanState.sb_frame_pairs = Array.isArray(draft.scanState.sb_frame_pairs)
@@ -1530,9 +1513,10 @@ user-scalable=no">
       applyFormDataToUI(draft.activePageId || "page1");
 
       if(isCrossDayDraft){
-        showDraftBanner(`已套用 ${draftDate} 的未送出草稿內容，日期已更新為今天`, {
+        showDraftBanner(`已恢復 ${draftDate} 的未送出草稿，日期已保留不自動更新`, {
           autoHide: true,
-          duration: 5000
+          duration: 5000,
+          countdown: true
         });
       }
       else{
