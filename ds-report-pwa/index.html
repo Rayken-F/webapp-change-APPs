@@ -1215,7 +1215,6 @@ user-scalable=no">
 
       select.disabled = false;
       projectOptionsLoaded = true;
-      persistDraft();
     }
     catch(err){
       console.error("專案清單讀取失敗", err);
@@ -1386,9 +1385,36 @@ user-scalable=no">
     formData.proj_note = getValue("proj_note");
   }
 
+  function hasMeaningfulDraftContent(){
+    const today = new Date().toISOString().split("T")[0];
+
+    if(formData.site) return true;
+    if(Array.isArray(formData.workers) && formData.workers.length > 0) return true;
+    if(formData.date && formData.date !== today) return true;
+
+    if(Array.isArray(scanState.sb_cylinder_scan) && scanState.sb_cylinder_scan.length > 0) return true;
+    if(Array.isArray(scanState.sb_frame_pairs) && scanState.sb_frame_pairs.some(item => item && (item.frameId || item.ctn))) return true;
+
+    const ignoredKeys = new Set(["date", "person", "workers", "site", "photo", "bundle_frame_count", "bundle_frames", "sb_frame_pairs"]);
+    return Object.keys(formData).some(key => {
+      if(ignoredKeys.has(key)) return false;
+      const value = formData[key];
+      if(Array.isArray(value)) return value.length > 0;
+      return String(value || "").trim() !== "";
+    });
+  }
+
   function persistDraft(){
     try{
       saveData();
+
+      if(!hasMeaningfulDraftContent()){
+        localStorage.removeItem(STORAGE_KEY);
+        if(formData.person){
+          localStorage.setItem("report_person", formData.person);
+        }
+        return;
+      }
 
       const draft = {
         formData: JSON.parse(JSON.stringify(formData)),
@@ -2677,8 +2703,8 @@ function bindFramePairTableEvents(){
     renderBundleCards();
     bindBundleEvents();
     loadPerson();
-    await loadProjectOptions();
     loadDraft();
+    await loadProjectOptions();
 
     const projectSelect = document.getElementById("project_item");
     if(projectSelect && formData.project_item){
