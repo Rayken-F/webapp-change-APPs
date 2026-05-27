@@ -2090,7 +2090,7 @@ function bindFramePairTableEvents(){
     return "";
   }
 
-  async async function validateSandblastPairsBeforeSubmit(reportDate, pairs){
+  async function validateSandblastPairsBeforeSubmit(reportDate, pairs){
     const ctns = (pairs || []).map(item => normalizeCTN(item.ctn)).filter(Boolean);
     if(ctns.length === 0){
       return { duplicates: [], duplicateDetails: [] };
