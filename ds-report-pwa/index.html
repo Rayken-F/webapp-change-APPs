@@ -756,6 +756,25 @@ user-scalable=no">
     font-size:14px;
     border:1px solid rgba(255,255,255,0.12);
   }
+  .bundle-manifold-pressure{
+    width:96px;
+    padding:10px 12px;
+    border:none;
+    outline:none;
+    border-radius:12px;
+    background:rgba(255,255,255,0.10);
+    color:#fff;
+    font-size:14px;
+    font-weight:800;
+    border:1px solid rgba(255,255,255,0.12);
+    text-align:center;
+  }
+  .bundle-manifold-pressure::placeholder{
+    color:rgba(234,240,255,0.38);
+  }
+  .manifold-fixed-label{
+    margin-left:8px;
+  }
   .bundle-note-fixed-text{
     color:rgba(240,244,255,0.92);
     font-weight:700;
@@ -2728,6 +2747,10 @@ function buildBundleNoteText(frame){
     lines.push(`${frame.inDate} 入框`);
   }
 
+  if(frame.manifoldPressure){
+    lines.push(`Manifold飽壓測試${frame.manifoldPressure}kg`);
+  }
+
   if(frame.doneDate){
     lines.push(`${frame.doneDate} 完成`);
   }
@@ -2751,6 +2774,7 @@ function createEmptyBundleFrame(index){
     rtNo:"",
     frameCtn:"",
     inDate:"",
+    manifoldPressure:"",
     doneDate:"",
     extraNote:""
   };
@@ -2786,6 +2810,7 @@ function ensureBundleFramesLength(targetCount){
     rtNo:frame.rtNo || "",
     frameCtn:frame.frameCtn || "",
     inDate:frame.inDate || "",
+    manifoldPressure:frame.manifoldPressure || "",
     doneDate:frame.doneDate || "",
     extraNote:frame.extraNote || ""
   }));
@@ -2860,7 +2885,8 @@ function renderBundleCards(){
         <div class="bundle-radio-grid">
           ${renderBundleRadioOptions(`bundle_status_${index}`, frame.status, [
             { value:"OCYL", label:"OCYL" },
-            { value:"MNT1", label:"MNT1" }
+            { value:"MNT1", label:"MNT1" },
+            { value:"other", label:"other" }
           ])}
         </div>
       </div>
@@ -2947,6 +2973,18 @@ function renderBundleCards(){
             value="${escapeAttribute(frame.inDate || "")}"
           >
           <span class="bundle-note-fixed-text">入框</span>
+          <span class="bundle-note-fixed-text manifold-fixed-label">Manifold飽壓測試</span>
+          <input
+            type="number"
+            class="bundle-manifold-pressure"
+            data-frame-index="${index}"
+            min="0"
+            step="0.1"
+            inputmode="decimal"
+            value="${escapeAttribute(frame.manifoldPressure || "")}"
+            placeholder="kg"
+          >
+          <span class="bundle-note-fixed-text">kg</span>
         </div>
 
         <div class="bundle-note-date-row">
@@ -3002,6 +3040,7 @@ function collectBundleFramesFromUI(){
     const rtNoEl = document.querySelector(`.bundle-rt-no[data-frame-index="${i}"]`);
     const frameCtnEl = document.querySelector(`.bundle-frame-ctn[data-frame-index="${i}"]`);
     const inDateEl = document.querySelector(`.bundle-in-date[data-frame-index="${i}"]`);
+    const manifoldPressureEl = document.querySelector(`.bundle-manifold-pressure[data-frame-index="${i}"]`);
     const doneDateEl = document.querySelector(`.bundle-done-date[data-frame-index="${i}"]`);
     const extraNoteEl = document.querySelector(`.bundle-note-textarea[data-frame-index="${i}"]`);
 
@@ -3015,6 +3054,7 @@ function collectBundleFramesFromUI(){
       : "";
 
     const inDate = inDateEl ? inDateEl.value : "";
+    const manifoldPressure = manifoldPressureEl ? String(manifoldPressureEl.value || "").trim() : "";
     const doneDate = doneDateEl ? doneDateEl.value : "";
     const extraNote = extraNoteEl ? extraNoteEl.value : "";
 
@@ -3029,6 +3069,7 @@ function collectBundleFramesFromUI(){
       rtNo:rtNoEl ? rtNoEl.value : "",
       frameCtn:frameCtnEl ? toUpperSafe(frameCtnEl.value) : "",
       inDate:inDate,
+      manifoldPressure:manifoldPressure,
       doneDate:doneDate,
       extraNote:extraNote
     });
