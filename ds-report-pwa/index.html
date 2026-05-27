@@ -1199,6 +1199,30 @@ user-scalable=no">
     return el ? el.value : "";
   }
 
+  function getTodayYmd(){
+    try{
+      const parts = new Intl.DateTimeFormat("en-CA", {
+        timeZone: "Asia/Taipei",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit"
+      }).formatToParts(new Date());
+
+      const y = parts.find(part => part.type === "year").value;
+      const m = parts.find(part => part.type === "month").value;
+      const d = parts.find(part => part.type === "day").value;
+
+      return `${y}-${m}-${d}`;
+    }
+    catch(err){
+      const d = new Date();
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, "0");
+      const day = String(d.getDate()).padStart(2, "0");
+      return `${y}-${m}-${day}`;
+    }
+  }
+
   async function loadProjectOptions(){
     const select = document.getElementById("project_item");
     if(!select) return;
@@ -1406,7 +1430,7 @@ user-scalable=no">
   }
 
   function hasMeaningfulDraftContent(){
-    const today = new Date().toISOString().split("T")[0];
+    const today = getTodayYmd();
 
     if(formData.site) return true;
     if(Array.isArray(formData.workers) && formData.workers.length > 0) return true;
@@ -1462,7 +1486,7 @@ user-scalable=no">
       const draft = JSON.parse(raw);
       if(!draft || !draft.formData) return;
 
-      const today = new Date().toISOString().split("T")[0];
+      const today = getTodayYmd();
       const draftDate = draft.formData.date || "";
       const isCrossDayDraft = draftDate && draftDate !== today;
 
@@ -1674,7 +1698,7 @@ user-scalable=no">
       }
     });
 
-    const today = new Date().toISOString().split("T")[0];
+    const today = getTodayYmd();
     const dateInput = document.getElementById("date");
     if(dateInput){
       dateInput.value = today;
@@ -2707,7 +2731,7 @@ function bindFramePairTableEvents(){
   window.onload = async function(){
     updateStep(1);
 
-    const today = new Date().toISOString().split("T")[0];
+    const today = getTodayYmd();
     const dateInput = document.getElementById("date");
 
     if(!dateInput.value){
