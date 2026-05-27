@@ -773,7 +773,8 @@ user-scalable=no">
     color:rgba(234,240,255,0.38);
   }
   .manifold-fixed-label{
-    margin-left:8px;
+    margin-left:auto;
+    white-space:nowrap;
   }
   .bundle-note-fixed-text{
     color:rgba(240,244,255,0.92);
@@ -2747,12 +2748,12 @@ function buildBundleNoteText(frame){
     lines.push(`${frame.inDate} 入框`);
   }
 
-  if(frame.manifoldPressure){
-    lines.push(`Manifold飽壓測試${frame.manifoldPressure}kg`);
-  }
-
   if(frame.doneDate){
     lines.push(`${frame.doneDate} 完成`);
+  }
+
+  if(frame.manifoldPressure){
+    lines.push(`Manifold飽壓測試${frame.manifoldPressure}kg`);
   }
 
   if(frame.extraNote && String(frame.extraNote).trim()){
@@ -2965,7 +2966,7 @@ function renderBundleCards(){
       <div class="bundle-field-block">
         <div class="form-title">集束備註</div>
 
-        <div class="bundle-note-date-row">
+        <div class="bundle-note-date-row bundle-note-in-row">
           <input
             type="date"
             class="bundle-in-date"
