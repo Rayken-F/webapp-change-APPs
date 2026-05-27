@@ -717,6 +717,15 @@ user-scalable=no">
     background:rgba(255,255,255,0.08);
     transform:translateY(-1px);
   }
+
+  .bundle-radio-grid label:has(input:checked){
+    background:linear-gradient(135deg, rgba(109,93,252,0.30), rgba(69,163,255,0.16));
+    border-color:rgba(151,128,255,0.72);
+    box-shadow:
+      0 0 0 1px rgba(255,255,255,0.06) inset,
+      0 0 18px rgba(121,132,255,0.18);
+    color:#ffffff;
+  }
   .bundle-radio-grid input{
     accent-color:#8c7bff;
     transform:scale(1.08);
@@ -1737,6 +1746,10 @@ user-scalable=no">
   }
   function bindDraftLifecycleGuards(){
     const guardedSave = () => {
+      if(window.__pairDraftTimer){
+        clearTimeout(window.__pairDraftTimer);
+        window.__pairDraftTimer = null;
+      }
       persistDraft();
     };
 
@@ -2319,123 +2332,153 @@ function bindFramePairTableEvents(){
     persistDraft();
   }
 
+
+  function showLoadingMessage(message){
+    const loadingBox = document.getElementById("loadingBox");
+    if(!loadingBox) return;
+    loadingBox.innerHTML = `<div class="loading-text">${message}</div>`;
+    loadingBox.style.display = "flex";
+  }
+
+  function hideLoadingMessage(){
+    const loadingBox = document.getElementById("loadingBox");
+    if(loadingBox){
+      loadingBox.style.display = "none";
+    }
+  }
+
+  function waitForPaint(){
+    return new Promise(resolve => {
+      requestAnimationFrame(() => resolve());
+    });
+  }
+
   async function submitReport(){
     if(sending) return;
 
     saveData();
+    sending = true;
+    showLoadingMessage('送出中...<br><span style="font-size:14px;color:rgba(255,255,255,.72);">資料驗證中，請稍候</span>');
+    await waitForPaint();
 
     let payload = null;
 
-    if(formData.site === "自動噴砂站"){
-      collectFramePairRowsFromUI();
-
-      payload = {
-        "日期": formData.date || "",
-        "填表人員": formData.person || "",
-        "站別": formData.site || "",
-        "人員姓名": Array.isArray(formData.workers) ? formData.workers.join(", ") : "",
-        "框架編號(拆卸)": scanState.sb_frame_pairs.map(item => item.frameId).filter(Boolean).join("\n"),
-        "前置完全(框)": formData.sb_pre_complete || "",
-        "前置瓶頸研磨": formData.sb_neck_grind || "",
-        "前置CTN防護": formData.sb_pre_ctn_protect || "",
-        "框架CTN掃描": scanState.sb_frame_pairs.map(item => item.ctn).filter(Boolean).join("\n"),
-        "散支鋼瓶CTN掃描": formData.sb_cylinder_scan || "",
-        "噴砂備註": formData.sb_note || "",
-        "框架CTN配對表": scanState.sb_frame_pairs
-      };
-    }
-    else if(formData.site === "UT站"){
-      payload = {
-        "日期": formData.date || "",
-        "填表人員": formData.person || "",
-        "站別": formData.site || "",
-        "人員姓名": Array.isArray(formData.workers) ? formData.workers.join(", ") : "",
-
-        "UT上下料鋼瓶數量(支)": formData.ut_load_count || "",
-        "噴砂後下框(框)": formData.ut_unload_frame || "",
-        "治具安裝(框)": formData.ut_fixture_install || "",
-        "噴砂數量(支)": formData.ut_sand_count || "",
-        "UT站別備註": formData.ut_note || ""
-      };
-    }
-    else if(formData.site === "集束中心"){
-      collectBundleFramesFromUI();
-
-      payload = {
-        "日期": formData.date || "",
-        "填表人員": formData.person || "",
-        "站別": formData.site || "",
-        "人員姓名": Array.isArray(formData.workers) ? formData.workers.join(", ") : "",
-        "bundle_frames": Array.isArray(formData.bundle_frames) ? formData.bundle_frames : []
-      };
-    }
-    else if(formData.site === "鋼印鎖瓶站"){
-      payload = {
-        "日期": formData.date || "",
-        "填表人員": formData.person || "",
-        "站別": formData.site || "",
-        "人員姓名": Array.isArray(formData.workers) ? formData.workers.join(", ") : "",
-
-        "HT鋼印(支)": formData.stamp_ht_mark || "",
-        "UT鋼印(支)": formData.stamp_ut_mark || "",
-        "待噴砂鋼瓶(框)": formData.stamp_wait_sand || "",
-        "改瓶數量(支)": formData.stamp_rework_count || "",
-        "出貨(框)": formData.stamp_ship || "",
-        "鋼印鎖瓶站備註": formData.stamp_note || ""
-      };
-    }
-    else if(formData.site === "專案"){
-      payload = {
-        "日期": formData.date || "",
-        "填表人員": formData.person || "",
-        "站別": formData.site || "",
-        "人員姓名": Array.isArray(formData.workers) ? formData.workers.join(", ") : "",
-
-        "專案項目": formData.project_item || "",
-        "新鋼瓶下棧板（支）": formData.proj_new_cylinder || "",
-        "鋼瓶註冊（支）": formData.proj_register || "",
-        "瓶閥安裝（支）": formData.proj_valve_install || "",
-        "鋼瓶入框（框）": formData.proj_cylinder_frame || "",
-        "集束安裝（框）": formData.proj_bundle_install || "",
-        "集束測漏（框）": formData.proj_bundle_leak || "",
-        "維修框架CTN": formData.proj_repair_ctn || "",
-        "專案備註": formData.proj_note || "",
-        "照片上傳": []
-      };
-
-      const fileInput = document.getElementById("proj_photo");
-      if(fileInput && fileInput.files && fileInput.files.length > 0){
-        const files = Array.from(fileInput.files);
-
-        payload["照片上傳"] = await Promise.all(
-          files.map(file => {
-            return new Promise((resolve, reject) => {
-              const reader = new FileReader();
-
-              reader.onload = function(e){
-                resolve({
-                  name: file.name || ("project_photo_" + Date.now()),
-                  content: e.target.result || ""
-                });
-              };
-
-              reader.onerror = function(){
-                reject(new Error(`照片讀取失敗：${file.name || "未知檔案"}`));
-              };
-
-              reader.readAsDataURL(file);
-            });
-          })
-        );
-      }
-    }
-    else{
-      return;
-    }
-
     try {
       if(formData.site === "自動噴砂站"){
+        collectFramePairRowsFromUI();
+
+        payload = {
+          "日期": formData.date || "",
+          "填表人員": formData.person || "",
+          "站別": formData.site || "",
+          "人員姓名": Array.isArray(formData.workers) ? formData.workers.join(", ") : "",
+          "框架編號(拆卸)": scanState.sb_frame_pairs.map(item => item.frameId).filter(Boolean).join("\n"),
+          "前置完全(框)": formData.sb_pre_complete || "",
+          "前置瓶頸研磨": formData.sb_neck_grind || "",
+          "前置CTN防護": formData.sb_pre_ctn_protect || "",
+          "框架CTN掃描": scanState.sb_frame_pairs.map(item => item.ctn).filter(Boolean).join("\n"),
+          "散支鋼瓶CTN掃描": formData.sb_cylinder_scan || "",
+          "噴砂備註": formData.sb_note || "",
+          "框架CTN配對表": scanState.sb_frame_pairs
+        };
+      }
+      else if(formData.site === "UT站"){
+        payload = {
+          "日期": formData.date || "",
+          "填表人員": formData.person || "",
+          "站別": formData.site || "",
+          "人員姓名": Array.isArray(formData.workers) ? formData.workers.join(", ") : "",
+
+          "UT上下料鋼瓶數量(支)": formData.ut_load_count || "",
+          "噴砂後下框(框)": formData.ut_unload_frame || "",
+          "治具安裝(框)": formData.ut_fixture_install || "",
+          "噴砂數量(支)": formData.ut_sand_count || "",
+          "UT站別備註": formData.ut_note || ""
+        };
+      }
+      else if(formData.site === "集束中心"){
+        collectBundleFramesFromUI();
+
+        payload = {
+          "日期": formData.date || "",
+          "填表人員": formData.person || "",
+          "站別": formData.site || "",
+          "人員姓名": Array.isArray(formData.workers) ? formData.workers.join(", ") : "",
+          "bundle_frames": Array.isArray(formData.bundle_frames) ? formData.bundle_frames : []
+        };
+      }
+      else if(formData.site === "鋼印鎖瓶站"){
+        payload = {
+          "日期": formData.date || "",
+          "填表人員": formData.person || "",
+          "站別": formData.site || "",
+          "人員姓名": Array.isArray(formData.workers) ? formData.workers.join(", ") : "",
+
+          "HT鋼印(支)": formData.stamp_ht_mark || "",
+          "UT鋼印(支)": formData.stamp_ut_mark || "",
+          "待噴砂鋼瓶(框)": formData.stamp_wait_sand || "",
+          "改瓶數量(支)": formData.stamp_rework_count || "",
+          "出貨(框)": formData.stamp_ship || "",
+          "鋼印鎖瓶站備註": formData.stamp_note || ""
+        };
+      }
+      else if(formData.site === "專案"){
+        payload = {
+          "日期": formData.date || "",
+          "填表人員": formData.person || "",
+          "站別": formData.site || "",
+          "人員姓名": Array.isArray(formData.workers) ? formData.workers.join(", ") : "",
+
+          "專案項目": formData.project_item || "",
+          "新鋼瓶下棧板（支）": formData.proj_new_cylinder || "",
+          "鋼瓶註冊（支）": formData.proj_register || "",
+          "瓶閥安裝（支）": formData.proj_valve_install || "",
+          "鋼瓶入框（框）": formData.proj_cylinder_frame || "",
+          "集束安裝（框）": formData.proj_bundle_install || "",
+          "集束測漏（框）": formData.proj_bundle_leak || "",
+          "維修框架CTN": formData.proj_repair_ctn || "",
+          "專案備註": formData.proj_note || "",
+          "照片上傳": []
+        };
+
+        const fileInput = document.getElementById("proj_photo");
+        if(fileInput && fileInput.files && fileInput.files.length > 0){
+          showLoadingMessage('送出中...<br><span style="font-size:14px;color:rgba(255,255,255,.72);">照片讀取中，請稍候</span>');
+          await waitForPaint();
+
+          const files = Array.from(fileInput.files);
+          payload["照片上傳"] = await Promise.all(
+            files.map(file => {
+              return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+
+                reader.onload = function(e){
+                  resolve({
+                    name: file.name || ("project_photo_" + Date.now()),
+                    content: e.target.result || ""
+                  });
+                };
+
+                reader.onerror = function(){
+                  reject(new Error(`照片讀取失敗：${file.name || "未知檔案"}`));
+                };
+
+                reader.readAsDataURL(file);
+              });
+            })
+          );
+        }
+      }
+      else{
+        sending = false;
+        hideLoadingMessage();
+        return;
+      }
+
+      if(formData.site === "自動噴砂站"){
         if(!validateSandblastFramePairs(true)){
+          sending = false;
+          hideLoadingMessage();
           backToSite();
           return;
         }
@@ -2446,15 +2489,15 @@ function bindFramePairTableEvents(){
             ? serverCheck.duplicateDetails.slice(0,3).map(item => `${item.ctn}（${item.date || "既有資料"}）`).join("、")
             : serverCheck.duplicates.slice(0,3).join("、");
           showScanError("sb_frame_scan", `後端已有重複CTN：${duplicateText}${serverCheck.duplicates.length > 3 ? "..." : ""}`);
+          sending = false;
+          hideLoadingMessage();
           backToSite();
           return;
         }
       }
 
-      sending = true;
-      const loadingBox = document.getElementById("loadingBox");
-      loadingBox.innerHTML = '<div class="loading-text">送出中...</div>';
-      loadingBox.style.display = "flex";
+      showLoadingMessage('送出中...');
+      await waitForPaint();
 
       const result = await submitDailyReportAPI(payload);
       console.log("送出成功：", result);
@@ -2463,7 +2506,7 @@ function bindFramePairTableEvents(){
         requireConfirm: false
       });
 
-      loadingBox.innerHTML = '<div class="loading-text">✅ 送出成功</div>';
+      showLoadingMessage('✅ 送出成功');
 
       setTimeout(()=>{
         location.reload();
@@ -2472,11 +2515,10 @@ function bindFramePairTableEvents(){
     } catch (err) {
       console.error("送出失敗", err);
       sending = false;
-      const loadingBox = document.getElementById("loadingBox");
-      loadingBox.innerHTML = `<div class="loading-text">❌ 送出失敗：${escapeHtml(err.message || "未知錯誤")}</div>`;
+      showLoadingMessage(`❌ 送出失敗：${escapeHtml(err.message || "未知錯誤")}`);
 
       setTimeout(()=>{
-        loadingBox.style.display = "none";
+        hideLoadingMessage();
       }, 2200);
     }
   }
@@ -2574,17 +2616,17 @@ function bindFramePairTableEvents(){
       return false;
     };
 
-    const schedule = function(target){
+    const saveFromEvent = function(target){
       if(shouldSkip(target)) return;
-      persistDraftDebounced();
+      persistDraft();
     };
 
     document.addEventListener("input", function(e){
-      schedule(e.target);
+      saveFromEvent(e.target);
     }, true);
 
     document.addEventListener("change", function(e){
-      schedule(e.target);
+      saveFromEvent(e.target);
     }, true);
   }
 
@@ -2940,10 +2982,10 @@ function collectBundleFramesFromUI(){
     const typeOther = normalizeOtherText(typeOtherEl ? typeOtherEl.value : "");
     const frameTypeOther = normalizeOtherText(frameTypeOtherEl ? frameTypeOtherEl.value : "");
     const typeValue = typeEl
-      ? (typeEl.value === "other" ? typeOther : typeEl.value)
+      ? (typeEl.value === "other" ? (typeOther || "other") : typeEl.value)
       : "";
     const frameTypeValue = frameTypeEl
-      ? (frameTypeEl.value === "other" ? frameTypeOther : frameTypeEl.value)
+      ? (frameTypeEl.value === "other" ? (frameTypeOther || "other") : frameTypeEl.value)
       : "";
 
     const inDate = inDateEl ? inDateEl.value : "";
