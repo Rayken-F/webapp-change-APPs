@@ -2726,28 +2726,22 @@ function bindFramePairTableEvents(){
   }
 
   function buildProjectNoteText(){
-    const processLines = getProjectProcessSummaryLines();
+    // 子工序數量已改由 Response 的獨立欄位保存，
+    // 專案備註只保留固定備註與自由備註，不再重複塞入工序數量。
     const fixedNoteLines = getProjectFixedNoteLines();
     const freeNote = String(formData.proj_note || "").trim();
 
-    if(processLines.length === 0 && fixedNoteLines.length === 0){
+    if(fixedNoteLines.length === 0){
       return freeNote;
     }
 
-    const lines = [];
-
-    if(processLines.length > 0){
-      lines.push("【本次固定工序】", ...processLines);
-    }
-
-    if(fixedNoteLines.length > 0){
-      if(lines.length > 0) lines.push("");
-      lines.push("【固定備註】", ...fixedNoteLines);
-    }
+    const lines = [
+      "【固定備註】",
+      ...fixedNoteLines
+    ];
 
     if(freeNote){
-      if(lines.length > 0) lines.push("");
-      lines.push("【自由備註】", freeNote);
+      lines.push("", "【自由備註】", freeNote);
     }
 
     return lines.join("\n");
