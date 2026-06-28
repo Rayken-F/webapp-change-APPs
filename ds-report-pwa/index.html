@@ -949,6 +949,21 @@ user-scalable=no">
 
   .project-event-field textarea.form-input{ min-height:118px; }
 
+  .project-event-target-wrap{
+    display:none;
+  }
+
+  .project-event-target-wrap.show{
+    display:block;
+  }
+
+  .project-event-target-hint{
+    margin:8px 2px 0;
+    color:rgba(230,236,255,0.62);
+    font-size:12px;
+    line-height:1.55;
+  }
+
   @media (max-width:560px){
     .project-event-grid{ grid-template-columns:1fr; }
     .project-event-field.full{ grid-column:auto; }
@@ -1474,12 +1489,20 @@ user-scalable=no">
             <textarea id="project_event_content" class="form-input" placeholder="請說明目前遇到的情況、影響或下一步安排..."></textarea>
           </div>
 
+          <div id="project_event_target_wrap" class="project-event-field full project-event-target-wrap">
+            <label class="project-event-label" for="project_event_target_record_id">處理對象（可選）</label>
+            <select id="project_event_target_record_id" class="form-input" disabled>
+              <option value="">請先選擇「下一步」與專案項目</option>
+            </select>
+            <div id="project_event_target_hint" class="project-event-target-hint">
+              下一步完成且有選擇處理對象時，系統才會將該筆阻塞／風險／變更自動結案。
+            </div>
+          </div>
+
           <div class="project-event-field">
             <label class="project-event-label" for="project_event_status">處理狀態</label>
-            <select id="project_event_status" class="form-input">
-              <option value="">請選擇</option>
-              <option value="處理中">處理中</option>
-              <option value="已結案">已結案</option>
+            <select id="project_event_status" class="form-input" disabled>
+              <option value="">請先選擇事件類型</option>
             </select>
           </div>
 
@@ -1535,7 +1558,7 @@ user-scalable=no">
   </div>
 <script src="./api.js"></script>
 <script>
-  // 2026-06-28 專案工序與固定備註前端擴增：保留既有 Response 欄位，新增數值以專案備註摘要安全寫入。
+  // 2026-06-29 正式版：保留既有 Response 欄位；新增「下一步指定結案」僅寫入 Project_Event_Log。
   const STORAGE_KEY = "ds_report_draft_v2";
   const VISIBLE_ERROR_ATTR = "data-has-visible-error";
   const ERROR_DISPLAY_MS = 3000;
@@ -1600,6 +1623,7 @@ user-scalable=no">
     project_event_content:"",
     project_event_status:"",
     project_event_due_date:"",
+    project_event_target_record_id:"",
     project_event_submission_id:"",
     photo:""
   };
@@ -1611,6 +1635,7 @@ user-scalable=no">
 
   let sending = false;
   let projectOptionsLoaded = false;
+  let projectEventTargetRequestSeq = 0;
 
   function getValue(id){
     const el = document.getElementById(id);
@@ -1690,6 +1715,224 @@ user-scalable=no">
       select.disabled = false;
       projectOptionsLoaded = true;
     }
+  }
+
+  function setProjectEventTargetOptions(options, selectedId, message){
+    const select = document.getElementById("project_event_target_record_id");
+    const hint = document.getElementById("project_event_target_hint");
+
+    if(!select) return;
+
+    const targetList = Array.isArray(options) ? options : [];
+    const currentTarget = String(selectedId || formData.project_event_target_record_id || "").trim();
+
+    select.innerHTML = "";
+
+    const blank = document.createElement("option");
+    blank.value = "";
+    blank.textContent = "不指定處理對象";
+    select.appendChild(blank);
+
+    targetList.forEach(item => {
+      const option = document.createElement("option");
+      option.value = String(item.record_id || "");
+      option.textContent = String(item.label || "");
+      select.appendChild(option);
+    });
+
+    const exists = currentTarget && targetList.some(item => String(item.record_id || "") === currentTarget);
+    select.value = exists ? currentTarget : "";
+
+    if(currentTarget && !exists){
+      formData.project_event_target_record_id = "";
+    }
+
+    select.disabled = false;
+
+    if(hint){
+      hint.textContent = message || "下一步完成且有選擇處理對象時，系統才會將該筆阻塞／風險／變更自動結案。";
+    }
+  }
+
+  function setProjectEventTargetMessage(message){
+    const select = document.getElementById("project_event_target_record_id");
+    const hint = document.getElementById("project_event_target_hint");
+
+    if(select){
+      select.innerHTML = `<option value="">${escapeHtml(message || "請先選擇專案項目")}</option>`;
+      select.value = "";
+      select.disabled = true;
+    }
+
+    if(hint){
+      hint.textContent = message || "";
+    }
+  }
+
+  async function loadOpenProjectEventTargets(options = {}){
+    const eventType = getValue("project_event_type");
+    const projectName = getValue("project_item") || formData.project_item || "";
+    const select = document.getElementById("project_event_target_record_id");
+    const hint = document.getElementById("project_event_target_hint");
+
+    if(eventType !== "下一步"){
+      return;
+    }
+
+    if(!projectName){
+      setProjectEventTargetMessage("請先選擇專案項目，才能載入目前處理中的事件。");
+      return;
+    }
+
+    const requestSeq = ++projectEventTargetRequestSeq;
+
+    if(select){
+      select.innerHTML = '<option value="">載入處理中事件...</option>';
+      select.disabled = true;
+    }
+
+    if(hint){
+      hint.textContent = "只列出此專案目前仍在處理中的阻塞／風險／變更。";
+    }
+
+    try{
+      const events = await fetchOpenProjectEvents(projectName);
+
+      if(requestSeq !== projectEventTargetRequestSeq){
+        return;
+      }
+
+      // 使用者若在等待期間改了事件類型或專案，就不覆蓋新的選擇。
+      if(getValue("project_event_type") !== "下一步" || (getValue("project_item") || "") !== projectName){
+        return;
+      }
+
+      const selectedId = options.selectedId || formData.project_event_target_record_id || "";
+      setProjectEventTargetOptions(
+        events,
+        selectedId,
+        events.length
+          ? "下一步狀態選「已完成」且選取對象時，該筆事件會自動結案。"
+          : "此專案目前沒有處理中的阻塞／風險／變更；仍可不指定對象完成下一步。"
+      );
+    }
+    catch(err){
+      console.error("處理對象讀取失敗", err);
+      setProjectEventTargetMessage("處理對象讀取失敗，請稍後重試或重新整理。");
+    }
+  }
+
+  function updateProjectEventTypeUI(options = {}){
+    const typeSelect = document.getElementById("project_event_type");
+    const statusSelect = document.getElementById("project_event_status");
+    const targetWrap = document.getElementById("project_event_target_wrap");
+
+    if(!typeSelect || !statusSelect || !targetWrap) return;
+
+    const eventType = typeSelect.value || "";
+    const savedStatus = options.preserveStatus ? String(formData.project_event_status || "") : "";
+    const savedTarget = options.preserveTarget ? String(formData.project_event_target_record_id || "") : "";
+
+    if(eventType === "下一步"){
+      statusSelect.disabled = false;
+      statusSelect.innerHTML = [
+        '<option value="">請選擇</option>',
+        '<option value="處理中">處理中</option>',
+        '<option value="已完成">已完成</option>'
+      ].join("");
+
+      statusSelect.value = ["處理中", "已完成"].includes(savedStatus)
+        ? savedStatus
+        : "處理中";
+
+      targetWrap.classList.add("show");
+      if(options.loadTargets !== false){
+        loadOpenProjectEventTargets({ selectedId: savedTarget });
+      }
+      return;
+    }
+
+    if(["阻塞", "風險", "變更"].includes(eventType)){
+      statusSelect.disabled = true;
+      statusSelect.innerHTML = '<option value="處理中">處理中</option>';
+      statusSelect.value = "處理中";
+
+      targetWrap.classList.remove("show");
+      projectEventTargetRequestSeq += 1;
+      const targetSelect = document.getElementById("project_event_target_record_id");
+      if(targetSelect){
+        targetSelect.value = "";
+      }
+      formData.project_event_target_record_id = "";
+      return;
+    }
+
+    statusSelect.disabled = true;
+    statusSelect.innerHTML = '<option value="">請先選擇事件類型</option>';
+    statusSelect.value = "";
+
+    targetWrap.classList.remove("show");
+    projectEventTargetRequestSeq += 1;
+    const targetSelect = document.getElementById("project_event_target_record_id");
+    if(targetSelect){
+      targetSelect.value = "";
+    }
+    formData.project_event_target_record_id = "";
+  }
+
+  function bindProjectEventControls(){
+    const typeSelect = document.getElementById("project_event_type");
+    const projectSelect = document.getElementById("project_item");
+    const targetSelect = document.getElementById("project_event_target_record_id");
+
+    if(typeSelect){
+      typeSelect.addEventListener("change", function(){
+        formData.project_event_type = this.value || "";
+        if(this.value !== "下一步"){
+          formData.project_event_submission_id = "";
+        }
+        updateProjectEventTypeUI({
+          preserveStatus:false,
+          preserveTarget:false,
+          loadTargets:true
+        });
+        persistDraft();
+      });
+    }
+
+    if(projectSelect){
+      projectSelect.addEventListener("change", function(){
+        formData.project_item = this.value || "";
+        formData.project_event_target_record_id = "";
+        formData.project_event_submission_id = "";
+        if(getValue("project_event_type") === "下一步"){
+          loadOpenProjectEventTargets();
+        }
+        persistDraft();
+      });
+    }
+
+    if(targetSelect){
+      targetSelect.addEventListener("change", function(){
+        formData.project_event_target_record_id = this.value || "";
+        // 變更要結案的對象，需建立新的事件 submission_id。
+        formData.project_event_submission_id = "";
+        persistDraft();
+      });
+    }
+
+    ["project_event_process", "project_event_content", "project_event_status", "project_event_due_date"].forEach(id => {
+      const input = document.getElementById(id);
+      if(!input) return;
+
+      input.addEventListener("input", function(){
+        formData.project_event_submission_id = "";
+      });
+
+      input.addEventListener("change", function(){
+        formData.project_event_submission_id = "";
+      });
+    });
   }
 
   function nextPage(pageId){
@@ -1779,7 +2022,8 @@ user-scalable=no">
       formData.project_event_process,
       formData.project_event_content,
       formData.project_event_status,
-      formData.project_event_due_date
+      formData.project_event_due_date,
+      formData.project_event_target_record_id
     ].some(value => String(value || "").trim() !== "");
   }
 
@@ -1833,8 +2077,21 @@ user-scalable=no">
       showProjectEventError("請填寫事件內容。");
       return false;
     }
-    if(!String(formData.project_event_status || "").trim()){
+    const eventType = String(formData.project_event_type || "").trim();
+    const eventStatus = String(formData.project_event_status || "").trim();
+
+    if(!eventStatus){
       showProjectEventError("請選擇處理狀態。");
+      return false;
+    }
+
+    if(["阻塞", "風險", "變更"].includes(eventType) && eventStatus !== "處理中"){
+      showProjectEventError("阻塞、風險、變更新增時，處理狀態固定為「處理中」。");
+      return false;
+    }
+
+    if(eventType === "下一步" && !["處理中", "已完成"].includes(eventStatus)){
+      showProjectEventError("下一步的處理狀態只能選擇「處理中」或「已完成」。");
       return false;
     }
 
@@ -1863,8 +2120,17 @@ user-scalable=no">
       related_process: String(formData.project_event_process || "").trim(),
       event_content: String(formData.project_event_content || "").trim(),
       status: String(formData.project_event_status || "").trim(),
-      expected_due_date: String(formData.project_event_due_date || "").trim()
+      expected_due_date: String(formData.project_event_due_date || "").trim(),
+      target_event_id: String(formData.project_event_target_record_id || "").trim()
     };
+  }
+
+  function getProjectEventTargetDisplayText(){
+    const select = document.getElementById("project_event_target_record_id");
+    if(!select || !select.value) return "";
+
+    const option = select.options[select.selectedIndex];
+    return option ? String(option.textContent || "").trim() : "";
   }
 
   function handlePreviewNavigation(){
@@ -1966,6 +2232,7 @@ user-scalable=no">
     formData.project_event_content = getValue("project_event_content");
     formData.project_event_status = getValue("project_event_status");
     formData.project_event_due_date = getValue("project_event_due_date");
+    formData.project_event_target_record_id = getValue("project_event_target_record_id");
   }
 
   function hasMeaningfulDraftContent(){
@@ -2146,6 +2413,12 @@ user-scalable=no">
         }
         el.value = formData[key] || "";
       }
+    });
+
+    updateProjectEventTypeUI({
+      preserveStatus:true,
+      preserveTarget:true,
+      loadTargets:false
     });
 
     if(Array.isArray(formData.sb_frame_pairs)){
@@ -2927,6 +3200,7 @@ function bindFramePairTableEvents(){
             <div>關聯工序：${escapeHtml(formData.project_event_process || "未指定")}</div>
             <div>事件內容：${nl2br(formData.project_event_content)}</div>
             <div>處理狀態：${escapeHtml(formData.project_event_status)}</div>
+            ${formData.project_event_type === "下一步" ? `<div>處理對象：${escapeHtml(getProjectEventTargetDisplayText() || "未指定")}</div>` : ""}
             <div>預計處理日：${escapeHtml(formData.project_event_due_date || "未指定")}</div>
           ` : ""}
           <div>照片上傳：${document.getElementById("proj_photo").files.length ? `已選擇 ${document.getElementById("proj_photo").files.length} 張照片（重新開頁不恢復）` : "未選擇"}</div>
@@ -3416,6 +3690,7 @@ function bindFramePairTableEvents(){
     bindDraftLifecycleGuards();
     bindUppercaseInputs();
     bindStationContextBanner();
+    bindProjectEventControls();
     bindFramePairTableEvents();
     renderBundleCards();
     bindBundleEvents();
@@ -3430,6 +3705,12 @@ function bindFramePairTableEvents(){
         projectSelect.value = formData.project_item;
       }
     }
+
+    updateProjectEventTypeUI({
+      preserveStatus:true,
+      preserveTarget:true,
+      loadTargets:true
+    });
   };
 
 function getDefaultBundleNote(inDate = "", doneDate = ""){
