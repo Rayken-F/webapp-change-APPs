@@ -868,6 +868,95 @@ user-scalable=no">
     }
   }
 
+
+  /* 專案站別：父工序／子工序分組 */
+  .project-process-card{
+    overflow:visible;
+  }
+
+  .project-process-parent{
+    position:relative;
+    z-index:1;
+  }
+
+  .project-process-divider{
+    position:relative;
+    z-index:1;
+    height:1px;
+    margin:16px 0 14px;
+    background:linear-gradient(90deg, rgba(231,238,255,0.30), rgba(231,238,255,0.08), transparent);
+  }
+
+  .project-process-children-title{
+    position:relative;
+    z-index:1;
+    margin:0 0 10px;
+    color:rgba(235,240,255,0.66);
+    font-size:13px;
+    font-weight:800;
+    letter-spacing:.25px;
+  }
+
+  .project-process-child-grid{
+    position:relative;
+    z-index:1;
+    display:grid;
+    grid-template-columns:repeat(2,minmax(0,1fr));
+    gap:10px;
+  }
+
+  .project-process-child-grid.one-col{
+    grid-template-columns:1fr;
+  }
+
+  .project-process-child-item{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    min-height:50px;
+    padding:8px 10px;
+    border-radius:14px;
+    background:rgba(255,255,255,0.055);
+    border:1px solid rgba(231,238,255,0.12);
+    color:rgba(242,246,255,0.92);
+    font-size:14px;
+    font-weight:700;
+  }
+
+  .project-process-child-item label{
+    flex:1;
+    min-width:0;
+    line-height:1.35;
+  }
+
+  .project-process-child-item input{
+    width:68px;
+    min-width:68px;
+    padding:8px 7px;
+    border:none;
+    outline:none;
+    border-radius:10px;
+    text-align:center;
+    color:#fff;
+    font-size:14px;
+    font-weight:800;
+    background:rgba(255,255,255,0.12);
+    border:1px solid rgba(255,255,255,0.15);
+  }
+
+  .project-process-child-unit{
+    color:rgba(235,240,255,0.80);
+    white-space:nowrap;
+    font-size:14px;
+    font-weight:800;
+  }
+
+  @media (max-width:560px){
+    .project-process-child-grid{
+      grid-template-columns:1fr;
+    }
+  }
+
 </style>
 </head>
 
@@ -1144,64 +1233,82 @@ user-scalable=no">
         <input type="number" id="proj_register" class="form-input" min="0" step="1" inputmode="numeric">
       </div>
 
-      <div class="form-card">
-        <div class="form-title">瓶閥安裝（支）</div>
-        <input type="number" id="proj_valve_install" class="form-input" min="0" step="1" inputmode="numeric">
+      <div class="form-card project-process-card">
+        <div class="project-process-parent">
+          <div class="form-title">瓶閥安裝（支）</div>
+          <input type="number" id="proj_valve_install" class="form-input" min="0" step="1" inputmode="numeric">
+        </div>
+        <div class="project-process-divider"></div>
+        <div class="project-process-children-title">子工序（本次完成量）</div>
+        <div class="project-process-child-grid one-col">
+          <div class="project-process-child-item">
+            <label for="proj_valve_sealing_tape">瓶閥纏繞止洩帶</label>
+            <input type="number" id="proj_valve_sealing_tape" min="0" step="1" inputmode="numeric">
+            <span class="project-process-child-unit">顆</span>
+          </div>
+        </div>
       </div>
 
-      <div class="form-card">
-        <div class="form-title">瓶閥纏繞止洩帶（顆）</div>
-        <input type="number" id="proj_valve_sealing_tape" class="form-input" min="0" step="1" inputmode="numeric">
+      <div class="form-card project-process-card">
+        <div class="project-process-parent">
+          <div class="form-title">鋼瓶入框（框）</div>
+          <input type="number" id="proj_cylinder_frame" class="form-input" min="0" step="1" inputmode="numeric">
+        </div>
+        <div class="project-process-divider"></div>
+        <div class="project-process-children-title">子工序（本次完成量）</div>
+        <div class="project-process-child-grid one-col">
+          <div class="project-process-child-item">
+            <label for="proj_marking_ctn_photo">鋼號＋CTN紀錄＆拍照</label>
+            <input type="number" id="proj_marking_ctn_photo" min="0" step="1" inputmode="numeric">
+            <span class="project-process-child-unit">框</span>
+          </div>
+        </div>
       </div>
 
-      <div class="form-card">
-        <div class="form-title">鋼號＋CTN紀錄＆拍照（框）</div>
-        <input type="number" id="proj_marking_ctn_photo" class="form-input" min="0" step="1" inputmode="numeric">
-      </div>
-
-      <div class="form-card">
-        <div class="form-title">鋼瓶入框（框）</div>
-        <input type="number" id="proj_cylinder_frame" class="form-input" min="0" step="1" inputmode="numeric">
-      </div>
-
-      <div class="form-card">
-        <div class="form-title">集束安裝（框）</div>
-        <input type="number" id="proj_bundle_install" class="form-input" min="0" step="1" inputmode="numeric">
-      </div>
-
-      <div class="form-card">
-        <div class="form-title">Manifold安裝（框）</div>
-        <input type="number" id="proj_manifold_install" class="form-input" min="0" step="1" inputmode="numeric">
-      </div>
-
-      <div class="form-card">
-        <div class="form-title">鋼瓶固定（框）</div>
-        <input type="number" id="proj_cylinder_secure" class="form-input" min="0" step="1" inputmode="numeric">
-      </div>
-
-      <div class="form-card">
-        <div class="form-title">總閥安裝（框）</div>
-        <input type="number" id="proj_master_valve_install" class="form-input" min="0" step="1" inputmode="numeric">
-      </div>
-
-      <div class="form-card">
-        <div class="form-title">壓力錶安裝（框）</div>
-        <input type="number" id="proj_gauge_install" class="form-input" min="0" step="1" inputmode="numeric">
-      </div>
-
-      <div class="form-card">
-        <div class="form-title">框架註冊（框）</div>
-        <input type="number" id="proj_frame_registration" class="form-input" min="0" step="1" inputmode="numeric">
-      </div>
-
-      <div class="form-card">
-        <div class="form-title">框架面板噴漆（框）</div>
-        <input type="number" id="proj_frame_panel_paint" class="form-input" min="0" step="1" inputmode="numeric">
-      </div>
-
-      <div class="form-card">
-        <div class="form-title">鋼瓶綁定（框）</div>
-        <input type="number" id="proj_cylinder_binding" class="form-input" min="0" step="1" inputmode="numeric">
+      <div class="form-card project-process-card">
+        <div class="project-process-parent">
+          <div class="form-title">集束安裝（框）</div>
+          <input type="number" id="proj_bundle_install" class="form-input" min="0" step="1" inputmode="numeric">
+        </div>
+        <div class="project-process-divider"></div>
+        <div class="project-process-children-title">子工序（本次完成量）</div>
+        <div class="project-process-child-grid">
+          <div class="project-process-child-item">
+            <label for="proj_manifold_install">Manifold安裝</label>
+            <input type="number" id="proj_manifold_install" min="0" step="1" inputmode="numeric">
+            <span class="project-process-child-unit">框</span>
+          </div>
+          <div class="project-process-child-item">
+            <label for="proj_cylinder_secure">鋼瓶固定</label>
+            <input type="number" id="proj_cylinder_secure" min="0" step="1" inputmode="numeric">
+            <span class="project-process-child-unit">框</span>
+          </div>
+          <div class="project-process-child-item">
+            <label for="proj_master_valve_install">總閥安裝</label>
+            <input type="number" id="proj_master_valve_install" min="0" step="1" inputmode="numeric">
+            <span class="project-process-child-unit">框</span>
+          </div>
+          <div class="project-process-child-item">
+            <label for="proj_gauge_install">壓力錶安裝</label>
+            <input type="number" id="proj_gauge_install" min="0" step="1" inputmode="numeric">
+            <span class="project-process-child-unit">框</span>
+          </div>
+          <div class="project-process-child-item">
+            <label for="proj_frame_registration">框架註冊</label>
+            <input type="number" id="proj_frame_registration" min="0" step="1" inputmode="numeric">
+            <span class="project-process-child-unit">框</span>
+          </div>
+          <div class="project-process-child-item">
+            <label for="proj_frame_panel_paint">框架面板噴漆</label>
+            <input type="number" id="proj_frame_panel_paint" min="0" step="1" inputmode="numeric">
+            <span class="project-process-child-unit">框</span>
+          </div>
+          <div class="project-process-child-item">
+            <label for="proj_cylinder_binding">鋼瓶綁定</label>
+            <input type="number" id="proj_cylinder_binding" min="0" step="1" inputmode="numeric">
+            <span class="project-process-child-unit">框</span>
+          </div>
+        </div>
       </div>
 
       <div class="form-card">
@@ -2761,8 +2868,17 @@ function bindFramePairTableEvents(){
           "新鋼瓶下棧板（支）": formData.proj_new_cylinder || "",
           "鋼瓶註冊（支）": formData.proj_register || "",
           "瓶閥安裝（支）": formData.proj_valve_install || "",
+          "瓶閥纏繞止洩帶（顆）": formData.proj_valve_sealing_tape || "",
+          "鋼號＋CTN紀錄＆拍照（框）": formData.proj_marking_ctn_photo || "",
           "鋼瓶入框（框）": formData.proj_cylinder_frame || "",
           "集束安裝（框）": formData.proj_bundle_install || "",
+          "Manifold安裝（框）": formData.proj_manifold_install || "",
+          "鋼瓶固定（框）": formData.proj_cylinder_secure || "",
+          "總閥安裝（框）": formData.proj_master_valve_install || "",
+          "壓力錶安裝（框）": formData.proj_gauge_install || "",
+          "框架註冊（框）": formData.proj_frame_registration || "",
+          "框架面板噴漆（框）": formData.proj_frame_panel_paint || "",
+          "鋼瓶綁定（框）": formData.proj_cylinder_binding || "",
           "集束測漏（框）": formData.proj_bundle_leak || "",
           "維修框架CTN": formData.proj_repair_ctn || "",
           "專案備註": buildProjectNoteText(),
