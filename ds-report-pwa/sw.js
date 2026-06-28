@@ -1,4 +1,4 @@
-const CACHE_NAME = "ds-report-v14";
+const CACHE_NAME = "ds-report-v15";
 
 self.addEventListener("install", e => {
 
