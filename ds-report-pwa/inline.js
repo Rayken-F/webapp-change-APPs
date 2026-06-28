@@ -1,4 +1,3 @@
-
   const STORAGE_KEY = "ds_report_draft_v2";
   const VISIBLE_ERROR_ATTR = "data-has-visible-error";
   const ERROR_DISPLAY_MS = 3000;
