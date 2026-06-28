@@ -792,6 +792,82 @@ user-scalable=no">
   }
 
 
+
+  /* 專案站別：固定備註（本次完成量） */
+  .project-fixed-note-title{
+    position:relative;
+    z-index:1;
+    margin:4px 0 12px;
+    color:rgba(240,244,255,0.86);
+    font-size:14px;
+    font-weight:800;
+    letter-spacing:.25px;
+  }
+
+  .project-fixed-note-grid{
+    position:relative;
+    z-index:1;
+    display:grid;
+    grid-template-columns:repeat(2,minmax(0,1fr));
+    gap:10px;
+    margin-bottom:18px;
+  }
+
+  .project-fixed-note-item{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    min-height:48px;
+    padding:8px 10px;
+    border-radius:14px;
+    background:rgba(255,255,255,0.055);
+    border:1px solid rgba(231,238,255,0.12);
+    color:rgba(242,246,255,0.90);
+    font-size:14px;
+    font-weight:700;
+  }
+
+  .project-fixed-note-item label{
+    flex:1;
+    min-width:0;
+    line-height:1.35;
+  }
+
+  .project-fixed-note-item input{
+    width:64px;
+    min-width:64px;
+    padding:8px 7px;
+    border:none;
+    outline:none;
+    border-radius:10px;
+    text-align:center;
+    color:#fff;
+    font-size:14px;
+    font-weight:800;
+    background:rgba(255,255,255,0.12);
+    border:1px solid rgba(255,255,255,0.15);
+  }
+
+  .project-fixed-note-unit{
+    color:rgba(235,240,255,0.76);
+    white-space:nowrap;
+  }
+
+  .project-free-note-title{
+    position:relative;
+    z-index:1;
+    margin:2px 0 8px;
+    color:#f7f9ff;
+    font-size:15px;
+    font-weight:800;
+  }
+
+  @media (max-width:560px){
+    .project-fixed-note-grid{
+      grid-template-columns:1fr;
+    }
+  }
+
 </style>
 </head>
 
@@ -1060,32 +1136,77 @@ user-scalable=no">
 
       <div class="form-card">
         <div class="form-title">新鋼瓶下棧板（支）</div>
-        <input type="number" id="proj_new_cylinder" class="form-input">
+        <input type="number" id="proj_new_cylinder" class="form-input" min="0" step="1" inputmode="numeric">
       </div>
 
       <div class="form-card">
         <div class="form-title">鋼瓶註冊（支）</div>
-        <input type="number" id="proj_register" class="form-input">
+        <input type="number" id="proj_register" class="form-input" min="0" step="1" inputmode="numeric">
       </div>
 
       <div class="form-card">
         <div class="form-title">瓶閥安裝（支）</div>
-        <input type="number" id="proj_valve_install" class="form-input">
+        <input type="number" id="proj_valve_install" class="form-input" min="0" step="1" inputmode="numeric">
+      </div>
+
+      <div class="form-card">
+        <div class="form-title">瓶閥纏繞止洩帶（顆）</div>
+        <input type="number" id="proj_valve_sealing_tape" class="form-input" min="0" step="1" inputmode="numeric">
+      </div>
+
+      <div class="form-card">
+        <div class="form-title">鋼號＋CTN紀錄＆拍照（框）</div>
+        <input type="number" id="proj_marking_ctn_photo" class="form-input" min="0" step="1" inputmode="numeric">
       </div>
 
       <div class="form-card">
         <div class="form-title">鋼瓶入框（框）</div>
-        <input type="number" id="proj_cylinder_frame" class="form-input">
+        <input type="number" id="proj_cylinder_frame" class="form-input" min="0" step="1" inputmode="numeric">
       </div>
 
       <div class="form-card">
         <div class="form-title">集束安裝（框）</div>
-        <input type="number" id="proj_bundle_install" class="form-input">
+        <input type="number" id="proj_bundle_install" class="form-input" min="0" step="1" inputmode="numeric">
+      </div>
+
+      <div class="form-card">
+        <div class="form-title">Manifold安裝（框）</div>
+        <input type="number" id="proj_manifold_install" class="form-input" min="0" step="1" inputmode="numeric">
+      </div>
+
+      <div class="form-card">
+        <div class="form-title">鋼瓶固定（框）</div>
+        <input type="number" id="proj_cylinder_secure" class="form-input" min="0" step="1" inputmode="numeric">
+      </div>
+
+      <div class="form-card">
+        <div class="form-title">總閥安裝（框）</div>
+        <input type="number" id="proj_master_valve_install" class="form-input" min="0" step="1" inputmode="numeric">
+      </div>
+
+      <div class="form-card">
+        <div class="form-title">壓力錶安裝（框）</div>
+        <input type="number" id="proj_gauge_install" class="form-input" min="0" step="1" inputmode="numeric">
+      </div>
+
+      <div class="form-card">
+        <div class="form-title">框架註冊（框）</div>
+        <input type="number" id="proj_frame_registration" class="form-input" min="0" step="1" inputmode="numeric">
+      </div>
+
+      <div class="form-card">
+        <div class="form-title">框架面板噴漆（框）</div>
+        <input type="number" id="proj_frame_panel_paint" class="form-input" min="0" step="1" inputmode="numeric">
+      </div>
+
+      <div class="form-card">
+        <div class="form-title">鋼瓶綁定（框）</div>
+        <input type="number" id="proj_cylinder_binding" class="form-input" min="0" step="1" inputmode="numeric">
       </div>
 
       <div class="form-card">
         <div class="form-title">集束測漏（框）</div>
-        <input type="number" id="proj_bundle_leak" class="form-input">
+        <input type="number" id="proj_bundle_leak" class="form-input" min="0" step="1" inputmode="numeric">
       </div>
 
       <div class="form-card">
@@ -1095,7 +1216,41 @@ user-scalable=no">
 
       <div class="form-card">
         <div class="form-title">專案備註</div>
-        <textarea id="proj_note" class="form-input"></textarea>
+        <div class="project-fixed-note-title">固定備註（本次完成量）</div>
+        <div class="project-fixed-note-grid">
+          <div class="project-fixed-note-item">
+            <label for="proj_note_manifold_frame">繫manifold</label>
+            <input type="number" id="proj_note_manifold_frame" min="0" step="1" inputmode="numeric">
+            <span class="project-fixed-note-unit">框</span>
+          </div>
+          <div class="project-fixed-note-item">
+            <label for="proj_note_waist_belt_frame">繫腰帶</label>
+            <input type="number" id="proj_note_waist_belt_frame" min="0" step="1" inputmode="numeric">
+            <span class="project-fixed-note-unit">框</span>
+          </div>
+          <div class="project-fixed-note-item">
+            <label for="proj_note_upper_pressure_bar_frame">繫上方壓桿</label>
+            <input type="number" id="proj_note_upper_pressure_bar_frame" min="0" step="1" inputmode="numeric">
+            <span class="project-fixed-note-unit">框</span>
+          </div>
+          <div class="project-fixed-note-item">
+            <label for="proj_note_master_valve_wrap_qty">纏總閥</label>
+            <input type="number" id="proj_note_master_valve_wrap_qty" min="0" step="1" inputmode="numeric">
+            <span class="project-fixed-note-unit">顆</span>
+          </div>
+          <div class="project-fixed-note-item">
+            <label for="proj_note_gauge_preparation_set">壓力錶前置</label>
+            <input type="number" id="proj_note_gauge_preparation_set" min="0" step="1" inputmode="numeric">
+            <span class="project-fixed-note-unit">組</span>
+          </div>
+          <div class="project-fixed-note-item">
+            <label for="proj_note_ground_plate_paint_frame">接地板噴漆</label>
+            <input type="number" id="proj_note_ground_plate_paint_frame" min="0" step="1" inputmode="numeric">
+            <span class="project-fixed-note-unit">框</span>
+          </div>
+        </div>
+        <div class="project-free-note-title">自由備註</div>
+        <textarea id="proj_note" class="form-input" placeholder="請輸入其他專案備註..."></textarea>
       </div>
 
       <div class="form-card">
@@ -1141,6 +1296,7 @@ user-scalable=no">
   </div>
 <script src="./api.js"></script>
 <script>
+  // 2026-06-28 專案工序與固定備註前端擴增：保留既有 Response 欄位，新增數值以專案備註摘要安全寫入。
   const STORAGE_KEY = "ds_report_draft_v2";
   const VISIBLE_ERROR_ATTR = "data-has-visible-error";
   const ERROR_DISPLAY_MS = 3000;
@@ -1180,10 +1336,25 @@ user-scalable=no">
     proj_new_cylinder:"",
     proj_register:"",
     proj_valve_install:"",
+    proj_valve_sealing_tape:"",
+    proj_marking_ctn_photo:"",
     proj_cylinder_frame:"",
     proj_bundle_install:"",
+    proj_manifold_install:"",
+    proj_cylinder_secure:"",
+    proj_master_valve_install:"",
+    proj_gauge_install:"",
+    proj_frame_registration:"",
+    proj_frame_panel_paint:"",
+    proj_cylinder_binding:"",
     proj_bundle_leak:"",
     proj_repair_ctn:"",
+    proj_note_manifold_frame:"",
+    proj_note_waist_belt_frame:"",
+    proj_note_upper_pressure_bar_frame:"",
+    proj_note_master_valve_wrap_qty:"",
+    proj_note_gauge_preparation_set:"",
+    proj_note_ground_plate_paint_frame:"",
     proj_note:"",
     photo:""
   };
@@ -1424,10 +1595,25 @@ user-scalable=no">
     formData.proj_new_cylinder = getValue("proj_new_cylinder");
     formData.proj_register = getValue("proj_register");
     formData.proj_valve_install = getValue("proj_valve_install");
+    formData.proj_valve_sealing_tape = getValue("proj_valve_sealing_tape");
+    formData.proj_marking_ctn_photo = getValue("proj_marking_ctn_photo");
     formData.proj_cylinder_frame = getValue("proj_cylinder_frame");
     formData.proj_bundle_install = getValue("proj_bundle_install");
+    formData.proj_manifold_install = getValue("proj_manifold_install");
+    formData.proj_cylinder_secure = getValue("proj_cylinder_secure");
+    formData.proj_master_valve_install = getValue("proj_master_valve_install");
+    formData.proj_gauge_install = getValue("proj_gauge_install");
+    formData.proj_frame_registration = getValue("proj_frame_registration");
+    formData.proj_frame_panel_paint = getValue("proj_frame_panel_paint");
+    formData.proj_cylinder_binding = getValue("proj_cylinder_binding");
     formData.proj_bundle_leak = getValue("proj_bundle_leak");
     formData.proj_repair_ctn = toUpperSafe(getValue("proj_repair_ctn"));
+    formData.proj_note_manifold_frame = getValue("proj_note_manifold_frame");
+    formData.proj_note_waist_belt_frame = getValue("proj_note_waist_belt_frame");
+    formData.proj_note_upper_pressure_bar_frame = getValue("proj_note_upper_pressure_bar_frame");
+    formData.proj_note_master_valve_wrap_qty = getValue("proj_note_master_valve_wrap_qty");
+    formData.proj_note_gauge_preparation_set = getValue("proj_note_gauge_preparation_set");
+    formData.proj_note_ground_plate_paint_frame = getValue("proj_note_ground_plate_paint_frame");
     formData.proj_note = getValue("proj_note");
   }
 
@@ -1574,10 +1760,25 @@ user-scalable=no">
       proj_new_cylinder:"proj_new_cylinder",
       proj_register:"proj_register",
       proj_valve_install:"proj_valve_install",
+      proj_valve_sealing_tape:"proj_valve_sealing_tape",
+      proj_marking_ctn_photo:"proj_marking_ctn_photo",
       proj_cylinder_frame:"proj_cylinder_frame",
       proj_bundle_install:"proj_bundle_install",
+      proj_manifold_install:"proj_manifold_install",
+      proj_cylinder_secure:"proj_cylinder_secure",
+      proj_master_valve_install:"proj_master_valve_install",
+      proj_gauge_install:"proj_gauge_install",
+      proj_frame_registration:"proj_frame_registration",
+      proj_frame_panel_paint:"proj_frame_panel_paint",
+      proj_cylinder_binding:"proj_cylinder_binding",
       proj_bundle_leak:"proj_bundle_leak",
       proj_repair_ctn:"proj_repair_ctn",
+      proj_note_manifold_frame:"proj_note_manifold_frame",
+      proj_note_waist_belt_frame:"proj_note_waist_belt_frame",
+      proj_note_upper_pressure_bar_frame:"proj_note_upper_pressure_bar_frame",
+      proj_note_master_valve_wrap_qty:"proj_note_master_valve_wrap_qty",
+      proj_note_gauge_preparation_set:"proj_note_gauge_preparation_set",
+      proj_note_ground_plate_paint_frame:"proj_note_ground_plate_paint_frame",
       proj_note:"proj_note"
     };
 
@@ -2347,11 +2548,20 @@ function bindFramePairTableEvents(){
           <div>新鋼瓶下棧板（支）：${escapeHtml(formData.proj_new_cylinder)}</div>
           <div>鋼瓶註冊（支）：${escapeHtml(formData.proj_register)}</div>
           <div>瓶閥安裝（支）：${escapeHtml(formData.proj_valve_install)}</div>
+          <div>瓶閥纏繞止洩帶（顆）：${escapeHtml(formData.proj_valve_sealing_tape)}</div>
+          <div>鋼號＋CTN紀錄＆拍照（框）：${escapeHtml(formData.proj_marking_ctn_photo)}</div>
           <div>鋼瓶入框（框）：${escapeHtml(formData.proj_cylinder_frame)}</div>
           <div>集束安裝（框）：${escapeHtml(formData.proj_bundle_install)}</div>
+          <div>Manifold安裝（框）：${escapeHtml(formData.proj_manifold_install)}</div>
+          <div>鋼瓶固定（框）：${escapeHtml(formData.proj_cylinder_secure)}</div>
+          <div>總閥安裝（框）：${escapeHtml(formData.proj_master_valve_install)}</div>
+          <div>壓力錶安裝（框）：${escapeHtml(formData.proj_gauge_install)}</div>
+          <div>框架註冊（框）：${escapeHtml(formData.proj_frame_registration)}</div>
+          <div>框架面板噴漆（框）：${escapeHtml(formData.proj_frame_panel_paint)}</div>
+          <div>鋼瓶綁定（框）：${escapeHtml(formData.proj_cylinder_binding)}</div>
           <div>集束測漏（框）：${escapeHtml(formData.proj_bundle_leak)}</div>
           <div>維修框架CTN：${nl2br(formData.proj_repair_ctn)}</div>
-          <div>專案備註：${nl2br(formData.proj_note)}</div>
+          <div>專案備註：${nl2br(buildProjectNoteText())}</div>
           <div>照片上傳：${document.getElementById("proj_photo").files.length ? `已選擇 ${document.getElementById("proj_photo").files.length} 張照片（重新開頁不恢復）` : "未選擇"}</div>
         </div>
       `;
@@ -2372,6 +2582,68 @@ function bindFramePairTableEvents(){
   function nl2br(value){
     const safe = escapeHtml(value);
     return safe ? safe.replace(/\n/g,"<br>") : "";
+  }
+
+
+  function getProjectProcessSummaryLines(){
+    const definitions = [
+      { key:"proj_valve_sealing_tape", label:"瓶閥纏繞止洩帶", unit:"顆" },
+      { key:"proj_marking_ctn_photo", label:"鋼號＋CTN紀錄＆拍照", unit:"框" },
+      { key:"proj_manifold_install", label:"Manifold安裝", unit:"框" },
+      { key:"proj_cylinder_secure", label:"鋼瓶固定", unit:"框" },
+      { key:"proj_master_valve_install", label:"總閥安裝", unit:"框" },
+      { key:"proj_gauge_install", label:"壓力錶安裝", unit:"框" },
+      { key:"proj_frame_registration", label:"框架註冊", unit:"框" },
+      { key:"proj_frame_panel_paint", label:"框架面板噴漆", unit:"框" },
+      { key:"proj_cylinder_binding", label:"鋼瓶綁定", unit:"框" }
+    ];
+
+    return definitions
+      .filter(item => String(formData[item.key] || "").trim() !== "")
+      .map(item => `${item.label}：${String(formData[item.key]).trim()} ${item.unit}`);
+  }
+
+  function getProjectFixedNoteLines(){
+    const definitions = [
+      { key:"proj_note_manifold_frame", label:"繫manifold", unit:"框" },
+      { key:"proj_note_waist_belt_frame", label:"繫腰帶", unit:"框" },
+      { key:"proj_note_upper_pressure_bar_frame", label:"繫上方壓桿", unit:"框" },
+      { key:"proj_note_master_valve_wrap_qty", label:"纏總閥", unit:"顆" },
+      { key:"proj_note_gauge_preparation_set", label:"壓力錶前置", unit:"組" },
+      { key:"proj_note_ground_plate_paint_frame", label:"接地板噴漆", unit:"框" }
+    ];
+
+    return definitions
+      .filter(item => String(formData[item.key] || "").trim() !== "")
+      .map(item => `${item.label}${String(formData[item.key]).trim()}${item.unit}`);
+  }
+
+  function buildProjectNoteText(){
+    const processLines = getProjectProcessSummaryLines();
+    const fixedNoteLines = getProjectFixedNoteLines();
+    const freeNote = String(formData.proj_note || "").trim();
+
+    if(processLines.length === 0 && fixedNoteLines.length === 0){
+      return freeNote;
+    }
+
+    const lines = [];
+
+    if(processLines.length > 0){
+      lines.push("【本次固定工序】", ...processLines);
+    }
+
+    if(fixedNoteLines.length > 0){
+      if(lines.length > 0) lines.push("");
+      lines.push("【固定備註】", ...fixedNoteLines);
+    }
+
+    if(freeNote){
+      if(lines.length > 0) lines.push("");
+      lines.push("【自由備註】", freeNote);
+    }
+
+    return lines.join("\n");
   }
 
   function selectAllWorkers(){
@@ -2493,7 +2765,7 @@ function bindFramePairTableEvents(){
           "集束安裝（框）": formData.proj_bundle_install || "",
           "集束測漏（框）": formData.proj_bundle_leak || "",
           "維修框架CTN": formData.proj_repair_ctn || "",
-          "專案備註": formData.proj_note || "",
+          "專案備註": buildProjectNoteText(),
           "照片上傳": []
         };
 
