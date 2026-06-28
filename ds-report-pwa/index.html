@@ -283,6 +283,35 @@ user-scalable=no">
     accent-color:#8c7bff;
   }
 
+  /* 目前站別：站別填寫步驟的識別橫幅 */
+  .station-context-banner{
+    display:none;
+    align-items:center;
+    justify-content:center;
+    gap:10px;
+    width:min(760px, calc(100% - 32px));
+    margin:12px auto 0;
+    padding:11px 16px;
+    border:1px solid rgba(187,204,255,0.30);
+    border-radius:14px;
+    background:rgba(81,82,205,0.20);
+    color:rgba(236,242,255,0.82);
+    box-shadow:0 8px 24px rgba(24,30,100,0.18);
+  }
+
+  .station-context-banner.show{ display:flex; }
+
+  .station-context-label{
+    font-size:14px;
+    font-weight:800;
+  }
+
+  .station-context-name{
+    color:#ffffff;
+    font-size:16px;
+    font-weight:900;
+  }
+
   .btn-row{
     display:flex;
     gap:14px;
@@ -868,6 +897,47 @@ user-scalable=no">
     }
   }
 
+  /* 專案事件 */
+  .project-event-card{ overflow:visible; }
+
+  .project-event-tip{
+    position:relative;
+    z-index:1;
+    margin:-2px 0 14px;
+    color:rgba(230,236,255,0.62);
+    font-size:13px;
+    line-height:1.55;
+  }
+
+  .project-event-grid{
+    position:relative;
+    z-index:1;
+    display:grid;
+    grid-template-columns:repeat(2,minmax(0,1fr));
+    gap:12px;
+  }
+
+  .project-event-field{ min-width:0; }
+
+  .project-event-field.full{ grid-column:1 / -1; }
+
+  .project-event-label{
+    display:block;
+    margin:0 0 7px;
+    color:rgba(241,245,255,0.92);
+    font-size:14px;
+    font-weight:800;
+  }
+
+  .project-event-field .form-input{ margin:0; }
+
+  .project-event-field textarea.form-input{ min-height:118px; }
+
+  @media (max-width:560px){
+    .project-event-grid{ grid-template-columns:1fr; }
+    .project-event-field.full{ grid-column:auto; }
+  }
+
 
   /* 專案站別：父工序／子工序分組 */
   .project-process-card{
@@ -968,6 +1038,11 @@ user-scalable=no">
       <div class="step active" id="step1">基本資料</div>
       <div class="step" id="step2">站別填寫</div>
       <div class="step" id="step3">確認送出</div>
+    </div>
+
+    <div id="stationContextBanner" class="station-context-banner" aria-live="polite">
+      <span class="station-context-label">目前站別：</span>
+      <strong id="stationContextName" class="station-context-name">尚未選擇</strong>
     </div>
 
     <div class="page-title">
@@ -1359,6 +1434,67 @@ user-scalable=no">
         <textarea id="proj_note" class="form-input" placeholder="請輸入其他專案備註..."></textarea>
       </div>
 
+      <div id="card-project-event" class="form-card project-event-card">
+        <div class="form-title">專案事件</div>
+        <div class="project-event-tip">遇到阻塞、風險、變更或需要交接的下一步時再填寫；未填不建立事件資料。</div>
+
+        <div class="project-event-grid">
+          <div class="project-event-field">
+            <label class="project-event-label" for="project_event_type">事件類型</label>
+            <select id="project_event_type" class="form-input">
+              <option value="">請選擇</option>
+              <option value="阻塞">阻塞</option>
+              <option value="風險">風險</option>
+              <option value="變更">變更</option>
+              <option value="下一步">下一步</option>
+            </select>
+          </div>
+
+          <div class="project-event-field">
+            <label class="project-event-label" for="project_event_process">關聯工序（可選）</label>
+            <select id="project_event_process" class="form-input">
+              <option value="">未指定</option>
+              <option value="新鋼瓶下棧板">新鋼瓶下棧板</option>
+              <option value="鋼瓶註冊">鋼瓶註冊</option>
+              <option value="瓶閥安裝">瓶閥安裝</option>
+              <option value="瓶閥纏繞止洩帶">瓶閥纏繞止洩帶</option>
+              <option value="鋼號＋CTN紀錄＆拍照">鋼號＋CTN紀錄＆拍照</option>
+              <option value="鋼瓶入框">鋼瓶入框</option>
+              <option value="集束安裝">集束安裝</option>
+              <option value="Manifold安裝">Manifold安裝</option>
+              <option value="鋼瓶固定">鋼瓶固定</option>
+              <option value="總閥安裝">總閥安裝</option>
+              <option value="壓力錶安裝">壓力錶安裝</option>
+              <option value="框架註冊">框架註冊</option>
+              <option value="框架面板噴漆">框架面板噴漆</option>
+              <option value="鋼瓶綁定">鋼瓶綁定</option>
+              <option value="集束測漏">集束測漏</option>
+            </select>
+          </div>
+
+          <div class="project-event-field full">
+            <label class="project-event-label" for="project_event_content">事件內容</label>
+            <textarea id="project_event_content" class="form-input" placeholder="請說明目前遇到的情況、影響或下一步安排..."></textarea>
+          </div>
+
+          <div class="project-event-field">
+            <label class="project-event-label" for="project_event_status">處理狀態</label>
+            <select id="project_event_status" class="form-input">
+              <option value="">請選擇</option>
+              <option value="處理中">處理中</option>
+              <option value="已結案">已結案</option>
+            </select>
+          </div>
+
+          <div class="project-event-field">
+            <label class="project-event-label" for="project_event_due_date">預計處理日（可選）</label>
+            <input type="date" id="project_event_due_date" class="form-input">
+          </div>
+        </div>
+
+        <div id="error-project-event" class="error-text"></div>
+      </div>
+
       <div class="form-card">
         <div class="form-title">照片上傳</div>
         <input type="file" id="proj_photo" class="form-input" multiple accept="image/*">
@@ -1462,6 +1598,12 @@ user-scalable=no">
     proj_note_gauge_preparation_set:"",
     proj_note_ground_plate_paint_frame:"",
     proj_note:"",
+    project_event_type:"",
+    project_event_process:"",
+    project_event_content:"",
+    project_event_status:"",
+    project_event_due_date:"",
+    project_event_submission_id:"",
     photo:""
   };
 
@@ -1572,6 +1714,7 @@ user-scalable=no">
       updateStep(2);
     }
 
+    updateStationContextBanner();
     persistDraft();
     window.scrollTo({ top:0, behavior:"smooth" });
   }
@@ -1594,6 +1737,7 @@ user-scalable=no">
       updateStep(2);
     }
 
+    updateStationContextBanner();
     persistDraft();
     window.scrollTo({ top:0, behavior:"smooth" });
   }
@@ -1632,8 +1776,106 @@ user-scalable=no">
     return document.querySelector(`[${VISIBLE_ERROR_ATTR}="true"]`);
   }
 
+  function hasProjectEventInput(){
+    return [
+      formData.project_event_type,
+      formData.project_event_process,
+      formData.project_event_content,
+      formData.project_event_status,
+      formData.project_event_due_date
+    ].some(value => String(value || "").trim() !== "");
+  }
+
+  function clearProjectEventError(){
+    const card = document.getElementById("card-project-event");
+    const errorEl = document.getElementById("error-project-event");
+
+    if(card){
+      card.classList.remove("error-card");
+      card.removeAttribute(VISIBLE_ERROR_ATTR);
+    }
+    if(errorEl){
+      errorEl.innerText = "";
+    }
+  }
+
+  function showProjectEventError(message){
+    const card = document.getElementById("card-project-event");
+    const errorEl = document.getElementById("error-project-event");
+
+    if(errorEl){
+      errorEl.innerText = message;
+    }
+
+    if(card){
+      card.classList.remove("shake");
+      void card.offsetWidth;
+      card.classList.add("error-card", "shake");
+      card.setAttribute(VISIBLE_ERROR_ATTR, "true");
+      setTimeout(() => card.classList.remove("shake"), 450);
+      card.scrollIntoView({ behavior:"smooth", block:"center" });
+    }
+  }
+
+  function validateProjectEventBeforePreview(){
+    clearProjectEventError();
+
+    if(formData.site !== "專案" || !hasProjectEventInput()){
+      return true;
+    }
+
+    if(!String(formData.project_item || "").trim()){
+      showProjectEventError("填寫專案事件前，請先選擇專案項目。");
+      return false;
+    }
+    if(!String(formData.project_event_type || "").trim()){
+      showProjectEventError("請選擇事件類型。");
+      return false;
+    }
+    if(!String(formData.project_event_content || "").trim()){
+      showProjectEventError("請填寫事件內容。");
+      return false;
+    }
+    if(!String(formData.project_event_status || "").trim()){
+      showProjectEventError("請選擇處理狀態。");
+      return false;
+    }
+
+    return true;
+  }
+
+  function generateProjectEventSubmissionId(){
+    if(window.crypto && typeof window.crypto.randomUUID === "function"){
+      return window.crypto.randomUUID();
+    }
+    return "pe_" + Date.now() + "_" + Math.random().toString(36).slice(2, 12);
+  }
+
+  function buildProjectEventPayload(){
+    if(!hasProjectEventInput()){
+      return null;
+    }
+
+    if(!formData.project_event_submission_id){
+      formData.project_event_submission_id = generateProjectEventSubmissionId();
+    }
+
+    return {
+      submission_id: formData.project_event_submission_id,
+      event_type: String(formData.project_event_type || "").trim(),
+      related_process: String(formData.project_event_process || "").trim(),
+      event_content: String(formData.project_event_content || "").trim(),
+      status: String(formData.project_event_status || "").trim(),
+      expected_due_date: String(formData.project_event_due_date || "").trim()
+    };
+  }
+
   function handlePreviewNavigation(){
     saveData();
+
+    if(formData.site === "專案" && !validateProjectEventBeforePreview()){
+      return;
+    }
 
     if(formData.site === "自動噴砂站" && !validateSandblastFramePairs(true)){
       return;
@@ -1667,6 +1909,7 @@ user-scalable=no">
 
     const site = document.querySelector('input[name="site"]:checked');
     formData.site = site ? site.value : "";
+    updateStationContextBanner();
 
     const workers = [];
     document.querySelectorAll(".checkbox-group input:checked").forEach(c => workers.push(c.value));
@@ -1721,6 +1964,11 @@ user-scalable=no">
     formData.proj_note_gauge_preparation_set = getValue("proj_note_gauge_preparation_set");
     formData.proj_note_ground_plate_paint_frame = getValue("proj_note_ground_plate_paint_frame");
     formData.proj_note = getValue("proj_note");
+    formData.project_event_type = getValue("project_event_type");
+    formData.project_event_process = getValue("project_event_process");
+    formData.project_event_content = getValue("project_event_content");
+    formData.project_event_status = getValue("project_event_status");
+    formData.project_event_due_date = getValue("project_event_due_date");
   }
 
   function hasMeaningfulDraftContent(){
@@ -1733,7 +1981,7 @@ user-scalable=no">
     if(Array.isArray(scanState.sb_cylinder_scan) && scanState.sb_cylinder_scan.length > 0) return true;
     if(Array.isArray(scanState.sb_frame_pairs) && scanState.sb_frame_pairs.some(item => item && (item.frameId || item.ctn))) return true;
 
-    const ignoredKeys = new Set(["date", "person", "workers", "site", "photo", "bundle_frame_count", "bundle_frames", "sb_frame_pairs"]);
+    const ignoredKeys = new Set(["date", "person", "workers", "site", "photo", "bundle_frame_count", "bundle_frames", "sb_frame_pairs", "project_event_submission_id"]);
     return Object.keys(formData).some(key => {
       if(ignoredKeys.has(key)) return false;
       const value = formData[key];
@@ -1885,7 +2133,12 @@ user-scalable=no">
       proj_note_master_valve_wrap_qty:"proj_note_master_valve_wrap_qty",
       proj_note_gauge_preparation_set:"proj_note_gauge_preparation_set",
       proj_note_ground_plate_paint_frame:"proj_note_ground_plate_paint_frame",
-      proj_note:"proj_note"
+      proj_note:"proj_note",
+      project_event_type:"project_event_type",
+      project_event_process:"project_event_process",
+      project_event_content:"project_event_content",
+      project_event_status:"project_event_status",
+      project_event_due_date:"project_event_due_date"
     };
 
     Object.keys(fillMap).forEach(key => {
@@ -1923,6 +2176,7 @@ user-scalable=no">
     renderFramePairTable();
     renderScanDisplay("sb_cylinder_scan");
 
+    updateStationContextBanner();
     goToPageImmediately(activePageId);
   }
 
@@ -1944,6 +2198,8 @@ user-scalable=no">
     else{
       updateStep(2);
     }
+
+    updateStationContextBanner();
   }
 
   function clearDraft(showMessage, options = {}){
@@ -2668,6 +2924,14 @@ function bindFramePairTableEvents(){
           <div>集束測漏（框）：${escapeHtml(formData.proj_bundle_leak)}</div>
           <div>維修框架CTN：${nl2br(formData.proj_repair_ctn)}</div>
           <div>專案備註：${nl2br(buildProjectNoteText())}</div>
+          ${hasProjectEventInput() ? `
+            <div><strong>專案事件</strong></div>
+            <div>事件類型：${escapeHtml(formData.project_event_type)}</div>
+            <div>關聯工序：${escapeHtml(formData.project_event_process || "未指定")}</div>
+            <div>事件內容：${nl2br(formData.project_event_content)}</div>
+            <div>處理狀態：${escapeHtml(formData.project_event_status)}</div>
+            <div>預計處理日：${escapeHtml(formData.project_event_due_date || "未指定")}</div>
+          ` : ""}
           <div>照片上傳：${document.getElementById("proj_photo").files.length ? `已選擇 ${document.getElementById("proj_photo").files.length} 張照片（重新開頁不恢復）` : "未選擇"}</div>
         </div>
       `;
@@ -2878,6 +3142,13 @@ function bindFramePairTableEvents(){
           "照片上傳": []
         };
 
+        const projectEventPayload = buildProjectEventPayload();
+        if(projectEventPayload){
+          payload["project_event"] = projectEventPayload;
+          // 網路重送時沿用同一 submission_id，先寫回草稿。
+          persistDraft();
+        }
+
         const fileInput = document.getElementById("proj_photo");
         if(fileInput && fileInput.files && fileInput.files.length > 0){
           showLoadingMessage('送出中...<br><span style="font-size:14px;color:rgba(255,255,255,.72);">照片讀取中，請稍候</span>');
@@ -3034,6 +3305,43 @@ function bindFramePairTableEvents(){
     }
   }
 
+  function updateStationContextBanner(){
+    const banner = document.getElementById("stationContextBanner");
+    const name = document.getElementById("stationContextName");
+    const activePageId = getActivePageId();
+    const station = String(formData.site || "").trim();
+
+    if(!banner || !name) return;
+
+    const iconMap = {
+      "自動噴砂站":"⚙️",
+      "UT站":"🔍",
+      "鋼印鎖瓶站":"🔩",
+      "集束中心":"📦",
+      "專案":"🚀"
+    };
+
+    const showInStationStep = !!station && [
+      "pageSandblast",
+      "pageUT",
+      "pageStamp",
+      "pageBundle",
+      "pageProject"
+    ].includes(activePageId);
+
+    name.textContent = station ? `${iconMap[station] || "🏭"} ${station}` : "尚未選擇";
+    banner.classList.toggle("show", showInStationStep);
+  }
+
+  function bindStationContextBanner(){
+    document.querySelectorAll('input[name="site"]').forEach(input => {
+      input.addEventListener("change", function(){
+        formData.site = this.checked ? this.value : "";
+        updateStationContextBanner();
+      });
+    });
+  }
+
   function updateStep(step){
     document.querySelectorAll(".step").forEach(s => {
       s.classList.remove("active");
@@ -3110,6 +3418,7 @@ function bindFramePairTableEvents(){
     bindAutoSave();
     bindDraftLifecycleGuards();
     bindUppercaseInputs();
+    bindStationContextBanner();
     bindFramePairTableEvents();
     renderBundleCards();
     bindBundleEvents();
