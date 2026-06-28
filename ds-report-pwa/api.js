@@ -1,9 +1,10 @@
-// 43版：日報輸入端專用 deployment
+// 日報輸入端 Apps Script Web App（固定 URL；更新部署版本後 URL 不變）
 const API_URL = "https://script.google.com/macros/s/AKfycbwYjPR-mHy_UCRAAsvU84-3T_MMQcfKHX9PSR8Da7E2gQq3xVEcK0Fnz0JvrHaIHpem/exec";
 
 async function parseApiJsonResponse(res) {
   const text = await res.text();
   let data = null;
+
   try {
     data = JSON.parse(text);
   } catch (err) {
@@ -47,6 +48,27 @@ async function fetchProjectOptions() {
   }
 
   return Array.isArray(result.projects) ? result.projects : [];
+}
+
+/**
+ * 「下一步」的處理對象只列出同一專案、仍在處理中的阻塞／風險／變更。
+ */
+async function fetchOpenProjectEvents(projectName) {
+  const name = String(projectName || "").trim();
+  if (!name) return [];
+
+  const res = await fetch(
+    `${API_URL}?api=project_events&project_name=${encodeURIComponent(name)}`,
+    { method: "GET" }
+  );
+
+  const result = await parseApiJsonResponse(res);
+
+  if (!result.ok) {
+    throw new Error(result.message || "處理中事件讀取失敗");
+  }
+
+  return Array.isArray(result.events) ? result.events : [];
 }
 
 async function validateSandblastPairsAPI(reportDate, ctnList) {
