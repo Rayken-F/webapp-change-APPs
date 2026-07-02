@@ -1636,6 +1636,8 @@ user-scalable=no">
   let sending = false;
   let projectOptionsLoaded = false;
   let projectEventTargetRequestSeq = 0;
+  let dailySubmissionStatusTimer = null;
+  let activeDailySubmissionId = ""; 
 
   function getValue(id){
     const el = document.getElementById(id);
@@ -3296,6 +3298,95 @@ function bindFramePairTableEvents(){
   }
 
 
+  function generateDailySubmissionId(){
+    if(window.crypto && typeof window.crypto.randomUUID === "function"){
+      return window.crypto.randomUUID();
+    }
+    return "dr_" + Date.now() + "_" + Math.random().toString(36).slice(2, 14);
+  }
+
+  function stopDailySubmissionStatusPolling(){
+    if(dailySubmissionStatusTimer){
+      clearInterval(dailySubmissionStatusTimer);
+      dailySubmissionStatusTimer = null;
+    }
+    activeDailySubmissionId = "";
+  }
+
+  function renderDailySubmissionStatus(status){
+    if(!status || !status.state) return;
+
+    const state = String(status.state || "");
+    const message = String(status.message || "").trim();
+
+    if(state === "queued"){
+      showLoadingMessage(
+        '📥 資料排隊中...<br>' +
+        '<span style="font-size:14px;color:rgba(255,255,255,.78);">' +
+        escapeHtml(message || "前方資料正在寫入，請稍候。") +
+        '<br>請勿關閉頁面、返回或重複送出。</span>'
+      );
+      return;
+    }
+
+    if(state === "writing"){
+      showLoadingMessage(
+        '✍️ 正在寫入日報...<br>' +
+        '<span style="font-size:14px;color:rgba(255,255,255,.78);">' +
+        escapeHtml(message || "請稍候，資料寫入完成前請勿關閉頁面。") +
+        '</span>'
+      );
+      return;
+    }
+
+    if(state === "post_write"){
+      showLoadingMessage(
+        '🔄 日報已寫入<br>' +
+        '<span style="font-size:14px;color:rgba(255,255,255,.78);">' +
+        escapeHtml(message || "正在同步後續資料，請稍候。") +
+        '</span>'
+      );
+    }
+  }
+
+  function startDailySubmissionStatusPolling(submissionId){
+    stopDailySubmissionStatusPolling();
+
+    const id = String(submissionId || "").trim();
+    if(!id || typeof fetchDailySubmissionStatus !== "function"){
+      return;
+    }
+
+    activeDailySubmissionId = id;
+    let requestInFlight = false;
+
+    const poll = async () => {
+      if(!activeDailySubmissionId || activeDailySubmissionId !== id || requestInFlight){
+        return;
+      }
+
+      requestInFlight = true;
+      try{
+        const status = await fetchDailySubmissionStatus(id);
+
+        if(activeDailySubmissionId === id){
+          renderDailySubmissionStatus(status);
+        }
+      }
+      catch(err){
+        // 狀態提示是輔助資訊；狀態 API 暫時不可用時，不得中斷真正的日報送出。
+        console.warn("送出狀態讀取失敗", err);
+      }
+      finally{
+        requestInFlight = false;
+      }
+    };
+
+    // 先讓 POST 請求開始，後端建立 submission status 後才輪詢。
+    setTimeout(poll, 500);
+    dailySubmissionStatusTimer = setInterval(poll, 900);
+  }
+
   function showLoadingMessage(message){
     const loadingBox = document.getElementById("loadingBox");
     if(!loadingBox) return;
@@ -3475,23 +3566,36 @@ function bindFramePairTableEvents(){
         }
       }
 
-      showLoadingMessage('送出中...');
+      const dailySubmissionId = generateDailySubmissionId();
+      payload["_submission_id"] = dailySubmissionId;
+
+      showLoadingMessage('送出中...<br><span style="font-size:14px;color:rgba(255,255,255,.72);">資料已送出，正在等待伺服器處理，請勿關閉頁面。</span>');
       await waitForPaint();
 
+      // 此輪詢只在後端真的偵測到 Response 寫入鎖被占用時，才顯示「資料排隊中」。
+      startDailySubmissionStatusPolling(dailySubmissionId);
+
       const result = await submitDailyReportAPI(payload);
+      stopDailySubmissionStatusPolling();
       console.log("送出成功：", result);
 
       clearDraft(false, {
         requireConfirm: false
       });
 
-      showLoadingMessage('✅ 送出成功');
+      const receipt = result && result.receipt ? result.receipt : null;
+      const receiptText = receipt
+        ? `<br><span style="font-size:13px;color:rgba(255,255,255,.78);">已寫入第 ${escapeHtml(receipt.startRow)}${receipt.endRow !== receipt.startRow ? "～" + escapeHtml(receipt.endRow) : ""} 列</span>`
+        : "";
+
+      showLoadingMessage('✅ 送出成功' + receiptText);
 
       setTimeout(()=>{
         location.reload();
       }, 1200);
 
     } catch (err) {
+      stopDailySubmissionStatusPolling();
       console.error("送出失敗", err);
       sending = false;
       showLoadingMessage(`❌ 送出失敗：${escapeHtml(err.message || "未知錯誤")}`);
