@@ -36,6 +36,31 @@ async function submitDailyReportAPI(payload) {
   return result;
 }
 
+/**
+ * 讀取目前日報送出的真實處理狀態。
+ * 只有後端偵測到 Response 寫入鎖被占用時，才會回傳 state=queued。
+ */
+async function fetchDailySubmissionStatus(submissionId) {
+  const id = String(submissionId || "").trim();
+  if (!id) return null;
+
+  const res = await fetch(
+    `${API_URL}?api=daily_submission_status&submission_id=${encodeURIComponent(id)}`,
+    {
+      method: "GET",
+      cache: "no-store"
+    }
+  );
+
+  const result = await parseApiJsonResponse(res);
+
+  if (!result.ok) {
+    throw new Error(result.message || "送出狀態讀取失敗");
+  }
+
+  return result.status || null;
+}
+
 async function fetchProjectOptions() {
   const res = await fetch(`${API_URL}?api=projects`, {
     method: "GET"
