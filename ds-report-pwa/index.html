@@ -1625,6 +1625,7 @@ user-scalable=no">
     project_event_due_date:"",
     project_event_target_record_id:"",
     project_event_submission_id:"",
+    daily_submission_id:"",
     photo:""
   };
 
@@ -1637,7 +1638,8 @@ user-scalable=no">
   let projectOptionsLoaded = false;
   let projectEventTargetRequestSeq = 0;
   let dailySubmissionStatusTimer = null;
-  let activeDailySubmissionId = ""; 
+  let activeDailySubmissionId = "";
+  let waitingForExistingDailySubmission = false; 
 
   function getValue(id){
     const el = document.getElementById(id);
@@ -3317,7 +3319,36 @@ function bindFramePairTableEvents(){
     if(!status || !status.state) return;
 
     const state = String(status.state || "");
-    const message = String(status.message || "").trim();
+    const message = String(status.message || "");
+
+    if(state === "success" && waitingForExistingDailySubmission){
+      const receipt = status.receipt || null;
+      const receiptText = receipt
+        ? `<br><span style="font-size:13px;color:rgba(255,255,255,.78);">收據 ${escapeHtml(receipt.receiptId || "—")}｜已寫入第 ${escapeHtml(receipt.startRow)}${receipt.endRow !== receipt.startRow ? "～" + escapeHtml(receipt.endRow) : ""} 列</span>`
+        : "";
+
+      waitingForExistingDailySubmission = false;
+      stopDailySubmissionStatusPolling();
+      clearDraft(false, { requireConfirm:false });
+      showLoadingMessage('✅ 送出成功' + receiptText);
+
+      setTimeout(()=>{
+        location.reload();
+      }, 2200);
+      return;
+    }
+
+    if(state === "failed" && waitingForExistingDailySubmission){
+      waitingForExistingDailySubmission = false;
+      stopDailySubmissionStatusPolling();
+      sending = false;
+      showLoadingMessage(`❌ 送出失敗：${escapeHtml(message || "未知錯誤")}`);
+
+      setTimeout(()=>{
+        hideLoadingMessage();
+      }, 2200);
+      return;
+    }
 
     if(state === "queued"){
       showLoadingMessage(
@@ -3343,7 +3374,7 @@ function bindFramePairTableEvents(){
       showLoadingMessage(
         '🔄 日報已寫入<br>' +
         '<span style="font-size:14px;color:rgba(255,255,255,.78);">' +
-        escapeHtml(message || "正在同步後續資料，請稍候。") +
+        escapeHtml(message || "正在建立背景同步任務，請稍候。") +
         '</span>'
       );
     }
@@ -3566,7 +3597,11 @@ function bindFramePairTableEvents(){
         }
       }
 
-      const dailySubmissionId = generateDailySubmissionId();
+      const dailySubmissionId = formData.daily_submission_id || generateDailySubmissionId();
+      formData.daily_submission_id = dailySubmissionId;
+      // 在網路請求前先存草稿。即使網路中斷但後端已寫入，重送仍會帶同一個 ID，避免重複寫入。
+      persistDraft();
+
       payload["_submission_id"] = dailySubmissionId;
 
       showLoadingMessage('送出中...<br><span style="font-size:14px;color:rgba(255,255,255,.72);">資料已送出，正在等待伺服器處理，請勿關閉頁面。</span>');
@@ -3576,6 +3611,16 @@ function bindFramePairTableEvents(){
       startDailySubmissionStatusPolling(dailySubmissionId);
 
       const result = await submitDailyReportAPI(payload);
+
+      if(result && result.pending){
+        // 同一筆 submission_id 的前一個請求仍在執行。保留草稿並持續輪詢，避免重送。
+        waitingForExistingDailySubmission = true;
+        showLoadingMessage('⏳ 此筆資料仍在處理中<br><span style="font-size:14px;color:rgba(255,255,255,.78);">請勿重複送出，系統正在確認寫入結果。</span>');
+        sending = false;
+        return;
+      }
+
+      waitingForExistingDailySubmission = false;
       stopDailySubmissionStatusPolling();
       console.log("送出成功：", result);
 
@@ -3585,16 +3630,20 @@ function bindFramePairTableEvents(){
 
       const receipt = result && result.receipt ? result.receipt : null;
       const receiptText = receipt
-        ? `<br><span style="font-size:13px;color:rgba(255,255,255,.78);">已寫入第 ${escapeHtml(receipt.startRow)}${receipt.endRow !== receipt.startRow ? "～" + escapeHtml(receipt.endRow) : ""} 列</span>`
+        ? `<br><span style="font-size:13px;color:rgba(255,255,255,.78);">收據 ${escapeHtml(receipt.receiptId || "—")}｜已寫入第 ${escapeHtml(receipt.startRow)}${receipt.endRow !== receipt.startRow ? "～" + escapeHtml(receipt.endRow) : ""} 列</span>`
         : "";
+      const duplicateText = result && result.duplicate
+        ? '<br><span style="font-size:13px;color:rgba(255,255,255,.78);">偵測到重送，系統已回傳原收據，未重複寫入。</span>'
+        : '<br><span style="font-size:13px;color:rgba(255,255,255,.78);">ERP 同步已排入背景處理，不影響本次日報完成。</span>';
 
-      showLoadingMessage('✅ 送出成功' + receiptText);
+      showLoadingMessage('✅ 送出成功' + receiptText + duplicateText);
 
       setTimeout(()=>{
         location.reload();
-      }, 1200);
+      }, 2200);
 
     } catch (err) {
+      waitingForExistingDailySubmission = false;
       stopDailySubmissionStatusPolling();
       console.error("送出失敗", err);
       sending = false;
