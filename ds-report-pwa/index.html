@@ -1058,6 +1058,94 @@ user-scalable=no">
     }
   }
 
+
+
+  /* IQC 初版：數量卡片、型態分流、RT / CTN / 區域 */
+  .iqc-count-card{ padding:18px 22px; }
+  .iqc-card{ overflow:visible; }
+
+  .iqc-type-tip{
+    position:relative;
+    z-index:1;
+    margin:10px 0 0;
+    color:rgba(231,237,255,0.70);
+    font-size:13px;
+    line-height:1.6;
+  }
+
+  .iqc-detail-wrap{
+    display:none;
+    position:relative;
+    z-index:1;
+    margin-top:16px;
+    padding-top:16px;
+    border-top:1px solid rgba(231,238,255,0.16);
+  }
+  .iqc-detail-wrap.show{ display:block; }
+
+  .iqc-field-grid{
+    display:grid;
+    grid-template-columns:repeat(2,minmax(0,1fr));
+    gap:14px;
+  }
+  .iqc-field.full{ grid-column:1 / -1; }
+
+  .iqc-field-label{
+    display:block;
+    margin:0 0 7px;
+    color:rgba(241,245,255,0.92);
+    font-size:14px;
+    font-weight:800;
+  }
+
+  .iqc-field .form-input{
+    margin:0;
+    text-transform:uppercase;
+  }
+  .iqc-field select.form-input{ text-transform:none; }
+
+  .iqc-pair-heading{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:12px;
+    margin:18px 0 10px;
+    color:#f7f9ff;
+    font-size:15px;
+    font-weight:800;
+    flex-wrap:wrap;
+  }
+  .iqc-pair-heading small{
+    color:rgba(231,237,255,0.64);
+    font-size:12px;
+    font-weight:700;
+  }
+  .iqc-pair-toolbar{ margin:0 0 10px; }
+  .iqc-pair-toolbar button{
+    width:auto;
+    min-height:42px;
+    padding:10px 14px;
+    border-radius:14px;
+    font-size:14px;
+  }
+  .iqc-pair-table{ min-width:500px; }
+  .iqc-pair-table .pair-table-input{ text-transform:uppercase; }
+
+  .iqc-error{
+    position:relative;
+    z-index:2;
+    margin:0 2px 16px;
+    color:#ffb4c0;
+    font-size:14px;
+    font-weight:800;
+    line-height:1.55;
+  }
+
+  @media (max-width:560px){
+    .iqc-field-grid{ grid-template-columns:1fr; }
+    .iqc-field.full{ grid-column:auto; }
+  }
+
 </style>
 </head>
 
@@ -1112,6 +1200,7 @@ user-scalable=no">
           <label><input type="radio" name="site" value="UT站">🔍 UT站</label>
           <label><input type="radio" name="site" value="鋼印鎖瓶站">🔩 鋼印鎖瓶站</label>
           <label><input type="radio" name="site" value="集束中心">📦 集束中心</label>
+          <label><input type="radio" name="site" value="IQC">📥 IQC</label>
           <label><input type="radio" name="site" value="專案">🚀 專案</label>
         </div>
         <div id="error-site" class="error-text"></div>
@@ -1301,6 +1390,28 @@ user-scalable=no">
        <button type="button" onclick="handlePreviewNavigation()">預覽</button>
      </div>
    </div>
+
+
+    <div id="pageIQC" class="page">
+      <div id="card-iqc-count" class="form-card iqc-count-card">
+        <div class="count-text">
+          IQC登錄數量：
+          <input type="number" id="iqc_card_count" class="bundle-count-input" min="1" step="1" value="1">
+        </div>
+        <div class="scan-tip">登錄數量會決定下方 IQC 卡片數量；可左右滑動切換每一筆資料。每張卡片需先選擇「集束」或「散支」，才會顯示對應欄位。</div>
+      </div>
+
+      <div id="iqc-error" class="iqc-error"></div>
+
+      <div class="bundle-slider-wrap">
+        <div id="iqcCardsContainer" class="bundle-slider"></div>
+      </div>
+
+      <div class="btn-row">
+        <button type="button" onclick="prevPage('page1')">返回</button>
+        <button type="button" onclick="handlePreviewNavigation()">預覽</button>
+      </div>
+    </div>
 
     <div id="pageProject" class="page">
       <div class="form-card">
@@ -1594,6 +1705,9 @@ user-scalable=no">
     bundle_frame_count:1,
     bundle_frames:[],
 
+    iqc_card_count:1,
+    iqc_cards:[],
+
     project_item:"",
     proj_new_cylinder:"",
     proj_register:"",
@@ -1633,6 +1747,26 @@ user-scalable=no">
     sb_frame_pairs:[],
     sb_cylinder_scan:[]
   };
+
+  const IQC_REGION_OPTIONS = [
+    { code:"A1", label:"待報廢鋼瓶區" },
+    { code:"A2", label:"鋼瓶備貨區（O2、CO2）" },
+    { code:"B1", label:"鋼瓶委外區（包膜混合氣、VCYL暫存）" },
+    { code:"B2", label:"鋼瓶備貨區（50L、LINX存放）" },
+    { code:"B3", label:"收貨區" },
+    { code:"B4", label:"維修＆調撥暫存區" },
+    { code:"B5-1", label:"VCYL暫存區" },
+    { code:"B5-2", label:"MNT1暫存區" },
+    { code:"B5-3", label:"竹北O2" },
+    { code:"B5-4", label:"竹北純氣＋混氣" },
+    { code:"B5-5", label:"IND Ar＋N2" },
+    { code:"B6", label:"H2散支＋集束" },
+    { code:"C1", label:"集束備貨區、拆氣區" },
+    { code:"C2", label:"拆氣區、集束備貨區" },
+    { code:"C3", label:"空框架、集束備貨區" },
+    { code:"C4", label:"新框架、備用框架" },
+    { code:"C5", label:"報廢框架、蝴蝶籠（Guard）" }
+  ];
 
   let sending = false;
   let projectOptionsLoaded = false;
@@ -2001,6 +2135,9 @@ user-scalable=no">
     else if(formData.site === "集束中心"){
       targetPage = "pageBundle";
     }
+    else if(formData.site === "IQC"){
+      targetPage = "pageIQC";
+    }
     else if(formData.site === "專案"){
       targetPage = "pageProject";
     }
@@ -2148,6 +2285,10 @@ user-scalable=no">
       return;
     }
 
+    if(formData.site === "IQC" && !validateIqcCardsBeforePreview()){
+      return;
+    }
+
     const visibleErrorCard = getFirstVisibleErrorCard();
 
     if(visibleErrorCard){
@@ -2206,6 +2347,7 @@ user-scalable=no">
     formData.stamp_note = getValue("stamp_note");
 
     collectBundleFramesFromUI();
+    collectIqcCardsFromUI();
 
     formData.project_item = getValue("project_item");
     formData.proj_new_cylinder = getValue("proj_new_cylinder");
@@ -2249,7 +2391,7 @@ user-scalable=no">
     if(Array.isArray(scanState.sb_cylinder_scan) && scanState.sb_cylinder_scan.length > 0) return true;
     if(Array.isArray(scanState.sb_frame_pairs) && scanState.sb_frame_pairs.some(item => item && (item.frameId || item.ctn))) return true;
 
-    const ignoredKeys = new Set(["date", "person", "workers", "site", "photo", "bundle_frame_count", "bundle_frames", "sb_frame_pairs", "project_event_submission_id"]);
+    const ignoredKeys = new Set(["date", "person", "workers", "site", "photo", "bundle_frame_count", "bundle_frames", "iqc_card_count", "iqc_cards", "sb_frame_pairs", "project_event_submission_id", "daily_submission_id"]);
     return Object.keys(formData).some(key => {
       if(ignoredKeys.has(key)) return false;
       const value = formData[key];
@@ -2447,6 +2589,13 @@ user-scalable=no">
     ensureBundleFramesLength(normalizeBundleFrameCount(formData.bundle_frame_count || 1));
     renderBundleCards();
 
+    const iqcCountInput = document.getElementById("iqc_card_count");
+    if(iqcCountInput){
+      iqcCountInput.value = normalizeIqcCardCount(formData.iqc_card_count || 1);
+    }
+    ensureIqcCardsLength(normalizeIqcCardCount(formData.iqc_card_count || 1));
+    renderIqcCards();
+
     renderFramePairTable();
     renderScanDisplay("sb_cylinder_scan");
 
@@ -2503,6 +2652,8 @@ user-scalable=no">
     formData.workers = [];
     formData.bundle_frame_count = 1;
     formData.bundle_frames = [];
+    formData.iqc_card_count = 1;
+    formData.iqc_cards = [];
 
     scanState.sb_frame_pairs = [];
     scanState.sb_cylinder_scan = [];
@@ -2540,7 +2691,13 @@ user-scalable=no">
       bundleCountInput.value = 1;
     }
 
+    const iqcCountInput = document.getElementById("iqc_card_count");
+    if(iqcCountInput){
+      iqcCountInput.value = 1;
+    }
+
     renderBundleCards();
+    renderIqcCards();
     renderFramePairTable();
     renderScanDisplay("sb_cylinder_scan");
     clearErrors();
@@ -3177,6 +3334,40 @@ function bindFramePairTableEvents(){
       });
     }
 
+
+    if(formData.site === "IQC"){
+      collectIqcCardsFromUI();
+
+      html += `
+        <div class="confirm-section">
+          <div>IQC登錄數量：${escapeHtml(formData.iqc_card_count)}</div>
+        </div>
+      `;
+
+      formData.iqc_cards.forEach((card, index) => {
+        const region = getIqcRegionLabel(card.regionCode);
+        const loosePairs = (card.loosePairs || [])
+          .filter(pair => pair && (pair.ctn || pair.rtNo))
+          .map(pair => `${escapeHtml(pair.ctn)} ｜ ${escapeHtml(pair.rtNo)}`)
+          .join("<br>");
+
+        html += `
+          <div class="confirm-section">
+            <div><strong>第${index + 1}筆 IQC</strong></div>
+            <div>型態：${escapeHtml(card.type)}</div>
+            ${card.type === "集束" ? `
+              <div>RT料號：${escapeHtml(card.bundleRtNo)}</div>
+              <div>CTN：${escapeHtml(card.bundleCtn)}</div>
+            ` : `
+              <div>運輸框架CTN：${escapeHtml(card.transportFrameCtn)}</div>
+              <div>散支CTN｜RT料號：<br>${loosePairs || "未填寫"}</div>
+            `}
+            <div>區域：${escapeHtml(card.regionCode ? `${card.regionCode}${region ? "｜" + region : ""}` : "未指定")}</div>
+          </div>
+        `;
+      });
+    }
+
     if(formData.site === "專案"){
       html += `
         <div class="confirm-section">
@@ -3324,7 +3515,7 @@ function bindFramePairTableEvents(){
     if(state === "success" && waitingForExistingDailySubmission){
       const receipt = status.receipt || null;
       const receiptText = receipt
-        ? `<br><span style="font-size:13px;color:rgba(255,255,255,.78);">收據 ${escapeHtml(receipt.receiptId || "—")}｜已寫入第 ${escapeHtml(receipt.startRow)}${receipt.endRow !== receipt.startRow ? "～" + escapeHtml(receipt.endRow) : ""} 列</span>`
+        ? `<br><span style="font-size:13px;color:rgba(255,255,255,.78);">收據 ${escapeHtml(receipt.receiptId || "—")}｜已寫入 ${escapeHtml(receipt.sheetName || "Response")} 第 ${escapeHtml(receipt.startRow)}${receipt.endRow !== receipt.startRow ? "～" + escapeHtml(receipt.endRow) : ""} 列</span>`
         : "";
 
       waitingForExistingDailySubmission = false;
@@ -3362,7 +3553,7 @@ function bindFramePairTableEvents(){
 
     if(state === "writing"){
       showLoadingMessage(
-        '✍️ 正在寫入日報...<br>' +
+        '✍️ 正在寫入資料...<br>' +
         '<span style="font-size:14px;color:rgba(255,255,255,.78);">' +
         escapeHtml(message || "請稍候，資料寫入完成前請勿關閉頁面。") +
         '</span>'
@@ -3372,7 +3563,7 @@ function bindFramePairTableEvents(){
 
     if(state === "post_write"){
       showLoadingMessage(
-        '🔄 日報已寫入<br>' +
+        '🔄 資料已寫入<br>' +
         '<span style="font-size:14px;color:rgba(255,255,255,.78);">' +
         escapeHtml(message || "正在建立背景同步任務，請稍候。") +
         '</span>'
@@ -3492,6 +3683,25 @@ function bindFramePairTableEvents(){
           "bundle_frames": Array.isArray(formData.bundle_frames) ? formData.bundle_frames : []
         };
       }
+
+      else if(formData.site === "IQC"){
+        collectIqcCardsFromUI();
+
+        if(!validateIqcCardsBeforePreview()){
+          sending = false;
+          hideLoadingMessage();
+          backToSite();
+          return;
+        }
+
+        payload = {
+          "日期": formData.date || "",
+          "填表人員": formData.person || "",
+          "站別": formData.site || "",
+          "人員姓名": Array.isArray(formData.workers) ? formData.workers.join(", ") : "",
+          "iqc_cards": Array.isArray(formData.iqc_cards) ? formData.iqc_cards : []
+        };
+      }
       else if(formData.site === "鋼印鎖瓶站"){
         payload = {
           "日期": formData.date || "",
@@ -3607,7 +3817,7 @@ function bindFramePairTableEvents(){
       showLoadingMessage('送出中...<br><span style="font-size:14px;color:rgba(255,255,255,.72);">資料已送出，正在等待伺服器處理，請勿關閉頁面。</span>');
       await waitForPaint();
 
-      // 此輪詢只在後端真的偵測到 Response 寫入鎖被占用時，才顯示「資料排隊中」。
+      // 此輪詢只在後端真的偵測到寫入鎖被占用時，才顯示「資料排隊中」。
       startDailySubmissionStatusPolling(dailySubmissionId);
 
       const result = await submitDailyReportAPI(payload);
@@ -3630,11 +3840,13 @@ function bindFramePairTableEvents(){
 
       const receipt = result && result.receipt ? result.receipt : null;
       const receiptText = receipt
-        ? `<br><span style="font-size:13px;color:rgba(255,255,255,.78);">收據 ${escapeHtml(receipt.receiptId || "—")}｜已寫入第 ${escapeHtml(receipt.startRow)}${receipt.endRow !== receipt.startRow ? "～" + escapeHtml(receipt.endRow) : ""} 列</span>`
+        ? `<br><span style="font-size:13px;color:rgba(255,255,255,.78);">收據 ${escapeHtml(receipt.receiptId || "—")}｜已寫入 ${escapeHtml(receipt.sheetName || "Response")} 第 ${escapeHtml(receipt.startRow)}${receipt.endRow !== receipt.startRow ? "～" + escapeHtml(receipt.endRow) : ""} 列</span>`
         : "";
       const duplicateText = result && result.duplicate
         ? '<br><span style="font-size:13px;color:rgba(255,255,255,.78);">偵測到重送，系統已回傳原收據，未重複寫入。</span>'
-        : '<br><span style="font-size:13px;color:rgba(255,255,255,.78);">ERP 同步已排入背景處理，不影響本次日報完成。</span>';
+        : formData.site === "IQC"
+          ? '<br><span style="font-size:13px;color:rgba(255,255,255,.78);">IQC 已獨立寫入 IQC_Log；本次不影響 Response、Dashboard 或 ERP。</span>'
+          : '<br><span style="font-size:13px;color:rgba(255,255,255,.78);">ERP 同步已排入背景處理，不影響本次日報完成。</span>';
 
       showLoadingMessage('✅ 送出成功' + receiptText + duplicateText);
 
@@ -3699,6 +3911,9 @@ function bindFramePairTableEvents(){
     else if(siteValue === "集束中心"){
       targetPage = "pageBundle";
     }
+    else if(siteValue === "IQC"){
+      targetPage = "pageIQC";
+    }
     else if(siteValue === "專案"){
       targetPage = "pageProject";
     }
@@ -3742,6 +3957,7 @@ function bindFramePairTableEvents(){
       "UT站":"🔍",
       "鋼印鎖瓶站":"🔩",
       "集束中心":"📦",
+      "IQC":"📥",
       "專案":"🚀"
     };
 
@@ -3750,6 +3966,7 @@ function bindFramePairTableEvents(){
       "pageUT",
       "pageStamp",
       "pageBundle",
+      "pageIQC",
       "pageProject"
     ].includes(activePageId);
 
@@ -3827,6 +4044,429 @@ function bindFramePairTableEvents(){
     });
   }
 
+
+  function getIqcRegionLabel(code){
+    const value = String(code || "").trim().toUpperCase();
+    const item = IQC_REGION_OPTIONS.find(option => option.code === value);
+    return item ? item.label : "";
+  }
+
+  function normalizeIqcCardCount(value){
+    const n = parseInt(value, 10);
+    return isNaN(n) || n < 1 ? 1 : n;
+  }
+
+  function createEmptyIqcPair(){
+    return { ctn:"", rtNo:"" };
+  }
+
+  function normalizeIqcPairs(pairs){
+    const source = Array.isArray(pairs) ? pairs : [];
+    const normalized = source.map(pair => ({
+      ctn:normalizeCTN(pair && pair.ctn || ""),
+      rtNo:toUpperSafe(pair && pair.rtNo || "")
+    }));
+    return normalized.length ? normalized : [createEmptyIqcPair()];
+  }
+
+  function createEmptyIqcCard(index){
+    return {
+      cardNo:index + 1,
+      type:"",
+      bundleRtNo:"",
+      bundleCtn:"",
+      transportFrameCtn:"",
+      loosePairs:[createEmptyIqcPair()],
+      regionCode:""
+    };
+  }
+
+  function ensureIqcCardsLength(targetCount){
+    if(!Array.isArray(formData.iqc_cards)){
+      formData.iqc_cards = [];
+    }
+
+    while(formData.iqc_cards.length < targetCount){
+      formData.iqc_cards.push(createEmptyIqcCard(formData.iqc_cards.length));
+    }
+
+    if(formData.iqc_cards.length > targetCount){
+      formData.iqc_cards = formData.iqc_cards.slice(0, targetCount);
+    }
+
+    formData.iqc_cards = formData.iqc_cards.map((card, index) => ({
+      cardNo:index + 1,
+      type:["集束","散支"].includes(String(card && card.type || "")) ? String(card.type) : "",
+      bundleRtNo:toUpperSafe(card && card.bundleRtNo || ""),
+      bundleCtn:normalizeCTN(card && card.bundleCtn || ""),
+      transportFrameCtn:normalizeCTN(card && card.transportFrameCtn || ""),
+      loosePairs:normalizeIqcPairs(card && card.loosePairs),
+      regionCode:String(card && card.regionCode || "").trim().toUpperCase()
+    }));
+  }
+
+  function renderIqcTypeOptions(name, selectedValue){
+    return [
+      {value:"集束", label:"📦 集束"},
+      {value:"散支", label:"🧯 散支"}
+    ].map(option => `
+      <label>
+        <input type="radio" name="${name}" value="${escapeAttribute(option.value)}" ${selectedValue === option.value ? "checked" : ""}>
+        <span>${option.label}</span>
+      </label>
+    `).join("");
+  }
+
+  function renderIqcRegionOptions(selectedCode){
+    const selected = String(selectedCode || "").trim().toUpperCase();
+    return '<option value="">請選擇區域</option>' + IQC_REGION_OPTIONS.map(option => `
+      <option value="${escapeAttribute(option.code)}" ${selected === option.code ? "selected" : ""}>${escapeHtml(option.code)}｜${escapeHtml(option.label)}</option>
+    `).join("");
+  }
+
+  function renderIqcBundleFields(card, index){
+    return `
+      <div class="iqc-field-grid">
+        <div class="iqc-field">
+          <label class="iqc-field-label">RT料號 <span class="required">*</span></label>
+          <input type="text" class="form-input iqc-bundle-rt" data-iqc-card-index="${index}" value="${escapeAttribute(toUpperSafe(card.bundleRtNo || ""))}" placeholder="請輸入 RT料號">
+        </div>
+        <div class="iqc-field">
+          <label class="iqc-field-label">CTN <span class="required">*</span></label>
+          <input type="text" class="form-input iqc-bundle-ctn" data-iqc-card-index="${index}" value="${escapeAttribute(normalizeCTN(card.bundleCtn || ""))}" placeholder="例：AB12CD3">
+        </div>
+        <div class="iqc-field full">
+          <label class="iqc-field-label">區域分布代號 <span class="required">*</span></label>
+          <select class="form-input iqc-region-code" data-iqc-card-index="${index}">${renderIqcRegionOptions(card.regionCode)}</select>
+        </div>
+      </div>
+    `;
+  }
+
+  function renderIqcLoosePairRows(card, index){
+    const pairs = normalizeIqcPairs(card.loosePairs);
+    return pairs.map((pair, pairIndex) => `
+      <tr>
+        <td><input type="text" class="pair-table-input iqc-loose-ctn" data-iqc-card-index="${index}" data-iqc-pair-index="${pairIndex}" value="${escapeAttribute(normalizeCTN(pair.ctn || ""))}" placeholder="散支 CTN"></td>
+        <td><input type="text" class="pair-table-input iqc-loose-rt" data-iqc-card-index="${index}" data-iqc-pair-index="${pairIndex}" value="${escapeAttribute(toUpperSafe(pair.rtNo || ""))}" placeholder="對應 RT料號"></td>
+        <td><button type="button" class="btn-danger pair-table-delete" onclick="removeIqcLoosePair(${index}, ${pairIndex})">${pairs.length === 1 ? "清空" : "刪除"}</button></td>
+      </tr>
+    `).join("");
+  }
+
+  function renderIqcLooseFields(card, index){
+    return `
+      <div class="iqc-field-grid">
+        <div class="iqc-field full">
+          <label class="iqc-field-label">運輸框架CTN <span class="required">*</span></label>
+          <input type="text" class="form-input iqc-transport-frame-ctn" data-iqc-card-index="${index}" value="${escapeAttribute(normalizeCTN(card.transportFrameCtn || ""))}" placeholder="例：AB12CD3">
+        </div>
+      </div>
+
+      <div class="iqc-pair-heading">
+        <div>散支 CTN＋RT料號配對</div>
+        <small>至少一組；左側 CTN，右側對應 RT料號</small>
+      </div>
+
+      <div class="iqc-pair-toolbar">
+        <button type="button" onclick="addIqcLoosePair(${index})">新增一列配對</button>
+      </div>
+
+      <div class="pair-table-wrap">
+        <table class="pair-table iqc-pair-table">
+          <thead><tr><th style="width:42%;">CTN</th><th style="width:42%;">RT料號</th><th style="width:16%;">操作</th></tr></thead>
+          <tbody>${renderIqcLoosePairRows(card, index)}</tbody>
+        </table>
+      </div>
+
+      <div class="iqc-field-grid" style="margin-top:14px;">
+        <div class="iqc-field full">
+          <label class="iqc-field-label">區域分布代號 <span class="required">*</span></label>
+          <select class="form-input iqc-region-code" data-iqc-card-index="${index}">${renderIqcRegionOptions(card.regionCode)}</select>
+        </div>
+      </div>
+    `;
+  }
+
+  function renderIqcCards(){
+    const countInput = document.getElementById("iqc_card_count");
+    const container = document.getElementById("iqcCardsContainer");
+    if(!countInput || !container) return;
+
+    const count = normalizeIqcCardCount(countInput.value);
+    countInput.value = count;
+    formData.iqc_card_count = count;
+    ensureIqcCardsLength(count);
+
+    container.innerHTML = formData.iqc_cards.map((card, index) => {
+      const type = String(card.type || "");
+      const details = type === "集束"
+        ? renderIqcBundleFields(card, index)
+        : type === "散支"
+          ? renderIqcLooseFields(card, index)
+          : "";
+
+      return `
+        <div id="iqc-card-${index}" class="form-card bundle-frame-card iqc-card">
+          <div class="bundle-frame-title">第${index + 1}筆 IQC</div>
+          <div class="bundle-field-block">
+            <div class="form-title">IQC 型態 <span class="required">*</span></div>
+            <div class="bundle-radio-grid two-col">${renderIqcTypeOptions(`iqc_type_${index}`, type)}</div>
+            <div class="iqc-type-tip">
+              ${type
+                ? (type === "集束" ? "集束：填寫 RT料號、CTN 與區域。" : "散支：填寫運輸框架 CTN、CTN 與 RT料號配對、區域。")
+                : "請先選擇「集束」或「散支」，才會顯示對應欄位。"}
+            </div>
+          </div>
+          <div class="iqc-detail-wrap ${type ? "show" : ""}">${details}</div>
+        </div>
+      `;
+    }).join("");
+  }
+
+  function collectIqcCardsFromUI(){
+    const countInput = document.getElementById("iqc_card_count");
+    const count = normalizeIqcCardCount(countInput ? countInput.value : 1);
+    ensureIqcCardsLength(count);
+
+    const cards = [];
+    for(let i = 0; i < count; i++){
+      const typeEl = document.querySelector(`input[name="iqc_type_${i}"]:checked`);
+      const bundleRtEl = document.querySelector(`.iqc-bundle-rt[data-iqc-card-index="${i}"]`);
+      const bundleCtnEl = document.querySelector(`.iqc-bundle-ctn[data-iqc-card-index="${i}"]`);
+      const transportFrameCtnEl = document.querySelector(`.iqc-transport-frame-ctn[data-iqc-card-index="${i}"]`);
+      const regionEl = document.querySelector(`.iqc-region-code[data-iqc-card-index="${i}"]`);
+
+      const loosePairs = Array.from(document.querySelectorAll(`.iqc-loose-ctn[data-iqc-card-index="${i}"]`)).map(ctnEl => {
+        const pairIndex = ctnEl.dataset.iqcPairIndex || "0";
+        const rtEl = document.querySelector(`.iqc-loose-rt[data-iqc-card-index="${i}"][data-iqc-pair-index="${pairIndex}"]`);
+        return {
+          ctn:normalizeCTN(ctnEl.value || ""),
+          rtNo:toUpperSafe(rtEl ? rtEl.value : "")
+        };
+      });
+
+      cards.push({
+        cardNo:i + 1,
+        type:typeEl ? typeEl.value : "",
+        bundleRtNo:toUpperSafe(bundleRtEl ? bundleRtEl.value : ""),
+        bundleCtn:normalizeCTN(bundleCtnEl ? bundleCtnEl.value : ""),
+        transportFrameCtn:normalizeCTN(transportFrameCtnEl ? transportFrameCtnEl.value : ""),
+        loosePairs:loosePairs.length ? loosePairs : normalizeIqcPairs(formData.iqc_cards[i] && formData.iqc_cards[i].loosePairs),
+        regionCode:String(regionEl ? regionEl.value : (formData.iqc_cards[i] && formData.iqc_cards[i].regionCode) || "").trim().toUpperCase()
+      });
+    }
+
+    formData.iqc_card_count = count;
+    formData.iqc_cards = cards;
+  }
+
+  function clearIqcError(){
+    const errorEl = document.getElementById("iqc-error");
+    if(errorEl) errorEl.innerText = "";
+    document.querySelectorAll(".iqc-card.error-card").forEach(card => {
+      card.classList.remove("error-card");
+      card.removeAttribute(VISIBLE_ERROR_ATTR);
+    });
+  }
+
+  function showIqcError(cardIndex, message){
+    clearIqcError();
+    const errorEl = document.getElementById("iqc-error");
+    const card = document.getElementById(`iqc-card-${cardIndex}`);
+    if(errorEl) errorEl.innerText = message;
+
+    if(card){
+      card.classList.remove("shake");
+      void card.offsetWidth;
+      card.classList.add("error-card", "shake");
+      card.setAttribute(VISIBLE_ERROR_ATTR, "true");
+      card.scrollIntoView({ behavior:"smooth", block:"center" });
+      setTimeout(() => card.classList.remove("shake"), 450);
+    }
+  }
+
+  function validateIqcCardsBeforePreview(){
+    collectIqcCardsFromUI();
+    clearIqcError();
+
+    const cards = Array.isArray(formData.iqc_cards) ? formData.iqc_cards : [];
+    for(let index = 0; index < cards.length; index++){
+      const card = cards[index] || {};
+      const type = String(card.type || "").trim();
+      const regionCode = String(card.regionCode || "").trim().toUpperCase();
+
+      if(!["集束","散支"].includes(type)){
+        showIqcError(index, `第${index + 1}筆 IQC 請先選擇「集束」或「散支」。`);
+        return false;
+      }
+
+      if(!regionCode){
+        showIqcError(index, `第${index + 1}筆 IQC 請選擇區域分布代號。`);
+        return false;
+      }
+
+      if(type === "集束"){
+        const rtNo = toUpperSafe(card.bundleRtNo || "");
+        const ctn = normalizeCTN(card.bundleCtn || "");
+
+        if(!rtNo){
+          showIqcError(index, `第${index + 1}筆集束 IQC 請填寫 RT料號。`);
+          return false;
+        }
+
+        if(!ctn){
+          showIqcError(index, `第${index + 1}筆集束 IQC 請填寫 CTN。`);
+          return false;
+        }
+
+        if(!isValidCTN(ctn)){
+          showIqcError(index, `第${index + 1}筆集束 IQC 的 CTN 格式錯誤。CTN 固定 7 碼：前 2 碼英文、第 3–4 碼數字、第 5–6 碼英文、第 7 碼英數皆可。`);
+          return false;
+        }
+      }
+
+      if(type === "散支"){
+        const transportCtn = normalizeCTN(card.transportFrameCtn || "");
+        if(!transportCtn){
+          showIqcError(index, `第${index + 1}筆散支 IQC 請填寫運輸框架CTN。`);
+          return false;
+        }
+
+        if(!isValidCTN(transportCtn)){
+          showIqcError(index, `第${index + 1}筆散支 IQC 的運輸框架CTN格式錯誤。CTN 固定 7 碼。`);
+          return false;
+        }
+
+        const pairs = Array.isArray(card.loosePairs) ? card.loosePairs : [];
+        let validPairCount = 0;
+
+        for(let pairIndex = 0; pairIndex < pairs.length; pairIndex++){
+          const pair = pairs[pairIndex] || {};
+          const ctn = normalizeCTN(pair.ctn || "");
+          const rtNo = toUpperSafe(pair.rtNo || "");
+          if(!ctn && !rtNo) continue;
+
+          if(!ctn || !rtNo){
+            showIqcError(index, `第${index + 1}筆 IQC 的第${pairIndex + 1}列散支配對，CTN 與 RT料號必須成對填寫。`);
+            return false;
+          }
+
+          if(!isValidCTN(ctn)){
+            showIqcError(index, `第${index + 1}筆 IQC 的第${pairIndex + 1}列散支CTN格式錯誤。CTN 固定 7 碼。`);
+            return false;
+          }
+
+          validPairCount += 1;
+        }
+
+        if(validPairCount === 0){
+          showIqcError(index, `第${index + 1}筆散支 IQC 至少要填寫一組 CTN 與 RT料號配對。`);
+          return false;
+        }
+      }
+    }
+    return true;
+  }
+  function addIqcLoosePair(cardIndex){
+    collectIqcCardsFromUI();
+    ensureIqcCardsLength(normalizeIqcCardCount(formData.iqc_card_count || 1));
+    const card = formData.iqc_cards[cardIndex];
+    if(!card) return;
+
+    card.loosePairs = normalizeIqcPairs(card.loosePairs);
+    card.loosePairs.push(createEmptyIqcPair());
+    renderIqcCards();
+    persistDraft();
+  }
+
+  function removeIqcLoosePair(cardIndex, pairIndex){
+    collectIqcCardsFromUI();
+    ensureIqcCardsLength(normalizeIqcCardCount(formData.iqc_card_count || 1));
+    const card = formData.iqc_cards[cardIndex];
+    if(!card) return;
+
+    const pairs = normalizeIqcPairs(card.loosePairs);
+    card.loosePairs = pairs.length <= 1
+      ? [createEmptyIqcPair()]
+      : pairs.filter((pair, index) => index !== pairIndex);
+
+    renderIqcCards();
+    persistDraft();
+  }
+
+  function bindIqcEvents(){
+    const countInput = document.getElementById("iqc_card_count");
+    const container = document.getElementById("iqcCardsContainer");
+
+    if(countInput){
+      countInput.addEventListener("focus", function(){
+        if(String(this.value).trim() === "1") this.select();
+      });
+
+      countInput.addEventListener("input", function(){
+        const raw = String(this.value || "").trim();
+        if(raw === "") return;
+        const digits = raw.replace(/[^\d]/g, "");
+        if(raw !== digits) this.value = digits;
+      });
+
+      const applyCount = function(){
+        const count = normalizeIqcCardCount(countInput.value);
+        countInput.value = count;
+        collectIqcCardsFromUI();
+        ensureIqcCardsLength(count);
+        renderIqcCards();
+        persistDraft();
+      };
+
+      countInput.addEventListener("blur", applyCount);
+      countInput.addEventListener("change", applyCount);
+    }
+
+    if(!container) return;
+
+    container.addEventListener("input", function(e){
+      const target = e.target;
+      if(!target) return;
+
+      if(target.classList.contains("iqc-bundle-rt") || target.classList.contains("iqc-loose-rt")){
+        const start = target.selectionStart;
+        const end = target.selectionEnd;
+        target.value = toUpperSafe(target.value);
+        if(typeof start === "number" && typeof end === "number") target.setSelectionRange(start, end);
+      }
+
+      if(target.classList.contains("iqc-bundle-ctn") || target.classList.contains("iqc-transport-frame-ctn") || target.classList.contains("iqc-loose-ctn")){
+        const start = target.selectionStart;
+        const end = target.selectionEnd;
+        target.value = normalizeCTN(target.value);
+        if(typeof start === "number" && typeof end === "number") target.setSelectionRange(start, end);
+      }
+
+      persistDraftDebounced();
+    });
+
+    container.addEventListener("change", function(e){
+      const target = e.target;
+      if(!target) return;
+
+      if(target.matches('input[type="radio"][name^="iqc_type_"]')){
+        collectIqcCardsFromUI();
+        const cardIndex = Number(String(target.name || "").replace("iqc_type_", ""));
+        if(formData.iqc_cards[cardIndex]){
+          formData.iqc_cards[cardIndex].type = target.value || "";
+        }
+        renderIqcCards();
+        persistDraft();
+        return;
+      }
+
+      persistDraft();
+    });
+  }
+
+
   window.onload = async function(){
     updateStep(1);
 
@@ -3847,6 +4487,8 @@ function bindFramePairTableEvents(){
     bindFramePairTableEvents();
     renderBundleCards();
     bindBundleEvents();
+    renderIqcCards();
+    bindIqcEvents();
     loadPerson();
     loadDraft();
     await loadProjectOptions();
