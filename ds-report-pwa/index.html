@@ -1128,8 +1128,34 @@ user-scalable=no">
     border-radius:14px;
     font-size:14px;
   }
-  .iqc-pair-table{ min-width:500px; }
-  .iqc-pair-table .pair-table-input{ text-transform:uppercase; }
+  /*
+   * IQC 手機版防溢位：
+   * IQC 卡片位於水平側滑容器內；原本散支配對表保留 min-width:500px，
+   * 會讓 flex 子卡片的最小寬度大於手機視窗，造成整頁被撐寬。
+   */
+  .bundle-frame-card{
+    min-width:0;
+  }
+
+  .iqc-card,
+  .iqc-detail-wrap,
+  .iqc-field,
+  .iqc-pair-table,
+  .iqc-pair-table td{
+    min-width:0;
+    max-width:100%;
+  }
+
+  .iqc-pair-table{
+    width:100%;
+    table-layout:fixed;
+  }
+
+  .iqc-pair-table .pair-table-input{
+    text-transform:uppercase;
+    min-width:0;
+    max-width:100%;
+  }
 
   .iqc-error{
     position:relative;
@@ -1144,6 +1170,65 @@ user-scalable=no">
   @media (max-width:560px){
     .iqc-field-grid{ grid-template-columns:1fr; }
     .iqc-field.full{ grid-column:auto; }
+
+    /* 散支 CTN／RT 配對在手機改為直式卡片，不讓表格橫向撐破視窗。 */
+    .iqc-card{
+      padding-left:16px;
+      padding-right:16px;
+    }
+
+    .iqc-pair-table,
+    .iqc-pair-table tbody,
+    .iqc-pair-table tr,
+    .iqc-pair-table td{
+      display:block;
+      width:100%;
+      min-width:0;
+    }
+
+    .iqc-pair-table thead{
+      display:none;
+    }
+
+    .iqc-pair-table tr{
+      padding:10px;
+      border-bottom:1px solid rgba(231,238,255,0.14);
+    }
+
+    .iqc-pair-table tr:last-child{
+      border-bottom:none;
+    }
+
+    .iqc-pair-table td{
+      padding:5px 0;
+      border-bottom:none;
+      overflow:hidden;
+    }
+
+    .iqc-pair-table td::before{
+      display:block;
+      margin:0 0 5px;
+      color:rgba(235,240,255,0.68);
+      font-size:12px;
+      font-weight:800;
+    }
+
+    .iqc-pair-table td:nth-child(1)::before{
+      content:"CTN";
+    }
+
+    .iqc-pair-table td:nth-child(2)::before{
+      content:"對應 RT料號";
+    }
+
+    .iqc-pair-table td:nth-child(3)::before{
+      display:none;
+    }
+
+    .iqc-pair-table .pair-table-delete{
+      width:100%;
+      margin-top:4px;
+    }
   }
 
 </style>
