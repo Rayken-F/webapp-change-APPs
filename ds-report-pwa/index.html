@@ -1233,6 +1233,20 @@ user-scalable=no">
   }
   .iqc-region-help.error{ color:#ffb4c0; }
 
+  /* IQC 欄位即時防呆：CTN 格式、RT 數字格式與重複掃描皆直接在欄位旁提示。 */
+  .iqc-input-error{
+    border-color:rgba(255,106,128,0.96) !important;
+    box-shadow:0 0 0 3px rgba(255,91,114,0.14), 0 0 18px rgba(255,91,114,0.14) !important;
+  }
+  .iqc-validation-message{
+    display:block;
+    margin:7px 2px 0;
+    color:#ffb4c0;
+    font-size:12px;
+    font-weight:800;
+    line-height:1.45;
+  }
+
   @media (max-width:560px){
     .iqc-field-grid{ grid-template-columns:1fr; }
     .iqc-field.full{ grid-column:auto; }
@@ -4031,6 +4045,21 @@ function bindFramePairTableEvents(){
         }
       }
 
+      if(formData.site === "IQC"){
+        const serverCheck = await validateIqcCtnsBeforeSubmit(formData.date);
+        if(serverCheck.duplicates.length > 0){
+          const duplicateText = (serverCheck.duplicateDetails && serverCheck.duplicateDetails.length)
+            ? serverCheck.duplicateDetails.slice(0,3).map(item => `${item.ctn}（${item.date || "既有 IQC"}）`).join("、")
+            : serverCheck.duplicates.slice(0,3).join("、");
+          const cardIndex = findIqcCardIndexByCtn(serverCheck.duplicates[0]);
+          showIqcError(cardIndex, `IQC_Log 已有重複 CTN：${duplicateText}${serverCheck.duplicates.length > 3 ? "..." : ""}`);
+          sending = false;
+          hideLoadingMessage();
+          backToSite();
+          return;
+        }
+      }
+
       const dailySubmissionId = formData.daily_submission_id || generateDailySubmissionId();
       formData.daily_submission_id = dailySubmissionId;
       // 在網路請求前先存草稿。即使網路中斷但後端已寫入，重送仍會帶同一個 ID，避免重複寫入。
@@ -4317,6 +4346,14 @@ function bindFramePairTableEvents(){
     return { ctn:"", rtNo:"" };
   }
 
+  function normalizeIqcRtNo(value){
+    return String(value || "").replace(/\D/g, "");
+  }
+
+  function isValidIqcRtNo(value){
+    return /^\d+$/.test(String(value || "").trim());
+  }
+
   function normalizeIqcLoosePairCount(value){
     const n = parseInt(value, 10);
     if(isNaN(n) || n < IQC_LOOSE_PAIR_MIN) return IQC_LOOSE_PAIR_MIN;
@@ -4327,7 +4364,7 @@ function bindFramePairTableEvents(){
     const source = Array.isArray(pairs) ? pairs : [];
     const normalized = source.map(pair => ({
       ctn:normalizeCTN(pair && pair.ctn || ""),
-      rtNo:toUpperSafe(pair && pair.rtNo || "")
+      rtNo:normalizeIqcRtNo(pair && pair.rtNo || "")
     }));
     return normalized.length ? normalized : [createEmptyIqcPair()];
   }
@@ -4371,7 +4408,7 @@ function bindFramePairTableEvents(){
     formData.iqc_cards = formData.iqc_cards.map((card, index) => ({
       cardNo:index + 1,
       type:["集束","散支"].includes(String(card && card.type || "")) ? String(card.type) : "",
-      bundleRtNo:toUpperSafe(card && card.bundleRtNo || ""),
+      bundleRtNo:normalizeIqcRtNo(card && card.bundleRtNo || ""),
       bundleCtn:normalizeCTN(card && card.bundleCtn || ""),
       transportFrameCtn:normalizeCTN(card && card.transportFrameCtn || ""),
       loosePairs:normalizeIqcPairs(card && card.loosePairs),
@@ -4441,11 +4478,11 @@ function bindFramePairTableEvents(){
       <div class="iqc-field-grid">
         <div class="iqc-field">
           <label class="iqc-field-label">RT料號 <span class="required">*</span></label>
-          <input type="text" class="form-input iqc-bundle-rt" data-iqc-card-index="${index}" value="${escapeAttribute(toUpperSafe(card.bundleRtNo || ""))}" placeholder="請輸入 RT料號">
+          <input type="text" class="form-input iqc-bundle-rt" data-iqc-card-index="${index}" value="${escapeAttribute(normalizeIqcRtNo(card.bundleRtNo || ""))}" placeholder="請輸入數字 RT料號" inputmode="numeric" pattern="[0-9]*" autocomplete="off">
         </div>
         <div class="iqc-field">
           <label class="iqc-field-label">CTN <span class="required">*</span></label>
-          <input type="text" class="form-input iqc-bundle-ctn" data-iqc-card-index="${index}" value="${escapeAttribute(normalizeCTN(card.bundleCtn || ""))}" placeholder="例：AB12CD3">
+          <input type="text" class="form-input iqc-bundle-ctn" data-iqc-card-index="${index}" value="${escapeAttribute(normalizeCTN(card.bundleCtn || ""))}" placeholder="例：AB12CD3" autocapitalize="characters" autocomplete="off">
         </div>
         ${renderIqcRegionField(card, index)}
       </div>
@@ -4457,8 +4494,8 @@ function bindFramePairTableEvents(){
     return pairs.map((pair, pairIndex) => `
       <tr>
         <td class="iqc-pair-sequence-cell"><span class="iqc-pair-sequence-badge">第${pairIndex + 1}支鋼瓶</span></td>
-        <td><input type="text" class="pair-table-input iqc-loose-ctn" data-iqc-card-index="${index}" data-iqc-pair-index="${pairIndex}" value="${escapeAttribute(normalizeCTN(pair.ctn || ""))}" placeholder="散支 CTN"></td>
-        <td><input type="text" class="pair-table-input iqc-loose-rt" data-iqc-card-index="${index}" data-iqc-pair-index="${pairIndex}" value="${escapeAttribute(toUpperSafe(pair.rtNo || ""))}" placeholder="對應 RT料號"></td>
+        <td><input type="text" class="pair-table-input iqc-loose-ctn" data-iqc-card-index="${index}" data-iqc-pair-index="${pairIndex}" value="${escapeAttribute(normalizeCTN(pair.ctn || ""))}" placeholder="散支 CTN" autocapitalize="characters" autocomplete="off"></td>
+        <td><input type="text" class="pair-table-input iqc-loose-rt" data-iqc-card-index="${index}" data-iqc-pair-index="${pairIndex}" value="${escapeAttribute(normalizeIqcRtNo(pair.rtNo || ""))}" placeholder="數字 RT料號" inputmode="numeric" pattern="[0-9]*" autocomplete="off"></td>
         <td><button type="button" class="btn-danger pair-table-delete" onclick="removeIqcLoosePair(${index}, ${pairIndex})">${pairs.length === 1 ? "清空" : "刪除"}</button></td>
       </tr>
     `).join("");
@@ -4471,7 +4508,7 @@ function bindFramePairTableEvents(){
       <div class="iqc-field-grid">
         <div class="iqc-field full">
           <label class="iqc-field-label">運輸框架CTN <span class="required">*</span></label>
-          <input type="text" class="form-input iqc-transport-frame-ctn" data-iqc-card-index="${index}" value="${escapeAttribute(normalizeCTN(card.transportFrameCtn || ""))}" placeholder="例：AB12CD3">
+          <input type="text" class="form-input iqc-transport-frame-ctn" data-iqc-card-index="${index}" value="${escapeAttribute(normalizeCTN(card.transportFrameCtn || ""))}" placeholder="例：AB12CD3" autocapitalize="characters" autocomplete="off">
         </div>
       </div>
 
@@ -4555,14 +4592,14 @@ function bindFramePairTableEvents(){
         const rtEl = document.querySelector(`.iqc-loose-rt[data-iqc-card-index="${i}"][data-iqc-pair-index="${pairIndex}"]`);
         return {
           ctn:normalizeCTN(ctnEl.value || ""),
-          rtNo:toUpperSafe(rtEl ? rtEl.value : "")
+          rtNo:normalizeIqcRtNo(rtEl ? rtEl.value : "")
         };
       });
 
       cards.push({
         cardNo:i + 1,
         type:typeEl ? typeEl.value : "",
-        bundleRtNo:toUpperSafe(bundleRtEl ? bundleRtEl.value : ""),
+        bundleRtNo:normalizeIqcRtNo(bundleRtEl ? bundleRtEl.value : ""),
         bundleCtn:normalizeCTN(bundleCtnEl ? bundleCtnEl.value : ""),
         transportFrameCtn:normalizeCTN(transportFrameCtnEl ? transportFrameCtnEl.value : ""),
         loosePairs:loosePairs.length ? loosePairs : normalizeIqcPairs(formData.iqc_cards[i] && formData.iqc_cards[i].loosePairs),
@@ -4597,6 +4634,136 @@ function bindFramePairTableEvents(){
       card.scrollIntoView({ behavior:"smooth", block:"center" });
       setTimeout(() => card.classList.remove("shake"), 450);
     }
+  }
+
+  function clearIqcFieldValidation(){
+    document.querySelectorAll("#iqcCardsContainer .iqc-input-error").forEach(input => {
+      input.classList.remove("iqc-input-error");
+      input.removeAttribute("aria-invalid");
+      input.removeAttribute("data-iqc-validation-message");
+    });
+    document.querySelectorAll("#iqcCardsContainer .iqc-validation-message").forEach(node => node.remove());
+  }
+
+  function setIqcFieldValidation(input, message){
+    if(!input || !message) return;
+
+    input.classList.add("iqc-input-error");
+    input.setAttribute("aria-invalid", "true");
+    input.setAttribute("data-iqc-validation-message", message);
+
+    const sibling = input.nextElementSibling;
+    if(sibling && sibling.classList.contains("iqc-validation-message")){
+      sibling.textContent = message;
+      return;
+    }
+
+    const messageEl = document.createElement("span");
+    messageEl.className = "iqc-validation-message";
+    messageEl.textContent = message;
+    input.insertAdjacentElement("afterend", messageEl);
+  }
+
+  function getIqcContentCtnEntries(cards){
+    const entries = [];
+
+    (Array.isArray(cards) ? cards : []).forEach((card, cardIndex) => {
+      const type = String(card && card.type || "").trim();
+
+      if(type === "集束") {
+        const ctn = normalizeCTN(card && card.bundleCtn || "");
+        if(ctn){
+          entries.push({
+            ctn:ctn,
+            cardIndex:cardIndex,
+            selector:`.iqc-bundle-ctn[data-iqc-card-index="${cardIndex}"]`,
+            label:`第${cardIndex + 1}筆集束 IQC`
+          });
+        }
+      }
+
+      if(type === "散支") {
+        const pairs = Array.isArray(card && card.loosePairs) ? card.loosePairs : [];
+        pairs.forEach((pair, pairIndex) => {
+          const ctn = normalizeCTN(pair && pair.ctn || "");
+          if(!ctn) return;
+          entries.push({
+            ctn:ctn,
+            cardIndex:cardIndex,
+            selector:`.iqc-loose-ctn[data-iqc-card-index="${cardIndex}"][data-iqc-pair-index="${pairIndex}"]`,
+            label:`第${cardIndex + 1}筆散支 IQC 的第${pairIndex + 1}支鋼瓶`
+          });
+        });
+      }
+    });
+
+    return entries;
+  }
+
+  function getIqcDuplicateContentCtnGroups(cards){
+    const groups = {};
+    getIqcContentCtnEntries(cards).forEach(entry => {
+      if(!groups[entry.ctn]) groups[entry.ctn] = [];
+      groups[entry.ctn].push(entry);
+    });
+
+    return Object.keys(groups)
+      .filter(ctn => groups[ctn].length > 1)
+      .map(ctn => ({ ctn:ctn, entries:groups[ctn] }));
+  }
+
+  function getIqcScannedCtnsForServerCheck(){
+    const unique = {};
+    getIqcContentCtnEntries(formData.iqc_cards).forEach(entry => {
+      if(isValidCTN(entry.ctn)) unique[entry.ctn] = true;
+    });
+    return Object.keys(unique).sort();
+  }
+
+  function findIqcCardIndexByCtn(ctn){
+    const target = normalizeCTN(ctn);
+    const entry = getIqcContentCtnEntries(formData.iqc_cards)
+      .find(item => item.ctn === target);
+    return entry ? entry.cardIndex : 0;
+  }
+
+  function applyIqcLiveValidation(){
+    clearIqcFieldValidation();
+
+    // 格式檢查：所有 IQC 的 CTN 都必須符合 7 碼規則；RT 只允許數字。
+    document.querySelectorAll("#iqcCardsContainer .iqc-bundle-ctn, #iqcCardsContainer .iqc-transport-frame-ctn, #iqcCardsContainer .iqc-loose-ctn").forEach(input => {
+      const value = normalizeCTN(input.value || "");
+      if(value && !isValidCTN(value)){
+        setIqcFieldValidation(input, "CTN 格式錯誤：前2英文、第3-4數字、第5-6英文、第7碼英數皆可。");
+      }
+    });
+
+    document.querySelectorAll("#iqcCardsContainer .iqc-bundle-rt, #iqcCardsContainer .iqc-loose-rt").forEach(input => {
+      const value = String(input.value || "").trim();
+      if(value && !isValidIqcRtNo(value)){
+        setIqcFieldValidation(input, "RT料號只能輸入數字。");
+      }
+    });
+
+    collectIqcCardsFromUI();
+    const duplicateGroups = getIqcDuplicateContentCtnGroups(formData.iqc_cards);
+    duplicateGroups.forEach(group => {
+      group.entries.forEach(entry => {
+        const input = document.querySelector(entry.selector);
+        setIqcFieldValidation(input, `重複掃描 CTN：${group.ctn}`);
+      });
+    });
+  }
+
+  async function validateIqcCtnsBeforeSubmit(reportDate){
+    const ctnList = getIqcScannedCtnsForServerCheck();
+    if(!ctnList.length) return { duplicates:[], duplicateDetails:[] };
+
+    if(typeof validateIqcCtnsAPI !== "function"){
+      throw new Error("IQC CTN 重複驗證功能尚未載入，請重新整理頁面後再試。");
+    }
+
+    return validateIqcCtnsAPI(reportDate, ctnList);
   }
 
   function validateIqcCardsBeforePreview(){
@@ -4635,11 +4802,16 @@ function bindFramePairTableEvents(){
       }
 
       if(type === "集束"){
-        const rtNo = toUpperSafe(card.bundleRtNo || "");
+        const rtNo = String(card.bundleRtNo || "").trim();
         const ctn = normalizeCTN(card.bundleCtn || "");
 
         if(!rtNo){
           showIqcError(index, `第${index + 1}筆集束 IQC 請填寫 RT料號。`);
+          return false;
+        }
+
+        if(!isValidIqcRtNo(rtNo)){
+          showIqcError(index, `第${index + 1}筆集束 IQC 的 RT料號只能輸入數字。`);
           return false;
         }
 
@@ -4672,7 +4844,7 @@ function bindFramePairTableEvents(){
         for(let pairIndex = 0; pairIndex < pairs.length; pairIndex++){
           const pair = pairs[pairIndex] || {};
           const ctn = normalizeCTN(pair.ctn || "");
-          const rtNo = toUpperSafe(pair.rtNo || "");
+          const rtNo = String(pair.rtNo || "").trim();
           if(!ctn && !rtNo) continue;
 
           if(!ctn || !rtNo){
@@ -4685,6 +4857,11 @@ function bindFramePairTableEvents(){
             return false;
           }
 
+          if(!isValidIqcRtNo(rtNo)){
+            showIqcError(index, `第${index + 1}筆 IQC 的第${pairIndex + 1}列 RT料號只能輸入數字。`);
+            return false;
+          }
+
           validPairCount += 1;
         }
 
@@ -4694,6 +4871,14 @@ function bindFramePairTableEvents(){
         }
       }
     }
+
+    const duplicateGroups = getIqcDuplicateContentCtnGroups(cards);
+    if(duplicateGroups.length){
+      const first = duplicateGroups[0];
+      showIqcError(first.entries[0].cardIndex, `IQC 重複掃描 CTN：${first.ctn}。同一次 IQC 填報不可重複登錄同一支／同一組 CTN。`);
+      return false;
+    }
+
     return true;
   }
   function setIqcLoosePairCount(cardIndex, value){
@@ -4736,6 +4921,7 @@ function bindFramePairTableEvents(){
     }
 
     renderIqcCards();
+    applyIqcLiveValidation();
     persistDraft();
   }
 
@@ -4754,6 +4940,7 @@ function bindFramePairTableEvents(){
 
     card.loosePairs.push(createEmptyIqcPair());
     renderIqcCards();
+    applyIqcLiveValidation();
     persistDraft();
   }
 
@@ -4769,6 +4956,7 @@ function bindFramePairTableEvents(){
       : pairs.filter((pair, index) => index !== pairIndex);
 
     renderIqcCards();
+    applyIqcLiveValidation();
     persistDraft();
   }
 
@@ -4810,8 +4998,11 @@ function bindFramePairTableEvents(){
       if(target.classList.contains("iqc-bundle-rt") || target.classList.contains("iqc-loose-rt")){
         const start = target.selectionStart;
         const end = target.selectionEnd;
-        target.value = toUpperSafe(target.value);
-        if(typeof start === "number" && typeof end === "number") target.setSelectionRange(start, end);
+        target.value = normalizeIqcRtNo(target.value);
+        if(typeof start === "number" && typeof end === "number"){
+          const position = Math.min(start, target.value.length);
+          target.setSelectionRange(position, Math.min(end, target.value.length));
+        }
       }
 
       if(target.classList.contains("iqc-bundle-ctn") || target.classList.contains("iqc-transport-frame-ctn") || target.classList.contains("iqc-loose-ctn")){
@@ -4821,6 +5012,7 @@ function bindFramePairTableEvents(){
         if(typeof start === "number" && typeof end === "number") target.setSelectionRange(start, end);
       }
 
+      applyIqcLiveValidation();
       persistDraftDebounced();
     });
 
@@ -4843,11 +5035,17 @@ function bindFramePairTableEvents(){
           formData.iqc_cards[cardIndex].type = target.value || "";
         }
         renderIqcCards();
+        applyIqcLiveValidation();
         persistDraft();
         return;
       }
 
+      applyIqcLiveValidation();
       persistDraft();
+    });
+
+    container.addEventListener("focusout", function(){
+      applyIqcLiveValidation();
     });
   }
 
