@@ -1120,13 +1120,68 @@ user-scalable=no">
     font-size:12px;
     font-weight:700;
   }
-  .iqc-pair-toolbar{ margin:0 0 10px; }
+  .iqc-pair-toolbar{
+    position:relative;
+    z-index:1;
+    display:flex;
+    align-items:center;
+    gap:10px;
+    flex-wrap:wrap;
+    margin:0 0 10px;
+  }
   .iqc-pair-toolbar button{
     width:auto;
     min-height:42px;
     padding:10px 14px;
     border-radius:14px;
     font-size:14px;
+  }
+  .iqc-pair-count-control{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    min-height:42px;
+    padding:7px 10px;
+    border-radius:14px;
+    background:rgba(255,255,255,0.06);
+    border:1px solid rgba(231,238,255,0.14);
+    color:rgba(241,245,255,0.90);
+    font-size:13px;
+    font-weight:800;
+  }
+  .iqc-pair-count-control span{ white-space:nowrap; }
+  .iqc-pair-count-select{
+    min-width:70px;
+    min-height:32px;
+    padding:5px 28px 5px 9px;
+    border:none;
+    outline:none;
+    border-radius:10px;
+    color:#ffffff;
+    background:rgba(255,255,255,0.13);
+    border:1px solid rgba(255,255,255,0.15);
+    font-size:14px;
+    font-weight:900;
+    text-align:center;
+  }
+  .iqc-pair-count-select option{ color:#111827; }
+  .iqc-pair-sequence-cell{
+    text-align:center;
+    white-space:nowrap;
+  }
+  .iqc-pair-sequence-badge{
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    min-width:64px;
+    padding:6px 8px;
+    border-radius:10px;
+    color:#ffffff;
+    background:linear-gradient(135deg, rgba(109,93,252,0.34), rgba(69,163,255,0.20));
+    border:1px solid rgba(151,128,255,0.44);
+    font-size:12px;
+    font-weight:900;
+    letter-spacing:.15px;
   }
   /*
    * IQC 手機版防溢位：
@@ -1166,6 +1221,17 @@ user-scalable=no">
     font-weight:800;
     line-height:1.55;
   }
+
+  .iqc-region-help{
+    position:relative;
+    z-index:1;
+    margin:8px 2px 0;
+    color:rgba(231,237,255,0.62);
+    font-size:12px;
+    font-weight:700;
+    line-height:1.5;
+  }
+  .iqc-region-help.error{ color:#ffb4c0; }
 
   @media (max-width:560px){
     .iqc-field-grid{ grid-template-columns:1fr; }
@@ -1213,15 +1279,37 @@ user-scalable=no">
       font-weight:800;
     }
 
-    .iqc-pair-table td:nth-child(1)::before{
-      content:"CTN";
+    .iqc-pair-toolbar{
+      align-items:stretch;
+    }
+
+    .iqc-pair-count-control{
+      flex:1 1 170px;
+      justify-content:space-between;
+    }
+
+    .iqc-pair-toolbar button{
+      flex:1 1 120px;
+    }
+
+    .iqc-pair-table td.iqc-pair-sequence-cell{
+      padding:0 0 7px;
+      overflow:visible;
+    }
+
+    .iqc-pair-table td.iqc-pair-sequence-cell::before{
+      display:none;
     }
 
     .iqc-pair-table td:nth-child(2)::before{
-      content:"對應 RT料號";
+      content:"CTN";
     }
 
     .iqc-pair-table td:nth-child(3)::before{
+      content:"對應 RT料號";
+    }
+
+    .iqc-pair-table td:nth-child(4)::before{
       display:none;
     }
 
@@ -1833,25 +1921,15 @@ user-scalable=no">
     sb_cylinder_scan:[]
   };
 
-  const IQC_REGION_OPTIONS = [
-    { code:"A1", label:"待報廢鋼瓶區" },
-    { code:"A2", label:"鋼瓶備貨區（O2、CO2）" },
-    { code:"B1", label:"鋼瓶委外區（包膜混合氣、VCYL暫存）" },
-    { code:"B2", label:"鋼瓶備貨區（50L、LINX存放）" },
-    { code:"B3", label:"收貨區" },
-    { code:"B4", label:"維修＆調撥暫存區" },
-    { code:"B5-1", label:"VCYL暫存區" },
-    { code:"B5-2", label:"MNT1暫存區" },
-    { code:"B5-3", label:"竹北O2" },
-    { code:"B5-4", label:"竹北純氣＋混氣" },
-    { code:"B5-5", label:"IND Ar＋N2" },
-    { code:"B6", label:"H2散支＋集束" },
-    { code:"C1", label:"集束備貨區、拆氣區" },
-    { code:"C2", label:"拆氣區、集束備貨區" },
-    { code:"C3", label:"空框架、集束備貨區" },
-    { code:"C4", label:"新框架、備用框架" },
-    { code:"C5", label:"報廢框架、蝴蝶籠（Guard）" }
-  ];
+  // IQC 區域一律由 IQC_Region_Master 動態讀取；前端不保留第二份寫死清單。
+  let iqcRegionOptions = [];
+  let iqcRegionsLoaded = false;
+  let iqcRegionLoadError = "";
+  let iqcRegionRequestSeq = 0;
+
+  // 散支 CTN／RT 配對：手機端以選單一次產生 1～18 支欄位。
+  const IQC_LOOSE_PAIR_MIN = 1;
+  const IQC_LOOSE_PAIR_MAX = 18;
 
   let sending = false;
   let projectOptionsLoaded = false;
@@ -1887,6 +1965,66 @@ user-scalable=no">
       const day = String(d.getDate()).padStart(2, "0");
       return `${y}-${m}-${day}`;
     }
+  }
+
+  function normalizeIqcRegionOption(option){
+    const source = option && typeof option === "object" ? option : {};
+    const code = String(source.code || "").trim().toUpperCase();
+    const label = String(source.label || source.name || "").trim();
+    const applicableType = String(source.applicableType || source.applicable_type || "全部").trim();
+    const sort = Number(source.sort || 0);
+
+    if(!code || !label) return null;
+
+    return {
+      code:code,
+      label:label,
+      applicableType:["全部", "集束", "散支"].includes(applicableType) ? applicableType : "全部",
+      sort:isNaN(sort) ? 0 : sort
+    };
+  }
+
+  async function loadIqcRegions(){
+    const requestSeq = ++iqcRegionRequestSeq;
+
+    // 重新渲染前先把目前畫面值收回 formData，避免主檔載入完成時覆蓋使用者資料。
+    if(document.getElementById("iqcCardsContainer")){
+      collectIqcCardsFromUI();
+    }
+
+    iqcRegionsLoaded = false;
+    iqcRegionLoadError = "";
+    renderIqcCards();
+
+    try{
+      const regions = await fetchIqcRegions();
+      if(requestSeq !== iqcRegionRequestSeq) return;
+
+      const normalized = (Array.isArray(regions) ? regions : [])
+        .map(normalizeIqcRegionOption)
+        .filter(Boolean)
+        .sort((a, b) => {
+          if(a.sort !== b.sort) return a.sort - b.sort;
+          return a.code.localeCompare(b.code, "en");
+        });
+
+      const codeSet = new Set();
+      iqcRegionOptions = normalized.filter(item => {
+        if(codeSet.has(item.code)) return false;
+        codeSet.add(item.code);
+        return true;
+      });
+      iqcRegionsLoaded = true;
+    }
+    catch(err){
+      if(requestSeq !== iqcRegionRequestSeq) return;
+      console.error("IQC 區域主檔讀取失敗", err);
+      iqcRegionOptions = [];
+      iqcRegionsLoaded = false;
+      iqcRegionLoadError = String(err && err.message || "IQC 區域主檔讀取失敗");
+    }
+
+    renderIqcCards();
   }
 
   async function loadProjectOptions(){
@@ -3432,8 +3570,9 @@ function bindFramePairTableEvents(){
       formData.iqc_cards.forEach((card, index) => {
         const region = getIqcRegionLabel(card.regionCode);
         const loosePairs = (card.loosePairs || [])
-          .filter(pair => pair && (pair.ctn || pair.rtNo))
-          .map(pair => `${escapeHtml(pair.ctn)} ｜ ${escapeHtml(pair.rtNo)}`)
+          .map((pair, pairIndex) => ({ pair, pairIndex }))
+          .filter(item => item.pair && (item.pair.ctn || item.pair.rtNo))
+          .map(item => `第${item.pairIndex + 1}支：${escapeHtml(item.pair.ctn)} ｜ ${escapeHtml(item.pair.rtNo)}`)
           .join("<br>");
 
         html += `
@@ -4130,10 +4269,43 @@ function bindFramePairTableEvents(){
   }
 
 
-  function getIqcRegionLabel(code){
+  function isIqcRegionOptionAllowedForType(option, type){
+    if(!option) return false;
+    const selectedType = String(type || "").trim();
+    const applicableType = String(option.applicableType || "全部").trim();
+    return applicableType === "全部" || applicableType === selectedType;
+  }
+
+  function getIqcRegionOptionsForType(type){
+    return iqcRegionOptions.filter(option => isIqcRegionOptionAllowedForType(option, type));
+  }
+
+  function findIqcRegionOption(code){
     const value = String(code || "").trim().toUpperCase();
-    const item = IQC_REGION_OPTIONS.find(option => option.code === value);
+    return iqcRegionOptions.find(option => option.code === value) || null;
+  }
+
+  function isIqcRegionCodeAllowedForType(code, type){
+    const item = findIqcRegionOption(code);
+    return !!item && isIqcRegionOptionAllowedForType(item, type);
+  }
+
+  function getIqcRegionLabel(code){
+    const item = findIqcRegionOption(code);
     return item ? item.label : "";
+  }
+
+  function getIqcRegionSelectHint(type){
+    if(iqcRegionLoadError){
+      return "區域主檔讀取失敗，請重新整理後再填寫。";
+    }
+    if(!iqcRegionsLoaded){
+      return "正在讀取區域主檔...";
+    }
+    if(!getIqcRegionOptionsForType(type).length){
+      return `目前沒有適用於「${type}」的啟用區域，請至 IQC_Region_Master 設定。`;
+    }
+    return "區域由 IQC_Region_Master 管理；修改主檔後，重新開啟日報即可載入最新選項。";
   }
 
   function normalizeIqcCardCount(value){
@@ -4145,6 +4317,12 @@ function bindFramePairTableEvents(){
     return { ctn:"", rtNo:"" };
   }
 
+  function normalizeIqcLoosePairCount(value){
+    const n = parseInt(value, 10);
+    if(isNaN(n) || n < IQC_LOOSE_PAIR_MIN) return IQC_LOOSE_PAIR_MIN;
+    return Math.min(IQC_LOOSE_PAIR_MAX, n);
+  }
+
   function normalizeIqcPairs(pairs){
     const source = Array.isArray(pairs) ? pairs : [];
     const normalized = source.map(pair => ({
@@ -4152,6 +4330,17 @@ function bindFramePairTableEvents(){
       rtNo:toUpperSafe(pair && pair.rtNo || "")
     }));
     return normalized.length ? normalized : [createEmptyIqcPair()];
+  }
+
+  function renderIqcLoosePairCountOptions(pairCount){
+    const selectedCount = normalizeIqcLoosePairCount(pairCount);
+    const options = [];
+
+    for(let count = IQC_LOOSE_PAIR_MIN; count <= IQC_LOOSE_PAIR_MAX; count++){
+      options.push(`<option value="${count}" ${count === selectedCount ? "selected" : ""}>${count} 支</option>`);
+    }
+
+    return options.join("");
   }
 
   function createEmptyIqcCard(index){
@@ -4202,11 +4391,49 @@ function bindFramePairTableEvents(){
     `).join("");
   }
 
-  function renderIqcRegionOptions(selectedCode){
+  function renderIqcRegionOptions(selectedCode, type){
     const selected = String(selectedCode || "").trim().toUpperCase();
-    return '<option value="">請選擇區域</option>' + IQC_REGION_OPTIONS.map(option => `
+
+    if(iqcRegionLoadError){
+      return '<option value="">區域主檔讀取失敗</option>';
+    }
+
+    if(!iqcRegionsLoaded){
+      return '<option value="">區域主檔載入中...</option>';
+    }
+
+    const options = getIqcRegionOptionsForType(type);
+    const selectedIsAllowed = selected && options.some(option => option.code === selected);
+    let html = '<option value="">請選擇區域</option>';
+
+    // 舊草稿的區域被停用、改成不適用或刪除時，保留可見提示但禁止直接沿用送出。
+    if(selected && !selectedIsAllowed){
+      html += `<option value="${escapeAttribute(selected)}" selected disabled>${escapeHtml(selected)}｜已停用或不適用，請重新選擇</option>`;
+    }
+
+    if(!options.length){
+      html += '<option value="" disabled>目前沒有可用區域</option>';
+      return html;
+    }
+
+    html += options.map(option => `
       <option value="${escapeAttribute(option.code)}" ${selected === option.code ? "selected" : ""}>${escapeHtml(option.code)}｜${escapeHtml(option.label)}</option>
     `).join("");
+
+    return html;
+  }
+
+  function renderIqcRegionField(card, index){
+    const type = String(card && card.type || "").trim();
+    const disabled = iqcRegionsLoaded && !iqcRegionLoadError ? "" : "disabled";
+
+    return `
+      <div class="iqc-field full">
+        <label class="iqc-field-label">區域分布代號 <span class="required">*</span></label>
+        <select class="form-input iqc-region-code" data-iqc-card-index="${index}" ${disabled}>${renderIqcRegionOptions(card.regionCode, type)}</select>
+        <div class="iqc-region-help ${iqcRegionLoadError ? "error" : ""}">${escapeHtml(getIqcRegionSelectHint(type))}</div>
+      </div>
+    `;
   }
 
   function renderIqcBundleFields(card, index){
@@ -4220,10 +4447,7 @@ function bindFramePairTableEvents(){
           <label class="iqc-field-label">CTN <span class="required">*</span></label>
           <input type="text" class="form-input iqc-bundle-ctn" data-iqc-card-index="${index}" value="${escapeAttribute(normalizeCTN(card.bundleCtn || ""))}" placeholder="例：AB12CD3">
         </div>
-        <div class="iqc-field full">
-          <label class="iqc-field-label">區域分布代號 <span class="required">*</span></label>
-          <select class="form-input iqc-region-code" data-iqc-card-index="${index}">${renderIqcRegionOptions(card.regionCode)}</select>
-        </div>
+        ${renderIqcRegionField(card, index)}
       </div>
     `;
   }
@@ -4232,6 +4456,7 @@ function bindFramePairTableEvents(){
     const pairs = normalizeIqcPairs(card.loosePairs);
     return pairs.map((pair, pairIndex) => `
       <tr>
+        <td class="iqc-pair-sequence-cell"><span class="iqc-pair-sequence-badge">第${pairIndex + 1}支鋼瓶</span></td>
         <td><input type="text" class="pair-table-input iqc-loose-ctn" data-iqc-card-index="${index}" data-iqc-pair-index="${pairIndex}" value="${escapeAttribute(normalizeCTN(pair.ctn || ""))}" placeholder="散支 CTN"></td>
         <td><input type="text" class="pair-table-input iqc-loose-rt" data-iqc-card-index="${index}" data-iqc-pair-index="${pairIndex}" value="${escapeAttribute(toUpperSafe(pair.rtNo || ""))}" placeholder="對應 RT料號"></td>
         <td><button type="button" class="btn-danger pair-table-delete" onclick="removeIqcLoosePair(${index}, ${pairIndex})">${pairs.length === 1 ? "清空" : "刪除"}</button></td>
@@ -4240,6 +4465,8 @@ function bindFramePairTableEvents(){
   }
 
   function renderIqcLooseFields(card, index){
+    const pairCount = normalizeIqcLoosePairCount(normalizeIqcPairs(card.loosePairs).length);
+
     return `
       <div class="iqc-field-grid">
         <div class="iqc-field full">
@@ -4250,25 +4477,26 @@ function bindFramePairTableEvents(){
 
       <div class="iqc-pair-heading">
         <div>散支 CTN＋RT料號配對</div>
-        <small>至少一組；左側 CTN，右側對應 RT料號</small>
+        <small>先選鋼瓶數量（1～18），系統會一次建立對應欄位；每組都會標示目前是第幾支鋼瓶。</small>
       </div>
 
       <div class="iqc-pair-toolbar">
-        <button type="button" onclick="addIqcLoosePair(${index})">新增一列配對</button>
+        <label class="iqc-pair-count-control">
+          <span>鋼瓶數量</span>
+          <select class="iqc-pair-count-select iqc-loose-pair-count" data-iqc-card-index="${index}" aria-label="第${index + 1}筆 IQC 散支鋼瓶數量">${renderIqcLoosePairCountOptions(pairCount)}</select>
+        </label>
+        <button type="button" onclick="addIqcLoosePair(${index})">＋增加 1 支</button>
       </div>
 
       <div class="pair-table-wrap">
         <table class="pair-table iqc-pair-table">
-          <thead><tr><th style="width:42%;">CTN</th><th style="width:42%;">RT料號</th><th style="width:16%;">操作</th></tr></thead>
+          <thead><tr><th style="width:18%;">序列</th><th style="width:35%;">CTN</th><th style="width:35%;">RT料號</th><th style="width:12%;">操作</th></tr></thead>
           <tbody>${renderIqcLoosePairRows(card, index)}</tbody>
         </table>
       </div>
 
       <div class="iqc-field-grid" style="margin-top:14px;">
-        <div class="iqc-field full">
-          <label class="iqc-field-label">區域分布代號 <span class="required">*</span></label>
-          <select class="form-input iqc-region-code" data-iqc-card-index="${index}">${renderIqcRegionOptions(card.regionCode)}</select>
-        </div>
+        ${renderIqcRegionField(card, index)}
       </div>
     `;
   }
@@ -4386,8 +4614,23 @@ function bindFramePairTableEvents(){
         return false;
       }
 
+      if(iqcRegionLoadError){
+        showIqcError(index, `IQC 區域主檔讀取失敗：${iqcRegionLoadError}`);
+        return false;
+      }
+
+      if(!iqcRegionsLoaded){
+        showIqcError(index, "IQC 區域主檔仍在讀取中，請稍候後再預覽。");
+        return false;
+      }
+
       if(!regionCode){
         showIqcError(index, `第${index + 1}筆 IQC 請選擇區域分布代號。`);
+        return false;
+      }
+
+      if(!isIqcRegionCodeAllowedForType(regionCode, type)){
+        showIqcError(index, `第${index + 1}筆 IQC 的區域「${regionCode}」已停用、不存在或不適用於「${type}」，請重新選擇。`);
         return false;
       }
 
@@ -4453,6 +4696,49 @@ function bindFramePairTableEvents(){
     }
     return true;
   }
+  function setIqcLoosePairCount(cardIndex, value){
+    collectIqcCardsFromUI();
+    ensureIqcCardsLength(normalizeIqcCardCount(formData.iqc_card_count || 1));
+
+    const card = formData.iqc_cards[cardIndex];
+    if(!card) return;
+
+    const targetCount = normalizeIqcLoosePairCount(value);
+    const pairs = normalizeIqcPairs(card.loosePairs);
+    const currentCount = pairs.length;
+
+    if(targetCount < currentCount){
+      const removedPairs = pairs.slice(targetCount);
+      const hasFilledRemovedPair = removedPairs.some(pair => {
+        return String(pair && pair.ctn || "").trim() || String(pair && pair.rtNo || "").trim();
+      });
+
+      if(hasFilledRemovedPair){
+        const confirmed = window.confirm(
+          `散支配對數量將由 ${currentCount} 支調整為 ${targetCount} 支。第${targetCount + 1}支以後已填寫的 CTN／RT 資料會被移除，確定要調整嗎？`
+        );
+        if(!confirmed){
+          renderIqcCards();
+          return;
+        }
+      }
+
+      card.loosePairs = pairs.slice(0, targetCount);
+    }
+    else if(targetCount > currentCount){
+      card.loosePairs = pairs.slice();
+      while(card.loosePairs.length < targetCount){
+        card.loosePairs.push(createEmptyIqcPair());
+      }
+    }
+    else{
+      card.loosePairs = pairs;
+    }
+
+    renderIqcCards();
+    persistDraft();
+  }
+
   function addIqcLoosePair(cardIndex){
     collectIqcCardsFromUI();
     ensureIqcCardsLength(normalizeIqcCardCount(formData.iqc_card_count || 1));
@@ -4460,6 +4746,12 @@ function bindFramePairTableEvents(){
     if(!card) return;
 
     card.loosePairs = normalizeIqcPairs(card.loosePairs);
+    if(card.loosePairs.length >= IQC_LOOSE_PAIR_MAX){
+      window.alert(`每筆散支 IQC 最多可登錄 ${IQC_LOOSE_PAIR_MAX} 支鋼瓶。`);
+      renderIqcCards();
+      return;
+    }
+
     card.loosePairs.push(createEmptyIqcPair());
     renderIqcCards();
     persistDraft();
@@ -4536,6 +4828,14 @@ function bindFramePairTableEvents(){
       const target = e.target;
       if(!target) return;
 
+      if(target.classList.contains("iqc-loose-pair-count")){
+        const cardIndex = Number(target.dataset.iqcCardIndex || "-1");
+        if(!isNaN(cardIndex) && cardIndex >= 0){
+          setIqcLoosePairCount(cardIndex, target.value);
+        }
+        return;
+      }
+
       if(target.matches('input[type="radio"][name^="iqc_type_"]')){
         collectIqcCardsFromUI();
         const cardIndex = Number(String(target.name || "").replace("iqc_type_", ""));
@@ -4576,7 +4876,10 @@ function bindFramePairTableEvents(){
     bindIqcEvents();
     loadPerson();
     loadDraft();
-    await loadProjectOptions();
+    await Promise.all([
+      loadProjectOptions(),
+      loadIqcRegions()
+    ]);
 
     const projectSelect = document.getElementById("project_item");
     if(projectSelect && formData.project_item){
