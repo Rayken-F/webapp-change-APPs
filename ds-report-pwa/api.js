@@ -119,3 +119,22 @@ async function validateSandblastPairsAPI(reportDate, ctnList) {
     duplicateDetails: Array.isArray(result.duplicateDetails) ? result.duplicateDetails : []
   };
 }
+
+/**
+ * IQC 區域主檔：只回傳 IQC_Region_Master 中目前啟用的資料。
+ * 前端依集束／散支再做欄位顯示過濾；送出時後端仍會再次驗證。
+ */
+async function fetchIqcRegions() {
+  const res = await fetch(`${API_URL}?api=iqc_regions`, {
+    method: "GET",
+    cache: "no-store"
+  });
+
+  const result = await parseApiJsonResponse(res);
+
+  if (!result.ok) {
+    throw new Error(result.message || "IQC 區域主檔讀取失敗");
+  }
+
+  return Array.isArray(result.regions) ? result.regions : [];
+}
