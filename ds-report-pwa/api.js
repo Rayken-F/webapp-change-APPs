@@ -138,3 +138,31 @@ async function fetchIqcRegions() {
 
   return Array.isArray(result.regions) ? result.regions : [];
 }
+/**
+ * IQC CTN 重複檢查：只檢查 IQC_Log 內同日期既有的集束／散支 CTN。
+ * 運輸框架CTN可對應多支散瓶，因此不納入「鋼瓶／集束 CTN」重複判斷。
+ */
+async function validateIqcCtnsAPI(reportDate, ctnList) {
+  const res = await fetch(`${API_URL}?api=iqc_ctn_check`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "text/plain;charset=utf-8"
+    },
+    body: JSON.stringify({
+      date: reportDate || "",
+      ctnList: Array.isArray(ctnList) ? ctnList : []
+    })
+  });
+
+  const result = await parseApiJsonResponse(res);
+
+  if (!result.ok) {
+    throw new Error(result.message || "IQC CTN 重複驗證失敗");
+  }
+
+  return {
+    duplicates: Array.isArray(result.duplicates) ? result.duplicates : [],
+    duplicateDetails: Array.isArray(result.duplicateDetails) ? result.duplicateDetails : []
+  };
+}
+
