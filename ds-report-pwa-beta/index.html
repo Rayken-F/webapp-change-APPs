@@ -104,6 +104,20 @@
     .pill.pending-dcyl{ background:rgba(255,109,131,.18); border-color:rgba(255,158,172,.52); }
     .pill.pending-ht{ background:rgba(255,202,91,.18); border-color:rgba(255,226,154,.54); color:#fff6d2; }
     .status-empty{ color:var(--text-soft); padding:22px 0 5px; text-align:center; font-size:14px; line-height:1.7; }
+    .ctn-entry-grid{ display:grid; grid-template-columns:1fr; gap:12px; align-items:start; }
+    .ctn-entry-grid.has-replacement{ grid-template-columns:minmax(0,1.18fr) minmax(0,.82fr); }
+    .ctn-entry-block{
+      min-width:0; padding:12px; border-radius:16px;
+      background:rgba(255,255,255,.045); border:1px solid rgba(255,255,255,.10);
+    }
+    .ctn-entry-block.replacement{
+      background:rgba(69,163,255,.065);
+      border-color:rgba(126,190,255,.25);
+    }
+    .replacement-context{
+      margin:8px 0 0; color:var(--text-soft); font-size:12px; line-height:1.55;
+    }
+    .replacement-context strong{ color:#dce9ff; }
     .scan-grid{ display:grid; grid-template-columns:minmax(0,1fr) auto; gap:10px; align-items:stretch; }
     .scan-grid button{ min-width:96px; }
     .field-label{ display:block; margin:0 0 7px; color:rgba(241,245,255,.92); font-size:14px; font-weight:900; }
@@ -150,6 +164,7 @@
       body{ padding:14px 10px 34px; }
       .form-card{ padding:18px 15px; border-radius:20px; }
       .field-grid,.detail-summary{ grid-template-columns:1fr; }
+      .ctn-entry-grid.has-replacement{ grid-template-columns:1fr; }
       .scan-grid{ grid-template-columns:1fr; }
       .scan-grid button{ width:100%; }
       .bottle-row{ grid-template-columns:auto minmax(0,1fr); }
@@ -180,7 +195,7 @@
         <label for="frameCount">選擇本次要掃描的框數</label>
         <select id="frameCount" class="count-select" aria-label="處理框數"></select>
       </div>
-      <div class="tip" style="margin-top:10px;">每一張卡代表一框。直接掃描運輸框架 CTN 或集束 CTN，畫面會依測試資料自動辨識型態，不需手動選擇集束／散支。</div>
+      <div class="tip" style="margin-top:10px;">每一張卡代表一框。直接掃描運輸框架 CTN 或集束框架 CTN，畫面會依測試資料自動辨識型態，不需手動選擇集束／散支。</div>
     </section>
 
     <section class="form-card">
@@ -261,7 +276,6 @@
         kind: "bundle",
         bundleCtn: "BU01CD1",
         rt: "6087036",
-        frameCtn: "FR03EF1",
         frameId: "H2-TEST-01",
         region: "C1"
       },
@@ -269,7 +283,6 @@
         kind: "bundle",
         bundleCtn: "BU02CD2",
         rt: "145618",
-        frameCtn: "FR04EF2",
         frameId: "MNT1-TEST-02",
         region: "B5-2"
       }
@@ -403,10 +416,20 @@
           : '<span class="pill">待掃描</span>';
 
       const scanResult = !card.kind
-        ? '<div class="status-empty">掃描運輸框架 CTN 或集束 CTN 後，系統會以 Beta 測試資料自動帶出對應資訊。</div>'
+        ? '<div class="status-empty">掃描運輸框架 CTN 或集束框架 CTN 後，系統會以 Beta 測試資料自動帶出對應資訊。</div>'
         : card.kind === "transport"
           ? renderTransportDetail(card, index)
           : renderBundleDetail(card, index);
+
+      const replacementControl = card.kind === "transport"
+        ? `
+          <div class="ctn-entry-block replacement">
+            <label class="field-label" for="replacement-${index}">更換後運輸框架 CTN（選填）</label>
+            <input id="replacement-${index}" class="form-input" value="${escapeHtml(card.replacementTransportFrameCtn || "")}" placeholder="掃描或輸入新運輸框架 CTN" autocomplete="off" inputmode="text" oninput="onReplacementInput(${index}, this.value)">
+            <div class="replacement-context">原框：<strong>${escapeHtml(card.transportFrameCtn || card.scannedCtn)}</strong> → 新框填在此處。僅建立待提交換框動作。</div>
+          </div>
+        `
+        : "";
 
       return `
         <section id="frame-card-${index}" class="form-card frame-card">
@@ -414,10 +437,15 @@
             <span>第 ${index + 1} 框</span>
             ${kindPill}
           </div>
-          <label class="field-label" for="scan-ctn-${index}">掃描運輸框架／集束 CTN</label>
-          <div class="scan-grid">
-            <input id="scan-ctn-${index}" class="form-input" value="${escapeHtml(card.scannedCtn)}" placeholder="掃描或輸入 CTN" autocomplete="off" inputmode="text" oninput="onScanInput(${index}, this.value)" onkeydown="onScanKeydown(event, ${index})">
-            <button type="button" onclick="lookupCard(${index})">帶入資料</button>
+          <div class="ctn-entry-grid ${card.kind === "transport" ? "has-replacement" : ""}">
+            <div class="ctn-entry-block">
+              <label class="field-label" for="scan-ctn-${index}">掃描運輸框架／集束框架 CTN</label>
+              <div class="scan-grid">
+                <input id="scan-ctn-${index}" class="form-input" value="${escapeHtml(card.scannedCtn)}" placeholder="掃描或輸入 CTN" autocomplete="off" inputmode="text" oninput="onScanInput(${index}, this.value)" onkeydown="onScanKeydown(event, ${index})">
+                <button type="button" onclick="lookupCard(${index})">帶入資料</button>
+              </div>
+            </div>
+            ${replacementControl}
           </div>
           <div class="tip" style="margin-top:8px;">本階段可用測試碼：TF01AB1、TF02AB2、BU01CD1、BU02CD2。</div>
           ${card.error ? `<div class="error">${escapeHtml(card.error)}</div>` : ""}
@@ -431,27 +459,15 @@
       const bottles = Array.isArray(card.bottles) ? card.bottles : [];
       return `
         <div class="detail-summary">
-          <div class="data-box"><div class="k">原運輸框架 CTN</div><div class="v">${escapeHtml(card.transportFrameCtn)}</div></div>
+          <div class="data-box"><div class="k">目前運輸框架 CTN</div><div class="v">${escapeHtml(card.transportFrameCtn)}</div></div>
           <div class="data-box"><div class="k">來源區域（模擬）</div><div class="v">${escapeHtml(card.region || "-")}</div></div>
-        </div>
-        <div class="field-block">
-          <label class="field-label" for="replacement-${cardIndex}">更換運輸框架 CTN（可選）</label>
-          <input id="replacement-${cardIndex}" class="form-input" value="${escapeHtml(card.replacementTransportFrameCtn || "")}" placeholder="掃描或輸入新的運輸框架 CTN" autocomplete="off" oninput="onReplacementInput(${cardIndex}, this.value)">
-          <div class="mini-note">僅記錄「待換框」動作；不會在 Beta 階段變更任何實際綁定資料。</div>
-        </div>
-        <div class="field-block">
-          <label class="field-label" for="ht-scan-${cardIndex}">轉 HT 鋼瓶 CTN</label>
-          <div class="scan-grid">
-            <input id="ht-scan-${cardIndex}" class="form-input" placeholder="掃描本框內欲轉 HT 的鋼瓶 CTN" autocomplete="off" onkeydown="onHtScanKeydown(event, ${cardIndex})">
-            <button type="button" class="warning" onclick="markHtFromInput(${cardIndex})">標記轉 HT</button>
-          </div>
-          <div class="mini-note">只能標記這一框已帶出的散支 CTN；同一支鋼瓶不能同時標記 DCYL 與轉 HT。</div>
         </div>
         <div class="field-block">
           <div class="form-title-line" style="margin-bottom:8px;">
             <div class="field-label" style="margin:0;">散支鋼瓶清單</div>
             <div class="count-text">共 ${bottles.length} 支</div>
           </div>
+          <div class="mini-note" style="margin-bottom:10px;">每支鋼瓶直接使用右側按鈕標記 DCYL 或轉 HT；兩種狀態互斥，不再另外掃描一次鋼瓶 CTN。</div>
           <div class="bottle-list">
             ${bottles.map((bottle, bottleIndex) => renderBottleRow(cardIndex, bottleIndex, bottle)).join("")}
           </div>
@@ -485,12 +501,12 @@
       const bundle = card.bundle || {};
       return `
         <div class="detail-summary">
-          <div class="data-box"><div class="k">集束 CTN</div><div class="v">${escapeHtml(bundle.bundleCtn || card.scannedCtn)}</div></div>
+          <div class="data-box"><div class="k">集束框架 CTN</div><div class="v">${escapeHtml(bundle.bundleCtn || card.scannedCtn)}</div></div>
           <div class="data-box"><div class="k">RT料號</div><div class="v">${escapeHtml(bundle.rt || "-")}</div></div>
-          <div class="data-box"><div class="k">框架 CTN</div><div class="v">${escapeHtml(bundle.frameCtn || "-")}</div></div>
           <div class="data-box"><div class="k">框架編號</div><div class="v">${escapeHtml(bundle.frameId || "待第二階段接正式資料")}</div></div>
+          <div class="data-box"><div class="k">來源區域（模擬）</div><div class="v">${escapeHtml(bundle.region || card.region || "-")}</div></div>
         </div>
-        <div class="mini-note">集束卡在第一階段只驗證「掃描後自動帶出」的操作節奏，尚不寫入任何正式日報或狀態資料。</div>
+        <div class="mini-note">掃描到的集束 CTN 本身就是框架 CTN，因此只顯示一次；本階段只驗證自動帶出 RT 與框架編號的操作節奏。</div>
       `;
     }
 
@@ -562,7 +578,7 @@
         card.region = record.region || "";
         card.bottles = [];
         card.bundle = safeClone(record);
-        card.lookupStatus = "已模擬帶入集束 RT、框架 CTN 與框架編號。";
+        card.lookupStatus = "已模擬帶入集束框架 CTN、RT 與框架編號。";
       }
 
       saveBetaDraft();
@@ -595,42 +611,6 @@
       if(!bottle) return;
       bottle.pendingHt = !bottle.pendingHt;
       if(bottle.pendingHt) bottle.pendingDcyl = false;
-      saveBetaDraft();
-      renderAll();
-    }
-
-    function onHtScanKeydown(event, cardIndex){
-      if(event.key === "Enter"){
-        event.preventDefault();
-        markHtFromInput(cardIndex);
-      }
-    }
-
-    function markHtFromInput(cardIndex){
-      const input = document.getElementById(`ht-scan-${cardIndex}`);
-      const value = normalizeCTN(input ? input.value : "");
-      const card = getCard(cardIndex);
-      card.error = "";
-      if(!value){
-        card.error = "請先掃描欲轉 HT 的散支鋼瓶 CTN。";
-        renderAll();
-        return;
-      }
-      if(!isValidCTN(value)){
-        card.error = "轉 HT 鋼瓶 CTN 格式錯誤。";
-        renderAll();
-        return;
-      }
-      const bottleIndex = (card.bottles || []).findIndex(item => item.ctn === value);
-      if(bottleIndex === -1){
-        card.error = `CTN ${value} 不在本框帶出的散支鋼瓶清單內，不能標記為轉 HT。`;
-        renderAll();
-        return;
-      }
-      const bottle = card.bottles[bottleIndex];
-      bottle.pendingHt = true;
-      bottle.pendingDcyl = false;
-      card.lookupStatus = `已將第 ${bottleIndex + 1} 支 ${value} 標記為待轉 HT。`;
       saveBetaDraft();
       renderAll();
     }
