@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-  <title>鼎世日報系統｜自動噴砂 CTN 流轉 Beta</title>
+  <title>鼎世日報系統｜自動噴砂 CTN 流轉 Beta v3</title>
   <style>
     *{ box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
     :root{
@@ -105,7 +105,8 @@
     .pill.pending-ht{ background:rgba(255,202,91,.18); border-color:rgba(255,226,154,.54); color:#fff6d2; }
     .status-empty{ color:var(--text-soft); padding:22px 0 5px; text-align:center; font-size:14px; line-height:1.7; }
     .ctn-entry-grid{ display:grid; grid-template-columns:1fr; gap:12px; align-items:start; }
-    .ctn-entry-grid.has-replacement{ grid-template-columns:minmax(0,1.18fr) minmax(0,.82fr); }
+    /* 主掃描與換框欄位在所有螢幕都採上下排列，避免桌機版左右擠壓。 */
+    .ctn-entry-grid.has-replacement{ grid-template-columns:1fr; }
     .ctn-entry-block{
       min-width:0; padding:12px; border-radius:16px;
       background:rgba(255,255,255,.045); border:1px solid rgba(255,255,255,.10);
@@ -138,6 +139,19 @@
     .bottle-actions button{ min-width:66px; padding:9px 10px; font-size:12px; }
     .mini-note{ margin:9px 0 0; color:var(--text-soft); font-size:12px; line-height:1.55; }
     .error{ margin-top:10px; color:#ffb4c0; font-size:13px; font-weight:900; line-height:1.55; }
+    .inline-error{
+      min-height:20px; margin-top:7px; color:#ffb4c0;
+      font-size:12px; font-weight:900; line-height:1.5;
+    }
+    .form-input.input-invalid{
+      border-color:rgba(255,109,131,.95) !important;
+      box-shadow:0 0 0 3px rgba(255,109,131,.14),0 0 18px rgba(255,109,131,.12);
+      background:rgba(255,109,131,.08);
+    }
+    .form-input.input-valid{
+      border-color:rgba(98,220,145,.76) !important;
+      box-shadow:0 0 0 3px rgba(98,220,145,.10);
+    }
     .success-note{ margin-top:10px; color:#b8ffd0; font-size:13px; font-weight:900; line-height:1.55; }
     .example-list{ display:grid; gap:10px; margin-top:12px; }
     .example-row{ display:flex; align-items:center; justify-content:space-between; gap:12px; padding:11px 12px; border-radius:14px; background:rgba(255,255,255,.055); border:1px solid rgba(255,255,255,.10); }
@@ -421,12 +435,24 @@
           ? renderTransportDetail(card, index)
           : renderBundleDetail(card, index);
 
+      const replacementValue = normalizeCTN(card.replacementTransportFrameCtn || "");
+      const replacementInitialCheck = replacementValue
+        ? validatePendingReplacement(card)
+        : { ok:true, value:"", message:"" };
+      const replacementInputClass = replacementValue
+        ? (replacementInitialCheck.ok ? " input-valid" : " input-invalid")
+        : "";
+      const replacementInitialError = replacementValue && !replacementInitialCheck.ok
+        ? replacementInitialCheck.message.replace(`第 ${card.index + 1} 框的`, "")
+        : "";
+
       const replacementControl = card.kind === "transport"
         ? `
           <div class="ctn-entry-block replacement">
             <label class="field-label" for="replacement-${index}">更換後運輸框架 CTN（選填）</label>
-            <input id="replacement-${index}" class="form-input" value="${escapeHtml(card.replacementTransportFrameCtn || "")}" placeholder="掃描或輸入新運輸框架 CTN" autocomplete="off" inputmode="text" oninput="onReplacementInput(${index}, this.value)">
-            <div class="replacement-context">原框：<strong>${escapeHtml(card.transportFrameCtn || card.scannedCtn)}</strong> → 新框填在此處。僅建立待提交換框動作。</div>
+            <input id="replacement-${index}" class="form-input${replacementInputClass}" value="${escapeHtml(replacementValue)}" placeholder="例如 AB12CD3" autocomplete="off" inputmode="text" maxlength="7" aria-describedby="replacement-error-${index}" oninput="onReplacementInput(${index}, this)" onblur="validateReplacementInput(${index}, true)">
+            <div id="replacement-error-${index}" class="inline-error" aria-live="polite">${escapeHtml(replacementInitialError)}</div>
+            <div class="replacement-context">原框：<strong>${escapeHtml(card.transportFrameCtn || card.scannedCtn)}</strong> → 新框填在此處。格式需為 7 碼：前 2 英文、3–4 數字、5–6 英文、第 7 碼英數。</div>
           </div>
         `
         : "";
@@ -585,10 +611,56 @@
       renderAll();
     }
 
-    function onReplacementInput(cardIndex, value){
+    function onReplacementInput(cardIndex, inputOrValue){
       const card = getCard(cardIndex);
-      card.replacementTransportFrameCtn = normalizeCTN(value);
+      const input = inputOrValue && typeof inputOrValue === "object"
+        ? inputOrValue
+        : document.getElementById(`replacement-${cardIndex}`);
+      const rawValue = input && typeof input.value !== "undefined"
+        ? input.value
+        : inputOrValue;
+      const normalized = normalizeCTN(rawValue).slice(0, 7);
+
+      card.replacementTransportFrameCtn = normalized;
+      if(input && input.value !== normalized){
+        input.value = normalized;
+      }
+
+      // 掃描器通常會一次灌入完整 7 碼；達 7 碼時立即驗證。
+      // 手動輸入不足 7 碼時先不吵人，離開欄位時再提示。
+      validateReplacementInput(cardIndex, normalized.length >= 7);
       saveBetaDraft();
+    }
+
+    function validateReplacementInput(cardIndex, forceShow){
+      const card = getCard(cardIndex);
+      const input = document.getElementById(`replacement-${cardIndex}`);
+      const errorEl = document.getElementById(`replacement-error-${cardIndex}`);
+      const value = normalizeCTN(card.replacementTransportFrameCtn || "");
+
+      if(!input || !errorEl) return true;
+
+      input.classList.remove("input-invalid", "input-valid");
+      errorEl.textContent = "";
+
+      if(!value){
+        return true;
+      }
+
+      // 尚未輸入完且仍在欄位內時，不先顯示紅字；失焦時才強制提示。
+      if(!forceShow && value.length < 7){
+        return true;
+      }
+
+      const result = validatePendingReplacement(card);
+      if(!result.ok){
+        input.classList.add("input-invalid");
+        errorEl.textContent = result.message.replace(`第 ${card.index + 1} 框的`, "");
+        return false;
+      }
+
+      input.classList.add("input-valid");
+      return true;
     }
 
     function getTransportBottle(cardIndex, bottleIndex){
@@ -618,7 +690,7 @@
     function validatePendingReplacement(card){
       const replacement = normalizeCTN(card.replacementTransportFrameCtn || "");
       if(!replacement) return { ok:true, value:"" };
-      if(!isValidCTN(replacement)) return { ok:false, message:`第 ${card.index + 1} 框的新運輸框架 CTN 格式錯誤。` };
+      if(!isValidCTN(replacement)) return { ok:false, message:`第 ${card.index + 1} 框的新運輸框架 CTN 格式錯誤：需為 7 碼，前 2 英文、3–4 數字、5–6 英文、第 7 碼英數。` };
       if(replacement === card.transportFrameCtn) return { ok:false, message:`第 ${card.index + 1} 框的新運輸框架 CTN 與原框相同，不需要換框。` };
       return { ok:true, value:replacement };
     }
