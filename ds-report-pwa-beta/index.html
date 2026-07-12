@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-  <title>鼎世日報系統｜自動噴砂 CTN 流轉 Beta v3</title>
+  <title>鼎世日報系統｜自動噴砂 CTN 流轉 Beta v4</title>
   <style>
     *{ box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
     :root{
@@ -92,11 +92,103 @@
     button.warning{ background:linear-gradient(135deg,rgba(246,177,48,.92),rgba(220,118,24,.95)); }
     button.success{ background:linear-gradient(135deg,rgba(47,179,111,.92),rgba(28,132,80,.96)); }
     button.ghost{ background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.14); box-shadow:none; }
+    .slider-stage{ position:relative; }
     .slider-wrap{ overflow:hidden; margin:0 0 18px; }
     .slider{ display:flex; gap:14px; overflow-x:auto; scroll-snap-type:x mandatory; padding:0 1px 10px; scrollbar-width:thin; scrollbar-color:rgba(193,204,255,.35) transparent; }
     .slider::-webkit-scrollbar{ height:7px; }
     .slider::-webkit-scrollbar-thumb{ background:rgba(193,204,255,.35); border-radius:8px; }
     .frame-card{ flex:0 0 100%; scroll-snap-align:start; overflow:visible; }
+
+    /* 桌機專用：大型半透明玻璃左右切換箭頭 */
+    .desktop-slider-nav{
+      display:none;
+      position:absolute;
+      top:50%;
+      z-index:30;
+      width:76px;
+      min-height:128px;
+      padding:12px 8px;
+      border-radius:26px;
+      align-items:center;
+      justify-content:center;
+      flex-direction:column;
+      gap:8px;
+      color:#fff;
+      background:
+        linear-gradient(145deg,rgba(255,255,255,.22),rgba(126,119,255,.11) 48%,rgba(69,163,255,.09));
+      border:1px solid rgba(231,238,255,.34);
+      box-shadow:
+        0 22px 48px rgba(5,11,48,.38),
+        0 0 0 1px rgba(255,255,255,.08) inset,
+        0 0 34px rgba(118,106,255,.13);
+      backdrop-filter:blur(20px) saturate(145%);
+      -webkit-backdrop-filter:blur(20px) saturate(145%);
+      transform:translateY(-50%);
+      transition:transform .18s ease,background .18s ease,border-color .18s ease,box-shadow .18s ease,opacity .18s ease;
+    }
+    .desktop-slider-nav::before{
+      content:"";
+      position:absolute;
+      inset:1px;
+      border-radius:24px;
+      pointer-events:none;
+      background:linear-gradient(180deg,rgba(255,255,255,.20),transparent 42%);
+      opacity:.65;
+    }
+    .desktop-slider-nav.prev{ left:-96px; }
+    .desktop-slider-nav.next{ right:-96px; }
+    .desktop-slider-nav:hover:not(:disabled){
+      transform:translateY(-50%) scale(1.045);
+      border-color:rgba(238,242,255,.62);
+      background:linear-gradient(145deg,rgba(255,255,255,.29),rgba(126,119,255,.17) 48%,rgba(69,163,255,.14));
+      box-shadow:
+        0 26px 56px rgba(5,11,48,.44),
+        0 0 0 1px rgba(255,255,255,.12) inset,
+        0 0 42px rgba(118,106,255,.23);
+    }
+    .desktop-slider-nav:active:not(:disabled){ transform:translateY(-50%) scale(.98); }
+    .desktop-slider-nav:disabled{ opacity:.24; cursor:not-allowed; filter:saturate(.45); }
+    .desktop-slider-nav .nav-chevron{
+      position:relative;
+      z-index:1;
+      width:26px;
+      height:26px;
+      border-top:3px solid rgba(255,255,255,.96);
+      border-right:3px solid rgba(255,255,255,.96);
+      filter:drop-shadow(0 0 10px rgba(194,204,255,.55));
+    }
+    .desktop-slider-nav.prev .nav-chevron{ transform:rotate(-135deg); margin-left:8px; }
+    .desktop-slider-nav.next .nav-chevron{ transform:rotate(45deg); margin-right:8px; }
+    .desktop-slider-nav .nav-label{
+      position:relative;
+      z-index:1;
+      font-size:11px;
+      font-weight:900;
+      letter-spacing:.8px;
+      color:rgba(245,247,255,.82);
+      writing-mode:vertical-rl;
+    }
+    .desktop-frame-position{
+      display:none;
+      width:max-content;
+      max-width:100%;
+      margin:-7px auto 17px;
+      padding:7px 13px;
+      border-radius:999px;
+      color:rgba(245,247,255,.82);
+      background:rgba(255,255,255,.075);
+      border:1px solid rgba(231,238,255,.16);
+      box-shadow:0 8px 24px rgba(5,11,48,.20),0 0 0 1px rgba(255,255,255,.04) inset;
+      font-size:12px;
+      font-weight:900;
+      letter-spacing:.4px;
+      backdrop-filter:blur(12px);
+      -webkit-backdrop-filter:blur(12px);
+    }
+    @media (min-width:900px){
+      .desktop-slider-nav{ display:flex; }
+      .desktop-frame-position{ display:block; }
+    }
     .frame-title{ display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:12px; font-size:18px; font-weight:900; }
     .pill{ display:inline-flex; align-items:center; gap:5px; min-height:28px; padding:4px 9px; border-radius:999px; color:#fff; background:rgba(255,255,255,.10); border:1px solid rgba(255,255,255,.14); font-size:12px; font-weight:900; white-space:nowrap; }
     .pill.transport{ background:rgba(69,163,255,.16); border-color:rgba(126,190,255,.48); }
@@ -224,9 +316,22 @@
       </details>
     </section>
 
-    <div class="slider-wrap">
-      <div id="frameCards" class="slider"></div>
+    <div class="slider-stage">
+      <button id="framePrevBtn" type="button" class="desktop-slider-nav prev" onclick="moveFrame(-1)" aria-label="切換到上一框" title="上一框">
+        <span class="nav-chevron" aria-hidden="true"></span>
+        <span class="nav-label">上一框</span>
+      </button>
+
+      <div class="slider-wrap">
+        <div id="frameCards" class="slider" aria-label="框別側滑卡片"></div>
+      </div>
+
+      <button id="frameNextBtn" type="button" class="desktop-slider-nav next" onclick="moveFrame(1)" aria-label="切換到下一框" title="下一框">
+        <span class="nav-chevron" aria-hidden="true"></span>
+        <span class="nav-label">下一框</span>
+      </button>
     </div>
+    <div id="desktopFramePosition" class="desktop-frame-position" aria-live="polite">第 1 框／共 1 框</div>
 
     <section id="draftSummary" class="form-card summary-card">
       <div class="form-title-line">
@@ -303,6 +408,8 @@
     };
 
     let betaState = { frameCount: 1, cards: [] };
+    let activeFrameIndex = 0;
+    let sliderScrollRaf = 0;
 
     function normalizeCTN(value){
       return String(value || "").trim().toUpperCase().replace(/\s+/g, "");
@@ -373,6 +480,7 @@
     function resetBetaDraft(){
       if(!confirm("確定清除這份 Beta 草稿嗎？只會清除此瀏覽器內的模擬資料。")) return;
       betaState = { frameCount: 1, cards: [createEmptyCard(0)] };
+      activeFrameIndex = 0;
       localStorage.removeItem(BETA_STORAGE_KEY);
       renderAll();
     }
@@ -390,6 +498,7 @@
       select.addEventListener("change", function(){
         betaState.frameCount = normalizeFrameCount(this.value);
         ensureCardCount();
+        activeFrameIndex = Math.min(activeFrameIndex, betaState.frameCount - 1);
         saveBetaDraft();
         renderAll();
       });
@@ -420,6 +529,81 @@
     function renderCards(){
       const container = document.getElementById("frameCards");
       container.innerHTML = betaState.cards.map((card, index) => renderCard(card, index)).join("");
+      requestAnimationFrame(function(){
+        scrollToFrame(activeFrameIndex, "auto");
+        updateDesktopSliderNav();
+      });
+    }
+
+    function clampFrameIndex(index){
+      const maxIndex = Math.max(0, normalizeFrameCount(betaState.frameCount) - 1);
+      return Math.max(0, Math.min(maxIndex, Number(index || 0)));
+    }
+
+    function scrollToFrame(index, behavior){
+      const container = document.getElementById("frameCards");
+      if(!container) return;
+
+      activeFrameIndex = clampFrameIndex(index);
+      const target = document.getElementById(`frame-card-${activeFrameIndex}`);
+      if(target){
+        container.scrollTo({
+          left: target.offsetLeft,
+          behavior: behavior || "smooth"
+        });
+      }
+      updateDesktopSliderNav();
+    }
+
+    function moveFrame(direction){
+      scrollToFrame(activeFrameIndex + Number(direction || 0), "smooth");
+    }
+
+    function updateDesktopSliderNav(){
+      const prev = document.getElementById("framePrevBtn");
+      const next = document.getElementById("frameNextBtn");
+      const position = document.getElementById("desktopFramePosition");
+      const count = normalizeFrameCount(betaState.frameCount);
+
+      activeFrameIndex = clampFrameIndex(activeFrameIndex);
+      if(prev) prev.disabled = activeFrameIndex <= 0;
+      if(next) next.disabled = activeFrameIndex >= count - 1;
+      if(position) position.textContent = `第 ${activeFrameIndex + 1} 框／共 ${count} 框`;
+    }
+
+    function syncActiveFrameFromScroll(){
+      const container = document.getElementById("frameCards");
+      if(!container) return;
+      const cards = Array.from(container.querySelectorAll(".frame-card"));
+      if(!cards.length) return;
+
+      const currentLeft = container.scrollLeft;
+      let nearestIndex = 0;
+      let nearestDistance = Infinity;
+      cards.forEach(function(card, index){
+        const distance = Math.abs(card.offsetLeft - currentLeft);
+        if(distance < nearestDistance){
+          nearestDistance = distance;
+          nearestIndex = index;
+        }
+      });
+      activeFrameIndex = clampFrameIndex(nearestIndex);
+      updateDesktopSliderNav();
+    }
+
+    function setupSliderNavigation(){
+      const container = document.getElementById("frameCards");
+      if(!container) return;
+      container.addEventListener("scroll", function(){
+        if(sliderScrollRaf) cancelAnimationFrame(sliderScrollRaf);
+        sliderScrollRaf = requestAnimationFrame(syncActiveFrameFromScroll);
+      }, { passive:true });
+      window.addEventListener("resize", function(){
+        requestAnimationFrame(function(){
+          scrollToFrame(activeFrameIndex, "auto");
+        });
+      });
+      updateDesktopSliderNav();
     }
 
     function renderCard(card, index){
@@ -718,6 +902,30 @@
       return rows;
     }
 
+    function getFrameFillStats(){
+      const filledIndexes = [];
+      const emptyIndexes = [];
+      const invalidIndexes = [];
+
+      betaState.cards.forEach(function(card, index){
+        const scanned = normalizeCTN(card.scannedCtn || "");
+        if(card.kind){
+          filledIndexes.push(index + 1);
+        }else if(scanned || card.error){
+          invalidIndexes.push(index + 1);
+        }else{
+          emptyIndexes.push(index + 1);
+        }
+      });
+
+      return {
+        selected: normalizeFrameCount(betaState.frameCount),
+        filledIndexes: filledIndexes,
+        emptyIndexes: emptyIndexes,
+        invalidIndexes: invalidIndexes
+      };
+    }
+
     function renderDraftSummary(){
       const card = document.getElementById("draftSummary");
       const list = document.getElementById("summaryList");
@@ -742,21 +950,44 @@
       const rows = getOperationSummary();
       const activeCards = betaState.cards.filter(card => card.kind);
       const invalid = rows.filter(row => row.type === "error");
+      const stats = getFrameFillStats();
       const body = document.getElementById("modalSummary");
+      const statusRows = [];
 
-      if(!activeCards.length){
-        body.innerHTML = '<div class="summary-row"><strong>尚未帶入任何框別資料。</strong><div class="muted">請先掃描 Beta 測試資料，例如 TF01AB1 或 BU01CD1。</div></div>';
-      }else if(invalid.length){
-        body.innerHTML = rows.map(row => `
-          <div class="summary-row"><strong>${escapeHtml(row.title)}</strong><div class="muted">${escapeHtml(row.detail)}</div></div>
-        `).join("");
-      }else if(!rows.length){
-        body.innerHTML = '<div class="summary-row"><strong>已帶入資料，但尚未選擇 DCYL、轉 HT 或換運輸框。</strong><div class="muted">這是正常情況；你可以回到卡片測試按鈕操作。</div></div>';
-      }else{
-        body.innerHTML = rows.map(row => `
-          <div class="summary-row"><strong>${escapeHtml(row.title)}</strong><div class="muted">${escapeHtml(row.detail)}</div></div>
-        `).join("");
+      statusRows.push({
+        title:`框數檢核：選擇 ${stats.selected} 框｜有效 ${stats.filledIndexes.length} 框｜空白 ${stats.emptyIndexes.length} 框`,
+        detail:stats.emptyIndexes.length
+          ? `空白框（第 ${stats.emptyIndexes.join("、")} 框）在未來正式送出時應直接略過，不建立後台資料。`
+          : "本次選擇的框數皆已帶入有效資料。"
+      });
+
+      if(stats.invalidIndexes.length){
+        statusRows.push({
+          title:`尚有 ${stats.invalidIndexes.length} 框資料未完成`,
+          detail:`請回到第 ${stats.invalidIndexes.join("、")} 框修正 CTN 或重新帶入資料；這些不是空白框，正式版不可靜默略過。`
+        });
       }
+
+      let contentRows = [];
+      if(!activeCards.length){
+        contentRows = [{
+          title:"尚未帶入任何框別資料。",
+          detail:"請先掃描 Beta 測試資料，例如 TF01AB1 或 BU01CD1。"
+        }];
+      }else if(invalid.length){
+        contentRows = rows.map(row => ({ title:row.title, detail:row.detail }));
+      }else if(!rows.length){
+        contentRows = [{
+          title:"已帶入資料，但尚未選擇 DCYL、轉 HT 或換運輸框。",
+          detail:"這是正常情況；你可以回到卡片測試按鈕操作。"
+        }];
+      }else{
+        contentRows = rows.map(row => ({ title:row.title, detail:row.detail }));
+      }
+
+      body.innerHTML = statusRows.concat(contentRows).map(row => `
+        <div class="summary-row"><strong>${escapeHtml(row.title)}</strong><div class="muted">${escapeHtml(row.detail)}</div></div>
+      `).join("");
       document.getElementById("previewModal").classList.add("show");
     }
 
@@ -766,11 +997,12 @@
 
     function simulateSubmit(){
       const rows = getOperationSummary();
-      if(rows.some(row => row.type === "error")){
-        alert("目前有換框資料錯誤，請返回調整後再模擬送出。");
+      const stats = getFrameFillStats();
+      if(rows.some(row => row.type === "error") || stats.invalidIndexes.length){
+        alert("目前仍有 CTN 或換框資料錯誤，請返回調整後再模擬送出。");
         return;
       }
-      alert(`Beta 模擬送出完成。\n\n本次共 ${rows.length} 項待提交動作。\n\n提醒：沒有任何資料寫入後端、Response、IQC_Log 或 ERP。`);
+      alert(`Beta 模擬送出完成。\n\n選擇 ${stats.selected} 框；有效 ${stats.filledIndexes.length} 框；空白 ${stats.emptyIndexes.length} 框（略過）。\n本次共 ${rows.length} 項待提交動作。\n\n提醒：第一階段沒有任何資料寫入後端、Response、IQC_Log 或 ERP。`);
       closePreview();
     }
 
@@ -779,6 +1011,7 @@
       ensureCardCount();
       setupCountSelect();
       renderAll();
+      setupSliderNavigation();
     });
   </script>
 </body>
