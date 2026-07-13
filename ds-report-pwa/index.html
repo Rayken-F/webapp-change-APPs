@@ -1856,6 +1856,7 @@ user-scalable=no">
   </div>
 <script src="./api.js"></script>
 <script>
+  // 2026-07-13：IQC 集束新增「集束框架編號」，寫入 IQC_Log 供自動噴砂 BETA 唯讀反查。
   // 2026-06-29 正式版：保留既有 Response 欄位；新增「下一步指定結案」僅寫入 Project_Event_Log。
   const STORAGE_KEY = "ds_report_draft_v2";
   const VISIBLE_ERROR_ATTR = "data-has-visible-error";
@@ -3595,7 +3596,8 @@ function bindFramePairTableEvents(){
             <div>型態：${escapeHtml(card.type)}</div>
             ${card.type === "集束" ? `
               <div>RT料號：${escapeHtml(card.bundleRtNo)}</div>
-              <div>CTN：${escapeHtml(card.bundleCtn)}</div>
+              <div>集束框架 CTN：${escapeHtml(card.bundleCtn)}</div>
+              <div>集束框架編號：${escapeHtml(card.bundleFrameId)}</div>
             ` : `
               <div>運輸框架CTN：${escapeHtml(card.transportFrameCtn)}</div>
               <div>散支CTN｜RT料號：<br>${loosePairs || "未填寫"}</div>
@@ -4386,6 +4388,7 @@ function bindFramePairTableEvents(){
       type:"",
       bundleRtNo:"",
       bundleCtn:"",
+      bundleFrameId:"",
       transportFrameCtn:"",
       loosePairs:[createEmptyIqcPair()],
       regionCode:""
@@ -4410,6 +4413,7 @@ function bindFramePairTableEvents(){
       type:["集束","散支"].includes(String(card && card.type || "")) ? String(card.type) : "",
       bundleRtNo:normalizeIqcRtNo(card && card.bundleRtNo || ""),
       bundleCtn:normalizeCTN(card && card.bundleCtn || ""),
+      bundleFrameId:toUpperSafe(card && card.bundleFrameId || ""),
       transportFrameCtn:normalizeCTN(card && card.transportFrameCtn || ""),
       loosePairs:normalizeIqcPairs(card && card.loosePairs),
       regionCode:String(card && card.regionCode || "").trim().toUpperCase()
@@ -4481,8 +4485,13 @@ function bindFramePairTableEvents(){
           <input type="text" class="form-input iqc-bundle-rt" data-iqc-card-index="${index}" value="${escapeAttribute(normalizeIqcRtNo(card.bundleRtNo || ""))}" placeholder="請輸入數字 RT料號" inputmode="numeric" pattern="[0-9]*" autocomplete="off">
         </div>
         <div class="iqc-field">
-          <label class="iqc-field-label">CTN <span class="required">*</span></label>
+          <label class="iqc-field-label">集束框架 CTN <span class="required">*</span></label>
           <input type="text" class="form-input iqc-bundle-ctn" data-iqc-card-index="${index}" value="${escapeAttribute(normalizeCTN(card.bundleCtn || ""))}" placeholder="例：AB12CD3" autocapitalize="characters" autocomplete="off">
+        </div>
+        <div class="iqc-field full">
+          <label class="iqc-field-label">集束框架編號 <span class="required">*</span></label>
+          <input type="text" class="form-input iqc-bundle-frame-id" data-iqc-card-index="${index}" value="${escapeAttribute(toUpperSafe(card.bundleFrameId || ""))}" placeholder="請輸入或掃描框架編號" autocapitalize="characters" autocomplete="off">
+          <div class="iqc-region-help">框架編號會自動轉為大寫，並寫入 IQC_Log 供自動噴砂 BETA 反查。</div>
         </div>
         ${renderIqcRegionField(card, index)}
       </div>
@@ -4564,7 +4573,7 @@ function bindFramePairTableEvents(){
             <div class="bundle-radio-grid two-col">${renderIqcTypeOptions(`iqc_type_${index}`, type)}</div>
             <div class="iqc-type-tip">
               ${type
-                ? (type === "集束" ? "集束：填寫 RT料號、CTN 與區域。" : "散支：填寫運輸框架 CTN、CTN 與 RT料號配對、區域。")
+                ? (type === "集束" ? "集束：填寫 RT料號、集束框架 CTN、集束框架編號與區域。" : "散支：填寫運輸框架 CTN、CTN 與 RT料號配對、區域。")
                 : "請先選擇「集束」或「散支」，才會顯示對應欄位。"}
             </div>
           </div>
@@ -4584,6 +4593,7 @@ function bindFramePairTableEvents(){
       const typeEl = document.querySelector(`input[name="iqc_type_${i}"]:checked`);
       const bundleRtEl = document.querySelector(`.iqc-bundle-rt[data-iqc-card-index="${i}"]`);
       const bundleCtnEl = document.querySelector(`.iqc-bundle-ctn[data-iqc-card-index="${i}"]`);
+      const bundleFrameIdEl = document.querySelector(`.iqc-bundle-frame-id[data-iqc-card-index="${i}"]`);
       const transportFrameCtnEl = document.querySelector(`.iqc-transport-frame-ctn[data-iqc-card-index="${i}"]`);
       const regionEl = document.querySelector(`.iqc-region-code[data-iqc-card-index="${i}"]`);
 
@@ -4601,6 +4611,7 @@ function bindFramePairTableEvents(){
         type:typeEl ? typeEl.value : "",
         bundleRtNo:normalizeIqcRtNo(bundleRtEl ? bundleRtEl.value : ""),
         bundleCtn:normalizeCTN(bundleCtnEl ? bundleCtnEl.value : ""),
+        bundleFrameId:toUpperSafe(bundleFrameIdEl ? bundleFrameIdEl.value : ""),
         transportFrameCtn:normalizeCTN(transportFrameCtnEl ? transportFrameCtnEl.value : ""),
         loosePairs:loosePairs.length ? loosePairs : normalizeIqcPairs(formData.iqc_cards[i] && formData.iqc_cards[i].loosePairs),
         regionCode:String(regionEl ? regionEl.value : (formData.iqc_cards[i] && formData.iqc_cards[i].regionCode) || "").trim().toUpperCase()
@@ -4824,6 +4835,12 @@ function bindFramePairTableEvents(){
           showIqcError(index, `第${index + 1}筆集束 IQC 的 CTN 格式錯誤。CTN 固定 7 碼：前 2 碼英文、第 3–4 碼數字、第 5–6 碼英文、第 7 碼英數皆可。`);
           return false;
         }
+
+        const frameId = toUpperSafe(card.bundleFrameId || "").trim();
+        if(!frameId){
+          showIqcError(index, `第${index + 1}筆集束 IQC 請填寫集束框架編號。`);
+          return false;
+        }
       }
 
       if(type === "散支"){
@@ -5005,7 +5022,7 @@ function bindFramePairTableEvents(){
         }
       }
 
-      if(target.classList.contains("iqc-bundle-ctn") || target.classList.contains("iqc-transport-frame-ctn") || target.classList.contains("iqc-loose-ctn")){
+      if(target.classList.contains("iqc-bundle-ctn") || target.classList.contains("iqc-bundle-frame-id") || target.classList.contains("iqc-transport-frame-ctn") || target.classList.contains("iqc-loose-ctn")){
         const start = target.selectionStart;
         const end = target.selectionEnd;
         target.value = normalizeCTN(target.value);
