@@ -1,73 +1,59 @@
-// 43版：日報輸入端專用 deployment
-const API_URL = "https://script.google.com/macros/s/AKfycbwYjPR-mHy_UCRAAsvU84-3T_MMQcfKHX9PSR8Da7E2gQq3xVEcK0Fnz0JvrHaIHpem/exec";
+// 自動噴砂 CTN 流轉 BETA｜第二階段唯讀 API
+// 部署獨立 Apps Script Web App 後，將下方網址替換成新的 /exec URL。
+const BETA_API_URL = "https://script.google.com/macros/s/AKfycbw3Xg0ev3zoTO-WFfe7sTIUlr6wF4P-qAgZEZUF3uUhioT63bQYT-9QRgZqLU0IhB6G/exec";
+const BETA_API_TOKEN = "-M-yiaurzifieaJyYS4838MCYiuDh4wB";
 
-async function parseApiJsonResponse(res) {
-  const text = await res.text();
+function isBetaApiConfigured() {
+  return /^https:\/\/script\.google\.com\/macros\/s\/.+\/exec$/.test(
+    String(BETA_API_URL || "").trim()
+  );
+}
+
+async function parseBetaApiJsonResponse(response) {
+  const text = await response.text();
   let data = null;
+
   try {
     data = JSON.parse(text);
   } catch (err) {
-    throw new Error("API 回傳格式錯誤");
+    throw new Error("BETA API 回傳格式錯誤");
   }
 
-  if (!res.ok) {
-    throw new Error(data && data.message ? data.message : "API 請求失敗");
+  if (!response.ok || !data || data.ok !== true) {
+    throw new Error(data && data.message ? data.message : "BETA API 請求失敗");
   }
 
   return data;
 }
 
-async function submitDailyReportAPI(payload) {
-  const res = await fetch(API_URL, {
-    method: "POST",
-    headers: {
-      "Content-Type": "text/plain;charset=utf-8"
-    },
-    body: JSON.stringify(payload)
-  });
-
-  const result = await parseApiJsonResponse(res);
-
-  if (!result.ok) {
-    throw new Error(result.message || "送出失敗");
+async function fetchBetaApiHealth() {
+  if (!isBetaApiConfigured()) {
+    throw new Error("尚未設定 BETA_API_URL");
   }
 
-  return result;
+  const response = await fetch(`${BETA_API_URL}?api=health`, {
+    method: "GET",
+    cache: "no-store"
+  });
+
+  return parseBetaApiJsonResponse(response);
 }
 
-async function fetchProjectOptions() {
-  const res = await fetch(`${API_URL}?api=projects`, {
-    method: "GET"
-  });
-
-  const result = await parseApiJsonResponse(res);
-
-  if (!result.ok) {
-    throw new Error(result.message || "專案清單讀取失敗");
+async function fetchBetaCtnLookup(ctn) {
+  if (!isBetaApiConfigured()) {
+    throw new Error("尚未設定 BETA_API_URL，請先部署第二階段唯讀 Apps Script 並更新 api.js。");
   }
 
-  return Array.isArray(result.projects) ? result.projects : [];
-}
+  const normalizedCtn = String(ctn || "").trim().toUpperCase();
+  const url =
+    `${BETA_API_URL}?api=ctn_lookup` +
+    `&ctn=${encodeURIComponent(normalizedCtn)}` +
+    `&token=${encodeURIComponent(BETA_API_TOKEN)}`;
 
-async function validateSandblastPairsAPI(reportDate, ctnList) {
-  const res = await fetch(`${API_URL}?api=ctn_check`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "text/plain;charset=utf-8"
-    },
-    body: JSON.stringify({
-      date: reportDate || "",
-      ctnList: Array.isArray(ctnList) ? ctnList : []
-    })
+  const response = await fetch(url, {
+    method: "GET",
+    cache: "no-store"
   });
 
-  const result = await parseApiJsonResponse(res);
-
-  if (!result.ok) {
-    throw new Error(result.message || "CTN 重複驗證失敗");
-  }
-
-  return {
-    duplicates: Array.isArray(result.duplicates) ? result.duplicates : []
-  };
+  return parseBetaApiJsonResponse(response);
 }
