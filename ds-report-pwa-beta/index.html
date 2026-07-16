@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-  <title>鼎世日報系統｜自動噴砂 CTN 流轉 Beta v4</title>
+  <title>鼎世日報系統｜自動噴砂 CTN 流轉 Beta Stage 2</title>
   <style>
     *{ box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
     :root{
@@ -87,6 +87,7 @@
     }
     button:hover{ transform:translateY(-1px); filter:brightness(1.05); }
     button:active{ transform:translateY(1px) scale(.99); }
+    button:disabled{ opacity:.48; cursor:not-allowed; transform:none !important; filter:none !important; }
     button.secondary{ background:linear-gradient(135deg,rgba(71,111,182,.75),rgba(46,56,128,.92)); }
     button.danger{ background:linear-gradient(135deg,rgba(239,72,103,.88),rgba(190,41,90,.95)); }
     button.warning{ background:linear-gradient(135deg,rgba(246,177,48,.92),rgba(220,118,24,.95)); }
@@ -285,11 +286,11 @@
 <body>
   <main class="wrap">
     <h1 class="page-title">自動噴砂 CTN 流轉</h1>
-    <div class="sub-title">第一階段｜純前端互動流程 Beta</div>
+    <div class="sub-title">第二階段｜IQC_Log 唯讀反查 Beta</div>
 
     <section class="beta-banner">
-      <span class="beta-badge">BETA</span>
-      <div>此頁只測試操作流程。所有掃描結果均為測試資料，DCYL、轉 HT、換運輸框僅標記為「待提交動作」；<strong>不寫入 Response、不更新 IQC_Log、不異動 ERP，也不會改變任何正式 CTN 狀態。</strong></div>
+      <span class="beta-badge">BETA 2</span>
+      <div>掃描結果會透過獨立唯讀 API 查詢正式 <strong>IQC_Log</strong>。DCYL、轉 HT、換運輸框仍只保存在本機草稿，<strong>不寫入 Response、不更新 IQC_Log、不異動 ERP，也不會改變任何正式 CTN 狀態。</strong></div>
     </section>
 
     <section class="form-card">
@@ -301,19 +302,19 @@
         <label for="frameCount">選擇本次要掃描的框數</label>
         <select id="frameCount" class="count-select" aria-label="處理框數"></select>
       </div>
-      <div class="tip" style="margin-top:10px;">每一張卡代表一框。直接掃描運輸框架 CTN 或集束框架 CTN，畫面會依測試資料自動辨識型態，不需手動選擇集束／散支。</div>
+      <div class="tip" style="margin-top:10px;">每一張卡代表一框。直接掃描運輸框架 CTN 或集束框架 CTN，畫面會依 IQC_Log 的最新資料自動辨識型態，不需手動選擇集束／散支。</div>
     </section>
 
     <section class="form-card">
-      <details>
-        <summary>🧪 Beta 測試資料（點開看可掃描 CTN）</summary>
-        <div class="example-list">
-          <div class="example-row"><code>TF01AB1</code><span>運輸框架｜帶出 3 支散支鋼瓶</span></div>
-          <div class="example-row"><code>TF02AB2</code><span>運輸框架｜帶出 4 支散支鋼瓶</span></div>
-          <div class="example-row"><code>BU01CD1</code><span>集束｜帶出 RT、框架CTN、框架編號</span></div>
-          <div class="example-row"><code>BU02CD2</code><span>集束｜帶出另一組示範資料</span></div>
-        </div>
-      </details>
+      <div class="form-title-line">
+        <div class="form-title">🔌 唯讀資料來源</div>
+        <div id="apiStatus" class="count-text">檢查中...</div>
+      </div>
+      <div class="tip">資料來源為每日報表(AP)的 IQC_Log。運輸框架會讀取該框最新一張 IQC 卡片並帶出全部散支 CTN／RT；集束 CTN 會帶出最新 RT、區域及可用的框架編號。</div>
+      <div id="apiStatusMessage" class="mini-note">正在檢查 BETA API...</div>
+      <div class="btn-row">
+        <button type="button" class="ghost" onclick="checkBetaApiHealth()">重新檢查唯讀 API</button>
+      </div>
     </section>
 
     <div class="slider-stage">
@@ -343,7 +344,7 @@
 
     <section class="form-card">
       <div class="form-title">Beta 操作</div>
-      <div class="tip">「查看預計異動」只產生本次操作清單；「模擬送出」不會呼叫任何後端，僅確認畫面與送出節奏是否符合現場流程。</div>
+      <div class="tip">「查看預計異動」只整理本次待處理動作；「模擬送出」不會呼叫任何寫入 API，僅確認資料與送出節奏。</div>
       <div class="btn-row">
         <button type="button" class="secondary" onclick="openPreview()">查看預計異動</button>
         <button type="button" class="ghost" onclick="resetBetaDraft()">清除 Beta 草稿</button>
@@ -354,7 +355,7 @@
   <div id="previewModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="previewTitle">
     <div class="modal-panel">
       <h2 id="previewTitle" class="modal-title">預計異動總覽</h2>
-      <p class="modal-subtitle">以下僅為前端 Beta 模擬。第二階段才會開始接唯讀後端反查，第三階段才會正式寫入交易資料。</p>
+      <p class="modal-subtitle">以下資料已由 IQC_Log 唯讀反查，但異動仍只存在前端。第三階段才會正式寫入 CTN 交易資料。</p>
       <div id="modalSummary" class="modal-summary"></div>
       <div class="divider"></div>
       <div class="footer-actions">
@@ -364,48 +365,13 @@
     </div>
   </div>
 
+  <script src="./api.js"></script>
   <script>
-    const BETA_STORAGE_KEY = "ds_sandblast_ctn_flow_beta_stage1_v1";
+    const BETA_STORAGE_KEY = "ds_sandblast_ctn_flow_beta_stage2_v1";
     const CTN_RE = /^[A-Z]{2}\d{2}[A-Z]{2}[A-Z0-9]$/;
 
-    // 第一階段故意只使用 Mock 資料，完全不呼叫正式 API。
-    const MOCK_CTN_LOOKUP = {
-      "TF01AB1": {
-        kind: "transport",
-        transportFrameCtn: "TF01AB1",
-        region: "B6",
-        bottles: [
-          { ctn: "CY12AB1", rt: "113396" },
-          { ctn: "CY13AB2", rt: "113396" },
-          { ctn: "CY14AB3", rt: "6087036" }
-        ]
-      },
-      "TF02AB2": {
-        kind: "transport",
-        transportFrameCtn: "TF02AB2",
-        region: "B5-4",
-        bottles: [
-          { ctn: "CY21CD1", rt: "410908" },
-          { ctn: "CY22CD2", rt: "410908" },
-          { ctn: "CY23CD3", rt: "469510" },
-          { ctn: "CY24CD4", rt: "469510" }
-        ]
-      },
-      "BU01CD1": {
-        kind: "bundle",
-        bundleCtn: "BU01CD1",
-        rt: "6087036",
-        frameId: "H2-TEST-01",
-        region: "C1"
-      },
-      "BU02CD2": {
-        kind: "bundle",
-        bundleCtn: "BU02CD2",
-        rt: "145618",
-        frameId: "MNT1-TEST-02",
-        region: "B5-2"
-      }
-    };
+    // 第二階段只透過獨立 BETA API 唯讀查詢 IQC_Log；不提供任何寫入能力。
+    let lookupRequestSeq = 0;
 
     let betaState = { frameCount: 1, cards: [] };
     let activeFrameIndex = 0;
@@ -430,12 +396,37 @@
         kind: "",
         lookupStatus: "",
         error: "",
+        loading: false,
+        lookupRequestId: "",
         transportFrameCtn: "",
         replacementTransportFrameCtn: "",
         region: "",
+        regionCode: "",
+        regionName: "",
+        source: null,
+        warnings: [],
         bottles: [],
         bundle: null
       };
+    }
+
+    function clearCardLookupData(card, preserveScannedCtn = true){
+      const scannedCtn = preserveScannedCtn ? String(card.scannedCtn || "") : "";
+      card.scannedCtn = scannedCtn;
+      card.kind = "";
+      card.lookupStatus = "";
+      card.error = "";
+      card.loading = false;
+      card.lookupRequestId = "";
+      card.transportFrameCtn = "";
+      card.replacementTransportFrameCtn = "";
+      card.region = "";
+      card.regionCode = "";
+      card.regionName = "";
+      card.source = null;
+      card.warnings = [];
+      card.bottles = [];
+      card.bundle = null;
     }
 
     function normalizeFrameCount(value){
@@ -472,6 +463,10 @@
         betaState.frameCount = normalizeFrameCount(parsed.frameCount || 1);
         betaState.cards = Array.isArray(parsed.cards) ? parsed.cards : [];
         ensureCardCount();
+        betaState.cards.forEach(function(card){
+          card.loading = false;
+          card.lookupRequestId = "";
+        });
       }catch(err){
         console.warn("Beta 草稿讀取失敗", err);
       }
@@ -607,17 +602,21 @@
     }
 
     function renderCard(card, index){
-      const kindPill = card.kind === "transport"
-        ? '<span class="pill transport">散支運輸框</span>'
-        : card.kind === "bundle"
-          ? '<span class="pill bundle">集束</span>'
-          : '<span class="pill">待掃描</span>';
-
-      const scanResult = !card.kind
-        ? '<div class="status-empty">掃描運輸框架 CTN 或集束框架 CTN 後，系統會以 Beta 測試資料自動帶出對應資訊。</div>'
+      const kindPill = card.loading
+        ? '<span class="pill">讀取中</span>'
         : card.kind === "transport"
-          ? renderTransportDetail(card, index)
-          : renderBundleDetail(card, index);
+          ? '<span class="pill transport">散支運輸框</span>'
+          : card.kind === "bundle"
+            ? '<span class="pill bundle">集束</span>'
+            : '<span class="pill">待掃描</span>';
+
+      const scanResult = card.loading
+        ? '<div class="status-empty">正在從 IQC_Log 讀取資料，請稍候...</div>'
+        : !card.kind
+          ? '<div class="status-empty">掃描運輸框架 CTN 或集束框架 CTN 後，系統會從 IQC_Log 自動帶出最新資料。</div>'
+          : card.kind === "transport"
+            ? renderTransportDetail(card, index)
+            : renderBundleDetail(card, index);
 
       const replacementValue = normalizeCTN(card.replacementTransportFrameCtn || "");
       const replacementInitialCheck = replacementValue
@@ -641,6 +640,10 @@
         `
         : "";
 
+      const warningHtml = Array.isArray(card.warnings) && card.warnings.length
+        ? card.warnings.map(item => `<div class="error">${escapeHtml(item)}</div>`).join("")
+        : "";
+
       return `
         <section id="frame-card-${index}" class="form-card frame-card">
           <div class="frame-title">
@@ -651,18 +654,33 @@
             <div class="ctn-entry-block">
               <label class="field-label" for="scan-ctn-${index}">掃描運輸框架／集束框架 CTN</label>
               <div class="scan-grid">
-                <input id="scan-ctn-${index}" class="form-input" value="${escapeHtml(card.scannedCtn)}" placeholder="掃描或輸入 CTN" autocomplete="off" inputmode="text" oninput="onScanInput(${index}, this.value)" onkeydown="onScanKeydown(event, ${index})">
-                <button type="button" onclick="lookupCard(${index})">帶入資料</button>
+                <input id="scan-ctn-${index}" class="form-input" value="${escapeHtml(card.scannedCtn)}" placeholder="掃描或輸入 CTN" autocomplete="off" inputmode="text" maxlength="7" ${card.loading ? "disabled" : ""} oninput="onScanInput(${index}, this.value)" onkeydown="onScanKeydown(event, ${index})">
+                <button type="button" ${card.loading ? "disabled" : ""} onclick="lookupCard(${index})">${card.loading ? "讀取中..." : "帶入資料"}</button>
               </div>
             </div>
             ${replacementControl}
           </div>
-          <div class="tip" style="margin-top:8px;">本階段可用測試碼：TF01AB1、TF02AB2、BU01CD1、BU02CD2。</div>
+          <div class="tip" style="margin-top:8px;">唯讀查詢 IQC_Log；同一 CTN 若有多筆紀錄，採最新一張 IQC 卡片。</div>
           ${card.error ? `<div class="error">${escapeHtml(card.error)}</div>` : ""}
           ${card.lookupStatus ? `<div class="success-note">${escapeHtml(card.lookupStatus)}</div>` : ""}
+          ${warningHtml}
           <div class="detail-panel">${scanResult}</div>
         </section>
       `;
+    }
+
+    function getRegionDisplay(card){
+      const code = String(card.regionCode || "").trim();
+      const name = String(card.regionName || "").trim();
+      if(code && name) return `${code}｜${name}`;
+      return code || name || "-";
+    }
+
+    function getSourceDisplay(card){
+      const source = card && card.source ? card.source : {};
+      const date = String(source.date || "").trim();
+      const createdAt = String(source.createdAt || "").trim();
+      return date || createdAt || "-";
     }
 
     function renderTransportDetail(card, cardIndex){
@@ -670,16 +688,20 @@
       return `
         <div class="detail-summary">
           <div class="data-box"><div class="k">目前運輸框架 CTN</div><div class="v">${escapeHtml(card.transportFrameCtn)}</div></div>
-          <div class="data-box"><div class="k">來源區域（模擬）</div><div class="v">${escapeHtml(card.region || "-")}</div></div>
+          <div class="data-box"><div class="k">來源區域</div><div class="v">${escapeHtml(getRegionDisplay(card))}</div></div>
+          <div class="data-box"><div class="k">IQC 資料日期</div><div class="v">${escapeHtml(getSourceDisplay(card))}</div></div>
+          <div class="data-box"><div class="k">資料來源</div><div class="v">IQC_Log（最新卡片）</div></div>
         </div>
         <div class="field-block">
           <div class="form-title-line" style="margin-bottom:8px;">
             <div class="field-label" style="margin:0;">散支鋼瓶清單</div>
             <div class="count-text">共 ${bottles.length} 支</div>
           </div>
-          <div class="mini-note" style="margin-bottom:10px;">每支鋼瓶直接使用右側按鈕標記 DCYL 或轉 HT；兩種狀態互斥，不再另外掃描一次鋼瓶 CTN。</div>
+          <div class="mini-note" style="margin-bottom:10px;">每支鋼瓶直接使用右側按鈕標記 DCYL 或轉 HT；兩種狀態互斥。這些標記仍只存在前端草稿。</div>
           <div class="bottle-list">
-            ${bottles.map((bottle, bottleIndex) => renderBottleRow(cardIndex, bottleIndex, bottle)).join("")}
+            ${bottles.length
+              ? bottles.map((bottle, bottleIndex) => renderBottleRow(cardIndex, bottleIndex, bottle)).join("")
+              : '<div class="status-empty">此運輸框最新 IQC 卡片沒有可用的散支 CTN／RT 配對，請先核對 IQC_Log。</div>'}
           </div>
         </div>
       `;
@@ -692,9 +714,12 @@
         dcyl ? '<span class="pill pending-dcyl">待 DCYL</span>' : "",
         ht ? '<span class="pill pending-ht">待轉 HT</span>' : ""
       ].join("");
+      const sequence = Number(bottle.sequence || 0) > 0
+        ? Number(bottle.sequence)
+        : bottleIndex + 1;
       return `
         <article class="bottle-row">
-          <div class="bottle-no">${bottleIndex + 1}</div>
+          <div class="bottle-no">${sequence}</div>
           <div class="bottle-main">
             <div class="bottle-ctn">${escapeHtml(bottle.ctn)}</div>
             <div class="bottle-rt">RT：${escapeHtml(bottle.rt || "-")} ${statePills}</div>
@@ -709,22 +734,37 @@
 
     function renderBundleDetail(card){
       const bundle = card.bundle || {};
+      const frameIdText = bundle.frameId
+        ? bundle.frameId
+        : (bundle.frameIdAvailable === false ? "IQC_Log 尚無欄位" : "未填寫");
       return `
         <div class="detail-summary">
           <div class="data-box"><div class="k">集束框架 CTN</div><div class="v">${escapeHtml(bundle.bundleCtn || card.scannedCtn)}</div></div>
           <div class="data-box"><div class="k">RT料號</div><div class="v">${escapeHtml(bundle.rt || "-")}</div></div>
-          <div class="data-box"><div class="k">框架編號</div><div class="v">${escapeHtml(bundle.frameId || "待第二階段接正式資料")}</div></div>
-          <div class="data-box"><div class="k">來源區域（模擬）</div><div class="v">${escapeHtml(bundle.region || card.region || "-")}</div></div>
+          <div class="data-box"><div class="k">框架編號</div><div class="v">${escapeHtml(frameIdText)}</div></div>
+          <div class="data-box"><div class="k">來源區域</div><div class="v">${escapeHtml(getRegionDisplay(card))}</div></div>
+          <div class="data-box"><div class="k">IQC 資料日期</div><div class="v">${escapeHtml(getSourceDisplay(card))}</div></div>
+          <div class="data-box"><div class="k">資料來源</div><div class="v">IQC_Log（最新紀錄）</div></div>
         </div>
-        <div class="mini-note">掃描到的集束 CTN 本身就是框架 CTN，因此只顯示一次；本階段只驗證自動帶出 RT 與框架編號的操作節奏。</div>
+        <div class="mini-note">掃描到的集束 CTN 本身就是框架 CTN，因此只顯示一次。框架編號若尚未存在於 IQC_Log，系統會明確標示，不會自行猜測。</div>
       `;
     }
 
     function onScanInput(index, value){
       const card = getCard(index);
-      card.scannedCtn = normalizeCTN(value);
-      card.error = "";
-      card.lookupStatus = "";
+      const normalized = normalizeCTN(value).slice(0, 7);
+      const changed = normalized !== normalizeCTN(card.scannedCtn || "");
+      card.scannedCtn = normalized;
+
+      if(changed && card.kind){
+        clearCardLookupData(card, true);
+        card.scannedCtn = normalized;
+      }else{
+        card.error = "";
+        card.lookupStatus = "";
+        card.warnings = [];
+      }
+
       saveBetaDraft();
     }
 
@@ -735,12 +775,13 @@
       }
     }
 
-    function lookupCard(index){
+    async function lookupCard(index){
       const card = getCard(index);
       const ctn = normalizeCTN(card.scannedCtn);
       card.scannedCtn = ctn;
       card.error = "";
       card.lookupStatus = "";
+      card.warnings = [];
 
       if(!ctn){
         card.error = "請先掃描或輸入 CTN。";
@@ -753,46 +794,105 @@
         return;
       }
 
-      const duplicateCard = betaState.cards.find((item, itemIndex) => itemIndex !== index && String(item.scannedCtn || "") === ctn);
+      const duplicateCard = betaState.cards.find((item, itemIndex) =>
+        itemIndex !== index && normalizeCTN(item.scannedCtn || "") === ctn
+      );
       if(duplicateCard){
         card.error = `此 CTN 已在第 ${duplicateCard.index + 1} 框掃描，Beta 不允許同次重複帶入。`;
         renderAll();
         return;
       }
 
-      const record = MOCK_CTN_LOOKUP[ctn];
-      if(!record){
-        card.kind = "";
-        card.transportFrameCtn = "";
-        card.replacementTransportFrameCtn = "";
-        card.region = "";
-        card.bottles = [];
-        card.bundle = null;
-        card.error = `測試資料庫找不到 ${ctn}。第一階段只支援畫面上列出的 Beta 測試碼；第二階段才會接 IQC_Log 唯讀反查。`;
-        renderAll();
-        return;
-      }
-
-      if(record.kind === "transport"){
-        card.kind = "transport";
-        card.transportFrameCtn = record.transportFrameCtn;
-        card.region = record.region || "";
-        card.replacementTransportFrameCtn = "";
-        card.bundle = null;
-        card.bottles = safeClone(record.bottles).map(item => Object.assign({}, item, { pendingDcyl:false, pendingHt:false }));
-        card.lookupStatus = `已模擬帶入 ${card.bottles.length} 支散支鋼瓶。`;
-      }else{
-        card.kind = "bundle";
-        card.transportFrameCtn = "";
-        card.replacementTransportFrameCtn = "";
-        card.region = record.region || "";
-        card.bottles = [];
-        card.bundle = safeClone(record);
-        card.lookupStatus = "已模擬帶入集束框架 CTN、RT 與框架編號。";
-      }
-
-      saveBetaDraft();
+      const requestId = `lookup_${Date.now()}_${++lookupRequestSeq}`;
+      clearCardLookupData(card, true);
+      card.scannedCtn = ctn;
+      card.loading = true;
+      card.lookupRequestId = requestId;
+      card.lookupStatus = "正在從 IQC_Log 讀取...";
       renderAll();
+
+      try{
+        const result = await fetchBetaCtnLookup(ctn);
+        const currentCard = getCard(index);
+
+        // 使用者等待期間若已修改 CTN 或重新發出查詢，舊回應不得覆蓋新狀態。
+        if(currentCard.lookupRequestId !== requestId || normalizeCTN(currentCard.scannedCtn) !== ctn){
+          return;
+        }
+
+        currentCard.loading = false;
+        currentCard.lookupRequestId = "";
+        currentCard.lookupStatus = "";
+        currentCard.error = "";
+        currentCard.warnings = Array.isArray(result.warnings)
+          ? result.warnings.map(item => String(item || "").trim()).filter(Boolean)
+          : [];
+
+        if(!result.found || !result.record){
+          clearCardLookupData(currentCard, true);
+          currentCard.scannedCtn = ctn;
+          currentCard.error = result.message || `IQC_Log 找不到 CTN：${ctn}`;
+          saveBetaDraft();
+          renderAll();
+          return;
+        }
+
+        const record = result.record;
+        currentCard.source = {
+          date: record.sourceDate || "",
+          createdAt: record.sourceCreatedAt || "",
+          submissionId: record.sourceSubmissionId || "",
+          cardId: record.sourceCardId || ""
+        };
+        currentCard.regionCode = record.regionCode || "";
+        currentCard.regionName = record.regionName || "";
+        currentCard.region = getRegionDisplay(currentCard);
+        currentCard.replacementTransportFrameCtn = "";
+
+        if(record.kind === "transport"){
+          currentCard.kind = "transport";
+          currentCard.transportFrameCtn = normalizeCTN(record.transportFrameCtn || ctn);
+          currentCard.bundle = null;
+          currentCard.bottles = (Array.isArray(record.bottles) ? record.bottles : []).map(function(item, bottleIndex){
+            return {
+              sequence: Number(item.sequence || 0) || bottleIndex + 1,
+              ctn: normalizeCTN(item.ctn || ""),
+              rt: String(item.rt || "").trim(),
+              pendingDcyl: false,
+              pendingHt: false
+            };
+          });
+          currentCard.lookupStatus = `已從 IQC_Log 帶入 ${currentCard.bottles.length} 支散支鋼瓶。`;
+        }else if(record.kind === "bundle"){
+          currentCard.kind = "bundle";
+          currentCard.transportFrameCtn = "";
+          currentCard.bottles = [];
+          currentCard.bundle = {
+            bundleCtn: normalizeCTN(record.bundleCtn || ctn),
+            rt: String(record.rt || "").trim(),
+            frameId: String(record.frameId || "").trim(),
+            frameIdAvailable: record.frameIdAvailable !== false,
+            region: currentCard.region
+          };
+          currentCard.lookupStatus = "已從 IQC_Log 帶入集束框架 CTN、RT 與區域。";
+        }else{
+          clearCardLookupData(currentCard, true);
+          currentCard.scannedCtn = ctn;
+          currentCard.error = "BETA API 回傳未知資料型態，請檢查後端版本。";
+        }
+
+        saveBetaDraft();
+        renderAll();
+      }catch(err){
+        const currentCard = getCard(index);
+        if(currentCard.lookupRequestId !== requestId) return;
+
+        clearCardLookupData(currentCard, true);
+        currentCard.scannedCtn = ctn;
+        currentCard.error = err && err.message ? err.message : "IQC_Log 反查失敗";
+        saveBetaDraft();
+        renderAll();
+      }
     }
 
     function onReplacementInput(cardIndex, inputOrValue){
@@ -1002,8 +1102,27 @@
         alert("目前仍有 CTN 或換框資料錯誤，請返回調整後再模擬送出。");
         return;
       }
-      alert(`Beta 模擬送出完成。\n\n選擇 ${stats.selected} 框；有效 ${stats.filledIndexes.length} 框；空白 ${stats.emptyIndexes.length} 框（略過）。\n本次共 ${rows.length} 項待提交動作。\n\n提醒：第一階段沒有任何資料寫入後端、Response、IQC_Log 或 ERP。`);
+      alert(`Beta 模擬送出完成。\n\n選擇 ${stats.selected} 框；有效 ${stats.filledIndexes.length} 框；空白 ${stats.emptyIndexes.length} 框（略過）。\n本次共 ${rows.length} 項待提交動作。\n\n提醒：第二階段只讀取 IQC_Log；本次 DCYL、轉 HT、換框仍未寫入 Response、IQC_Log 或 ERP。`);
       closePreview();
+    }
+
+    async function checkBetaApiHealth(){
+      const status = document.getElementById("apiStatus");
+      const message = document.getElementById("apiStatusMessage");
+
+      if(status) status.textContent = "檢查中...";
+      if(message) message.textContent = "正在連線第二階段唯讀 API...";
+
+      try{
+        const result = await fetchBetaApiHealth();
+        if(status) status.textContent = "唯讀 API 正常";
+        if(message) message.textContent = result.message || "可開始掃描 IQC_Log 中的運輸框架或集束 CTN。";
+      }catch(err){
+        if(status) status.textContent = "尚未連線";
+        if(message) message.textContent = err && err.message
+          ? err.message
+          : "BETA API 連線失敗，請檢查 api.js 與 Apps Script 部署。";
+      }
     }
 
     window.addEventListener("DOMContentLoaded", function(){
@@ -1012,6 +1131,7 @@
       setupCountSelect();
       renderAll();
       setupSliderNavigation();
+      checkBetaApiHealth();
     });
   </script>
 </body>
