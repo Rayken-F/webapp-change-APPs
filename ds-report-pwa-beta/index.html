@@ -230,6 +230,84 @@
     .bottle-rt{ color:var(--text-sub); font-size:13px; font-weight:800; margin-top:4px; }
     .bottle-actions{ display:flex; gap:7px; align-items:center; flex-wrap:wrap; justify-content:flex-end; }
     .bottle-actions button{ min-width:66px; padding:9px 10px; font-size:12px; }
+
+    .bundle-action-panel{
+      margin-top:14px;
+      padding:13px;
+      border-radius:16px;
+      background:rgba(140,123,255,.075);
+      border:1px solid rgba(183,171,255,.22);
+    }
+    .bundle-action-header{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:10px;
+      flex-wrap:wrap;
+    }
+    .bundle-action-buttons{
+      display:flex;
+      gap:8px;
+      flex-wrap:wrap;
+    }
+    .bundle-action-buttons button{ min-width:88px; }
+    .bundle-dcyl-options{
+      display:grid;
+      grid-template-columns:repeat(2,minmax(0,1fr));
+      gap:10px;
+      margin-top:12px;
+      padding-top:12px;
+      border-top:1px solid rgba(231,238,255,.13);
+    }
+    .bundle-choice{
+      width:100%;
+      min-height:52px;
+      text-align:left;
+      background:rgba(255,255,255,.065);
+      border:1px solid rgba(255,255,255,.13);
+      box-shadow:none;
+    }
+    .bundle-choice.active{
+      background:linear-gradient(135deg,rgba(239,72,103,.30),rgba(190,41,90,.24));
+      border-color:rgba(255,158,172,.58);
+    }
+    .bundle-partial-wrap{
+      grid-column:1 / -1;
+      padding:12px;
+      border-radius:14px;
+      background:rgba(255,255,255,.045);
+      border:1px solid rgba(255,255,255,.10);
+    }
+    .bundle-qty-row{
+      display:grid;
+      grid-template-columns:minmax(0,1fr) auto;
+      gap:10px;
+      align-items:center;
+    }
+    .bundle-qty-limit{
+      color:var(--text-sub);
+      font-size:13px;
+      font-weight:900;
+      white-space:nowrap;
+    }
+    .bundle-spec{
+      margin-top:8px;
+      color:var(--text-soft);
+      font-size:12px;
+      line-height:1.55;
+    }
+    .bundle-flow-display{
+      margin-top:10px;
+      padding:10px 12px;
+      border-radius:13px;
+      background:rgba(69,163,255,.07);
+      border:1px solid rgba(126,190,255,.20);
+      color:#dce9ff;
+      font-size:13px;
+      font-weight:900;
+      word-break:break-all;
+    }
+
     .mini-note{ margin:9px 0 0; color:var(--text-soft); font-size:12px; line-height:1.55; }
     .error{ margin-top:10px; color:#ffb4c0; font-size:13px; font-weight:900; line-height:1.55; }
     .inline-error{
@@ -277,6 +355,8 @@
       .bottle-row{ grid-template-columns:auto minmax(0,1fr); }
       .bottle-actions{ grid-column:1 / -1; justify-content:stretch; }
       .bottle-actions button{ flex:1; }
+      .bundle-dcyl-options{ grid-template-columns:1fr; }
+      .bundle-qty-row{ grid-template-columns:1fr; }
       .footer-actions{ grid-template-columns:1fr; }
       .example-row{ align-items:flex-start; flex-direction:column; }
       .example-row span{ text-align:left; }
@@ -290,7 +370,7 @@
 
     <section class="beta-banner">
       <span class="beta-badge">BETA 2</span>
-      <div>掃描結果會透過獨立唯讀 API 查詢正式 <strong>IQC_Log</strong>。DCYL、轉 HT、換運輸框仍只保存在本機草稿，<strong>不寫入 Response、不更新 IQC_Log、不異動 ERP，也不會改變任何正式 CTN 狀態。</strong></div>
+      <div>掃描結果會透過獨立唯讀 API 查詢正式 <strong>IQC_Log</strong> 與 <strong>RT list</strong>。DCYL、轉 HT、換運輸框及待噴砂運輸框仍只保存在本機草稿，<strong>不寫入 Response、不更新 IQC_Log、不異動 ERP，也不會改變任何正式 CTN 狀態。</strong></div>
     </section>
 
     <section class="form-card">
@@ -310,7 +390,7 @@
         <div class="form-title">🔌 唯讀資料來源</div>
         <div id="apiStatus" class="count-text">檢查中...</div>
       </div>
-      <div class="tip">資料來源為每日報表(AP)的 IQC_Log。運輸框架會讀取該框最新一張 IQC 卡片並帶出全部散支 CTN／RT；集束 CTN 會帶出最新 RT、區域及可用的框架編號。</div>
+      <div class="tip">資料來源為每日報表(AP)的 IQC_Log。運輸框架會讀取該框最新一張 IQC 卡片並帶出全部散支 CTN／RT；集束 CTN 會帶出最新 RT、區域、框架編號，並從 RT list 的規格敘述解析集束鋼瓶數量上限。</div>
       <div id="apiStatusMessage" class="mini-note">正在檢查 BETA API...</div>
       <div class="btn-row">
         <button type="button" class="ghost" onclick="checkBetaApiHealth()">重新檢查唯讀 API</button>
@@ -367,7 +447,7 @@
 
   <script src="./api.js"></script>
   <script>
-    const BETA_STORAGE_KEY = "ds_sandblast_ctn_flow_beta_stage2_v1";
+    const BETA_STORAGE_KEY = "ds_sandblast_ctn_flow_beta_stage2_v2";
     const CTN_RE = /^[A-Z]{2}\d{2}[A-Z]{2}[A-Z0-9]$/;
 
     // 第二階段只透過獨立 BETA API 唯讀查詢 IQC_Log；不提供任何寫入能力。
@@ -400,6 +480,7 @@
         lookupRequestId: "",
         transportFrameCtn: "",
         replacementTransportFrameCtn: "",
+        bundleTransportFrameCtn: "",
         region: "",
         regionCode: "",
         regionName: "",
@@ -420,6 +501,7 @@
       card.lookupRequestId = "";
       card.transportFrameCtn = "";
       card.replacementTransportFrameCtn = "";
+      card.bundleTransportFrameCtn = "";
       card.region = "";
       card.regionCode = "";
       card.regionName = "";
@@ -629,7 +711,18 @@
         ? replacementInitialCheck.message.replace(`第 ${card.index + 1} 框的`, "")
         : "";
 
-      const replacementControl = card.kind === "transport"
+      const bundleTransportValue = normalizeCTN(card.bundleTransportFrameCtn || "");
+      const bundleTransportInitialCheck = bundleTransportValue
+        ? validatePendingBundleTransport(card)
+        : { ok:true, value:"", message:"" };
+      const bundleTransportInputClass = bundleTransportValue
+        ? (bundleTransportInitialCheck.ok ? " input-valid" : " input-invalid")
+        : "";
+      const bundleTransportInitialError = bundleTransportValue && !bundleTransportInitialCheck.ok
+        ? bundleTransportInitialCheck.message.replace(`第 ${card.index + 1} 框的`, "")
+        : "";
+
+      const secondaryCtnControl = card.kind === "transport"
         ? `
           <div class="ctn-entry-block replacement">
             <label class="field-label" for="replacement-${index}">更換後運輸框架 CTN（選填）</label>
@@ -638,7 +731,16 @@
             <div class="replacement-context">原框：<strong>${escapeHtml(card.transportFrameCtn || card.scannedCtn)}</strong> → 新框填在此處。格式需為 7 碼：前 2 英文、3–4 數字、5–6 英文、第 7 碼英數。</div>
           </div>
         `
-        : "";
+        : card.kind === "bundle"
+          ? `
+            <div class="ctn-entry-block replacement">
+              <label class="field-label" for="bundle-transport-${index}">待噴砂運輸框架 CTN</label>
+              <input id="bundle-transport-${index}" class="form-input${bundleTransportInputClass}" value="${escapeHtml(bundleTransportValue)}" placeholder="鋼瓶下框後的新運輸框架 CTN" autocomplete="off" inputmode="text" maxlength="7" aria-describedby="bundle-transport-error-${index}" oninput="onBundleTransportInput(${index}, this)" onblur="validateBundleTransportInput(${index}, true)">
+              <div id="bundle-transport-error-${index}" class="inline-error" aria-live="polite">${escapeHtml(bundleTransportInitialError)}</div>
+              <div class="replacement-context">原集束框架 CTN：<strong>${escapeHtml((card.bundle && card.bundle.bundleCtn) || card.scannedCtn)}</strong>。輸入後顯示為「運輸框架 CTN（集束框架 CTN）」。</div>
+            </div>
+          `
+          : "";
 
       const warningHtml = Array.isArray(card.warnings) && card.warnings.length
         ? card.warnings.map(item => `<div class="error">${escapeHtml(item)}</div>`).join("")
@@ -650,7 +752,7 @@
             <span>第 ${index + 1} 框</span>
             ${kindPill}
           </div>
-          <div class="ctn-entry-grid ${card.kind === "transport" ? "has-replacement" : ""}">
+          <div class="ctn-entry-grid ${card.kind ? "has-replacement" : ""}">
             <div class="ctn-entry-block">
               <label class="field-label" for="scan-ctn-${index}">掃描運輸框架／集束框架 CTN</label>
               <div class="scan-grid">
@@ -658,7 +760,7 @@
                 <button type="button" ${card.loading ? "disabled" : ""} onclick="lookupCard(${index})">${card.loading ? "讀取中..." : "帶入資料"}</button>
               </div>
             </div>
-            ${replacementControl}
+            ${secondaryCtnControl}
           </div>
           <div class="tip" style="margin-top:8px;">唯讀查詢 IQC_Log；同一 CTN 若有多筆紀錄，採最新一張 IQC 卡片。</div>
           ${card.error ? `<div class="error">${escapeHtml(card.error)}</div>` : ""}
@@ -732,21 +834,82 @@
       `;
     }
 
-    function renderBundleDetail(card){
+    function renderBundleDetail(card, cardIndex){
       const bundle = card.bundle || {};
       const frameIdText = bundle.frameId
         ? bundle.frameId
         : (bundle.frameIdAvailable === false ? "IQC_Log 尚無欄位" : "未填寫");
+      const capacity = Number(bundle.bundleCylinderCount || 0);
+      const capacityAvailable = capacity > 0;
+      const dcylMode = String(bundle.pendingDcylMode || "");
+      const pendingHt = bundle.pendingHt === true;
+      const partialQty = String(bundle.pendingDcylQty || "");
+      const transportCtn = normalizeCTN(card.bundleTransportFrameCtn || "");
+      const flowDisplay = transportCtn
+        ? `${transportCtn}（${bundle.bundleCtn || card.scannedCtn}）`
+        : "尚未輸入待噴砂運輸框架 CTN";
+      const statePills = [
+        dcylMode === "all" ? '<span class="pill pending-dcyl">整框待 DCYL</span>' : "",
+        dcylMode === "partial" ? `<span class="pill pending-dcyl">部分待 DCYL ${escapeHtml(partialQty || "?")} 支</span>` : "",
+        pendingHt ? '<span class="pill pending-ht">待轉 HT</span>' : ""
+      ].join("");
+
       return `
         <div class="detail-summary">
           <div class="data-box"><div class="k">集束框架 CTN</div><div class="v">${escapeHtml(bundle.bundleCtn || card.scannedCtn)}</div></div>
           <div class="data-box"><div class="k">RT料號</div><div class="v">${escapeHtml(bundle.rt || "-")}</div></div>
           <div class="data-box"><div class="k">框架編號</div><div class="v">${escapeHtml(frameIdText)}</div></div>
           <div class="data-box"><div class="k">來源區域</div><div class="v">${escapeHtml(getRegionDisplay(card))}</div></div>
+          <div class="data-box"><div class="k">集束鋼瓶數量上限</div><div class="v">${capacityAvailable ? `${capacity} 支` : "RT list 未解析"}</div></div>
+          <div class="data-box"><div class="k">RT 規格來源</div><div class="v">${escapeHtml(bundle.bundleCapacityPattern || bundle.rtDescription || "-")}</div></div>
           <div class="data-box"><div class="k">IQC 資料日期</div><div class="v">${escapeHtml(getSourceDisplay(card))}</div></div>
-          <div class="data-box"><div class="k">資料來源</div><div class="v">IQC_Log（最新紀錄）</div></div>
+          <div class="data-box"><div class="k">資料來源</div><div class="v">IQC_Log ＋ RT list（唯讀）</div></div>
         </div>
-        <div class="mini-note">掃描到的集束 CTN 本身就是框架 CTN，因此只顯示一次。框架編號若尚未存在於 IQC_Log，系統會明確標示，不會自行猜測。</div>
+
+        <div class="bundle-flow-display">噴砂流轉顯示：${escapeHtml(flowDisplay)}</div>
+
+        <div class="bundle-action-panel">
+          <div class="bundle-action-header">
+            <div>
+              <div class="field-label" style="margin:0;">集束流轉動作 ${statePills}</div>
+              <div class="mini-note">DCYL 與轉 HT 互斥；第二階段仍只記在前端草稿。</div>
+            </div>
+            <div class="bundle-action-buttons">
+              <button type="button" class="${dcylMode ? "danger" : "ghost"}" onclick="toggleBundleDcylPanel(${cardIndex})">${dcylMode ? "取消 DCYL" : "DCYL"}</button>
+              <button type="button" class="${pendingHt ? "warning" : "ghost"}" onclick="toggleBundleHt(${cardIndex})">${pendingHt ? "取消 HT" : "轉 HT"}</button>
+            </div>
+          </div>
+
+          ${bundle.dcylPanelOpen || dcylMode ? `
+            <div class="bundle-dcyl-options">
+              <button type="button" class="bundle-choice ${dcylMode === "all" ? "active" : ""}" onclick="setBundleDcylMode(${cardIndex}, 'all')">
+                整框鋼瓶報廢${capacityAvailable ? `（${capacity} 支）` : ""}
+              </button>
+              <button type="button" class="bundle-choice ${dcylMode === "partial" ? "active" : ""}" ${capacityAvailable ? "" : "disabled"} onclick="setBundleDcylMode(${cardIndex}, 'partial')">
+                部分報廢
+              </button>
+
+              ${dcylMode === "partial" ? `
+                <div class="bundle-partial-wrap">
+                  <label class="field-label" for="bundle-dcyl-qty-${cardIndex}">部分報廢數量</label>
+                  <div class="bundle-qty-row">
+                    <input id="bundle-dcyl-qty-${cardIndex}" class="form-input" value="${escapeHtml(partialQty)}" placeholder="輸入報廢支數" inputmode="numeric" pattern="[0-9]*" oninput="onBundleDcylQtyInput(${cardIndex}, this)">
+                    <div class="bundle-qty-limit">最多 ${capacity} 支</div>
+                  </div>
+                  <div id="bundle-dcyl-qty-error-${cardIndex}" class="inline-error">${escapeHtml(validateBundleDcylSelection(card).message || "")}</div>
+                </div>
+              ` : ""}
+            </div>
+          ` : ""}
+
+          <div class="bundle-spec">
+            ${capacityAvailable
+              ? `RT ${escapeHtml(bundle.rt || "-")} 從 RT list 解析到 ${escapeHtml(bundle.bundleCapacityPattern || "")}，因此集束鋼瓶數量上限為 ${capacity} 支。`
+              : `尚未從 RT list 解析到集束鋼瓶數量；為避免亂填，部分報廢功能已停用。整框報廢仍可先測試操作節奏。`}
+          </div>
+        </div>
+
+        <div class="mini-note">掃描到的集束 CTN 本身就是原集束框架 CTN，不會被待噴砂運輸框架 CTN 覆蓋。</div>
       `;
     }
 
@@ -867,14 +1030,24 @@
           currentCard.kind = "bundle";
           currentCard.transportFrameCtn = "";
           currentCard.bottles = [];
+          currentCard.bundleTransportFrameCtn = "";
           currentCard.bundle = {
             bundleCtn: normalizeCTN(record.bundleCtn || ctn),
             rt: String(record.rt || "").trim(),
             frameId: String(record.frameId || "").trim(),
             frameIdAvailable: record.frameIdAvailable !== false,
-            region: currentCard.region
+            region: currentCard.region,
+            rtDescription: String(record.rtDescription || "").trim(),
+            bundleCylinderCount: Number(record.bundleCylinderCount || 0),
+            bundleCapacityPattern: String(record.bundleCapacityPattern || "").trim(),
+            bundleCapacityAvailable: record.bundleCapacityAvailable === true || Number(record.bundleCylinderCount || 0) > 0,
+            rtListRowNumber: Number(record.rtListRowNumber || 0),
+            dcylPanelOpen: false,
+            pendingDcylMode: "",
+            pendingDcylQty: "",
+            pendingHt: false
           };
-          currentCard.lookupStatus = "已從 IQC_Log 帶入集束框架 CTN、RT 與區域。";
+          currentCard.lookupStatus = "已從 IQC_Log 帶入集束框架 CTN、RT、框架編號與區域，並從 RT list 解析集束鋼瓶數量。";
         }else{
           clearCardLookupData(currentCard, true);
           currentCard.scannedCtn = ctn;
@@ -893,6 +1066,228 @@
         saveBetaDraft();
         renderAll();
       }
+    }
+
+    function onBundleTransportInput(cardIndex, inputOrValue){
+      const card = getCard(cardIndex);
+      const input = inputOrValue && typeof inputOrValue === "object"
+        ? inputOrValue
+        : document.getElementById(`bundle-transport-${cardIndex}`);
+      const rawValue = input && typeof input.value !== "undefined"
+        ? input.value
+        : inputOrValue;
+      const normalized = normalizeCTN(rawValue).slice(0, 7);
+
+      card.bundleTransportFrameCtn = normalized;
+      if(input && input.value !== normalized){
+        input.value = normalized;
+      }
+
+      validateBundleTransportInput(cardIndex, normalized.length >= 7);
+      saveBetaDraft();
+      renderDraftSummary();
+    }
+
+    function validateBundleTransportInput(cardIndex, forceShow){
+      const card = getCard(cardIndex);
+      const input = document.getElementById(`bundle-transport-${cardIndex}`);
+      const errorEl = document.getElementById(`bundle-transport-error-${cardIndex}`);
+      const value = normalizeCTN(card.bundleTransportFrameCtn || "");
+
+      if(!input || !errorEl) return true;
+
+      input.classList.remove("input-invalid", "input-valid");
+      errorEl.textContent = "";
+
+      if(!value) return true;
+      if(!forceShow && value.length < 7) return true;
+
+      const result = validatePendingBundleTransport(card);
+      if(!result.ok){
+        input.classList.add("input-invalid");
+        errorEl.textContent = result.message.replace(`第 ${card.index + 1} 框的`, "");
+        return false;
+      }
+
+      input.classList.add("input-valid");
+      return true;
+    }
+
+    function validatePendingBundleTransport(card){
+      const value = normalizeCTN(card.bundleTransportFrameCtn || "");
+      if(!value) return { ok:true, value:"" };
+      if(!isValidCTN(value)){
+        return {
+          ok:false,
+          message:`第 ${card.index + 1} 框的待噴砂運輸框架 CTN 格式錯誤：需為 7 碼，前 2 英文、3–4 數字、5–6 英文、第 7 碼英數。`
+        };
+      }
+      const bundleCtn = normalizeCTN(card.bundle && card.bundle.bundleCtn || card.scannedCtn || "");
+      if(value === bundleCtn){
+        return {
+          ok:false,
+          message:`第 ${card.index + 1} 框的待噴砂運輸框架 CTN 不可與原集束框架 CTN 相同。`
+        };
+      }
+      return { ok:true, value:value };
+    }
+
+    function getBundleCard(cardIndex){
+      const card = getCard(cardIndex);
+      if(card.kind !== "bundle" || !card.bundle) return null;
+      return card;
+    }
+
+    function toggleBundleDcylPanel(cardIndex){
+      const card = getBundleCard(cardIndex);
+      if(!card) return;
+      const bundle = card.bundle;
+
+      if(bundle.pendingDcylMode){
+        bundle.pendingDcylMode = "";
+        bundle.pendingDcylQty = "";
+        bundle.dcylPanelOpen = false;
+      }else{
+        bundle.dcylPanelOpen = !bundle.dcylPanelOpen;
+      }
+
+      if(bundle.dcylPanelOpen){
+        bundle.pendingHt = false;
+      }
+
+      saveBetaDraft();
+      renderAll();
+    }
+
+    function setBundleDcylMode(cardIndex, mode){
+      const card = getBundleCard(cardIndex);
+      if(!card) return;
+      const bundle = card.bundle;
+      const normalizedMode = mode === "partial" ? "partial" : "all";
+      const capacity = Number(bundle.bundleCylinderCount || 0);
+
+      if(normalizedMode === "partial" && !(capacity > 0)){
+        alert("RT list 尚未解析到此集束的鋼瓶數量，為避免亂填，部分報廢暫時不可使用。");
+        return;
+      }
+
+      bundle.pendingHt = false;
+      bundle.dcylPanelOpen = true;
+      bundle.pendingDcylMode = normalizedMode;
+
+      if(normalizedMode === "all"){
+        bundle.pendingDcylQty = capacity > 0 ? String(capacity) : "";
+      }else if(Number(bundle.pendingDcylQty || 0) > capacity){
+        bundle.pendingDcylQty = "";
+      }
+
+      saveBetaDraft();
+      renderAll();
+    }
+
+    function onBundleDcylQtyInput(cardIndex, inputOrValue){
+      const card = getBundleCard(cardIndex);
+      if(!card) return;
+      const input = inputOrValue && typeof inputOrValue === "object"
+        ? inputOrValue
+        : document.getElementById(`bundle-dcyl-qty-${cardIndex}`);
+      const raw = input && typeof input.value !== "undefined"
+        ? input.value
+        : inputOrValue;
+      const capacity = Number(card.bundle.bundleCylinderCount || 0);
+      let digits = String(raw || "").replace(/\D+/g, "");
+
+      if(digits){
+        const numeric = Number(digits);
+        if(capacity > 0 && numeric > capacity){
+          digits = String(capacity);
+        }
+      }
+
+      card.bundle.pendingDcylQty = digits;
+      if(input && input.value !== digits) input.value = digits;
+
+      const errorEl = document.getElementById(`bundle-dcyl-qty-error-${cardIndex}`);
+      if(errorEl){
+        errorEl.textContent = validateBundleDcylSelection(card).message || "";
+      }
+
+      saveBetaDraft();
+      renderDraftSummary();
+    }
+
+    function toggleBundleHt(cardIndex){
+      const card = getBundleCard(cardIndex);
+      if(!card) return;
+      const bundle = card.bundle;
+      bundle.pendingHt = !bundle.pendingHt;
+
+      if(bundle.pendingHt){
+        bundle.pendingDcylMode = "";
+        bundle.pendingDcylQty = "";
+        bundle.dcylPanelOpen = false;
+      }
+
+      saveBetaDraft();
+      renderAll();
+    }
+
+    function validateBundleDcylSelection(card){
+      if(!card || card.kind !== "bundle" || !card.bundle){
+        return { ok:true, mode:"", qty:0 };
+      }
+
+      const bundle = card.bundle;
+      const mode = String(bundle.pendingDcylMode || "");
+      const capacity = Number(bundle.bundleCylinderCount || 0);
+
+      if(!mode) return { ok:true, mode:"", qty:0 };
+
+      if(mode === "all"){
+        return {
+          ok:true,
+          mode:"all",
+          qty:capacity > 0 ? capacity : 0
+        };
+      }
+
+      if(mode === "partial"){
+        if(!(capacity > 0)){
+          return {
+            ok:false,
+            mode:"partial",
+            qty:0,
+            message:`第 ${card.index + 1} 框的 RT list 尚未解析到集束鋼瓶數量，部分報廢不可送出。`
+          };
+        }
+
+        const qty = Number(bundle.pendingDcylQty || 0);
+        if(!Number.isInteger(qty) || qty < 1){
+          return {
+            ok:false,
+            mode:"partial",
+            qty:0,
+            message:`第 ${card.index + 1} 框的部分報廢數量至少要輸入 1 支。`
+          };
+        }
+        if(qty > capacity){
+          return {
+            ok:false,
+            mode:"partial",
+            qty:qty,
+            message:`第 ${card.index + 1} 框的部分報廢數量不可超過 ${capacity} 支。`
+          };
+        }
+
+        return { ok:true, mode:"partial", qty:qty };
+      }
+
+      return {
+        ok:false,
+        mode:mode,
+        qty:0,
+        message:`第 ${card.index + 1} 框的 DCYL 模式不正確。`
+      };
     }
 
     function onReplacementInput(cardIndex, inputOrValue){
@@ -998,6 +1393,55 @@
             }
           });
         }
+
+        if(card.kind === "bundle" && card.bundle){
+          const bundle = card.bundle;
+          const bundleCtn = normalizeCTN(bundle.bundleCtn || card.scannedCtn || "");
+          const transportCheck = validatePendingBundleTransport(card);
+          const dcylCheck = validateBundleDcylSelection(card);
+
+          if(!transportCheck.ok){
+            rows.push({
+              type:"error",
+              title:`第 ${card.index + 1} 框：待噴砂運輸框資料待修正`,
+              detail:transportCheck.message
+            });
+          }else if(transportCheck.value){
+            rows.push({
+              type:"bundle_transport",
+              title:`第 ${card.index + 1} 框：待轉入噴砂運輸框`,
+              detail:`${transportCheck.value}（${bundleCtn}）`
+            });
+          }
+
+          if(!dcylCheck.ok){
+            rows.push({
+              type:"error",
+              title:`第 ${card.index + 1} 框：集束 DCYL 資料待修正`,
+              detail:dcylCheck.message
+            });
+          }else if(dcylCheck.mode === "all"){
+            rows.push({
+              type:"dcyl",
+              title:`第 ${card.index + 1} 框：整框鋼瓶待轉 DCYL`,
+              detail:`集束 CTN ${bundleCtn}｜RT ${bundle.rt || "-"}${dcylCheck.qty ? `｜${dcylCheck.qty} 支` : ""}`
+            });
+          }else if(dcylCheck.mode === "partial"){
+            rows.push({
+              type:"dcyl",
+              title:`第 ${card.index + 1} 框：部分鋼瓶待轉 DCYL`,
+              detail:`集束 CTN ${bundleCtn}｜RT ${bundle.rt || "-"}｜${dcylCheck.qty}／${bundle.bundleCylinderCount} 支`
+            });
+          }
+
+          if(bundle.pendingHt === true){
+            rows.push({
+              type:"ht",
+              title:`第 ${card.index + 1} 框：集束待轉 HT`,
+              detail:`集束 CTN ${bundleCtn}｜RT ${bundle.rt || "-"}`
+            });
+          }
+        }
       });
       return rows;
     }
@@ -1078,7 +1522,7 @@
         contentRows = rows.map(row => ({ title:row.title, detail:row.detail }));
       }else if(!rows.length){
         contentRows = [{
-          title:"已帶入資料，但尚未選擇 DCYL、轉 HT 或換運輸框。",
+          title:"已帶入資料，但尚未選擇 DCYL、轉 HT、換運輸框或待噴砂運輸框。",
           detail:"這是正常情況；你可以回到卡片測試按鈕操作。"
         }];
       }else{
