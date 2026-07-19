@@ -4639,8 +4639,16 @@ function bindFramePairTableEvents(){
     return { ctn:"", rtNo:"" };
   }
 
+  /**
+   * IQC RT 條碼正規化：
+   * - 掃描 RT123456 時，畫面與 payload 只保留 123456。
+   * - 手動輸入仍只保留數字。
+   * - 「RT」僅是條碼前綴，不會寫入 IQC_Log。
+   */
   function normalizeIqcRtNo(value){
-    return String(value || "").replace(/\D/g, "");
+    const raw = String(value || "").trim().toUpperCase();
+    const withoutBarcodePrefix = raw.replace(/^RT(?=\d)/, "");
+    return withoutBarcodePrefix.replace(/\D/g, "");
   }
 
   function isValidIqcRtNo(value){
@@ -4795,7 +4803,7 @@ function bindFramePairTableEvents(){
       <tr>
         <td class="iqc-pair-sequence-cell"><span class="iqc-pair-sequence-badge">第${pairIndex + 1}支鋼瓶</span></td>
         <td><input type="text" class="pair-table-input iqc-loose-ctn" data-iqc-card-index="${index}" data-iqc-pair-index="${pairIndex}" value="${escapeAttribute(normalizeCTN(pair.ctn || ""))}" placeholder="散支 CTN" autocapitalize="characters" autocomplete="off"></td>
-        <td><input type="text" class="pair-table-input iqc-loose-rt" data-iqc-card-index="${index}" data-iqc-pair-index="${pairIndex}" value="${escapeAttribute(normalizeIqcRtNo(pair.rtNo || ""))}" placeholder="數字 RT料號" inputmode="numeric" pattern="[0-9]*" autocomplete="off"></td>
+        <td><input type="text" class="pair-table-input iqc-loose-rt" data-iqc-card-index="${index}" data-iqc-pair-index="${pairIndex}" value="${escapeAttribute(normalizeIqcRtNo(pair.rtNo || ""))}" placeholder="可掃 RT123456，自動保留 123456" inputmode="text" autocapitalize="characters" autocomplete="off" spellcheck="false"></td>
       </tr>
     `).join("");
   }
