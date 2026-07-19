@@ -1323,13 +1323,257 @@ user-scalable=no">
       content:"對應 RT料號";
     }
 
-    .iqc-pair-table td:nth-child(4)::before{
-      display:none;
+  }
+
+
+
+  /* IQC 正式版：散支快捷工具列、刪除選擇器與側滑卡片動態高度。 */
+  #iqcCardsContainer{
+    align-items:flex-start;
+    height:auto;
+    overflow-y:hidden;
+    transition:height .22s ease;
+    scroll-behavior:smooth;
+  }
+
+  #iqcCardsContainer .iqc-card{
+    align-self:flex-start;
+    height:auto;
+  }
+
+  #iqcCardsContainer .iqc-card.iqc-card-active{
+    border-color:rgba(216,225,255,0.46);
+  }
+
+  .iqc-quick-dock{
+    position:fixed;
+    right:14px;
+    bottom:calc(env(safe-area-inset-bottom, 0px) + 96px);
+    z-index:1700;
+    display:none;
+    align-items:center;
+    gap:9px;
+    padding:9px 9px 9px 7px;
+    border:1px solid rgba(186,203,255,0.42);
+    border-radius:24px;
+    background:
+      linear-gradient(145deg, rgba(43,54,139,0.90), rgba(24,31,91,0.96)),
+      radial-gradient(circle at 100% 0, rgba(151,128,255,0.24), transparent 58%);
+    box-shadow:
+      0 18px 42px rgba(8,13,55,0.48),
+      inset 0 0 0 1px rgba(255,255,255,0.08);
+    backdrop-filter:blur(14px);
+    -webkit-backdrop-filter:blur(14px);
+    transition:right .22s ease, width .22s ease, padding .22s ease, border-radius .22s ease;
+  }
+
+  .iqc-quick-dock.show{
+    display:flex;
+  }
+
+  .iqc-quick-stack{
+    display:flex;
+    flex-direction:column;
+    gap:12px;
+    overflow:hidden;
+    max-width:52px;
+    opacity:1;
+    transform:translateX(0);
+    transition:max-width .22s ease, opacity .16s ease, transform .22s ease, gap .22s ease;
+  }
+
+  .iqc-quick-action{
+    width:50px;
+    height:50px;
+    min-width:50px;
+    padding:0;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    border-radius:999px;
+    border:1px solid rgba(216,225,255,0.42);
+    color:#ffffff;
+    font-size:22px;
+    font-weight:900;
+    line-height:1;
+    background:linear-gradient(145deg, rgba(113,95,255,0.96), rgba(64,72,210,0.96));
+    box-shadow:
+      0 10px 24px rgba(40,30,135,0.30),
+      inset 0 2px 0 rgba(255,255,255,0.16);
+  }
+
+  .iqc-quick-action.iqc-delete-action{
+    font-size:17px;
+    background:linear-gradient(145deg, rgba(74,91,178,0.94), rgba(40,52,132,0.98));
+  }
+
+  .iqc-quick-action:disabled{
+    cursor:not-allowed;
+    opacity:.38;
+    transform:none;
+  }
+
+  .iqc-quick-toggle{
+    width:30px;
+    height:48px;
+    min-width:30px;
+    padding:0;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    border-radius:15px;
+    border:1px solid rgba(193,204,255,0.48);
+    color:#ffffff;
+    font-size:22px;
+    line-height:1;
+    background:linear-gradient(180deg, rgba(83,92,206,0.98), rgba(42,51,136,0.98));
+    box-shadow:inset 0 0 0 1px rgba(255,255,255,0.08);
+  }
+
+  .iqc-quick-dock.collapsed{
+    right:0;
+    width:32px;
+    padding:1px 0 1px 2px;
+    border-right:none;
+    border-radius:16px 0 0 16px;
+  }
+
+  .iqc-quick-dock.collapsed .iqc-quick-stack{
+    max-width:0;
+    gap:0;
+    opacity:0;
+    transform:translateX(56px);
+    pointer-events:none;
+  }
+
+  .iqc-delete-overlay{
+    position:fixed;
+    inset:0;
+    z-index:1800;
+    display:none;
+    align-items:center;
+    justify-content:center;
+    padding:18px;
+    background:rgba(3,8,34,0.72);
+    backdrop-filter:blur(5px);
+    -webkit-backdrop-filter:blur(5px);
+  }
+
+  .iqc-delete-overlay.show{
+    display:flex;
+  }
+
+  .iqc-delete-panel{
+    width:min(440px, calc(100vw - 30px));
+    max-height:min(76vh, 680px);
+    display:flex;
+    flex-direction:column;
+    overflow:hidden;
+    border:1px solid rgba(205,216,255,0.45);
+    border-radius:22px;
+    background:linear-gradient(180deg, rgba(38,53,137,0.98), rgba(20,27,83,0.99));
+    box-shadow:0 28px 76px rgba(4,8,38,0.68);
+  }
+
+  .iqc-delete-panel-head{
+    display:flex;
+    align-items:flex-start;
+    justify-content:space-between;
+    gap:12px;
+    padding:17px 18px 13px;
+    border-bottom:1px solid rgba(231,238,255,0.14);
+  }
+
+  .iqc-delete-panel-title{
+    margin:0;
+    color:#ffffff;
+    font-size:18px;
+    font-weight:900;
+  }
+
+  .iqc-delete-panel-tip{
+    margin:5px 0 0;
+    color:rgba(232,238,255,0.66);
+    font-size:12px;
+    line-height:1.45;
+  }
+
+  .iqc-delete-close{
+    width:36px;
+    height:36px;
+    min-width:36px;
+    padding:0;
+    border-radius:999px;
+    font-size:18px;
+    background:rgba(255,255,255,0.09);
+    border:1px solid rgba(255,255,255,0.14);
+  }
+
+  .iqc-delete-list{
+    overflow-y:auto;
+    padding:12px;
+  }
+
+  .iqc-delete-choice{
+    width:100%;
+    margin:0 0 9px;
+    padding:13px 14px;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:12px;
+    border-radius:16px;
+    text-align:left;
+    background:rgba(255,255,255,0.065);
+    border:1px solid rgba(231,238,255,0.14);
+    box-shadow:none;
+  }
+
+  .iqc-delete-choice:last-child{
+    margin-bottom:0;
+  }
+
+  .iqc-delete-choice-copy{
+    min-width:0;
+    display:flex;
+    flex-direction:column;
+    gap:4px;
+  }
+
+  .iqc-delete-choice-copy strong{
+    color:#ffffff;
+    font-size:15px;
+  }
+
+  .iqc-delete-choice-copy span{
+    overflow:hidden;
+    color:rgba(232,238,255,0.68);
+    font-size:12px;
+    text-overflow:ellipsis;
+    white-space:nowrap;
+  }
+
+  .iqc-delete-choice-mark{
+    flex:0 0 auto;
+    padding:6px 9px;
+    border-radius:999px;
+    color:#ffd8df;
+    background:rgba(255,91,114,0.14);
+    border:1px solid rgba(255,142,161,0.32);
+    font-size:12px;
+    font-weight:900;
+  }
+
+  @media (max-width:560px){
+    .iqc-quick-dock{
+      right:8px;
+      bottom:calc(env(safe-area-inset-bottom, 0px) + 88px);
     }
 
-    .iqc-pair-table .pair-table-delete{
-      width:100%;
-      margin-top:4px;
+    .iqc-quick-action{
+      width:48px;
+      height:48px;
+      min-width:48px;
     }
   }
 
@@ -1837,6 +2081,28 @@ user-scalable=no">
     </div>
   </div>
 
+
+  <div id="iqcQuickDock" class="iqc-quick-dock" aria-hidden="true">
+    <button type="button" id="iqcQuickToggle" class="iqc-quick-toggle" onclick="toggleIqcQuickDock()" aria-label="收合 IQC 快捷功能" aria-expanded="true">›</button>
+    <div class="iqc-quick-stack">
+      <button type="button" id="iqcQuickAdd" class="iqc-quick-action" onclick="addIqcLoosePairFromQuickDock()" aria-label="增加 1 支散支鋼瓶" title="增加 1 支">＋</button>
+      <button type="button" id="iqcQuickDelete" class="iqc-quick-action iqc-delete-action" onclick="openIqcDeletePicker()" aria-label="選擇要刪除的散支鋼瓶" title="選擇刪除">刪</button>
+    </div>
+  </div>
+
+  <div id="iqcDeleteOverlay" class="iqc-delete-overlay" onclick="handleIqcDeleteOverlayClick(event)" aria-hidden="true">
+    <div class="iqc-delete-panel" role="dialog" aria-modal="true" aria-labelledby="iqcDeleteTitle">
+      <div class="iqc-delete-panel-head">
+        <div>
+          <h3 id="iqcDeleteTitle" class="iqc-delete-panel-title">選擇要刪除的鋼瓶</h3>
+          <p id="iqcDeleteTip" class="iqc-delete-panel-tip">依照「第幾支鋼瓶」選擇；刪除後序列會自動重新排列。</p>
+        </div>
+        <button type="button" class="iqc-delete-close" onclick="closeIqcDeletePicker()" aria-label="關閉">×</button>
+      </div>
+      <div id="iqcDeleteList" class="iqc-delete-list"></div>
+    </div>
+  </div>
+
   <div id="loadingBox" style="
     display:none;
     position:fixed;
@@ -1856,6 +2122,7 @@ user-scalable=no">
   </div>
 <script src="./api.js"></script>
 <script>
+  // 2026-07-19：IQC 散支改用右下快捷新增／選擇刪除；側滑卡片依目前框別動態調整高度並自動定位。
   // 2026-07-13：IQC 集束新增「集束框架編號」，寫入 IQC_Log 供自動噴砂 BETA 唯讀反查。
   // 2026-06-29 正式版：保留既有 Response 欄位；新增「下一步指定結案」僅寫入 Project_Event_Log。
   const STORAGE_KEY = "ds_report_draft_v2";
@@ -1945,6 +2212,12 @@ user-scalable=no">
   // 散支 CTN／RT 配對：手機端以選單一次產生 1～18 支欄位。
   const IQC_LOOSE_PAIR_MIN = 1;
   const IQC_LOOSE_PAIR_MAX = 18;
+
+  // IQC 側滑定位與右下快捷工具列狀態。
+  let iqcActiveCardIndex = 0;
+  let iqcSliderSettleTimer = null;
+  let iqcSliderRestoreFrame = null;
+  let iqcActiveCardResizeObserver = null;
 
   let sending = false;
   let projectOptionsLoaded = false;
@@ -2331,6 +2604,10 @@ user-scalable=no">
     }
 
     updateStationContextBanner();
+    updateIqcQuickDock();
+    if(pageId === "pageIQC"){
+      scheduleIqcActiveCardRestore();
+    }
     persistDraft();
     window.scrollTo({ top:0, behavior:"smooth" });
   }
@@ -2354,6 +2631,13 @@ user-scalable=no">
     }
 
     updateStationContextBanner();
+    updateIqcQuickDock();
+    if(pageId === "pageIQC"){
+      scheduleIqcActiveCardRestore();
+    }
+    else{
+      closeIqcDeletePicker();
+    }
     persistDraft();
     window.scrollTo({ top:0, behavior:"smooth" });
   }
@@ -2861,6 +3145,13 @@ user-scalable=no">
     }
 
     updateStationContextBanner();
+    updateIqcQuickDock();
+    if(target.id === "pageIQC"){
+      scheduleIqcActiveCardRestore();
+    }
+    else{
+      closeIqcDeletePicker();
+    }
   }
 
   function clearDraft(showMessage, options = {}){
@@ -4505,7 +4796,6 @@ function bindFramePairTableEvents(){
         <td class="iqc-pair-sequence-cell"><span class="iqc-pair-sequence-badge">第${pairIndex + 1}支鋼瓶</span></td>
         <td><input type="text" class="pair-table-input iqc-loose-ctn" data-iqc-card-index="${index}" data-iqc-pair-index="${pairIndex}" value="${escapeAttribute(normalizeCTN(pair.ctn || ""))}" placeholder="散支 CTN" autocapitalize="characters" autocomplete="off"></td>
         <td><input type="text" class="pair-table-input iqc-loose-rt" data-iqc-card-index="${index}" data-iqc-pair-index="${pairIndex}" value="${escapeAttribute(normalizeIqcRtNo(pair.rtNo || ""))}" placeholder="數字 RT料號" inputmode="numeric" pattern="[0-9]*" autocomplete="off"></td>
-        <td><button type="button" class="btn-danger pair-table-delete" onclick="removeIqcLoosePair(${index}, ${pairIndex})">${pairs.length === 1 ? "清空" : "刪除"}</button></td>
       </tr>
     `).join("");
   }
@@ -4523,7 +4813,7 @@ function bindFramePairTableEvents(){
 
       <div class="iqc-pair-heading">
         <div>散支 CTN＋RT料號配對</div>
-        <small>先選鋼瓶數量（1～18），系統會一次建立對應欄位；每組都會標示目前是第幾支鋼瓶。</small>
+        <small>先選鋼瓶數量（1～18）；需要臨時新增或刪除時，可使用右下角快捷鍵。</small>
       </div>
 
       <div class="iqc-pair-toolbar">
@@ -4531,12 +4821,11 @@ function bindFramePairTableEvents(){
           <span>鋼瓶數量</span>
           <select class="iqc-pair-count-select iqc-loose-pair-count" data-iqc-card-index="${index}" aria-label="第${index + 1}筆 IQC 散支鋼瓶數量">${renderIqcLoosePairCountOptions(pairCount)}</select>
         </label>
-        <button type="button" onclick="addIqcLoosePair(${index})">＋增加 1 支</button>
       </div>
 
       <div class="pair-table-wrap">
         <table class="pair-table iqc-pair-table">
-          <thead><tr><th style="width:18%;">序列</th><th style="width:35%;">CTN</th><th style="width:35%;">RT料號</th><th style="width:12%;">操作</th></tr></thead>
+          <thead><tr><th style="width:22%;">序列</th><th style="width:39%;">CTN</th><th style="width:39%;">RT料號</th></tr></thead>
           <tbody>${renderIqcLoosePairRows(card, index)}</tbody>
         </table>
       </div>
@@ -4556,6 +4845,7 @@ function bindFramePairTableEvents(){
     countInput.value = count;
     formData.iqc_card_count = count;
     ensureIqcCardsLength(count);
+    iqcActiveCardIndex = clampIqcCardIndex(iqcActiveCardIndex);
 
     container.innerHTML = formData.iqc_cards.map((card, index) => {
       const type = String(card.type || "");
@@ -4566,7 +4856,7 @@ function bindFramePairTableEvents(){
           : "";
 
       return `
-        <div id="iqc-card-${index}" class="form-card bundle-frame-card iqc-card">
+        <div id="iqc-card-${index}" data-iqc-card-index="${index}" class="form-card bundle-frame-card iqc-card ${index === iqcActiveCardIndex ? "iqc-card-active" : ""}">
           <div class="bundle-frame-title">第${index + 1}筆 IQC</div>
           <div class="bundle-field-block">
             <div class="form-title">IQC 型態 <span class="required">*</span></div>
@@ -4581,6 +4871,8 @@ function bindFramePairTableEvents(){
         </div>
       `;
     }).join("");
+
+    scheduleIqcActiveCardRestore();
   }
 
   function collectIqcCardsFromUI(){
@@ -4898,9 +5190,314 @@ function bindFramePairTableEvents(){
 
     return true;
   }
+  function clampIqcCardIndex(index){
+    const count = Math.max(1, Array.isArray(formData.iqc_cards) ? formData.iqc_cards.length : 1);
+    const parsed = Number(index);
+    if(!Number.isFinite(parsed)) return 0;
+    return Math.max(0, Math.min(count - 1, Math.round(parsed)));
+  }
+
+  function getIqcActiveCardElement(){
+    return document.getElementById(`iqc-card-${clampIqcCardIndex(iqcActiveCardIndex)}`);
+  }
+
+  function getIqcCardIndexFromTarget(target){
+    const card = target && target.closest ? target.closest(".iqc-card[data-iqc-card-index]") : null;
+    if(!card) return -1;
+    const index = Number(card.dataset.iqcCardIndex);
+    return Number.isFinite(index) ? clampIqcCardIndex(index) : -1;
+  }
+
+  function markIqcActiveCard(){
+    document.querySelectorAll("#iqcCardsContainer .iqc-card").forEach((card, index) => {
+      card.classList.toggle("iqc-card-active", index === iqcActiveCardIndex);
+    });
+  }
+
+  function syncIqcSliderHeight(){
+    const container = document.getElementById("iqcCardsContainer");
+    const activePage = document.getElementById("pageIQC");
+    const card = getIqcActiveCardElement();
+
+    if(!container || !activePage || !activePage.classList.contains("active") || !card){
+      if(container) container.style.height = "";
+      return;
+    }
+
+    const cardHeight = Math.ceil(card.getBoundingClientRect().height);
+    if(cardHeight > 0){
+      // 另留水平捲軸與下方 padding 空間，避免最後一列被裁切。
+      container.style.height = `${cardHeight + 18}px`;
+    }
+  }
+
+  function observeIqcActiveCardSize(){
+    if(iqcActiveCardResizeObserver){
+      iqcActiveCardResizeObserver.disconnect();
+      iqcActiveCardResizeObserver = null;
+    }
+
+    const card = getIqcActiveCardElement();
+    if(!card || typeof ResizeObserver !== "function") return;
+
+    iqcActiveCardResizeObserver = new ResizeObserver(function(){
+      syncIqcSliderHeight();
+    });
+    iqcActiveCardResizeObserver.observe(card);
+  }
+
+  function scheduleIqcActiveCardRestore(){
+    if(iqcSliderRestoreFrame){
+      cancelAnimationFrame(iqcSliderRestoreFrame);
+    }
+
+    iqcSliderRestoreFrame = requestAnimationFrame(function(){
+      iqcSliderRestoreFrame = null;
+      const container = document.getElementById("iqcCardsContainer");
+      const card = getIqcActiveCardElement();
+      if(!container || !card){
+        updateIqcQuickDock();
+        return;
+      }
+
+      container.scrollLeft = card.offsetLeft;
+      markIqcActiveCard();
+      syncIqcSliderHeight();
+      observeIqcActiveCardSize();
+      updateIqcQuickDock();
+    });
+  }
+
+  function findNearestIqcCardIndex(){
+    const container = document.getElementById("iqcCardsContainer");
+    const cards = Array.from(document.querySelectorAll("#iqcCardsContainer .iqc-card"));
+    if(!container || !cards.length) return 0;
+
+    let nearestIndex = 0;
+    let nearestDistance = Infinity;
+
+    cards.forEach((card, index) => {
+      const distance = Math.abs(container.scrollLeft - card.offsetLeft);
+      if(distance < nearestDistance){
+        nearestDistance = distance;
+        nearestIndex = index;
+      }
+    });
+
+    return clampIqcCardIndex(nearestIndex);
+  }
+
+  function scrollIqcActiveCardToStart(){
+    const card = getIqcActiveCardElement();
+    const page = document.getElementById("pageIQC");
+    if(!card || !page || !page.classList.contains("active")) return;
+
+    const top = Math.max(0, window.scrollY + card.getBoundingClientRect().top - 12);
+    window.scrollTo({ top:top, behavior:"smooth" });
+  }
+
+  function handleIqcSliderSettled(){
+    if(iqcSliderSettleTimer){
+      clearTimeout(iqcSliderSettleTimer);
+    }
+
+    iqcSliderSettleTimer = setTimeout(function(){
+      iqcSliderSettleTimer = null;
+      const nextIndex = findNearestIqcCardIndex();
+      const changed = nextIndex !== iqcActiveCardIndex;
+      iqcActiveCardIndex = nextIndex;
+
+      markIqcActiveCard();
+      syncIqcSliderHeight();
+      observeIqcActiveCardSize();
+      updateIqcQuickDock();
+
+      // 從長卡片切到短卡片時，主動回到該框起點，避免停留在上一框的底部空白區。
+      if(changed){
+        scrollIqcActiveCardToStart();
+      }
+    }, 120);
+  }
+
+  function setIqcActiveCardFromTarget(target){
+    const index = getIqcCardIndexFromTarget(target);
+    if(index < 0 || index === iqcActiveCardIndex) return;
+
+    iqcActiveCardIndex = index;
+    markIqcActiveCard();
+    syncIqcSliderHeight();
+    observeIqcActiveCardSize();
+    updateIqcQuickDock();
+  }
+
+  function getIqcQuickDockCollapsedState(){
+    try{
+      return localStorage.getItem("ds_iqc_quick_tools_collapsed") === "1";
+    }
+    catch(err){
+      return false;
+    }
+  }
+
+  function saveIqcQuickDockCollapsedState(collapsed){
+    try{
+      localStorage.setItem("ds_iqc_quick_tools_collapsed", collapsed ? "1" : "0");
+    }
+    catch(err){
+      console.warn("IQC 快捷工具列狀態無法儲存", err);
+    }
+  }
+
+  function applyIqcQuickDockCollapsedState(){
+    const dock = document.getElementById("iqcQuickDock");
+    const toggle = document.getElementById("iqcQuickToggle");
+    if(!dock || !toggle) return;
+
+    const collapsed = getIqcQuickDockCollapsedState();
+    dock.classList.toggle("collapsed", collapsed);
+    toggle.textContent = collapsed ? "‹" : "›";
+    toggle.setAttribute("aria-expanded", collapsed ? "false" : "true");
+    toggle.setAttribute("aria-label", collapsed ? "展開 IQC 快捷功能" : "收合 IQC 快捷功能");
+  }
+
+  function toggleIqcQuickDock(){
+    const dock = document.getElementById("iqcQuickDock");
+    if(!dock) return;
+
+    const collapsed = !dock.classList.contains("collapsed");
+    saveIqcQuickDockCollapsedState(collapsed);
+    applyIqcQuickDockCollapsedState();
+  }
+
+  function updateIqcQuickDock(){
+    const dock = document.getElementById("iqcQuickDock");
+    const addButton = document.getElementById("iqcQuickAdd");
+    const deleteButton = document.getElementById("iqcQuickDelete");
+    if(!dock || !addButton || !deleteButton) return;
+
+    const page = document.getElementById("pageIQC");
+    const card = formData.iqc_cards && formData.iqc_cards[clampIqcCardIndex(iqcActiveCardIndex)];
+    const shouldShow = !!(
+      page &&
+      page.classList.contains("active") &&
+      card &&
+      String(card.type || "") === "散支"
+    );
+
+    dock.classList.toggle("show", shouldShow);
+    dock.setAttribute("aria-hidden", shouldShow ? "false" : "true");
+
+    if(!shouldShow){
+      closeIqcDeletePicker();
+      return;
+    }
+
+    const pairCount = normalizeIqcPairs(card.loosePairs).length;
+    addButton.disabled = pairCount >= IQC_LOOSE_PAIR_MAX;
+    addButton.title = pairCount >= IQC_LOOSE_PAIR_MAX
+      ? `已達上限 ${IQC_LOOSE_PAIR_MAX} 支`
+      : `第${iqcActiveCardIndex + 1}筆 IQC：增加 1 支`;
+
+    // 現場規則：只有多於 1 支時才顯示刪除功能。
+    deleteButton.hidden = pairCount <= IQC_LOOSE_PAIR_MIN;
+    deleteButton.disabled = pairCount <= IQC_LOOSE_PAIR_MIN;
+    deleteButton.title = `第${iqcActiveCardIndex + 1}筆 IQC：選擇要刪除的鋼瓶`;
+
+    applyIqcQuickDockCollapsedState();
+  }
+
+  function addIqcLoosePairFromQuickDock(){
+    const card = formData.iqc_cards && formData.iqc_cards[clampIqcCardIndex(iqcActiveCardIndex)];
+    if(!card || String(card.type || "") !== "散支") return;
+    addIqcLoosePair(iqcActiveCardIndex);
+  }
+
+  function openIqcDeletePicker(){
+    collectIqcCardsFromUI();
+    const cardIndex = clampIqcCardIndex(iqcActiveCardIndex);
+    const card = formData.iqc_cards && formData.iqc_cards[cardIndex];
+    const overlay = document.getElementById("iqcDeleteOverlay");
+    const list = document.getElementById("iqcDeleteList");
+    const tip = document.getElementById("iqcDeleteTip");
+
+    if(!overlay || !list || !card || String(card.type || "") !== "散支") return;
+
+    const pairs = normalizeIqcPairs(card.loosePairs);
+    if(pairs.length <= IQC_LOOSE_PAIR_MIN){
+      window.alert("目前只有 1 支鋼瓶，至少需保留 1 支，無法刪除。");
+      updateIqcQuickDock();
+      return;
+    }
+
+    if(tip){
+      tip.textContent = `第${cardIndex + 1}筆 IQC｜目前 ${pairs.length} 支。選擇後，後方序列會自動往前遞補。`;
+    }
+
+    list.innerHTML = pairs.map((pair, pairIndex) => {
+      const ctn = normalizeCTN(pair && pair.ctn || "");
+      const rtNo = normalizeIqcRtNo(pair && pair.rtNo || "");
+      const summary = ctn || rtNo
+        ? `CTN：${ctn || "未填"}｜RT：${rtNo || "未填"}`
+        : "尚未填寫 CTN／RT";
+
+      return `
+        <button type="button" class="iqc-delete-choice" onclick="chooseIqcLoosePairForDelete(${pairIndex})">
+          <span class="iqc-delete-choice-copy">
+            <strong>第${pairIndex + 1}支鋼瓶</strong>
+            <span>${escapeHtml(summary)}</span>
+          </span>
+          <span class="iqc-delete-choice-mark">刪除</span>
+        </button>
+      `;
+    }).join("");
+
+    overlay.classList.add("show");
+    overlay.setAttribute("aria-hidden", "false");
+  }
+
+  function closeIqcDeletePicker(){
+    const overlay = document.getElementById("iqcDeleteOverlay");
+    if(!overlay) return;
+    overlay.classList.remove("show");
+    overlay.setAttribute("aria-hidden", "true");
+  }
+
+  function handleIqcDeleteOverlayClick(event){
+    const overlay = document.getElementById("iqcDeleteOverlay");
+    if(event && overlay && event.target === overlay){
+      closeIqcDeletePicker();
+    }
+  }
+
+  function chooseIqcLoosePairForDelete(pairIndex){
+    collectIqcCardsFromUI();
+    const cardIndex = clampIqcCardIndex(iqcActiveCardIndex);
+    const card = formData.iqc_cards && formData.iqc_cards[cardIndex];
+    if(!card) return;
+
+    const pairs = normalizeIqcPairs(card.loosePairs);
+    const target = pairs[pairIndex];
+    if(!target) return;
+
+    const ctn = normalizeCTN(target.ctn || "");
+    const rtNo = normalizeIqcRtNo(target.rtNo || "");
+    const hasData = !!(ctn || rtNo);
+
+    if(hasData){
+      const confirmed = window.confirm(
+        `確定刪除第${pairIndex + 1}支鋼瓶？\nCTN：${ctn || "未填"}\nRT：${rtNo || "未填"}`
+      );
+      if(!confirmed) return;
+    }
+
+    closeIqcDeletePicker();
+    removeIqcLoosePair(cardIndex, pairIndex);
+  }
+
   function setIqcLoosePairCount(cardIndex, value){
     collectIqcCardsFromUI();
     ensureIqcCardsLength(normalizeIqcCardCount(formData.iqc_card_count || 1));
+    iqcActiveCardIndex = clampIqcCardIndex(cardIndex);
 
     const card = formData.iqc_cards[cardIndex];
     if(!card) return;
@@ -4945,6 +5542,7 @@ function bindFramePairTableEvents(){
   function addIqcLoosePair(cardIndex){
     collectIqcCardsFromUI();
     ensureIqcCardsLength(normalizeIqcCardCount(formData.iqc_card_count || 1));
+    iqcActiveCardIndex = clampIqcCardIndex(cardIndex);
     const card = formData.iqc_cards[cardIndex];
     if(!card) return;
 
@@ -4964,6 +5562,7 @@ function bindFramePairTableEvents(){
   function removeIqcLoosePair(cardIndex, pairIndex){
     collectIqcCardsFromUI();
     ensureIqcCardsLength(normalizeIqcCardCount(formData.iqc_card_count || 1));
+    iqcActiveCardIndex = clampIqcCardIndex(cardIndex);
     const card = formData.iqc_cards[cardIndex];
     if(!card) return;
 
@@ -4998,6 +5597,7 @@ function bindFramePairTableEvents(){
         countInput.value = count;
         collectIqcCardsFromUI();
         ensureIqcCardsLength(count);
+        iqcActiveCardIndex = clampIqcCardIndex(iqcActiveCardIndex);
         renderIqcCards();
         persistDraft();
       };
@@ -5008,9 +5608,21 @@ function bindFramePairTableEvents(){
 
     if(!container) return;
 
+    container.addEventListener("scroll", handleIqcSliderSettled, { passive:true });
+
+    container.addEventListener("pointerdown", function(e){
+      setIqcActiveCardFromTarget(e.target);
+    });
+
+    container.addEventListener("focusin", function(e){
+      setIqcActiveCardFromTarget(e.target);
+    });
+
     container.addEventListener("input", function(e){
       const target = e.target;
       if(!target) return;
+
+      setIqcActiveCardFromTarget(target);
 
       if(target.classList.contains("iqc-bundle-rt") || target.classList.contains("iqc-loose-rt")){
         const start = target.selectionStart;
@@ -5037,9 +5649,12 @@ function bindFramePairTableEvents(){
       const target = e.target;
       if(!target) return;
 
+      setIqcActiveCardFromTarget(target);
+
       if(target.classList.contains("iqc-loose-pair-count")){
         const cardIndex = Number(target.dataset.iqcCardIndex || "-1");
         if(!isNaN(cardIndex) && cardIndex >= 0){
+          iqcActiveCardIndex = clampIqcCardIndex(cardIndex);
           setIqcLoosePairCount(cardIndex, target.value);
         }
         return;
@@ -5048,6 +5663,7 @@ function bindFramePairTableEvents(){
       if(target.matches('input[type="radio"][name^="iqc_type_"]')){
         collectIqcCardsFromUI();
         const cardIndex = Number(String(target.name || "").replace("iqc_type_", ""));
+        iqcActiveCardIndex = clampIqcCardIndex(cardIndex);
         if(formData.iqc_cards[cardIndex]){
           formData.iqc_cards[cardIndex].type = target.value || "";
         }
@@ -5064,8 +5680,28 @@ function bindFramePairTableEvents(){
     container.addEventListener("focusout", function(){
       applyIqcLiveValidation();
     });
-  }
 
+    if(!window.__iqcResponsiveLayoutBound){
+      window.__iqcResponsiveLayoutBound = true;
+
+      window.addEventListener("resize", function(){
+        scheduleIqcActiveCardRestore();
+      });
+
+      window.addEventListener("orientationchange", function(){
+        setTimeout(scheduleIqcActiveCardRestore, 180);
+      });
+
+      document.addEventListener("keydown", function(e){
+        if(e.key === "Escape"){
+          closeIqcDeletePicker();
+        }
+      });
+    }
+
+    applyIqcQuickDockCollapsedState();
+    updateIqcQuickDock();
+  }
 
   window.onload = async function(){
     updateStep(1);
