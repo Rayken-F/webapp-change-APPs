@@ -369,18 +369,38 @@
       .scan-grid button{ width:100%; }
       .replacement-input-row{ grid-template-columns:1fr; }
       .replacement-select-all{ width:100%; }
-      .bottle-row{ grid-template-columns:auto minmax(0,1fr); }
-      .bottle-actions{
-        grid-column:1 / -1;
-        display:grid;
-        grid-template-columns:repeat(2,minmax(0,1fr));
-        gap:8px;
-        align-items:stretch;
+      /* 手機版散支操作：
+         第一列＝序號＋CTN/RT＋待轉移；
+         第二列＝DCYL／轉HT 等寬排列。
+         避免待轉移佔用第二列，造成 DCYL 被拉成雙倍高度。 */
+      .bottle-row{
+        grid-template-columns:auto minmax(0,1fr) minmax(118px,.82fr);
+        grid-template-areas:
+          "number main transfer"
+          "dcyl dcyl ht";
+        gap:10px 8px;
+        align-items:center;
       }
-      .bottle-actions button{ width:100%; min-width:0; }
-      .bottle-action-transfer{ grid-column:2; grid-row:1; }
-      .bottle-action-dcyl{ grid-column:1; grid-row:1 / span 2; min-height:100%; }
-      .bottle-action-ht{ grid-column:2; grid-row:2; }
+      .bottle-no{ grid-area:number; }
+      .bottle-main{ grid-area:main; }
+      .bottle-actions{ display:contents; }
+      .bottle-actions button{
+        width:100%;
+        min-width:0;
+        min-height:50px;
+      }
+      .bottle-action-transfer{
+        grid-area:transfer;
+        align-self:center;
+      }
+      .bottle-action-dcyl{
+        grid-area:dcyl;
+        min-height:50px;
+      }
+      .bottle-action-ht{
+        grid-area:ht;
+        min-height:50px;
+      }
       .bundle-dcyl-options{ grid-template-columns:1fr; }
       .bundle-qty-row{ grid-template-columns:1fr; }
       .footer-actions{ grid-template-columns:1fr; }
