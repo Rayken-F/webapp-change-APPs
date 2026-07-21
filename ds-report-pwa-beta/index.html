@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-  <title>鼎世日報系統｜自動噴砂 CTN 流轉 Beta Stage 2</title>
+  <title>鼎世日報系統｜自動噴砂 CTN 流轉 Beta Stage 3</title>
   <style>
     *{ box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
     :root{
@@ -412,11 +412,11 @@
 <body>
   <main class="wrap">
     <h1 class="page-title">自動噴砂 CTN 流轉</h1>
-    <div class="sub-title">第二階段｜IQC_Log 唯讀反查 Beta</div>
+    <div class="sub-title">第三階段｜隔離交易寫入 Beta</div>
 
     <section class="beta-banner">
-      <span class="beta-badge">BETA 2</span>
-      <div>掃描結果會透過獨立唯讀 API 查詢正式 <strong>IQC_Log</strong> 與 <strong>RT list</strong>。待轉移、DCYL、轉 HT、換運輸框及待噴砂運輸框仍只保存在本機草稿，<strong>不寫入 Response、不更新 IQC_Log、不異動 ERP，也不會改變任何正式 CTN 狀態。</strong></div>
+      <span class="beta-badge">BETA 3</span>
+      <div>正式 <strong>IQC_Log</strong> 與 <strong>RT list</strong> 仍維持唯讀；本階段會把待轉移、DCYL、轉 HT 與集束待噴砂運輸框正式寫入 <strong>_BETA 隔離工作表</strong>。不寫 Response、不改正式 IQC_Log，也不碰正式 ERP_CTN_EXPORT。</div>
     </section>
 
     <section class="form-card">
@@ -424,22 +424,32 @@
         <div class="form-title">📦 處理框數</div>
         <div class="count-text" id="frameCountText">目前：1 框</div>
       </div>
+      <div class="field-grid" style="margin-bottom:14px;">
+        <div>
+          <label class="field-label" for="reportDate">操作日期</label>
+          <input id="reportDate" class="form-input" type="date" onchange="onBetaMetaChange()">
+        </div>
+        <div>
+          <label class="field-label" for="operatorName">操作人員</label>
+          <input id="operatorName" class="form-input" type="text" maxlength="80" placeholder="請輸入測試操作人員" autocomplete="name" oninput="onBetaMetaChange()">
+        </div>
+      </div>
       <div class="inline-controls">
         <label for="frameCount">選擇本次要掃描的框數</label>
         <select id="frameCount" class="count-select" aria-label="處理框數"></select>
       </div>
-      <div class="tip" style="margin-top:10px;">每一張卡代表一框。直接掃描運輸框架 CTN 或集束框架 CTN，畫面會依 IQC_Log 的最新資料自動辨識型態，不需手動選擇集束／散支。</div>
+      <div class="tip" style="margin-top:10px;">每一張卡代表一框。掃描後會優先讀取第三階段目前狀態；尚未有狀態時才從 IQC_Log 建立初始資料。</div>
     </section>
 
     <section class="form-card">
       <div class="form-title-line">
-        <div class="form-title">🔌 唯讀資料來源</div>
+        <div class="form-title">🔌 第三階段資料來源</div>
         <div id="apiStatus" class="count-text">檢查中...</div>
       </div>
-      <div class="tip">資料來源為每日報表(AP)的 IQC_Log。運輸框架會讀取該框最新一張 IQC 卡片並帶出全部散支 CTN／RT；集束 CTN 會帶出最新 RT、區域、框架編號，並從 RT list 的規格敘述解析集束鋼瓶數量上限。</div>
+      <div class="tip">初次掃描以每日報表(AP)的 IQC_Log 建立基準；完成第三階段交易後，後續掃描會以 CTN_Current_State_BETA 為最新狀態來源。</div>
       <div id="apiStatusMessage" class="mini-note">正在檢查 BETA API...</div>
       <div class="btn-row">
-        <button type="button" class="ghost" onclick="checkBetaApiHealth()">重新檢查唯讀 API</button>
+        <button type="button" class="ghost" onclick="checkBetaApiHealth()">重新檢查第三階段 API</button>
       </div>
     </section>
 
@@ -470,7 +480,7 @@
 
     <section class="form-card">
       <div class="form-title">Beta 操作</div>
-      <div class="tip">「查看預計異動」只整理本次待處理動作；「模擬送出」不會呼叫任何寫入 API，僅確認資料與送出節奏。</div>
+      <div class="tip">「查看預計異動」會先整理本次動作；確認後將正式寫入第三階段 _BETA 隔離工作表。</div>
       <div class="btn-row">
         <button type="button" class="secondary" onclick="openPreview()">查看預計異動</button>
         <button type="button" class="ghost" onclick="resetBetaDraft()">清除 Beta 草稿</button>
@@ -481,27 +491,51 @@
   <div id="previewModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="previewTitle">
     <div class="modal-panel">
       <h2 id="previewTitle" class="modal-title">預計異動總覽</h2>
-      <p class="modal-subtitle">以下資料已由 IQC_Log 唯讀反查，但異動仍只存在前端。第三階段才會正式寫入 CTN 交易資料。</p>
+      <p class="modal-subtitle">以下資料將寫入第三階段 BETA 狀態、交易履歷及 BETA ERP 匯出表；正式 Response、IQC_Log 與正式 ERP 不會異動。</p>
       <div id="modalSummary" class="modal-summary"></div>
       <div class="divider"></div>
       <div class="footer-actions">
         <button type="button" class="ghost" onclick="closePreview()">返回調整</button>
-        <button type="button" class="success" onclick="simulateSubmit()">模擬送出</button>
+        <button id="stage3SubmitBtn" type="button" class="success" onclick="submitStage3()">正式送出 BETA</button>
       </div>
     </div>
   </div>
 
   <script src="./api.js"></script>
   <script>
-    const BETA_STORAGE_KEY = "ds_sandblast_ctn_flow_beta_stage2_v2";
+    const BETA_STORAGE_KEY = "ds_sandblast_ctn_flow_beta_stage3_v1";
     const CTN_RE = /^[A-Z]{2}\d{2}[A-Z]{2}[A-Z0-9]$/;
 
     // 第二階段只透過獨立 BETA API 唯讀查詢 IQC_Log；不提供任何寫入能力。
     let lookupRequestSeq = 0;
 
-    let betaState = { frameCount: 1, cards: [] };
+    let betaState = { frameCount: 1, reportDate: "", operator: "", pendingSubmissionId: "", pendingPayloadHash: "", cards: [] };
+    let stage3Submitting = false;
     let activeFrameIndex = 0;
     let sliderScrollRaf = 0;
+
+    function todayLocalYmd(){
+      const now = new Date();
+      const y = now.getFullYear();
+      const m = String(now.getMonth() + 1).padStart(2, "0");
+      const d = String(now.getDate()).padStart(2, "0");
+      return `${y}-${m}-${d}`;
+    }
+
+    function ensureBetaMeta(){
+      if(!betaState.reportDate) betaState.reportDate = todayLocalYmd();
+      betaState.operator = String(betaState.operator || "");
+      betaState.pendingSubmissionId = String(betaState.pendingSubmissionId || "");
+      betaState.pendingPayloadHash = String(betaState.pendingPayloadHash || "");
+    }
+
+    function onBetaMetaChange(){
+      const dateInput = document.getElementById("reportDate");
+      const operatorInput = document.getElementById("operatorName");
+      betaState.reportDate = dateInput ? String(dateInput.value || "") : betaState.reportDate;
+      betaState.operator = operatorInput ? String(operatorInput.value || "").trim() : betaState.operator;
+      saveBetaDraft();
+    }
 
     function normalizeCTN(value){
       return String(value || "").trim().toUpperCase().replace(/\s+/g, "");
@@ -589,7 +623,12 @@
         const parsed = JSON.parse(raw);
         if(!parsed || typeof parsed !== "object") return;
         betaState.frameCount = normalizeFrameCount(parsed.frameCount || 1);
+        betaState.reportDate = String(parsed.reportDate || "");
+        betaState.operator = String(parsed.operator || "");
+        betaState.pendingSubmissionId = String(parsed.pendingSubmissionId || "");
+        betaState.pendingPayloadHash = String(parsed.pendingPayloadHash || "");
         betaState.cards = Array.isArray(parsed.cards) ? parsed.cards : [];
+        ensureBetaMeta();
         ensureCardCount();
         betaState.cards.forEach(function(card){
           card.loading = false;
@@ -599,6 +638,8 @@
             nextBottle.pendingTransfer = bottle && bottle.pendingTransfer === true;
             nextBottle.pendingDcyl = bottle && bottle.pendingDcyl === true;
             nextBottle.pendingHt = bottle && bottle.pendingHt === true;
+            nextBottle.stateVersion = Number(bottle && bottle.stateVersion || 0);
+            nextBottle.currentStatus = String(bottle && bottle.currentStatus || "ACTIVE");
             if(nextBottle.pendingTransfer){
               nextBottle.pendingDcyl = false;
               nextBottle.pendingHt = false;
@@ -615,7 +656,15 @@
 
     function resetBetaDraft(){
       if(!confirm("確定清除這份 Beta 草稿嗎？只會清除此瀏覽器內的模擬資料。")) return;
-      betaState = { frameCount: 1, cards: [createEmptyCard(0)] };
+      const preservedOperator = String(betaState.operator || "");
+      betaState = {
+        frameCount: 1,
+        reportDate: todayLocalYmd(),
+        operator: preservedOperator,
+        pendingSubmissionId: "",
+        pendingPayloadHash: "",
+        cards: [createEmptyCard(0)]
+      };
       activeFrameIndex = 0;
       localStorage.removeItem(BETA_STORAGE_KEY);
       renderAll();
@@ -656,8 +705,13 @@
 
     function renderAll(){
       ensureCardCount();
+      ensureBetaMeta();
       document.getElementById("frameCount").value = String(betaState.frameCount);
       document.getElementById("frameCountText").textContent = `目前：${betaState.frameCount} 框`;
+      const reportDateInput = document.getElementById("reportDate");
+      const operatorInput = document.getElementById("operatorName");
+      if(reportDateInput) reportDateInput.value = betaState.reportDate;
+      if(operatorInput && document.activeElement !== operatorInput) operatorInput.value = betaState.operator;
       renderCards();
       renderDraftSummary();
     }
@@ -924,6 +978,15 @@
       const flowDisplay = transportCtn
         ? `${transportCtn}（${bundle.bundleCtn || card.scannedCtn}）`
         : "尚未輸入待噴砂運輸框架 CTN";
+      const currentStatus = String(bundle.currentStatus || "ACTIVE");
+      const bundleLocked = currentStatus === "DCYL" || currentStatus === "HT";
+      const currentStatusLabel = currentStatus === "PARTIAL_DCYL"
+        ? "已部分 DCYL"
+        : currentStatus === "DCYL"
+          ? "已完成 DCYL"
+          : currentStatus === "HT"
+            ? "已完成轉 HT"
+            : "可操作";
       const statePills = [
         dcylMode === "all" ? '<span class="pill pending-dcyl">整框待 DCYL</span>' : "",
         dcylMode === "partial" ? `<span class="pill pending-dcyl">部分待 DCYL ${escapeHtml(partialQty || "?")} 支</span>` : "",
@@ -936,7 +999,9 @@
           <div class="data-box"><div class="k">RT料號</div><div class="v">${escapeHtml(bundle.rt || "-")}</div></div>
           <div class="data-box"><div class="k">框架編號</div><div class="v">${escapeHtml(frameIdText)}</div></div>
           <div class="data-box"><div class="k">來源區域</div><div class="v">${escapeHtml(getRegionDisplay(card))}</div></div>
-          <div class="data-box"><div class="k">集束鋼瓶數量上限</div><div class="v">${capacityAvailable ? `${capacity} 支` : "RT list 未解析"}</div></div>
+          <div class="data-box"><div class="k">目前可處理數量上限</div><div class="v">${capacityAvailable ? `${capacity} 支` : "無可用數量"}</div></div>
+          <div class="data-box"><div class="k">目前 BETA 狀態</div><div class="v">${escapeHtml(currentStatusLabel)}｜版本 ${Number(bundle.stateVersion || 0)}</div></div>
+          <div class="data-box"><div class="k">目前待噴砂運輸框</div><div class="v">${escapeHtml(bundle.currentTransportFrameCtn || "-")}</div></div>
           <div class="data-box"><div class="k">RT 規格來源</div><div class="v">${escapeHtml(bundle.bundleCapacityPattern || bundle.rtDescription || "-")}</div></div>
           <div class="data-box"><div class="k">IQC 資料日期</div><div class="v">${escapeHtml(getSourceDisplay(card))}</div></div>
           <div class="data-box"><div class="k">資料來源</div><div class="v">IQC_Log ＋ RT list（唯讀）</div></div>
@@ -951,8 +1016,8 @@
               <div class="mini-note">DCYL 與轉 HT 互斥；第二階段仍只記在前端草稿。</div>
             </div>
             <div class="bundle-action-buttons">
-              <button type="button" class="${dcylMode ? "danger" : "ghost"}" onclick="toggleBundleDcylPanel(${cardIndex})">${dcylMode ? "取消 DCYL" : "DCYL"}</button>
-              <button type="button" class="${pendingHt ? "warning" : "ghost"}" onclick="toggleBundleHt(${cardIndex})">${pendingHt ? "取消 HT" : "轉 HT"}</button>
+              <button type="button" class="${dcylMode ? "danger" : "ghost"}" ${bundleLocked ? "disabled" : ""} onclick="toggleBundleDcylPanel(${cardIndex})">${dcylMode ? "取消 DCYL" : "DCYL"}</button>
+              <button type="button" class="${pendingHt ? "warning" : "ghost"}" ${bundleLocked ? "disabled" : ""} onclick="toggleBundleHt(${cardIndex})">${pendingHt ? "取消 HT" : "轉 HT"}</button>
             </div>
           </div>
 
@@ -1099,10 +1164,12 @@
               rt: String(item.rt || "").trim(),
               pendingTransfer: false,
               pendingDcyl: false,
-              pendingHt: false
+              pendingHt: false,
+              stateVersion: Number(item.stateVersion || 0),
+              currentStatus: String(item.currentStatus || "ACTIVE")
             };
           });
-          currentCard.lookupStatus = `已從 IQC_Log 帶入 ${currentCard.bottles.length} 支散支鋼瓶。`;
+          currentCard.lookupStatus = `已帶入 ${currentCard.bottles.length} 支目前可用散支鋼瓶。`;
         }else if(record.kind === "bundle"){
           currentCard.kind = "bundle";
           currentCard.transportFrameCtn = "";
@@ -1119,12 +1186,18 @@
             bundleCapacityPattern: String(record.bundleCapacityPattern || "").trim(),
             bundleCapacityAvailable: record.bundleCapacityAvailable === true || Number(record.bundleCylinderCount || 0) > 0,
             rtListRowNumber: Number(record.rtListRowNumber || 0),
+            stateManaged: record.stateManaged === true,
+            stateVersion: Number(record.stateVersion || 0),
+            currentStatus: String(record.currentStatus || "ACTIVE"),
+            currentTransportFrameCtn: normalizeCTN(record.currentTransportFrameCtn || ""),
+            bundleOriginalCylinderCount: Number(record.bundleOriginalCylinderCount || record.bundleCylinderCount || 0),
+            dcylQty: Number(record.dcylQty || 0),
             dcylPanelOpen: false,
             pendingDcylMode: "",
             pendingDcylQty: "",
             pendingHt: false
           };
-          currentCard.lookupStatus = "已從 IQC_Log 帶入集束框架 CTN、RT、框架編號與區域，並從 RT list 解析集束鋼瓶數量。";
+          currentCard.lookupStatus = "已帶入集束目前狀態、RT、框架編號與可處理數量。";
         }else{
           clearCardLookupData(currentCard, true);
           currentCard.scannedCtn = ctn;
@@ -1725,15 +1798,229 @@
       document.getElementById("previewModal").classList.remove("show");
     }
 
-    function simulateSubmit(){
+    function stableCloneForHash(value){
+      if(Array.isArray(value)) return value.map(stableCloneForHash);
+      if(value && typeof value === "object"){
+        const output = {};
+        Object.keys(value).sort().forEach(function(key){
+          output[key] = stableCloneForHash(value[key]);
+        });
+        return output;
+      }
+      return value;
+    }
+
+    function simplePayloadHash(value){
+      const text = JSON.stringify(stableCloneForHash(value));
+      let hash = 2166136261;
+      for(let i = 0; i < text.length; i++){
+        hash ^= text.charCodeAt(i);
+        hash = Math.imul(hash, 16777619);
+      }
+      return ("00000000" + (hash >>> 0).toString(16)).slice(-8);
+    }
+
+    function generateSubmissionId(){
+      const random = Math.random().toString(36).slice(2, 10).toUpperCase();
+      return `BETA3_${Date.now()}_${random}`;
+    }
+
+    function collectStage3Operations(){
+      const operations = [];
+
+      betaState.cards.forEach(function(card){
+        const source = card.source || {};
+
+        if(card.kind === "transport"){
+          const sourceFrame = normalizeCTN(card.transportFrameCtn || card.scannedCtn);
+          const targetFrame = normalizeCTN(card.replacementTransportFrameCtn || "");
+
+          (Array.isArray(card.bottles) ? card.bottles : []).forEach(function(bottle, bottleIndex){
+            let actionType = "";
+            if(bottle.pendingTransfer) actionType = "BOTTLE_TRANSFER";
+            if(bottle.pendingDcyl) actionType = "BOTTLE_DCYL";
+            if(bottle.pendingHt) actionType = "BOTTLE_HT";
+            if(!actionType) return;
+
+            operations.push({
+              card_index: Number(card.index || 0) + 1,
+              sequence: Number(bottle.sequence || bottleIndex + 1),
+              asset_type: "BOTTLE",
+              action_type: actionType,
+              ctn: normalizeCTN(bottle.ctn),
+              rt: String(bottle.rt || "").trim(),
+              qty: 1,
+              mode: actionType === "BOTTLE_DCYL" ? "single" : "",
+              source_frame_ctn: sourceFrame,
+              target_frame_ctn: actionType === "BOTTLE_TRANSFER" ? targetFrame : "",
+              bundle_frame_ctn: "",
+              bundle_frame_id: "",
+              expected_version: Number(bottle.stateVersion || 0),
+              region_code: String(card.regionCode || ""),
+              region_name: String(card.regionName || ""),
+              source_iqc_card_id: String(source.cardId || "")
+            });
+          });
+        }
+
+        if(card.kind === "bundle" && card.bundle){
+          const bundle = card.bundle;
+          const bundleCtn = normalizeCTN(bundle.bundleCtn || card.scannedCtn);
+          const targetFrame = normalizeCTN(card.bundleTransportFrameCtn || "");
+          const common = {
+            card_index: Number(card.index || 0) + 1,
+            asset_type: "BUNDLE",
+            ctn: bundleCtn,
+            rt: String(bundle.rt || "").trim(),
+            source_frame_ctn: "",
+            bundle_frame_ctn: bundleCtn,
+            bundle_frame_id: String(bundle.frameId || ""),
+            expected_version: Number(bundle.stateVersion || 0),
+            region_code: String(card.regionCode || ""),
+            region_name: String(card.regionName || ""),
+            source_iqc_card_id: String(source.cardId || "")
+          };
+
+          if(targetFrame){
+            operations.push(Object.assign({}, common, {
+              action_type: "BUNDLE_TRANSPORT",
+              target_frame_ctn: targetFrame,
+              qty: 0,
+              mode: ""
+            }));
+          }
+
+          const dcylCheck = validateBundleDcylSelection(card);
+          if(dcylCheck.ok && dcylCheck.mode){
+            operations.push(Object.assign({}, common, {
+              action_type: "BUNDLE_DCYL",
+              target_frame_ctn: "",
+              qty: Number(dcylCheck.qty || 0),
+              mode: dcylCheck.mode
+            }));
+          }
+
+          if(bundle.pendingHt === true){
+            operations.push(Object.assign({}, common, {
+              action_type: "BUNDLE_HT",
+              target_frame_ctn: "",
+              qty: Number(bundle.bundleCylinderCount || 0),
+              mode: ""
+            }));
+          }
+        }
+      });
+
+      return operations;
+    }
+
+    function buildStage3Payload(){
+      onBetaMetaChange();
+      const operations = collectStage3Operations();
+      const core = {
+        report_date: String(betaState.reportDate || ""),
+        operator: String(betaState.operator || "").trim(),
+        client_version: "BETA_STAGE3_20260721",
+        selected_frame_count: Number(betaState.frameCount || 1),
+        operations: operations
+      };
+      const hash = simplePayloadHash(core);
+
+      if(!betaState.pendingSubmissionId || betaState.pendingPayloadHash !== hash){
+        betaState.pendingSubmissionId = generateSubmissionId();
+        betaState.pendingPayloadHash = hash;
+        saveBetaDraft();
+      }
+
+      return Object.assign({}, core, {
+        submission_id: betaState.pendingSubmissionId,
+        client_payload_hash: hash,
+        submitted_at: new Date().toISOString()
+      });
+    }
+
+    async function submitStage3(){
+      if(stage3Submitting) return;
+
       const rows = getOperationSummary();
       const stats = getFrameFillStats();
       if(rows.some(row => row.type === "error") || stats.invalidIndexes.length){
-        alert("目前仍有 CTN 或換框資料錯誤，請返回調整後再模擬送出。");
+        alert("目前仍有 CTN 或換框資料錯誤，請返回調整後再送出。");
         return;
       }
-      alert(`Beta 模擬送出完成。\n\n選擇 ${stats.selected} 框；有效 ${stats.filledIndexes.length} 框；空白 ${stats.emptyIndexes.length} 框（略過）。\n本次共 ${rows.length} 項待提交動作。\n\n提醒：第二階段只讀取 IQC_Log；本次待轉移、DCYL、轉 HT、換框仍未寫入 Response、IQC_Log 或 ERP。`);
-      closePreview();
+
+      onBetaMetaChange();
+      if(!betaState.reportDate){
+        alert("請選擇操作日期。");
+        return;
+      }
+      if(!String(betaState.operator || "").trim()){
+        alert("請填寫操作人員。");
+        const input = document.getElementById("operatorName");
+        if(input) input.focus();
+        return;
+      }
+
+      const payload = buildStage3Payload();
+      if(!payload.operations.length){
+        alert("目前沒有任何待提交動作。");
+        return;
+      }
+
+      const submitButton = document.getElementById("stage3SubmitBtn");
+      stage3Submitting = true;
+      if(submitButton){
+        submitButton.disabled = true;
+        submitButton.textContent = "送出中...";
+      }
+
+      try{
+        const result = await submitBetaOperations(payload);
+        const duplicateText = result.duplicate ? "\n（此 submission_id 已處理，回傳既有收據）" : "";
+        alert(
+          `BETA 第三階段送出成功！
+
+` +
+          `收據：${result.receipt_id || "-"}
+` +
+          `動作數：${result.operation_count || 0}
+` +
+          `狀態異動：${result.state_count || 0}
+` +
+          `${duplicateText}
+
+` +
+          `正式 Response、IQC_Log 與正式 ERP 均未異動。`
+        );
+
+        const preservedOperator = String(betaState.operator || "");
+        betaState = {
+          frameCount: 1,
+          reportDate: todayLocalYmd(),
+          operator: preservedOperator,
+          pendingSubmissionId: "",
+          pendingPayloadHash: "",
+          cards: [createEmptyCard(0)]
+        };
+        activeFrameIndex = 0;
+        localStorage.removeItem(BETA_STORAGE_KEY);
+        closePreview();
+        renderAll();
+      }catch(err){
+        alert(
+          `BETA 第三階段送出失敗：
+${err && err.message ? err.message : "未知錯誤"}
+
+` +
+          `草稿與 submission_id 已保留，可修正或直接重試。`
+        );
+      }finally{
+        stage3Submitting = false;
+        if(submitButton){
+          submitButton.disabled = false;
+          submitButton.textContent = "正式送出 BETA";
+        }
+      }
     }
 
     async function checkBetaApiHealth(){
@@ -1741,12 +2028,12 @@
       const message = document.getElementById("apiStatusMessage");
 
       if(status) status.textContent = "檢查中...";
-      if(message) message.textContent = "正在連線第二階段唯讀 API...";
+      if(message) message.textContent = "正在連線第三階段交易 API...";
 
       try{
         const result = await fetchBetaApiHealth();
-        if(status) status.textContent = "唯讀 API 正常";
-        if(message) message.textContent = result.message || "可開始掃描 IQC_Log 中的運輸框架或集束 CTN。";
+        if(status) status.textContent = "第三階段 API 正常";
+        if(message) message.textContent = result.message || "可開始進行第三階段隔離交易測試。";
       }catch(err){
         if(status) status.textContent = "尚未連線";
         if(message) message.textContent = err && err.message
@@ -1757,6 +2044,7 @@
 
     window.addEventListener("DOMContentLoaded", function(){
       loadBetaDraft();
+      ensureBetaMeta();
       ensureCardCount();
       setupCountSelect();
       renderAll();
