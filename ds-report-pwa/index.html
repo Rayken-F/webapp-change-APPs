@@ -4641,18 +4641,40 @@ function bindFramePairTableEvents(){
 
   /**
    * IQC RT 條碼正規化：
-   * - 掃描 RT123456 時，畫面與 payload 只保留 123456。
-   * - 手動輸入仍只保留數字。
-   * - 「RT」僅是條碼前綴，不會寫入 IQC_Log。
+   * - 只接受純數字，或完整條碼格式 RT123456。
+   * - 不再於每一個 input 事件即時改寫欄位，避免藍牙 Barcoder 分段傳輸時遺失前 1～2 碼。
+   * - 欄位完成輸入（Enter／change／blur）後，才將 RT 前綴移除。
+   * - payload、草稿與 IQC_Log 最終仍只保留純數字。
    */
   function normalizeIqcRtNo(value){
-    const raw = String(value || "").trim().toUpperCase();
-    const withoutBarcodePrefix = raw.replace(/^RT(?=\d)/, "");
-    return withoutBarcodePrefix.replace(/\D/g, "");
+    const raw = String(value || "").trim().toUpperCase().replace(/\s+/g, "");
+    if(!raw) return "";
+    if(/^\d+$/.test(raw)) return raw;
+
+    const barcodeMatch = raw.match(/^RT(\d+)$/);
+    if(barcodeMatch) return barcodeMatch[1];
+
+    // 非預期格式不偷偷抽取數字，保留原值交由驗證攔截，避免錯誤料號進後台。
+    return raw;
   }
 
   function isValidIqcRtNo(value){
     return /^\d+$/.test(String(value || "").trim());
+  }
+
+  function isValidIqcRtInputValue(value){
+    const raw = String(value || "").trim().toUpperCase().replace(/\s+/g, "");
+    return /^\d+$/.test(raw) || /^RT\d+$/.test(raw);
+  }
+
+  function commitIqcRtInput(input){
+    if(!input) return;
+    const raw = String(input.value || "").trim();
+    if(!raw) return;
+
+    if(isValidIqcRtInputValue(raw)){
+      input.value = normalizeIqcRtNo(raw);
+    }
   }
 
   function normalizeIqcLoosePairCount(value){
@@ -5051,8 +5073,9 @@ function bindFramePairTableEvents(){
 
     document.querySelectorAll("#iqcCardsContainer .iqc-bundle-rt, #iqcCardsContainer .iqc-loose-rt").forEach(input => {
       const value = String(input.value || "").trim();
-      if(value && !isValidIqcRtNo(value)){
-        setIqcFieldValidation(input, "RT料號只能輸入數字。");
+      const isScannerPrefixInProgress = document.activeElement === input && /^(R|RT)$/i.test(value);
+      if(value && !isScannerPrefixInProgress && !isValidIqcRtInputValue(value)){
+        setIqcFieldValidation(input, "RT料號請輸入純數字，或直接掃描 RT123456 條碼。");
       }
     });
 
@@ -5633,13 +5656,8 @@ function bindFramePairTableEvents(){
       setIqcActiveCardFromTarget(target);
 
       if(target.classList.contains("iqc-bundle-rt") || target.classList.contains("iqc-loose-rt")){
-        const start = target.selectionStart;
-        const end = target.selectionEnd;
-        target.value = normalizeIqcRtNo(target.value);
-        if(typeof start === "number" && typeof end === "number"){
-          const position = Math.min(start, target.value.length);
-          target.setSelectionRange(position, Math.min(end, target.value.length));
-        }
+        // 藍牙 Barcoder 可能將 RT 與數字分段、延遲送達。
+        // input 階段不改寫 value，避免正在傳輸的字元被 DOM 重設吃掉。
       }
 
       if(target.classList.contains("iqc-bundle-ctn") || target.classList.contains("iqc-bundle-frame-id") || target.classList.contains("iqc-transport-frame-ctn") || target.classList.contains("iqc-loose-ctn")){
@@ -5658,6 +5676,10 @@ function bindFramePairTableEvents(){
       if(!target) return;
 
       setIqcActiveCardFromTarget(target);
+
+      if(target.classList.contains("iqc-bundle-rt") || target.classList.contains("iqc-loose-rt")){
+        commitIqcRtInput(target);
+      }
 
       if(target.classList.contains("iqc-loose-pair-count")){
         const cardIndex = Number(target.dataset.iqcCardIndex || "-1");
@@ -5685,8 +5707,24 @@ function bindFramePairTableEvents(){
       persistDraft();
     });
 
-    container.addEventListener("focusout", function(){
+    container.addEventListener("focusout", function(e){
+      const target = e.target;
+      if(target && (target.classList.contains("iqc-bundle-rt") || target.classList.contains("iqc-loose-rt"))){
+        commitIqcRtInput(target);
+      }
       applyIqcLiveValidation();
+    });
+
+    container.addEventListener("keydown", function(e){
+      const target = e.target;
+      if(!target || e.key !== "Enter") return;
+      if(!(target.classList.contains("iqc-bundle-rt") || target.classList.contains("iqc-loose-rt"))) return;
+
+      // 多數 Barcoder 會在條碼末端送出 Enter；此時才安全地移除 RT 前綴。
+      e.preventDefault();
+      commitIqcRtInput(target);
+      applyIqcLiveValidation();
+      persistDraft();
     });
 
     if(!window.__iqcResponsiveLayoutBound){
