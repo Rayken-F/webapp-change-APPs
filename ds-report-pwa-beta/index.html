@@ -91,6 +91,7 @@
     button.secondary{ background:linear-gradient(135deg,rgba(71,111,182,.75),rgba(46,56,128,.92)); }
     button.danger{ background:linear-gradient(135deg,rgba(239,72,103,.88),rgba(190,41,90,.95)); }
     button.warning{ background:linear-gradient(135deg,rgba(246,177,48,.92),rgba(220,118,24,.95)); }
+    button.transfer{ background:linear-gradient(135deg,rgba(31,177,188,.92),rgba(27,118,166,.96)); }
     button.success{ background:linear-gradient(135deg,rgba(47,179,111,.92),rgba(28,132,80,.96)); }
     button.ghost{ background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.14); box-shadow:none; }
     .slider-stage{ position:relative; }
@@ -194,6 +195,7 @@
     .pill{ display:inline-flex; align-items:center; gap:5px; min-height:28px; padding:4px 9px; border-radius:999px; color:#fff; background:rgba(255,255,255,.10); border:1px solid rgba(255,255,255,.14); font-size:12px; font-weight:900; white-space:nowrap; }
     .pill.transport{ background:rgba(69,163,255,.16); border-color:rgba(126,190,255,.48); }
     .pill.bundle{ background:rgba(140,123,255,.18); border-color:rgba(183,171,255,.48); }
+    .pill.pending-transfer{ background:rgba(49,211,213,.16); border-color:rgba(126,242,242,.50); color:#d9ffff; }
     .pill.pending-dcyl{ background:rgba(255,109,131,.18); border-color:rgba(255,158,172,.52); }
     .pill.pending-ht{ background:rgba(255,202,91,.18); border-color:rgba(255,226,154,.54); color:#fff6d2; }
     .status-empty{ color:var(--text-soft); padding:22px 0 5px; text-align:center; font-size:14px; line-height:1.7; }
@@ -207,6 +209,19 @@
     .ctn-entry-block.replacement{
       background:rgba(69,163,255,.065);
       border-color:rgba(126,190,255,.25);
+    }
+    .replacement-input-row{
+      display:grid;
+      grid-template-columns:minmax(0,1fr) auto;
+      gap:10px;
+      align-items:stretch;
+    }
+    .replacement-select-all{
+      min-width:92px;
+      padding:12px 14px;
+      border-radius:15px;
+      font-size:14px;
+      white-space:nowrap;
     }
     .replacement-context{
       margin:8px 0 0; color:var(--text-soft); font-size:12px; line-height:1.55;
@@ -352,9 +367,20 @@
       .ctn-entry-grid.has-replacement{ grid-template-columns:1fr; }
       .scan-grid{ grid-template-columns:1fr; }
       .scan-grid button{ width:100%; }
+      .replacement-input-row{ grid-template-columns:1fr; }
+      .replacement-select-all{ width:100%; }
       .bottle-row{ grid-template-columns:auto minmax(0,1fr); }
-      .bottle-actions{ grid-column:1 / -1; justify-content:stretch; }
-      .bottle-actions button{ flex:1; }
+      .bottle-actions{
+        grid-column:1 / -1;
+        display:grid;
+        grid-template-columns:repeat(2,minmax(0,1fr));
+        gap:8px;
+        align-items:stretch;
+      }
+      .bottle-actions button{ width:100%; min-width:0; }
+      .bottle-action-transfer{ grid-column:2; grid-row:1; }
+      .bottle-action-dcyl{ grid-column:1; grid-row:1 / span 2; min-height:100%; }
+      .bottle-action-ht{ grid-column:2; grid-row:2; }
       .bundle-dcyl-options{ grid-template-columns:1fr; }
       .bundle-qty-row{ grid-template-columns:1fr; }
       .footer-actions{ grid-template-columns:1fr; }
@@ -370,7 +396,7 @@
 
     <section class="beta-banner">
       <span class="beta-badge">BETA 2</span>
-      <div>掃描結果會透過獨立唯讀 API 查詢正式 <strong>IQC_Log</strong> 與 <strong>RT list</strong>。DCYL、轉 HT、換運輸框及待噴砂運輸框仍只保存在本機草稿，<strong>不寫入 Response、不更新 IQC_Log、不異動 ERP，也不會改變任何正式 CTN 狀態。</strong></div>
+      <div>掃描結果會透過獨立唯讀 API 查詢正式 <strong>IQC_Log</strong> 與 <strong>RT list</strong>。待轉移、DCYL、轉 HT、換運輸框及待噴砂運輸框仍只保存在本機草稿，<strong>不寫入 Response、不更新 IQC_Log、不異動 ERP，也不會改變任何正式 CTN 狀態。</strong></div>
     </section>
 
     <section class="form-card">
@@ -548,6 +574,19 @@
         betaState.cards.forEach(function(card){
           card.loading = false;
           card.lookupRequestId = "";
+          card.bottles = (Array.isArray(card.bottles) ? card.bottles : []).map(function(bottle){
+            const nextBottle = Object.assign({}, bottle);
+            nextBottle.pendingTransfer = bottle && bottle.pendingTransfer === true;
+            nextBottle.pendingDcyl = bottle && bottle.pendingDcyl === true;
+            nextBottle.pendingHt = bottle && bottle.pendingHt === true;
+            if(nextBottle.pendingTransfer){
+              nextBottle.pendingDcyl = false;
+              nextBottle.pendingHt = false;
+            }else if(nextBottle.pendingDcyl){
+              nextBottle.pendingHt = false;
+            }
+            return nextBottle;
+          });
         });
       }catch(err){
         console.warn("Beta 草稿讀取失敗", err);
@@ -710,6 +749,17 @@
       const replacementInitialError = replacementValue && !replacementInitialCheck.ok
         ? replacementInitialCheck.message.replace(`第 ${card.index + 1} 框的`, "")
         : "";
+      const transportBottles = card.kind === "transport" && Array.isArray(card.bottles)
+        ? card.bottles
+        : [];
+      const transferSelectedCount = transportBottles.filter(function(bottle){
+        return bottle && bottle.pendingTransfer === true;
+      }).length;
+      const allTransferSelected = transportBottles.length > 0 && transferSelectedCount === transportBottles.length;
+      const transferSelectionEnabled = card.kind === "transport"
+        && transportBottles.length > 0
+        && replacementValue
+        && replacementInitialCheck.ok;
 
       const bundleTransportValue = normalizeCTN(card.bundleTransportFrameCtn || "");
       const bundleTransportInitialCheck = bundleTransportValue
@@ -726,9 +776,12 @@
         ? `
           <div class="ctn-entry-block replacement">
             <label class="field-label" for="replacement-${index}">更換後運輸框架 CTN（選填）</label>
-            <input id="replacement-${index}" class="form-input${replacementInputClass}" value="${escapeHtml(replacementValue)}" placeholder="例如 AB12CD3" autocomplete="off" inputmode="text" maxlength="7" aria-describedby="replacement-error-${index}" oninput="onReplacementInput(${index}, this)" onblur="validateReplacementInput(${index}, true)">
+            <div class="replacement-input-row">
+              <input id="replacement-${index}" class="form-input${replacementInputClass}" value="${escapeHtml(replacementValue)}" placeholder="例如 AB12CD3" autocomplete="off" inputmode="text" maxlength="7" aria-describedby="replacement-error-${index}" oninput="onReplacementInput(${index}, this)" onblur="validateReplacementInput(${index}, true)">
+              <button id="transfer-all-${index}" type="button" class="replacement-select-all ${allTransferSelected ? "transfer" : "ghost"}" ${transferSelectionEnabled ? "" : "disabled"} onclick="toggleAllTransfer(${index})">${allTransferSelected ? "取消全選" : "全選"}</button>
+            </div>
             <div id="replacement-error-${index}" class="inline-error" aria-live="polite">${escapeHtml(replacementInitialError)}</div>
-            <div class="replacement-context">原框：<strong>${escapeHtml(card.transportFrameCtn || card.scannedCtn)}</strong> → 新框填在此處。格式需為 7 碼：前 2 英文、3–4 數字、5–6 英文、第 7 碼英數。</div>
+            <div class="replacement-context">原框：<strong>${escapeHtml(card.transportFrameCtn || card.scannedCtn)}</strong> → 新框填在此處。已選 <strong>${transferSelectedCount}／${transportBottles.length}</strong> 支待轉移；可按「全選」一次選取全部鋼瓶。</div>
           </div>
         `
         : card.kind === "bundle"
@@ -799,7 +852,7 @@
             <div class="field-label" style="margin:0;">散支鋼瓶清單</div>
             <div class="count-text">共 ${bottles.length} 支</div>
           </div>
-          <div class="mini-note" style="margin-bottom:10px;">每支鋼瓶直接使用右側按鈕標記 DCYL 或轉 HT；兩種狀態互斥。這些標記仍只存在前端草稿。</div>
+          <div class="mini-note" style="margin-bottom:10px;">每支鋼瓶可標記待轉移、DCYL 或轉 HT；三種狀態互斥。待轉移前須先輸入正確的更換後運輸框架 CTN。</div>
           <div class="bottle-list">
             ${bottles.length
               ? bottles.map((bottle, bottleIndex) => renderBottleRow(cardIndex, bottleIndex, bottle)).join("")
@@ -810,9 +863,11 @@
     }
 
     function renderBottleRow(cardIndex, bottleIndex, bottle){
+      const transfer = bottle.pendingTransfer === true;
       const dcyl = bottle.pendingDcyl === true;
       const ht = bottle.pendingHt === true;
       const statePills = [
+        transfer ? '<span class="pill pending-transfer">待轉移</span>' : "",
         dcyl ? '<span class="pill pending-dcyl">待 DCYL</span>' : "",
         ht ? '<span class="pill pending-ht">待轉 HT</span>' : ""
       ].join("");
@@ -827,8 +882,9 @@
             <div class="bottle-rt">RT：${escapeHtml(bottle.rt || "-")} ${statePills}</div>
           </div>
           <div class="bottle-actions">
-            <button type="button" class="${dcyl ? "danger" : "ghost"}" onclick="toggleDcyl(${cardIndex}, ${bottleIndex})">${dcyl ? "取消 DCYL" : "DCYL"}</button>
-            <button type="button" class="${ht ? "warning" : "ghost"}" onclick="toggleHt(${cardIndex}, ${bottleIndex})">${ht ? "取消 HT" : "轉 HT"}</button>
+            <button type="button" class="bottle-action-transfer ${transfer ? "transfer" : "ghost"}" onclick="toggleTransfer(${cardIndex}, ${bottleIndex})">${transfer ? "取消轉移" : "待轉移"}</button>
+            <button type="button" class="bottle-action-dcyl ${dcyl ? "danger" : "ghost"}" onclick="toggleDcyl(${cardIndex}, ${bottleIndex})">${dcyl ? "取消 DCYL" : "DCYL"}</button>
+            <button type="button" class="bottle-action-ht ${ht ? "warning" : "ghost"}" onclick="toggleHt(${cardIndex}, ${bottleIndex})">${ht ? "取消 HT" : "轉 HT"}</button>
           </div>
         </article>
       `;
@@ -1021,6 +1077,7 @@
               sequence: Number(item.sequence || 0) || bottleIndex + 1,
               ctn: normalizeCTN(item.ctn || ""),
               rt: String(item.rt || "").trim(),
+              pendingTransfer: false,
               pendingDcyl: false,
               pendingHt: false
             };
@@ -1308,7 +1365,28 @@
       // 掃描器通常會一次灌入完整 7 碼；達 7 碼時立即驗證。
       // 手動輸入不足 7 碼時先不吵人，離開欄位時再提示。
       validateReplacementInput(cardIndex, normalized.length >= 7);
+      updateTransferSelectAllButton(cardIndex);
       saveBetaDraft();
+      renderDraftSummary();
+    }
+
+    function updateTransferSelectAllButton(cardIndex){
+      const card = getCard(cardIndex);
+      const button = document.getElementById(`transfer-all-${cardIndex}`);
+      if(!button || !card || card.kind !== "transport") return;
+
+      const bottles = Array.isArray(card.bottles) ? card.bottles : [];
+      const selectedCount = bottles.filter(function(bottle){
+        return bottle && bottle.pendingTransfer === true;
+      }).length;
+      const allSelected = bottles.length > 0 && selectedCount === bottles.length;
+      const replacementCheck = validatePendingReplacement(card);
+      const enabled = bottles.length > 0 && !!replacementCheck.value && replacementCheck.ok;
+
+      button.disabled = !enabled;
+      button.textContent = allSelected ? "取消全選" : "全選";
+      button.classList.toggle("transfer", allSelected);
+      button.classList.toggle("ghost", !allSelected);
     }
 
     function validateReplacementInput(cardIndex, forceShow){
@@ -1323,11 +1401,13 @@
       errorEl.textContent = "";
 
       if(!value){
+        updateTransferSelectAllButton(cardIndex);
         return true;
       }
 
       // 尚未輸入完且仍在欄位內時，不先顯示紅字；失焦時才強制提示。
       if(!forceShow && value.length < 7){
+        updateTransferSelectAllButton(cardIndex);
         return true;
       }
 
@@ -1335,10 +1415,12 @@
       if(!result.ok){
         input.classList.add("input-invalid");
         errorEl.textContent = result.message.replace(`第 ${card.index + 1} 框的`, "");
+        updateTransferSelectAllButton(cardIndex);
         return false;
       }
 
       input.classList.add("input-valid");
+      updateTransferSelectAllButton(cardIndex);
       return true;
     }
 
@@ -1348,11 +1430,69 @@
       return card.bottles[bottleIndex];
     }
 
+    function ensureTransferTargetReady(cardIndex){
+      const card = getCard(cardIndex);
+      const result = validatePendingReplacement(card);
+      if(result.ok && result.value) return true;
+
+      const message = result.ok
+        ? "請先輸入更換後運輸框架 CTN，再選擇要轉移的鋼瓶。"
+        : result.message.replace(`第 ${card.index + 1} 框的`, "");
+      alert(message);
+
+      const input = document.getElementById(`replacement-${cardIndex}`);
+      if(input){
+        input.focus();
+        input.scrollIntoView({ behavior:"smooth", block:"center" });
+      }
+      validateReplacementInput(cardIndex, true);
+      return false;
+    }
+
+    function toggleTransfer(cardIndex, bottleIndex){
+      const bottle = getTransportBottle(cardIndex, bottleIndex);
+      if(!bottle) return;
+      if(!bottle.pendingTransfer && !ensureTransferTargetReady(cardIndex)) return;
+
+      bottle.pendingTransfer = !bottle.pendingTransfer;
+      if(bottle.pendingTransfer){
+        bottle.pendingDcyl = false;
+        bottle.pendingHt = false;
+      }
+      saveBetaDraft();
+      renderAll();
+    }
+
+    function toggleAllTransfer(cardIndex){
+      const card = getCard(cardIndex);
+      if(!card || card.kind !== "transport" || !Array.isArray(card.bottles) || !card.bottles.length) return;
+      if(!ensureTransferTargetReady(cardIndex)) return;
+
+      const allSelected = card.bottles.every(function(bottle){
+        return bottle && bottle.pendingTransfer === true;
+      });
+      const nextSelected = !allSelected;
+
+      card.bottles.forEach(function(bottle){
+        bottle.pendingTransfer = nextSelected;
+        if(nextSelected){
+          bottle.pendingDcyl = false;
+          bottle.pendingHt = false;
+        }
+      });
+
+      saveBetaDraft();
+      renderAll();
+    }
+
     function toggleDcyl(cardIndex, bottleIndex){
       const bottle = getTransportBottle(cardIndex, bottleIndex);
       if(!bottle) return;
       bottle.pendingDcyl = !bottle.pendingDcyl;
-      if(bottle.pendingDcyl) bottle.pendingHt = false;
+      if(bottle.pendingDcyl){
+        bottle.pendingTransfer = false;
+        bottle.pendingHt = false;
+      }
       saveBetaDraft();
       renderAll();
     }
@@ -1361,7 +1501,10 @@
       const bottle = getTransportBottle(cardIndex, bottleIndex);
       if(!bottle) return;
       bottle.pendingHt = !bottle.pendingHt;
-      if(bottle.pendingHt) bottle.pendingDcyl = false;
+      if(bottle.pendingHt){
+        bottle.pendingTransfer = false;
+        bottle.pendingDcyl = false;
+      }
       saveBetaDraft();
       renderAll();
     }
@@ -1379,12 +1522,35 @@
       betaState.cards.forEach(card => {
         if(card.kind === "transport"){
           const replacementCheck = validatePendingReplacement(card);
+          const bottles = Array.isArray(card.bottles) ? card.bottles : [];
+          const transferBottles = bottles.filter(function(bottle){
+            return bottle && bottle.pendingTransfer === true;
+          });
+
           if(!replacementCheck.ok){
             rows.push({ type:"error", title:`第 ${card.index + 1} 框：換框資料待修正`, detail:replacementCheck.message });
-          }else if(replacementCheck.value){
-            rows.push({ type:"change", title:`第 ${card.index + 1} 框：待更換運輸框`, detail:`${card.transportFrameCtn} → ${replacementCheck.value}` });
+          }else if(transferBottles.length && !replacementCheck.value){
+            rows.push({
+              type:"error",
+              title:`第 ${card.index + 1} 框：待轉移資料缺少目的框`,
+              detail:`已選擇 ${transferBottles.length} 支待轉移，但尚未輸入更換後運輸框架 CTN。`
+            });
+          }else if(replacementCheck.value && !transferBottles.length){
+            rows.push({
+              type:"error",
+              title:`第 ${card.index + 1} 框：尚未選擇待轉移鋼瓶`,
+              detail:`已輸入新運輸框 ${replacementCheck.value}，請按「全選」或逐支標記待轉移。`
+            });
+          }else if(replacementCheck.value && transferBottles.length){
+            const allSelected = transferBottles.length === bottles.length;
+            rows.push({
+              type:"transfer",
+              title:`第 ${card.index + 1} 框：${allSelected ? "全部" : "部分"} ${transferBottles.length}／${bottles.length} 支待轉移`,
+              detail:`${card.transportFrameCtn} → ${replacementCheck.value}｜CTN：${transferBottles.map(function(bottle){ return bottle.ctn; }).join("、")}`
+            });
           }
-          (card.bottles || []).forEach((bottle, index) => {
+
+          bottles.forEach((bottle, index) => {
             if(bottle.pendingDcyl){
               rows.push({ type:"dcyl", title:`第 ${card.index + 1} 框｜第 ${index + 1} 支：待轉 DCYL`, detail:`CTN ${bottle.ctn}｜RT ${bottle.rt}` });
             }
@@ -1522,7 +1688,7 @@
         contentRows = rows.map(row => ({ title:row.title, detail:row.detail }));
       }else if(!rows.length){
         contentRows = [{
-          title:"已帶入資料，但尚未選擇 DCYL、轉 HT、換運輸框或待噴砂運輸框。",
+          title:"已帶入資料，但尚未選擇待轉移、DCYL、轉 HT、換運輸框或待噴砂運輸框。",
           detail:"這是正常情況；你可以回到卡片測試按鈕操作。"
         }];
       }else{
@@ -1546,7 +1712,7 @@
         alert("目前仍有 CTN 或換框資料錯誤，請返回調整後再模擬送出。");
         return;
       }
-      alert(`Beta 模擬送出完成。\n\n選擇 ${stats.selected} 框；有效 ${stats.filledIndexes.length} 框；空白 ${stats.emptyIndexes.length} 框（略過）。\n本次共 ${rows.length} 項待提交動作。\n\n提醒：第二階段只讀取 IQC_Log；本次 DCYL、轉 HT、換框仍未寫入 Response、IQC_Log 或 ERP。`);
+      alert(`Beta 模擬送出完成。\n\n選擇 ${stats.selected} 框；有效 ${stats.filledIndexes.length} 框；空白 ${stats.emptyIndexes.length} 框（略過）。\n本次共 ${rows.length} 項待提交動作。\n\n提醒：第二階段只讀取 IQC_Log；本次待轉移、DCYL、轉 HT、換框仍未寫入 Response、IQC_Log 或 ERP。`);
       closePreview();
     }
 
