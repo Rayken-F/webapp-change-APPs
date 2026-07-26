@@ -139,10 +139,30 @@ async function fetchIqcRegions() {
   return Array.isArray(result.regions) ? result.regions : [];
 }
 /**
- * IQC CTN 重複檢查：只檢查 IQC_Log 內同日期既有的集束／散支 CTN。
- * 運輸框架CTN可對應多支散瓶，因此不納入「鋼瓶／集束 CTN」重複判斷。
+ * IQC CTN 唯一性檢查：
+ * - 集束 CTN、運輸框架 CTN、散支鋼瓶 CTN 共用同一個唯一識別空間。
+ * - 仍只查詢同日期既有 IQC_Log；正式寫入前後端會再做一次完整驗證。
+ * - 相容舊前端：若傳入純字串陣列，也會自動轉成一般 IQC CTN。
  */
-async function validateIqcCtnsAPI(reportDate, ctnList) {
+async function validateIqcCtnsAPI(reportDate, ctnEntries) {
+  const entries = (Array.isArray(ctnEntries) ? ctnEntries : [])
+    .map(item => {
+      if(item && typeof item === "object"){
+        return {
+          ctn:String(item.ctn || "").trim().toUpperCase(),
+          role:String(item.role || "IQC CTN").trim(),
+          label:String(item.label || "").trim()
+        };
+      }
+
+      return {
+        ctn:String(item || "").trim().toUpperCase(),
+        role:"IQC CTN",
+        label:""
+      };
+    })
+    .filter(item => !!item.ctn);
+
   const res = await fetch(`${API_URL}?api=iqc_ctn_check`, {
     method: "POST",
     headers: {
@@ -150,7 +170,9 @@ async function validateIqcCtnsAPI(reportDate, ctnList) {
     },
     body: JSON.stringify({
       date: reportDate || "",
-      ctnList: Array.isArray(ctnList) ? ctnList : []
+      entries: entries,
+      // 保留 ctnList，讓尚未更新的後端仍可讀取。
+      ctnList: entries.map(item => item.ctn)
     })
   });
 
