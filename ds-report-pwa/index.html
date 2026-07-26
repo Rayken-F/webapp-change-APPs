@@ -4342,7 +4342,7 @@ function bindFramePairTableEvents(){
         const serverCheck = await validateIqcCtnsBeforeSubmit(formData.date);
         if(serverCheck.duplicates.length > 0){
           const duplicateText = (serverCheck.duplicateDetails && serverCheck.duplicateDetails.length)
-            ? serverCheck.duplicateDetails.slice(0,3).map(item => `${item.ctn}（${item.date || "既有 IQC"}）`).join("、")
+            ? serverCheck.duplicateDetails.slice(0,3).map(item => item.message || `${item.ctn}（${item.date || "既有 IQC"}）`).join("；")
             : serverCheck.duplicates.slice(0,3).join("、");
           const cardIndex = findIqcCardIndexByCtn(serverCheck.duplicates[0]);
           showIqcError(cardIndex, `IQC_Log 已有重複 CTN：${duplicateText}${serverCheck.duplicates.length > 3 ? "..." : ""}`);
@@ -4997,6 +4997,13 @@ function bindFramePairTableEvents(){
     input.insertAdjacentElement("afterend", messageEl);
   }
 
+  /**
+   * 收集 IQC 本次填報中所有具唯一性的 CTN。
+   * 同一個 CTN 不可因欄位角色不同而重複使用：
+   * - 集束 CTN
+   * - 運輸框架 CTN
+   * - 散支鋼瓶 CTN
+   */
   function getIqcContentCtnEntries(cards){
     const entries = [];
 
@@ -5008,29 +5015,48 @@ function bindFramePairTableEvents(){
         if(ctn){
           entries.push({
             ctn:ctn,
+            role:"集束CTN",
             cardIndex:cardIndex,
             selector:`.iqc-bundle-ctn[data-iqc-card-index="${cardIndex}"]`,
-            label:`第${cardIndex + 1}筆集束 IQC`
+            label:`第${cardIndex + 1}筆集束 IQC 的集束CTN`
           });
         }
       }
 
       if(type === "散支") {
+        const transportCtn = normalizeCTN(card && card.transportFrameCtn || "");
+        if(transportCtn){
+          entries.push({
+            ctn:transportCtn,
+            role:"運輸框架CTN",
+            cardIndex:cardIndex,
+            selector:`.iqc-transport-frame-ctn[data-iqc-card-index="${cardIndex}"]`,
+            label:`第${cardIndex + 1}筆散支 IQC 的運輸框架CTN`
+          });
+        }
+
         const pairs = Array.isArray(card && card.loosePairs) ? card.loosePairs : [];
         pairs.forEach((pair, pairIndex) => {
           const ctn = normalizeCTN(pair && pair.ctn || "");
           if(!ctn) return;
           entries.push({
             ctn:ctn,
+            role:"散支鋼瓶CTN",
             cardIndex:cardIndex,
             selector:`.iqc-loose-ctn[data-iqc-card-index="${cardIndex}"][data-iqc-pair-index="${pairIndex}"]`,
-            label:`第${cardIndex + 1}筆散支 IQC 的第${pairIndex + 1}支鋼瓶`
+            label:`第${cardIndex + 1}筆散支 IQC 的第${pairIndex + 1}支鋼瓶CTN`
           });
         });
       }
     });
 
     return entries;
+  }
+
+  function buildIqcDuplicateCtnMessage(group){
+    const entries = group && Array.isArray(group.entries) ? group.entries : [];
+    const locations = entries.map(entry => entry.label).join("、");
+    return `CTN ${group.ctn} 重複：${locations}。CTN 是唯一識別碼，不可同時作為運輸框架、集束或散支鋼瓶 CTN。`;
   }
 
   function getIqcDuplicateContentCtnGroups(cards){
@@ -5046,11 +5072,21 @@ function bindFramePairTableEvents(){
   }
 
   function getIqcScannedCtnsForServerCheck(){
-    const unique = {};
-    getIqcContentCtnEntries(formData.iqc_cards).forEach(entry => {
-      if(isValidCTN(entry.ctn)) unique[entry.ctn] = true;
-    });
-    return Object.keys(unique).sort();
+    const seen = {};
+    return getIqcContentCtnEntries(formData.iqc_cards)
+      .filter(entry => isValidCTN(entry.ctn))
+      .filter(entry => {
+        const key = `${entry.ctn}|${entry.role}|${entry.label}`;
+        if(seen[key]) return false;
+        seen[key] = true;
+        return true;
+      })
+      .map(entry => ({
+        ctn:entry.ctn,
+        role:entry.role,
+        label:entry.label,
+        cardIndex:entry.cardIndex
+      }));
   }
 
   function findIqcCardIndexByCtn(ctn){
@@ -5082,22 +5118,23 @@ function bindFramePairTableEvents(){
     collectIqcCardsFromUI();
     const duplicateGroups = getIqcDuplicateContentCtnGroups(formData.iqc_cards);
     duplicateGroups.forEach(group => {
+      const message = buildIqcDuplicateCtnMessage(group);
       group.entries.forEach(entry => {
         const input = document.querySelector(entry.selector);
-        setIqcFieldValidation(input, `重複掃描 CTN：${group.ctn}`);
+        setIqcFieldValidation(input, message);
       });
     });
   }
 
   async function validateIqcCtnsBeforeSubmit(reportDate){
-    const ctnList = getIqcScannedCtnsForServerCheck();
-    if(!ctnList.length) return { duplicates:[], duplicateDetails:[] };
+    const ctnEntries = getIqcScannedCtnsForServerCheck();
+    if(!ctnEntries.length) return { duplicates:[], duplicateDetails:[] };
 
     if(typeof validateIqcCtnsAPI !== "function"){
       throw new Error("IQC CTN 重複驗證功能尚未載入，請重新整理頁面後再試。");
     }
 
-    return validateIqcCtnsAPI(reportDate, ctnList);
+    return validateIqcCtnsAPI(reportDate, ctnEntries);
   }
 
   function validateIqcCardsBeforePreview(){
@@ -5215,7 +5252,7 @@ function bindFramePairTableEvents(){
     const duplicateGroups = getIqcDuplicateContentCtnGroups(cards);
     if(duplicateGroups.length){
       const first = duplicateGroups[0];
-      showIqcError(first.entries[0].cardIndex, `IQC 重複掃描 CTN：${first.ctn}。同一次 IQC 填報不可重複登錄同一支／同一組 CTN。`);
+      showIqcError(first.entries[0].cardIndex, buildIqcDuplicateCtnMessage(first));
       return false;
     }
 
