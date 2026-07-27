@@ -237,6 +237,34 @@
     .data-box{ padding:12px; min-height:68px; border-radius:14px; background:rgba(255,255,255,.065); border:1px solid rgba(255,255,255,.10); }
     .data-box .k{ color:var(--text-soft); font-size:12px; font-weight:800; margin-bottom:4px; }
     .data-box .v{ color:#fff; font-size:15px; font-weight:900; word-break:break-all; }
+    .bottle-add-panel{
+      margin:14px 0 12px;
+      padding:12px;
+      border-radius:16px;
+      border:1px solid rgba(118,205,255,.28);
+      background:linear-gradient(135deg,rgba(27,141,184,.12),rgba(83,74,187,.12));
+    }
+    .bottle-add-head{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:10px;
+      margin-bottom:9px;
+    }
+    .bottle-add-grid{
+      display:grid;
+      grid-template-columns:minmax(0,1.2fr) minmax(0,.9fr) auto;
+      gap:8px;
+      align-items:start;
+    }
+    .bottle-add-grid .form-input{ min-width:0; }
+    .bottle-add-button{ min-height:46px; white-space:nowrap; }
+    .bottle-add-tip{ margin-top:8px; color:var(--text-sub); font-size:12px; line-height:1.5; }
+    .pill.pending-add{
+      background:rgba(67,211,167,.17);
+      border-color:rgba(114,239,197,.55);
+      color:#d9fff2;
+    }
     .bottle-list{ margin-top:14px; display:grid; gap:10px; }
     .bottle-row{
       display:grid; grid-template-columns:auto minmax(0,1fr) auto; gap:10px; align-items:center;
@@ -447,6 +475,8 @@
         transition:transform .2s ease;
       }
       .mobile-quick-panel{ transition:opacity .18s ease,transform .18s ease; }
+      .bottle-add-grid{ grid-template-columns:1fr 1fr; }
+      .bottle-add-button{ grid-column:1 / -1; width:100%; }
       .bundle-dcyl-options{ grid-template-columns:1fr; }
       .bundle-qty-row{ grid-template-columns:1fr; }
       .footer-actions{ grid-template-columns:1fr; }
@@ -627,6 +657,8 @@
         source: null,
         warnings: [],
         bottles: [],
+        newBottleCtn: "",
+        newBottleRt: "",
         bundle: null
       };
     }
@@ -648,6 +680,8 @@
       card.source = null;
       card.warnings = [];
       card.bottles = [];
+      card.newBottleCtn = "";
+      card.newBottleRt = "";
       card.bundle = null;
     }
 
@@ -693,8 +727,11 @@
         betaState.cards.forEach(function(card){
           card.loading = false;
           card.lookupRequestId = "";
+          card.newBottleCtn = normalizeCTN(card.newBottleCtn || "");
+          card.newBottleRt = String(card.newBottleRt || "");
           card.bottles = (Array.isArray(card.bottles) ? card.bottles : []).map(function(bottle){
             const nextBottle = Object.assign({}, bottle);
+            nextBottle.pendingAdd = bottle && bottle.pendingAdd === true;
             nextBottle.pendingTransfer = bottle && bottle.pendingTransfer === true;
             nextBottle.pendingDcyl = bottle && bottle.pendingDcyl === true;
             nextBottle.pendingHt = bottle && bottle.pendingHt === true;
@@ -899,12 +936,15 @@
       const transportBottles = card.kind === "transport" && Array.isArray(card.bottles)
         ? card.bottles
         : [];
-      const transferSelectedCount = transportBottles.filter(function(bottle){
+      const transferableBottles = transportBottles.filter(function(bottle){
+        return bottle && bottle.pendingAdd !== true;
+      });
+      const transferSelectedCount = transferableBottles.filter(function(bottle){
         return bottle && bottle.pendingTransfer === true;
       }).length;
-      const allTransferSelected = transportBottles.length > 0 && transferSelectedCount === transportBottles.length;
+      const allTransferSelected = transferableBottles.length > 0 && transferSelectedCount === transferableBottles.length;
       const transferSelectionEnabled = card.kind === "transport"
-        && transportBottles.length > 0
+        && transferableBottles.length > 0
         && replacementValue
         && replacementInitialCheck.ok;
 
@@ -962,7 +1002,7 @@
             </div>
             ${secondaryCtnControl}
           </div>
-          <div class="tip" style="margin-top:8px;">查詢前會先檢查 IQC_Log 來源唯一性；同一 CTN 若存在多張 IQC 卡片，系統會停止讀取並要求先校正資料。</div>
+          <div class="tip" style="margin-top:8px;">運輸框架可累加多張 IQC 卡片；系統會合併鋼瓶清單、檢查鋼瓶 CTN 重複，並強制每框最多 18 支。</div>
           ${card.error ? `<div class="error">${escapeHtml(card.error)}</div>` : ""}
           ${card.lookupStatus ? `<div class="success-note">${escapeHtml(card.lookupStatus)}</div>` : ""}
           ${warningHtml}
@@ -1014,35 +1054,64 @@
 
     function renderTransportDetail(card, cardIndex){
       const bottles = Array.isArray(card.bottles) ? card.bottles : [];
+      const currentCount = bottles.length;
+      const remaining = Math.max(0, 18 - currentCount);
       return `
         <div class="detail-summary">
           <div class="data-box"><div class="k">目前運輸框架 CTN</div><div class="v">${escapeHtml(card.transportFrameCtn)}</div></div>
           <div class="data-box"><div class="k">來源區域</div><div class="v">${escapeHtml(getRegionDisplay(card))}</div></div>
           <div class="data-box"><div class="k">IQC 資料日期</div><div class="v">${escapeHtml(getSourceDisplay(card))}</div></div>
-          <div class="data-box"><div class="k">資料來源</div><div class="v">IQC_Log（最新卡片）</div></div>
+          <div class="data-box"><div class="k">資料來源</div><div class="v">IQC_Log 累加＋BETA目前狀態</div></div>
         </div>
         <div class="field-block">
+          <div class="bottle-add-panel">
+            <div class="bottle-add-head">
+              <div class="field-label" style="margin:0;">新增散支鋼瓶 CTN＋RT</div>
+              <div class="count-text">目前 ${currentCount}／18 支｜可再新增 ${remaining} 支</div>
+            </div>
+            <div class="bottle-add-grid">
+              <input id="new-bottle-ctn-${cardIndex}" class="form-input"
+                value="${escapeHtml(normalizeCTN(card.newBottleCtn || ""))}"
+                placeholder="掃描鋼瓶 CTN" maxlength="7" autocomplete="off"
+                autocapitalize="characters"
+                oninput="onNewBottleCtnInput(${cardIndex}, this)">
+              <input id="new-bottle-rt-${cardIndex}" class="form-input"
+                value="${escapeHtml(String(card.newBottleRt || ""))}"
+                placeholder="RT123456 或 123456" autocomplete="off" inputmode="text"
+                oninput="onNewBottleRtInput(${cardIndex}, this)"
+                onkeydown="if(event.key === 'Enter'){ event.preventDefault(); addPendingBottle(${cardIndex}); }">
+              <button type="button" class="bottle-add-button"
+                ${remaining > 0 ? "" : "disabled"}
+                onclick="addPendingBottle(${cardIndex})">＋加入鋼瓶</button>
+            </div>
+            <div class="bottle-add-tip">
+              此功能只寫入 BETA 狀態與交易紀錄，不回寫正式 IQC_Log。鋼瓶 CTN 必須全域唯一，每框最多 18 支。
+            </div>
+          </div>
+
           <div class="form-title-line" style="margin-bottom:8px;">
             <div class="field-label" style="margin:0;">散支鋼瓶清單</div>
             <div class="count-text">共 ${bottles.length} 支</div>
           </div>
-          <div class="mini-note" style="margin-bottom:10px;">手機版先點選鋼瓶，再使用右下快捷工具標記待轉移、DCYL、轉 HT 或移除；四種狀態互斥。桌機版維持直接按鈕操作。</div>
+          <div class="mini-note" style="margin-bottom:10px;">手機版先點選鋼瓶，再使用右下快捷工具標記待轉移、DCYL、轉 HT 或移除；待新增鋼瓶只能取消新增。桌機版維持直接按鈕操作。</div>
           <div class="bottle-list">
             ${bottles.length
               ? bottles.map((bottle, bottleIndex) => renderBottleRow(cardIndex, bottleIndex, bottle)).join("")
-              : '<div class="status-empty">此運輸框最新 IQC 卡片沒有可用的散支 CTN／RT 配對，請先核對 IQC_Log。</div>'}
+              : '<div class="status-empty">此運輸框目前沒有散支鋼瓶，可直接在上方新增 CTN＋RT。</div>'}
           </div>
         </div>
       `;
     }
 
     function renderBottleRow(cardIndex, bottleIndex, bottle){
+      const pendingAdd = bottle.pendingAdd === true;
       const transfer = bottle.pendingTransfer === true;
       const dcyl = bottle.pendingDcyl === true;
       const ht = bottle.pendingHt === true;
       const remove = bottle.pendingRemove === true;
       const selected = selectedBottleCardIndex === cardIndex && selectedBottleIndex === bottleIndex;
       const statePills = [
+        pendingAdd ? '<span class="pill pending-add">待新增</span>' : "",
         transfer ? '<span class="pill pending-transfer">待轉移</span>' : "",
         dcyl ? '<span class="pill pending-dcyl">待 DCYL</span>' : "",
         ht ? '<span class="pill pending-ht">待轉 HT</span>' : "",
@@ -1059,10 +1128,14 @@
             <div class="bottle-rt">RT：${escapeHtml(bottle.rt || "-")} ${statePills}</div>
           </div>
           <div class="bottle-actions">
-            <button type="button" class="bottle-action-transfer ${transfer ? "transfer" : "ghost"}" onclick="event.stopPropagation();toggleTransfer(${cardIndex}, ${bottleIndex})">${transfer ? "取消轉移" : "待轉移"}</button>
-            <button type="button" class="bottle-action-dcyl ${dcyl ? "danger" : "ghost"}" onclick="event.stopPropagation();toggleDcyl(${cardIndex}, ${bottleIndex})">${dcyl ? "取消 DCYL" : "DCYL"}</button>
-            <button type="button" class="bottle-action-ht ${ht ? "warning" : "ghost"}" onclick="event.stopPropagation();toggleHt(${cardIndex}, ${bottleIndex})">${ht ? "取消 HT" : "轉 HT"}</button>
-            <button type="button" class="bottle-action-remove" onclick="event.stopPropagation();toggleRemove(${cardIndex}, ${bottleIndex})">${remove ? "取消移除" : "移除"}</button>
+            ${pendingAdd
+              ? `<button type="button" class="bottle-action-remove" onclick="event.stopPropagation();toggleRemove(${cardIndex}, ${bottleIndex})">取消新增</button>`
+              : `
+                <button type="button" class="bottle-action-transfer ${transfer ? "transfer" : "ghost"}" onclick="event.stopPropagation();toggleTransfer(${cardIndex}, ${bottleIndex})">${transfer ? "取消轉移" : "待轉移"}</button>
+                <button type="button" class="bottle-action-dcyl ${dcyl ? "danger" : "ghost"}" onclick="event.stopPropagation();toggleDcyl(${cardIndex}, ${bottleIndex})">${dcyl ? "取消 DCYL" : "DCYL"}</button>
+                <button type="button" class="bottle-action-ht ${ht ? "warning" : "ghost"}" onclick="event.stopPropagation();toggleHt(${cardIndex}, ${bottleIndex})">${ht ? "取消 HT" : "轉 HT"}</button>
+                <button type="button" class="bottle-action-remove" onclick="event.stopPropagation();toggleRemove(${cardIndex}, ${bottleIndex})">${remove ? "取消移除" : "移除"}</button>
+              `}
           </div>
         </article>
       `;
@@ -1256,6 +1329,8 @@
         currentCard.regionName = record.regionName || "";
         currentCard.region = getRegionDisplay(currentCard);
         currentCard.replacementTransportFrameCtn = "";
+        currentCard.newBottleCtn = "";
+        currentCard.newBottleRt = "";
 
         if(record.kind === "transport"){
           currentCard.kind = "transport";
@@ -1266,6 +1341,7 @@
               sequence: Number(item.sequence || 0) || bottleIndex + 1,
               ctn: normalizeCTN(item.ctn || ""),
               rt: String(item.rt || "").trim(),
+              pendingAdd: false,
               pendingTransfer: false,
               pendingDcyl: false,
               pendingHt: false,
@@ -1274,7 +1350,7 @@
               currentStatus: String(item.currentStatus || "ACTIVE")
             };
           });
-          currentCard.lookupStatus = `已帶入 ${currentCard.bottles.length} 支目前可用散支鋼瓶。`;
+          currentCard.lookupStatus = `已帶入 ${currentCard.bottles.length}／18 支目前可用散支鋼瓶。`;
         }else if(record.kind === "bundle"){
           currentCard.kind = "bundle";
           currentCard.transportFrameCtn = "";
@@ -1573,7 +1649,8 @@
       const button = document.getElementById(`transfer-all-${cardIndex}`);
       if(!button || !card || card.kind !== "transport") return;
 
-      const bottles = Array.isArray(card.bottles) ? card.bottles : [];
+      const bottles = (Array.isArray(card.bottles) ? card.bottles : [])
+        .filter(function(bottle){ return bottle && bottle.pendingAdd !== true; });
       const selectedCount = bottles.filter(function(bottle){
         return bottle && bottle.pendingTransfer === true;
       }).length;
@@ -1620,6 +1697,99 @@
       input.classList.add("input-valid");
       updateTransferSelectAllButton(cardIndex);
       return true;
+    }
+
+    function normalizePendingBottleRt(value){
+      const compact = String(value || "").trim().replace(/\s+/g, "").toUpperCase();
+      const withoutPrefix = compact.replace(/^RT/, "");
+      return /^\d+$/.test(withoutPrefix) ? withoutPrefix : "";
+    }
+
+    function onNewBottleCtnInput(cardIndex, input){
+      const card = getCard(cardIndex);
+      if(!card) return;
+      const normalized = normalizeCTN(input && input.value || "").slice(0, 7);
+      card.newBottleCtn = normalized;
+      if(input && input.value !== normalized) input.value = normalized;
+      saveBetaDraft();
+    }
+
+    function onNewBottleRtInput(cardIndex, input){
+      const card = getCard(cardIndex);
+      if(!card) return;
+      card.newBottleRt = String(input && input.value || "");
+      saveBetaDraft();
+    }
+
+    function findBottleCtnInBetaDraft(ctn){
+      const normalized = normalizeCTN(ctn);
+      for(let cardIndex = 0; cardIndex < betaState.cards.length; cardIndex++){
+        const card = betaState.cards[cardIndex];
+        const bottles = Array.isArray(card && card.bottles) ? card.bottles : [];
+        for(let bottleIndex = 0; bottleIndex < bottles.length; bottleIndex++){
+          if(normalizeCTN(bottles[bottleIndex] && bottles[bottleIndex].ctn || "") === normalized){
+            return { cardIndex, bottleIndex, bottle:bottles[bottleIndex] };
+          }
+        }
+      }
+      return null;
+    }
+
+    function addPendingBottle(cardIndex){
+      const card = getCard(cardIndex);
+      if(!card || card.kind !== "transport") return;
+
+      const bottles = Array.isArray(card.bottles) ? card.bottles : [];
+      if(bottles.length >= 18){
+        alert(`運輸框 ${card.transportFrameCtn} 已有 18 支，不能再新增。`);
+        return;
+      }
+
+      const ctn = normalizeCTN(card.newBottleCtn || "");
+      const rt = normalizePendingBottleRt(card.newBottleRt || "");
+
+      if(!isValidCTN(ctn)){
+        alert("新增鋼瓶 CTN 格式錯誤：需為 7 碼，前2英文、3–4數字、5–6英文、第7碼英數。");
+        const input = document.getElementById(`new-bottle-ctn-${cardIndex}`);
+        if(input) input.focus();
+        return;
+      }
+      if(ctn === normalizeCTN(card.transportFrameCtn || "")){
+        alert("鋼瓶 CTN 不可與目前運輸框架 CTN 相同。");
+        return;
+      }
+      if(!rt){
+        alert("新增鋼瓶的 RT料號格式錯誤；可輸入純數字或掃描 RT123456。");
+        const input = document.getElementById(`new-bottle-rt-${cardIndex}`);
+        if(input) input.focus();
+        return;
+      }
+
+      const duplicate = findBottleCtnInBetaDraft(ctn);
+      if(duplicate){
+        alert(`鋼瓶 CTN ${ctn} 已存在於第 ${duplicate.cardIndex + 1} 框清單，不能重複新增。`);
+        return;
+      }
+
+      bottles.push({
+        sequence:bottles.length + 1,
+        ctn,
+        rt,
+        pendingAdd:true,
+        pendingTransfer:false,
+        pendingDcyl:false,
+        pendingHt:false,
+        pendingRemove:false,
+        stateVersion:0,
+        currentStatus:"PENDING_ADD"
+      });
+      card.bottles = bottles;
+      card.newBottleCtn = "";
+      card.newBottleRt = "";
+      selectedBottleCardIndex = cardIndex;
+      selectedBottleIndex = bottles.length - 1;
+      saveBetaDraft();
+      renderAll();
     }
 
     function getSelectedQuickBottle(){
@@ -1705,13 +1875,18 @@
       }
 
       const bottle = selected.bottle;
+      const pendingAdd = bottle.pendingAdd === true;
       const sequence = Number(bottle.sequence || selected.bottleIndex + 1);
       if(target){
         target.textContent = `第 ${sequence} 支｜${bottle.ctn}`;
       }
 
+      if(transferBtn) transferBtn.disabled = pendingAdd;
+      if(dcylBtn) dcylBtn.disabled = pendingAdd;
+      if(htBtn) htBtn.disabled = pendingAdd;
+
       if(transferBtn){
-        transferBtn.textContent = bottle.pendingTransfer ? "取消待轉" : "待轉移";
+        transferBtn.textContent = pendingAdd ? "待新增中" : (bottle.pendingTransfer ? "取消待轉" : "待轉移");
         transferBtn.className = `mobile-quick-action ${bottle.pendingTransfer ? "transfer" : "ghost"}`;
       }
       if(dcylBtn){
@@ -1723,7 +1898,7 @@
         htBtn.className = `mobile-quick-action ${bottle.pendingHt ? "warning" : "ghost"}`;
       }
       if(removeBtn){
-        removeBtn.textContent = bottle.pendingRemove ? "取消移除" : "移除";
+        removeBtn.textContent = pendingAdd ? "取消新增" : (bottle.pendingRemove ? "取消移除" : "移除");
         removeBtn.className = "mobile-quick-action remove";
       }
     }
@@ -1732,6 +1907,11 @@
       const selected = getSelectedQuickBottle();
       if(!selected){
         alert("請先點選要操作的散支鋼瓶。");
+        return;
+      }
+
+      if(selected.bottle.pendingAdd && action !== "remove"){
+        alert("待新增鋼瓶尚未正式建立，只能先取消新增。");
         return;
       }
 
@@ -1774,6 +1954,10 @@
     function toggleTransfer(cardIndex, bottleIndex){
       const bottle = getTransportBottle(cardIndex, bottleIndex);
       if(!bottle) return;
+      if(bottle.pendingAdd){
+        alert("待新增鋼瓶尚未正式建立，不能直接執行待轉移。");
+        return;
+      }
       if(!bottle.pendingTransfer && !ensureTransferTargetReady(cardIndex)) return;
 
       bottle.pendingTransfer = !bottle.pendingTransfer;
@@ -1791,12 +1975,17 @@
       if(!card || card.kind !== "transport" || !Array.isArray(card.bottles) || !card.bottles.length) return;
       if(!ensureTransferTargetReady(cardIndex)) return;
 
-      const allSelected = card.bottles.every(function(bottle){
-        return bottle && bottle.pendingTransfer === true;
+      const transferable = card.bottles.filter(function(bottle){
+        return bottle && bottle.pendingAdd !== true;
+      });
+      if(!transferable.length) return;
+
+      const allSelected = transferable.every(function(bottle){
+        return bottle.pendingTransfer === true;
       });
       const nextSelected = !allSelected;
 
-      card.bottles.forEach(function(bottle){
+      transferable.forEach(function(bottle){
         bottle.pendingTransfer = nextSelected;
         if(nextSelected){
           bottle.pendingDcyl = false;
@@ -1812,6 +2001,10 @@
     function toggleDcyl(cardIndex, bottleIndex){
       const bottle = getTransportBottle(cardIndex, bottleIndex);
       if(!bottle) return;
+      if(bottle.pendingAdd){
+        alert("待新增鋼瓶尚未正式建立，不能直接執行DCYL。");
+        return;
+      }
       bottle.pendingDcyl = !bottle.pendingDcyl;
       if(bottle.pendingDcyl){
         bottle.pendingTransfer = false;
@@ -1825,6 +2018,10 @@
     function toggleHt(cardIndex, bottleIndex){
       const bottle = getTransportBottle(cardIndex, bottleIndex);
       if(!bottle) return;
+      if(bottle.pendingAdd){
+        alert("待新增鋼瓶尚未正式建立，不能直接執行轉 HT。");
+        return;
+      }
       bottle.pendingHt = !bottle.pendingHt;
       if(bottle.pendingHt){
         bottle.pendingTransfer = false;
@@ -1839,6 +2036,18 @@
       const card = getCard(cardIndex);
       const bottle = getTransportBottle(cardIndex, bottleIndex);
       if(!card || !bottle) return;
+
+      if(bottle.pendingAdd){
+        const confirmed = confirm(`確定取消新增鋼瓶 ${bottle.ctn}？\n\n此動作只會移除尚未送出的 BETA 草稿。`);
+        if(!confirmed) return;
+        card.bottles.splice(bottleIndex, 1);
+        card.bottles.forEach(function(item, index){ item.sequence = index + 1; });
+        selectedBottleCardIndex = -1;
+        selectedBottleIndex = -1;
+        saveBetaDraft();
+        renderAll();
+        return;
+      }
 
       if(!bottle.pendingRemove){
         const sequence = Number(bottle.sequence || bottleIndex + 1);
@@ -1876,7 +2085,10 @@
         if(card.kind === "transport"){
           const replacementCheck = validatePendingReplacement(card);
           const bottles = Array.isArray(card.bottles) ? card.bottles : [];
-          const transferBottles = bottles.filter(function(bottle){
+          const existingBottles = bottles.filter(function(bottle){
+            return bottle && bottle.pendingAdd !== true;
+          });
+          const transferBottles = existingBottles.filter(function(bottle){
             return bottle && bottle.pendingTransfer === true;
           });
 
@@ -1895,15 +2107,22 @@
               detail:`已輸入新運輸框 ${replacementCheck.value}，請按「全選」或逐支標記待轉移。`
             });
           }else if(replacementCheck.value && transferBottles.length){
-            const allSelected = transferBottles.length === bottles.length;
+            const allSelected = transferBottles.length === existingBottles.length;
             rows.push({
               type:"transfer",
-              title:`第 ${card.index + 1} 框：${allSelected ? "全部" : "部分"} ${transferBottles.length}／${bottles.length} 支待轉移`,
+              title:`第 ${card.index + 1} 框：${allSelected ? "全部" : "部分"} ${transferBottles.length}／${existingBottles.length} 支待轉移`,
               detail:`${card.transportFrameCtn} → ${replacementCheck.value}｜CTN：${transferBottles.map(function(bottle){ return bottle.ctn; }).join("、")}`
             });
           }
 
           bottles.forEach((bottle, index) => {
+            if(bottle.pendingAdd){
+              rows.push({
+                type:"add",
+                title:`第 ${card.index + 1} 框｜新增第 ${index + 1} 支鋼瓶`,
+                detail:`CTN ${bottle.ctn}｜RT ${bottle.rt}｜加入運輸框 ${card.transportFrameCtn}`
+              });
+            }
             if(bottle.pendingDcyl){
               rows.push({ type:"dcyl", title:`第 ${card.index + 1} 框｜第 ${index + 1} 支：待轉 DCYL`, detail:`CTN ${bottle.ctn}｜RT ${bottle.rt}` });
             }
@@ -2057,7 +2276,7 @@
         contentRows = rows.map(row => ({ type:row.type, title:row.title, detail:row.detail }));
       }else if(!rows.length){
         contentRows = [{
-          title:"已帶入資料，但尚未選擇待轉移、DCYL、轉 HT、換運輸框或待噴砂運輸框。",
+          title:"已帶入資料，但尚未選擇新增鋼瓶、待轉移、DCYL、轉 HT、換運輸框或待噴砂運輸框。",
           detail:"這是正常情況；你可以回到卡片測試按鈕操作。"
         }];
       }else{
@@ -2115,6 +2334,28 @@
           const targetFrame = normalizeCTN(card.replacementTransportFrameCtn || "");
 
           (Array.isArray(card.bottles) ? card.bottles : []).forEach(function(bottle, bottleIndex){
+            if(bottle.pendingAdd){
+              operations.push({
+                card_index: Number(card.index || 0) + 1,
+                sequence: Number(bottle.sequence || bottleIndex + 1),
+                asset_type: "BOTTLE",
+                action_type: "BOTTLE_ADD",
+                ctn: normalizeCTN(bottle.ctn),
+                rt: String(bottle.rt || "").trim(),
+                qty: 1,
+                mode: "",
+                source_frame_ctn: "",
+                target_frame_ctn: sourceFrame,
+                bundle_frame_ctn: "",
+                bundle_frame_id: "",
+                expected_version: 0,
+                region_code: String(card.regionCode || ""),
+                region_name: String(card.regionName || ""),
+                source_iqc_card_id: "BETA_MANUAL_ADD"
+              });
+              return;
+            }
+
             let actionType = "";
             if(bottle.pendingTransfer) actionType = "BOTTLE_TRANSFER";
             if(bottle.pendingDcyl) actionType = "BOTTLE_DCYL";
@@ -2200,7 +2441,7 @@
       const core = {
         report_date: String(betaState.reportDate || ""),
         operator: String(betaState.operator || "").trim(),
-        client_version: "BETA_STAGE3_QUICK_ACTION_REMOVE_20260724",
+        client_version: "BETA_STAGE3_ADD_BOTTLE_CAP18_20260727",
         selected_frame_count: Number(betaState.frameCount || 1),
         operations: operations
       };
