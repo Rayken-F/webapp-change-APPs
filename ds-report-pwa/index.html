@@ -4363,6 +4363,41 @@ function bindFramePairTableEvents(){
 
       if(formData.site === "IQC"){
         const serverCheck = await validateIqcCtnsBeforeSubmit(formData.date);
+
+        if(Array.isArray(serverCheck.frameCardConflicts) && serverCheck.frameCardConflicts.length > 0){
+          const firstFrameConflict = serverCheck.frameCardConflicts[0];
+          const firstConflict = applyIqcFrameCardConflictValidation(serverCheck);
+          const cardIndex = firstConflict ? firstConflict.cardIndex : 0;
+
+          showIqcError(
+            cardIndex,
+            `運輸框架 ${firstFrameConflict.frameCtn} 在本次 IQC 填報出現在多張散支卡片。` +
+            `同一次送出只能使用一張卡片，請把該框的鋼瓶 CTN＋RT 集中填在同一張卡片內。`
+          );
+
+          sending = false;
+          hideLoadingMessage();
+          backToSite();
+          revealIqcDuplicateField(firstConflict);
+          return;
+        }
+
+        if(Array.isArray(serverCheck.capacityConflicts) && serverCheck.capacityConflicts.length > 0){
+          const firstCapacity = serverCheck.capacityConflicts[0];
+          const firstConflict = applyIqcCapacityValidation(serverCheck);
+          const cardIndex = firstConflict ? firstConflict.cardIndex : 0;
+          showIqcError(
+            cardIndex,
+            `運輸框架 ${firstCapacity.frameCtn} 容量超限：目前 ${firstCapacity.currentCount} 支，` +
+            `本次新增 ${firstCapacity.incomingCount} 支，預計 ${firstCapacity.projectedCount} 支；每框最多 18 支。`
+          );
+          sending = false;
+          hideLoadingMessage();
+          backToSite();
+          revealIqcDuplicateField(firstConflict);
+          return;
+        }
+
         if(serverCheck.duplicates.length > 0){
           const duplicateText = (serverCheck.duplicateDetails && serverCheck.duplicateDetails.length)
             ? serverCheck.duplicateDetails.slice(0,3).map(item => item.message || `${item.ctn}（${item.date || "既有 IQC"}）`).join("；")
@@ -4375,7 +4410,7 @@ function bindFramePairTableEvents(){
 
           showIqcError(
             cardIndex,
-            `IQC_Log 已有重複 CTN：${duplicateText}${serverCheck.duplicates.length > 3 ? "..." : ""} 已將重複欄位標紅。`
+            `鋼瓶 CTN 已存在：${duplicateText}${serverCheck.duplicates.length > 3 ? "..." : ""} 已將重複的鋼瓶 CTN 欄位標紅。`
           );
 
           sending = false;
@@ -5032,11 +5067,8 @@ function bindFramePairTableEvents(){
   }
 
   /**
-   * 收集 IQC 本次填報中所有具唯一性的 CTN。
-   * 同一個 CTN 不可因欄位角色不同而重複使用：
-   * - 集束 CTN
-   * - 運輸框架 CTN
-   * - 散支鋼瓶 CTN
+   * 收集本次 IQC 內所有 CTN，供「同次填報跨角色撞碼」檢查。
+   * 歷史永久唯一性另只針對散支鋼瓶 CTN；運輸框架可於後續獨立填報再次使用。
    */
   function getIqcContentCtnEntries(cards){
     const entries = [];
@@ -5090,7 +5122,7 @@ function bindFramePairTableEvents(){
   function buildIqcDuplicateCtnMessage(group){
     const entries = group && Array.isArray(group.entries) ? group.entries : [];
     const locations = entries.map(entry => entry.label).join("、");
-    return `CTN ${group.ctn} 重複：${locations}。CTN 是唯一識別碼，不可同時作為運輸框架、集束或散支鋼瓶 CTN。`;
+    return `CTN ${group.ctn} 重複：${locations}。同一次 IQC 填報內，同一運輸框架 CTN 只能出現在一張散支卡片；鋼瓶 CTN 不可重複，也不可與框架 CTN 撞碼。`;
   }
 
   function getIqcDuplicateContentCtnGroups(cards){
@@ -5101,26 +5133,68 @@ function bindFramePairTableEvents(){
     });
 
     return Object.keys(groups)
-      .filter(ctn => groups[ctn].length > 1)
+      .filter(ctn => {
+        const entries = groups[ctn] || [];
+        if(entries.length <= 1) return false;
+
+        const roles = new Set(entries.map(entry => entry.role));
+        if(roles.size === 1 && roles.has("運輸框架CTN")){
+          // 同一次 IQC 填報內，一個運輸框架只能對應一張散支卡片。
+          // 後續另一筆獨立送出可再次使用同一框，但不可在本次側滑卡片中拆成多張。
+          const cardIndexes = new Set(entries.map(entry => Number(entry.cardIndex)));
+          return cardIndexes.size > 1;
+        }
+
+        return true;
+      })
       .map(ctn => ({ ctn:ctn, entries:groups[ctn] }));
   }
 
+  /**
+   * 歷史唯一性只檢查「散支鋼瓶 CTN」。
+   * 運輸框架 CTN 可於後續另一筆獨立填報再次使用；
+   * 但同一次填報只能出現在一張散支卡片，也不可與鋼瓶 CTN 撞碼。
+   */
   function getIqcScannedCtnsForServerCheck(){
     const seen = {};
     return getIqcContentCtnEntries(formData.iqc_cards)
+      .filter(entry => entry.role === "散支鋼瓶CTN")
       .filter(entry => isValidCTN(entry.ctn))
       .filter(entry => {
-        const key = `${entry.ctn}|${entry.role}|${entry.label}`;
-        if(seen[key]) return false;
-        seen[key] = true;
+        if(seen[entry.ctn]) return false;
+        seen[entry.ctn] = true;
         return true;
       })
       .map(entry => ({
         ctn:entry.ctn,
         role:entry.role,
+        entityType:"BOTTLE",
         label:entry.label,
         cardIndex:entry.cardIndex
       }));
+  }
+
+  function getIqcTransportLoadsForServerCheck(){
+    const loads = [];
+    (Array.isArray(formData.iqc_cards) ? formData.iqc_cards : []).forEach((card, cardIndex) => {
+      if(String(card && card.type || "").trim() !== "散支") return;
+      const frameCtn = normalizeCTN(card && card.transportFrameCtn || "");
+      if(!isValidCTN(frameCtn)) return;
+
+      const bottleCtns = (Array.isArray(card && card.loosePairs) ? card.loosePairs : [])
+        .map(pair => normalizeCTN(pair && pair.ctn || ""))
+        .filter(ctn => isValidCTN(ctn));
+
+      if(!bottleCtns.length) return;
+      loads.push({
+        frameCtn:frameCtn,
+        bottleCtns:bottleCtns,
+        incomingCount:bottleCtns.length,
+        cardIndex:cardIndex,
+        label:`第${cardIndex + 1}筆散支 IQC`
+      });
+    });
+    return loads;
   }
 
   function findIqcCardIndexByCtn(ctn){
@@ -5145,7 +5219,7 @@ function bindFramePairTableEvents(){
     return `CTN ${normalized} 已存在於 IQC_Log 歷史資料` +
       (dates.length ? `（日期：${dates.join("、")}）` : "") +
       (roles.length ? `，既有角色：${roles.join("／")}` : "") +
-      `${rowText}。此欄位不可重複使用。`;
+      `${rowText}。此鋼瓶 CTN 不可重複使用。`;
   }
 
   /**
@@ -5195,6 +5269,88 @@ function bindFramePairTableEvents(){
           message:message
         };
       }
+    });
+
+    return firstConflict;
+  }
+
+  function applyIqcFrameCardConflictValidation(serverCheck){
+    collectIqcCardsFromUI();
+    clearIqcFieldValidation();
+
+    const conflicts = Array.isArray(serverCheck && serverCheck.frameCardConflicts)
+      ? serverCheck.frameCardConflicts
+      : [];
+    let firstConflict = null;
+
+    conflicts.forEach(conflict => {
+      const frameCtn = normalizeCTN(conflict && conflict.frameCtn || "");
+      const cardIndexes = Array.isArray(conflict && conflict.cardIndexes)
+        ? conflict.cardIndexes
+        : [];
+
+      cardIndexes.forEach(cardIndex => {
+        const selector = `.iqc-transport-frame-ctn[data-iqc-card-index="${cardIndex}"]`;
+        const input = document.querySelector(selector);
+        if(!input) return;
+
+        const message =
+          `運輸框架 ${frameCtn} 在本次 IQC 填報出現在多張散支卡片。` +
+          `同一次送出只能保留一張卡片，請把該框所有新增鋼瓶集中在同一張卡片內。`;
+
+        setIqcFieldValidation(input, message);
+        input.classList.add("iqc-server-duplicate");
+
+        if(!firstConflict){
+          firstConflict = {
+            cardIndex:Number(cardIndex || 0),
+            selector:selector,
+            ctn:frameCtn,
+            message:message
+          };
+        }
+      });
+    });
+
+    return firstConflict;
+  }
+
+  function applyIqcCapacityValidation(serverCheck){
+    collectIqcCardsFromUI();
+    clearIqcFieldValidation();
+
+    const conflicts = Array.isArray(serverCheck && serverCheck.capacityConflicts)
+      ? serverCheck.capacityConflicts
+      : [];
+    let firstConflict = null;
+
+    conflicts.forEach(conflict => {
+      const frameCtn = normalizeCTN(conflict && conflict.frameCtn || "");
+      const cardIndexes = Array.isArray(conflict && conflict.cardIndexes)
+        ? conflict.cardIndexes
+        : [];
+
+      cardIndexes.forEach(cardIndex => {
+        const selector = `.iqc-transport-frame-ctn[data-iqc-card-index="${cardIndex}"]`;
+        const input = document.querySelector(selector);
+        if(!input) return;
+
+        const message =
+          `運輸框架 ${frameCtn} 目前已有 ${Number(conflict.currentCount || 0)} 支，` +
+          `本次再加入 ${Number(conflict.incomingCount || 0)} 支後會變成 ${Number(conflict.projectedCount || 0)} 支，` +
+          `超過每框 18 支上限。`;
+
+        setIqcFieldValidation(input, message);
+        input.classList.add("iqc-server-duplicate");
+        if(!firstConflict){
+          firstConflict = {
+            cardIndex:Number(cardIndex || 0),
+            selector:selector,
+            ctn:frameCtn,
+            message:message
+          };
+        }
+      });
     });
 
     return firstConflict;
@@ -5262,13 +5418,17 @@ function bindFramePairTableEvents(){
 
   async function validateIqcCtnsBeforeSubmit(reportDate){
     const ctnEntries = getIqcScannedCtnsForServerCheck();
-    if(!ctnEntries.length) return { duplicates:[], duplicateDetails:[] };
+    const transportLoads = getIqcTransportLoadsForServerCheck();
 
-    if(typeof validateIqcCtnsAPI !== "function"){
-      throw new Error("IQC CTN 重複驗證功能尚未載入，請重新整理頁面後再試。");
+    if(!ctnEntries.length && !transportLoads.length){
+      return { duplicates:[], duplicateDetails:[], frameCardConflicts:[], capacityConflicts:[] };
     }
 
-    return validateIqcCtnsAPI(reportDate, ctnEntries);
+    if(typeof validateIqcCtnsAPI !== "function"){
+      throw new Error("IQC CTN／運輸框容量驗證功能尚未載入，請重新整理頁面後再試。");
+    }
+
+    return validateIqcCtnsAPI(reportDate, ctnEntries, transportLoads);
   }
 
   function validateIqcCardsBeforePreview(){
@@ -5394,6 +5554,34 @@ function bindFramePairTableEvents(){
         ctn:first.ctn,
         message:buildIqcDuplicateCtnMessage(first)
       });
+      return false;
+    }
+
+    const pendingByFrame = {};
+    cards.forEach((card, cardIndex) => {
+      if(String(card && card.type || "").trim() !== "散支") return;
+      const frameCtn = normalizeCTN(card && card.transportFrameCtn || "");
+      if(!frameCtn) return;
+      const count = (Array.isArray(card && card.loosePairs) ? card.loosePairs : [])
+        .filter(pair => normalizeCTN(pair && pair.ctn || "") && String(pair && pair.rtNo || "").trim())
+        .length;
+      if(!pendingByFrame[frameCtn]){
+        pendingByFrame[frameCtn] = { count:0, cardIndexes:[] };
+      }
+      pendingByFrame[frameCtn].count += count;
+      pendingByFrame[frameCtn].cardIndexes.push(cardIndex);
+    });
+
+    const overloadedFrame = Object.keys(pendingByFrame).find(frameCtn => pendingByFrame[frameCtn].count > 18);
+    if(overloadedFrame){
+      const group = pendingByFrame[overloadedFrame];
+      const firstCardIndex = group.cardIndexes[0] || 0;
+      const selector = `.iqc-transport-frame-ctn[data-iqc-card-index="${firstCardIndex}"]`;
+      const input = document.querySelector(selector);
+      const message = `運輸框架 ${overloadedFrame} 本次新增 ${group.count} 支，超過每框 18 支上限。`;
+      setIqcFieldValidation(input, message);
+      showIqcError(firstCardIndex, message);
+      revealIqcDuplicateField({ cardIndex:firstCardIndex, selector:selector, ctn:overloadedFrame, message:message });
       return false;
     }
 
