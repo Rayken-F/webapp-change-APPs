@@ -139,29 +139,43 @@ async function fetchIqcRegions() {
   return Array.isArray(result.regions) ? result.regions : [];
 }
 /**
- * IQC CTN 唯一性檢查：
- * - 集束 CTN、運輸框架 CTN、散支鋼瓶 CTN 共用同一個唯一識別空間。
- * - 仍只查詢同日期既有 IQC_Log；正式寫入前後端會再做一次完整驗證。
- * - 相容舊前端：若傳入純字串陣列，也會自動轉成一般 IQC CTN。
+ * IQC 鋼瓶 CTN 唯一性＋運輸框容量檢查。
+ *
+ * - 歷史永久唯一只檢查散支鋼瓶 CTN。
+ * - 運輸框架 CTN 可於後續獨立填報再次使用；同一次填報只能出現在一張散支卡片。
  */
-async function validateIqcCtnsAPI(reportDate, ctnEntries) {
+async function validateIqcCtnsAPI(reportDate, ctnEntries, transportLoads) {
   const entries = (Array.isArray(ctnEntries) ? ctnEntries : [])
     .map(item => {
       if(item && typeof item === "object"){
         return {
           ctn:String(item.ctn || "").trim().toUpperCase(),
-          role:String(item.role || "IQC CTN").trim(),
+          role:String(item.role || "散支鋼瓶CTN").trim(),
+          entityType:String(item.entityType || "BOTTLE").trim().toUpperCase(),
           label:String(item.label || "").trim()
         };
       }
 
       return {
         ctn:String(item || "").trim().toUpperCase(),
-        role:"IQC CTN",
+        role:"散支鋼瓶CTN",
+        entityType:"BOTTLE",
         label:""
       };
     })
     .filter(item => !!item.ctn);
+
+  const loads = (Array.isArray(transportLoads) ? transportLoads : [])
+    .map(item => ({
+      frameCtn:String(item && item.frameCtn || "").trim().toUpperCase(),
+      bottleCtns:(Array.isArray(item && item.bottleCtns) ? item.bottleCtns : [])
+        .map(ctn => String(ctn || "").trim().toUpperCase())
+        .filter(Boolean),
+      incomingCount:Number(item && item.incomingCount || 0),
+      cardIndex:Number(item && item.cardIndex || 0),
+      label:String(item && item.label || "").trim()
+    }))
+    .filter(item => !!item.frameCtn);
 
   const res = await fetch(`${API_URL}?api=iqc_ctn_check`, {
     method: "POST",
@@ -171,7 +185,8 @@ async function validateIqcCtnsAPI(reportDate, ctnEntries) {
     body: JSON.stringify({
       date: reportDate || "",
       entries: entries,
-      // 保留 ctnList，讓尚未更新的後端仍可讀取。
+      transportLoads: loads,
+      // 舊後端相容欄位；只放鋼瓶 CTN。
       ctnList: entries.map(item => item.ctn)
     })
   });
@@ -179,12 +194,15 @@ async function validateIqcCtnsAPI(reportDate, ctnEntries) {
   const result = await parseApiJsonResponse(res);
 
   if (!result.ok) {
-    throw new Error(result.message || "IQC CTN 重複驗證失敗");
+    throw new Error(result.message || "IQC 鋼瓶 CTN／運輸框容量驗證失敗");
   }
 
   return {
     duplicates: Array.isArray(result.duplicates) ? result.duplicates : [],
-    duplicateDetails: Array.isArray(result.duplicateDetails) ? result.duplicateDetails : []
+    duplicateDetails: Array.isArray(result.duplicateDetails) ? result.duplicateDetails : [],
+    frameCardConflicts: Array.isArray(result.frameCardConflicts) ? result.frameCardConflicts : [],
+    capacityConflicts: Array.isArray(result.capacityConflicts) ? result.capacityConflicts : [],
+    frameOccupancy: Array.isArray(result.frameOccupancy) ? result.frameOccupancy : []
   };
 }
 
