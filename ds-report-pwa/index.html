@@ -1238,6 +1238,29 @@ user-scalable=no">
     border-color:rgba(255,106,128,0.96) !important;
     box-shadow:0 0 0 3px rgba(255,91,114,0.14), 0 0 18px rgba(255,91,114,0.14) !important;
   }
+  .iqc-server-duplicate{
+    background:
+      linear-gradient(135deg,rgba(255,65,96,0.17),rgba(120,28,79,0.15)),
+      rgba(37,51,126,0.92) !important;
+    border-color:#ff5f7d !important;
+    color:#fff7f9 !important;
+  }
+  .iqc-server-duplicate::placeholder{
+    color:rgba(255,216,224,0.72) !important;
+  }
+  .iqc-duplicate-pulse{
+    animation:iqcDuplicatePulse .72s ease 2;
+  }
+  @keyframes iqcDuplicatePulse{
+    0%,100%{
+      box-shadow:0 0 0 3px rgba(255,91,114,0.14),0 0 18px rgba(255,91,114,0.14);
+      transform:translateZ(0);
+    }
+    50%{
+      box-shadow:0 0 0 6px rgba(255,91,114,0.28),0 0 30px rgba(255,91,114,0.34);
+      transform:translateY(-1px);
+    }
+  }
   .iqc-validation-message{
     display:block;
     margin:7px 2px 0;
@@ -4344,11 +4367,21 @@ function bindFramePairTableEvents(){
           const duplicateText = (serverCheck.duplicateDetails && serverCheck.duplicateDetails.length)
             ? serverCheck.duplicateDetails.slice(0,3).map(item => item.message || `${item.ctn}（${item.date || "既有 IQC"}）`).join("；")
             : serverCheck.duplicates.slice(0,3).join("、");
-          const cardIndex = findIqcCardIndexByCtn(serverCheck.duplicates[0]);
-          showIqcError(cardIndex, `IQC_Log 已有重複 CTN：${duplicateText}${serverCheck.duplicates.length > 3 ? "..." : ""}`);
+
+          const firstConflict = applyIqcServerDuplicateValidation(serverCheck);
+          const cardIndex = firstConflict
+            ? firstConflict.cardIndex
+            : findIqcCardIndexByCtn(serverCheck.duplicates[0]);
+
+          showIqcError(
+            cardIndex,
+            `IQC_Log 已有重複 CTN：${duplicateText}${serverCheck.duplicates.length > 3 ? "..." : ""} 已將重複欄位標紅。`
+          );
+
           sending = false;
           hideLoadingMessage();
           backToSite();
+          revealIqcDuplicateField(firstConflict);
           return;
         }
       }
@@ -4971,9 +5004,10 @@ function bindFramePairTableEvents(){
 
   function clearIqcFieldValidation(){
     document.querySelectorAll("#iqcCardsContainer .iqc-input-error").forEach(input => {
-      input.classList.remove("iqc-input-error");
+      input.classList.remove("iqc-input-error", "iqc-server-duplicate", "iqc-duplicate-pulse");
       input.removeAttribute("aria-invalid");
       input.removeAttribute("data-iqc-validation-message");
+      input.removeAttribute("data-iqc-server-duplicate");
     });
     document.querySelectorAll("#iqcCardsContainer .iqc-validation-message").forEach(node => node.remove());
   }
@@ -5094,6 +5128,106 @@ function bindFramePairTableEvents(){
     const entry = getIqcContentCtnEntries(formData.iqc_cards)
       .find(item => item.ctn === target);
     return entry ? entry.cardIndex : 0;
+  }
+
+  function buildIqcServerDuplicateFieldMessage(ctn, detail){
+    const normalized = normalizeCTN(ctn);
+    const dates = detail && Array.isArray(detail.existingDates)
+      ? detail.existingDates.filter(Boolean)
+      : [];
+    const roles = detail && Array.isArray(detail.existingRoles)
+      ? detail.existingRoles.filter(Boolean)
+      : [];
+    const rowText = detail && Array.isArray(detail.existingRows) && detail.existingRows.length
+      ? `，IQC_Log列號：${detail.existingRows.join("、")}`
+      : "";
+
+    return `CTN ${normalized} 已存在於 IQC_Log 歷史資料` +
+      (dates.length ? `（日期：${dates.join("、")}）` : "") +
+      (roles.length ? `，既有角色：${roles.join("／")}` : "") +
+      `${rowText}。此欄位不可重複使用。`;
+  }
+
+  /**
+   * 將後端查到的歷史重複 CTN，精確標記到本次填報的輸入欄位。
+   * 回傳第一個衝突欄位，供畫面自動切卡與定位。
+   */
+  function applyIqcServerDuplicateValidation(serverCheck){
+    collectIqcCardsFromUI();
+    clearIqcFieldValidation();
+
+    const duplicateList = Array.isArray(serverCheck && serverCheck.duplicates)
+      ? serverCheck.duplicates.map(normalizeCTN).filter(Boolean)
+      : [];
+    const duplicateSet = new Set(duplicateList);
+    const detailMap = {};
+
+    (Array.isArray(serverCheck && serverCheck.duplicateDetails)
+      ? serverCheck.duplicateDetails
+      : []
+    ).forEach(detail => {
+      const ctn = normalizeCTN(detail && detail.ctn || "");
+      if(ctn) detailMap[ctn] = detail;
+    });
+
+    let firstConflict = null;
+
+    getIqcContentCtnEntries(formData.iqc_cards).forEach(entry => {
+      if(!duplicateSet.has(entry.ctn)) return;
+
+      const input = document.querySelector(entry.selector);
+      if(!input) return;
+
+      const detail = detailMap[entry.ctn] || null;
+      const message = detail && detail.message
+        ? `${detail.message} 本次欄位：${entry.label}。`
+        : buildIqcServerDuplicateFieldMessage(entry.ctn, detail);
+
+      setIqcFieldValidation(input, message);
+      input.classList.add("iqc-server-duplicate");
+      input.setAttribute("data-iqc-server-duplicate", "true");
+
+      if(!firstConflict){
+        firstConflict = {
+          cardIndex:entry.cardIndex,
+          selector:entry.selector,
+          ctn:entry.ctn,
+          message:message
+        };
+      }
+    });
+
+    return firstConflict;
+  }
+
+  function revealIqcDuplicateField(conflict){
+    if(!conflict) return;
+
+    iqcActiveCardIndex = clampIqcCardIndex(conflict.cardIndex);
+    scheduleIqcActiveCardRestore();
+
+    window.setTimeout(() => {
+      const input = document.querySelector(conflict.selector);
+      if(!input) return;
+
+      input.classList.remove("iqc-duplicate-pulse");
+      void input.offsetWidth;
+      input.classList.add("iqc-duplicate-pulse");
+      input.scrollIntoView({ behavior:"smooth", block:"center", inline:"nearest" });
+
+      window.setTimeout(() => {
+        try{
+          input.focus({ preventScroll:true });
+          if(typeof input.select === "function") input.select();
+        }catch(err){
+          input.focus();
+        }
+      }, 260);
+
+      window.setTimeout(() => {
+        input.classList.remove("iqc-duplicate-pulse");
+      }, 1700);
+    }, 360);
   }
 
   function applyIqcLiveValidation(){
@@ -5252,7 +5386,14 @@ function bindFramePairTableEvents(){
     const duplicateGroups = getIqcDuplicateContentCtnGroups(cards);
     if(duplicateGroups.length){
       const first = duplicateGroups[0];
-      showIqcError(first.entries[0].cardIndex, buildIqcDuplicateCtnMessage(first));
+      const firstEntry = first.entries[0];
+      showIqcError(firstEntry.cardIndex, buildIqcDuplicateCtnMessage(first));
+      revealIqcDuplicateField({
+        cardIndex:firstEntry.cardIndex,
+        selector:firstEntry.selector,
+        ctn:first.ctn,
+        message:buildIqcDuplicateCtnMessage(first)
+      });
       return false;
     }
 
