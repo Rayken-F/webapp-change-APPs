@@ -962,7 +962,7 @@
             </div>
             ${secondaryCtnControl}
           </div>
-          <div class="tip" style="margin-top:8px;">唯讀查詢 IQC_Log；同一 CTN 若有多筆紀錄，採最新一張 IQC 卡片。</div>
+          <div class="tip" style="margin-top:8px;">查詢前會先檢查 IQC_Log 來源唯一性；同一 CTN 若存在多張 IQC 卡片，系統會停止讀取並要求先校正資料。</div>
           ${card.error ? `<div class="error">${escapeHtml(card.error)}</div>` : ""}
           ${card.lookupStatus ? `<div class="success-note">${escapeHtml(card.lookupStatus)}</div>` : ""}
           ${warningHtml}
@@ -978,10 +978,37 @@
       return code || name || "-";
     }
 
+    function formatTaipeiDateForDisplay(value){
+      const text = String(value || "").trim();
+      if(!text) return "";
+      if(/^\d{4}-\d{2}-\d{2}$/.test(text)) return text;
+
+      const date = new Date(text);
+      if(Number.isNaN(date.getTime())) return text;
+
+      try{
+        const parts = new Intl.DateTimeFormat("en-US", {
+          timeZone:"Asia/Taipei",
+          year:"numeric",
+          month:"2-digit",
+          day:"2-digit"
+        }).formatToParts(date);
+        const map = {};
+        parts.forEach(part => { map[part.type] = part.value; });
+        if(map.year && map.month && map.day){
+          return `${map.year}-${map.month}-${map.day}`;
+        }
+      }catch(err){
+        console.warn("日期轉換失敗，改用原始值", err);
+      }
+
+      return text;
+    }
+
     function getSourceDisplay(card){
       const source = card && card.source ? card.source : {};
-      const date = String(source.date || "").trim();
-      const createdAt = String(source.createdAt || "").trim();
+      const date = formatTaipeiDateForDisplay(source.date || "");
+      const createdAt = formatTaipeiDateForDisplay(source.createdAt || "");
       return date || createdAt || "-";
     }
 
