@@ -231,7 +231,79 @@
     .scan-grid button{ min-width:96px; }
     .field-label{ display:block; margin:0 0 7px; color:rgba(241,245,255,.92); font-size:14px; font-weight:900; }
     .field-block{ margin-top:14px; }
-    .field-grid{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
+    .field-grid{
+      display:grid;
+      grid-template-columns:repeat(2,minmax(0,1fr));
+      gap:12px;
+      width:100%;
+      min-width:0;
+    }
+    .field-grid > *{
+      min-width:0;
+      max-width:100%;
+    }
+    .meta-field{
+      position:relative;
+      width:100%;
+      min-width:0;
+      max-width:100%;
+      overflow:hidden;
+    }
+
+    /* 日期欄位：處理 iPhone／Safari 原生 date input 寬度與文字重疊問題。 */
+    #reportDate{
+      position:relative;
+      display:block;
+      width:100% !important;
+      min-width:0 !important;
+      max-width:100% !important;
+      overflow:hidden;
+      white-space:nowrap;
+      text-overflow:ellipsis;
+      text-align:left;
+      text-align-last:left;
+      font-variant-numeric:tabular-nums;
+      line-height:1.25;
+      padding-right:44px;
+      color-scheme:dark;
+    }
+    #reportDate::-webkit-date-and-time-value{
+      display:block;
+      width:100%;
+      min-width:0;
+      max-width:100%;
+      padding:0;
+      margin:0;
+      text-align:left;
+      overflow:hidden;
+      white-space:nowrap;
+      text-overflow:ellipsis;
+    }
+    #reportDate::-webkit-datetime-edit{
+      display:flex;
+      align-items:center;
+      width:100%;
+      min-width:0;
+      padding:0;
+      overflow:hidden;
+    }
+    #reportDate::-webkit-datetime-edit-fields-wrapper{
+      min-width:0;
+      overflow:hidden;
+    }
+    #reportDate::-webkit-calendar-picker-indicator{
+      position:absolute;
+      right:12px;
+      top:50%;
+      width:20px;
+      height:20px;
+      margin:0;
+      padding:0;
+      transform:translateY(-50%);
+      opacity:.88;
+      cursor:pointer;
+      filter:invert(1);
+    }
     .detail-panel{ margin-top:15px; padding-top:15px; border-top:1px solid rgba(231,238,255,.16); }
     .detail-summary{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; }
     .data-box{ padding:12px; min-height:68px; border-radius:14px; background:rgba(255,255,255,.065); border:1px solid rgba(255,255,255,.10); }
@@ -447,7 +519,26 @@
     @media (max-width:560px){
       body{ padding:14px 10px 34px; }
       .form-card{ padding:18px 15px; border-radius:20px; }
-      .field-grid,.detail-summary{ grid-template-columns:1fr; }
+      .field-grid,.detail-summary{
+        grid-template-columns:minmax(0,1fr);
+        width:100%;
+        min-width:0;
+      }
+      .meta-field{
+        width:100%;
+        min-width:0;
+        max-width:100%;
+      }
+      #reportDate{
+        width:100% !important;
+        min-width:0 !important;
+        max-width:100% !important;
+        min-height:52px;
+        font-size:16px !important;
+        letter-spacing:0;
+        padding-left:12px;
+        padding-right:42px;
+      }
       .ctn-entry-grid.has-replacement{ grid-template-columns:1fr; }
       .scan-grid{ grid-template-columns:1fr; }
       .scan-grid button{ width:100%; }
@@ -501,11 +592,11 @@
         <div class="count-text" id="frameCountText">目前：1 框</div>
       </div>
       <div class="field-grid" style="margin-bottom:14px;">
-        <div>
+        <div class="meta-field date-meta-field">
           <label class="field-label" for="reportDate">操作日期</label>
           <input id="reportDate" class="form-input" type="date" onchange="onBetaMetaChange()">
         </div>
-        <div>
+        <div class="meta-field operator-meta-field">
           <label class="field-label" for="operatorName">操作人員</label>
           <input id="operatorName" class="form-input" type="text" maxlength="80" placeholder="請輸入測試操作人員" autocomplete="name" oninput="onBetaMetaChange()">
         </div>
