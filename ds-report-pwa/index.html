@@ -4410,7 +4410,7 @@ function bindFramePairTableEvents(){
 
           showIqcError(
             cardIndex,
-            `鋼瓶 CTN 已存在：${duplicateText}${serverCheck.duplicates.length > 3 ? "..." : ""} 已將重複的鋼瓶 CTN 欄位標紅。`
+            `IQC CTN 已存在：${duplicateText}${serverCheck.duplicates.length > 3 ? "..." : ""} 已將重複的 CTN 欄位標紅。`
           );
 
           sending = false;
@@ -5151,14 +5151,14 @@ function bindFramePairTableEvents(){
   }
 
   /**
-   * 歷史唯一性只檢查「散支鋼瓶 CTN」。
-   * 運輸框架 CTN 可於後續另一筆獨立填報再次使用；
-   * 但同一次填報只能出現在一張散支卡片，也不可與鋼瓶 CTN 撞碼。
+   * IQC_Log「CTN」欄永久唯一：集束 CTN＋散支鋼瓶 CTN 都必須做全歷史檢查。
+   * 「運輸框架CTN」不納入跨日期永久唯一，因同一實體框架可在後續獨立填報再次使用；
+   * 但同一次填報仍只能出現在一張散支卡片，也不可與本次任何內容 CTN 撞碼。
    */
   function getIqcScannedCtnsForServerCheck(){
     const seen = {};
     return getIqcContentCtnEntries(formData.iqc_cards)
-      .filter(entry => entry.role === "散支鋼瓶CTN")
+      .filter(entry => entry.role !== "運輸框架CTN")
       .filter(entry => isValidCTN(entry.ctn))
       .filter(entry => {
         if(seen[entry.ctn]) return false;
@@ -5168,7 +5168,7 @@ function bindFramePairTableEvents(){
       .map(entry => ({
         ctn:entry.ctn,
         role:entry.role,
-        entityType:"BOTTLE",
+        entityType:entry.role === "集束CTN" ? "BUNDLE" : "BOTTLE",
         label:entry.label,
         cardIndex:entry.cardIndex
       }));
@@ -5219,7 +5219,7 @@ function bindFramePairTableEvents(){
     return `CTN ${normalized} 已存在於 IQC_Log 歷史資料` +
       (dates.length ? `（日期：${dates.join("、")}）` : "") +
       (roles.length ? `，既有角色：${roles.join("／")}` : "") +
-      `${rowText}。此鋼瓶 CTN 不可重複使用。`;
+      `${rowText}。IQC_Log 的 CTN 欄永久唯一，不可重複使用。`;
   }
 
   /**
