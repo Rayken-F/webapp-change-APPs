@@ -250,59 +250,79 @@
       overflow:hidden;
     }
 
-    /* 日期欄位：處理 iPhone／Safari 原生 date input 寬度與文字重疊問題。 */
-    #reportDate{
+    /*
+     * 日期欄位：iPhone Safari 會以原生在地化日期文字撐大 type="date"，
+     * 即使設定 width:100% 仍可能超出卡片。改採「自製顯示層＋透明原生日期層」：
+     * 使用者仍開啟原生日期選擇器，但畫面寬度完全由外層控制。
+     */
+    .date-input-shell{
       position:relative;
-      display:block;
-      width:100% !important;
-      min-width:0 !important;
-      max-width:100% !important;
-      overflow:hidden;
-      white-space:nowrap;
-      text-overflow:ellipsis;
-      text-align:left;
-      text-align-last:left;
-      font-variant-numeric:tabular-nums;
-      line-height:1.25;
-      padding-right:44px;
-      color-scheme:dark;
-    }
-    #reportDate::-webkit-date-and-time-value{
       display:block;
       width:100%;
       min-width:0;
       max-width:100%;
-      padding:0;
-      margin:0;
-      text-align:left;
+      min-height:52px;
       overflow:hidden;
-      white-space:nowrap;
-      text-overflow:ellipsis;
+      border-radius:14px;
     }
-    #reportDate::-webkit-datetime-edit{
+    .date-input-display{
       display:flex;
       align-items:center;
       width:100%;
       min-width:0;
-      padding:0;
+      max-width:100%;
+      min-height:52px;
+      padding:11px 44px 11px 13px;
       overflow:hidden;
+      border:1px solid rgba(255,255,255,.14);
+      border-radius:14px;
+      background:rgba(255,255,255,.10);
+      color:#fff;
+      font:inherit;
+      font-size:16px;
+      font-weight:800;
+      font-variant-numeric:tabular-nums;
+      letter-spacing:0;
+      line-height:1.25;
+      white-space:nowrap;
+      text-overflow:ellipsis;
+      pointer-events:none;
     }
-    #reportDate::-webkit-datetime-edit-fields-wrapper{
-      min-width:0;
-      overflow:hidden;
+    .date-input-display.empty{
+      color:rgba(234,240,255,.42);
+      font-weight:600;
     }
-    #reportDate::-webkit-calendar-picker-indicator{
+    .date-input-shell::after{
+      content:"▾";
       position:absolute;
-      right:12px;
+      right:14px;
       top:50%;
-      width:20px;
-      height:20px;
-      margin:0;
-      padding:0;
+      z-index:1;
       transform:translateY(-50%);
-      opacity:.88;
+      color:rgba(255,255,255,.84);
+      font-size:16px;
+      line-height:1;
+      pointer-events:none;
+    }
+    #reportDate{
+      position:absolute !important;
+      inset:0 !important;
+      z-index:2;
+      display:block;
+      width:100% !important;
+      min-width:0 !important;
+      max-width:100% !important;
+      height:100% !important;
+      min-height:52px;
+      margin:0 !important;
+      padding:0 !important;
+      border:0 !important;
+      border-radius:14px;
+      opacity:0;
       cursor:pointer;
-      filter:invert(1);
+      appearance:none;
+      -webkit-appearance:none;
+      color-scheme:dark;
     }
     .detail-panel{ margin-top:15px; padding-top:15px; border-top:1px solid rgba(231,238,255,.16); }
     .detail-summary{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; }
@@ -529,15 +549,16 @@
         min-width:0;
         max-width:100%;
       }
+      .date-input-shell,
+      .date-input-display,
       #reportDate{
         width:100% !important;
         min-width:0 !important;
         max-width:100% !important;
+      }
+      .date-input-display{
         min-height:52px;
-        font-size:16px !important;
-        letter-spacing:0;
-        padding-left:12px;
-        padding-right:42px;
+        font-size:16px;
       }
       .ctn-entry-grid.has-replacement{ grid-template-columns:1fr; }
       .scan-grid{ grid-template-columns:1fr; }
@@ -594,7 +615,10 @@
       <div class="field-grid" style="margin-bottom:14px;">
         <div class="meta-field date-meta-field">
           <label class="field-label" for="reportDate">操作日期</label>
-          <input id="reportDate" class="form-input" type="date" onchange="onBetaMetaChange()">
+          <div class="date-input-shell">
+            <div id="reportDateDisplay" class="date-input-display empty" aria-hidden="true">請選擇操作日期</div>
+            <input id="reportDate" type="date" aria-label="操作日期" onchange="onBetaMetaChange()">
+          </div>
         </div>
         <div class="meta-field operator-meta-field">
           <label class="field-label" for="operatorName">操作人員</label>
@@ -710,11 +734,28 @@
       betaState.pendingPayloadHash = String(betaState.pendingPayloadHash || "");
     }
 
+    function formatBetaDateLabel(value){
+      const text = String(value || "").trim();
+      const matched = text.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+      if(!matched) return "";
+      return `${matched[1]}年${Number(matched[2])}月${Number(matched[3])}日`;
+    }
+
+    function updateReportDateDisplay(){
+      const display = document.getElementById("reportDateDisplay");
+      if(!display) return;
+
+      const label = formatBetaDateLabel(betaState.reportDate);
+      display.textContent = label || "請選擇操作日期";
+      display.classList.toggle("empty", !label);
+    }
+
     function onBetaMetaChange(){
       const dateInput = document.getElementById("reportDate");
       const operatorInput = document.getElementById("operatorName");
       betaState.reportDate = dateInput ? String(dateInput.value || "") : betaState.reportDate;
       betaState.operator = operatorInput ? String(operatorInput.value || "").trim() : betaState.operator;
+      updateReportDateDisplay();
       saveBetaDraft();
     }
 
@@ -906,6 +947,7 @@
       const reportDateInput = document.getElementById("reportDate");
       const operatorInput = document.getElementById("operatorName");
       if(reportDateInput) reportDateInput.value = betaState.reportDate;
+      updateReportDateDisplay();
       if(operatorInput && document.activeElement !== operatorInput) operatorInput.value = betaState.operator;
       renderCards();
       renderDraftSummary();
@@ -2532,7 +2574,7 @@
       const core = {
         report_date: String(betaState.reportDate || ""),
         operator: String(betaState.operator || "").trim(),
-        client_version: "BETA_STAGE3_ADD_BOTTLE_CAP18_20260727",
+        client_version: "BETA_STAGE3_IOS_DATE_SHELL_20260729",
         selected_frame_count: Number(betaState.frameCount || 1),
         operations: operations
       };
