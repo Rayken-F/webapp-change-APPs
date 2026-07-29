@@ -139,9 +139,9 @@ async function fetchIqcRegions() {
   return Array.isArray(result.regions) ? result.regions : [];
 }
 /**
- * IQC 鋼瓶 CTN 唯一性＋運輸框容量檢查。
+ * IQC「CTN」欄永久唯一＋運輸框容量檢查。
  *
- * - 歷史永久唯一只檢查散支鋼瓶 CTN。
+ * - 集束 CTN 與散支鋼瓶 CTN 都做全歷史唯一性檢查。
  * - 運輸框架 CTN 可於後續獨立填報再次使用；同一次填報只能出現在一張散支卡片。
  */
 async function validateIqcCtnsAPI(reportDate, ctnEntries, transportLoads) {
@@ -194,7 +194,7 @@ async function validateIqcCtnsAPI(reportDate, ctnEntries, transportLoads) {
   const result = await parseApiJsonResponse(res);
 
   if (!result.ok) {
-    throw new Error(result.message || "IQC 鋼瓶 CTN／運輸框容量驗證失敗");
+    throw new Error(result.message || "IQC CTN／運輸框容量驗證失敗");
   }
 
   return {
@@ -205,4 +205,3 @@ async function validateIqcCtnsAPI(reportDate, ctnEntries, transportLoads) {
     frameOccupancy: Array.isArray(result.frameOccupancy) ? result.frameOccupancy : []
   };
 }
-
