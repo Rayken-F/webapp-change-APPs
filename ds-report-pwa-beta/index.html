@@ -3,2729 +3,534 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-  <title>鼎世日報系統｜自動噴砂 CTN 流轉 Beta Stage 3</title>
+  <title>鼎世日報系統｜Grinding WIP BETA</title>
   <style>
-    *{ box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+    *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
     :root{
-      --bg-1:#07122d;
-      --bg-2:#111f57;
-      --bg-3:#6729d6;
-      --card-bg:rgba(28,44,109,.38);
-      --card-border:rgba(214,225,255,.32);
-      --text-main:#fff;
-      --text-sub:rgba(235,240,255,.82);
-      --text-soft:rgba(230,236,255,.60);
-      --accent:#8c7bff;
-      --accent-2:#45a3ff;
-      --danger:#ff6d83;
-      --warning:#ffca5b;
-      --success:#62dc91;
-      --muted:rgba(255,255,255,.08);
+      --bg:#07112b;--bg2:#15175a;--card:rgba(43,61,145,.34);--line:rgba(225,234,255,.24);
+      --text:#fff;--sub:rgba(236,241,255,.78);--soft:rgba(230,237,255,.56);
+      --primary:#7767ff;--cyan:#43c6e8;--success:#58d68d;--warning:#ffca64;--danger:#ff7188;
+      --shadow:0 18px 48px rgba(4,10,48,.42),0 0 0 1px rgba(255,255,255,.05) inset;
     }
-    html,body{ min-height:100%; }
+    html,body{min-height:100%}
     body{
-      margin:0;
-      padding:18px 14px 42px;
-      color:var(--text-main);
+      margin:0;padding:16px 12px 110px;color:var(--text);
       font-family:Arial,"Microsoft JhengHei",sans-serif;
       background:
-        radial-gradient(circle at 20% 18%, rgba(93,145,255,.38) 0%, rgba(93,145,255,.02) 20%, transparent 32%),
-        radial-gradient(circle at 78% 22%, rgba(170,75,255,.42) 0%, rgba(170,75,255,.08) 20%, transparent 36%),
-        linear-gradient(180deg,#07112b 0%,#0b1740 28%,#13235d 54%,#24105f 100%);
-      background-attachment:fixed;
-      overflow-x:hidden;
+        radial-gradient(circle at 15% 10%,rgba(69,163,255,.36),transparent 28%),
+        radial-gradient(circle at 85% 20%,rgba(166,75,255,.34),transparent 34%),
+        linear-gradient(180deg,#07112b,#111d50 48%,#27105f);
+      background-attachment:fixed;overflow-x:hidden;
     }
-    body::before{
-      content:"";
-      position:fixed;
-      inset:0;
-      pointer-events:none;
-      background:linear-gradient(180deg,rgba(255,255,255,.08),transparent 18%);
-      opacity:.42;
+    button,input,select{font:inherit}
+    button{border:0;color:#fff;font-weight:900;cursor:pointer}
+    button:disabled{opacity:.45;cursor:not-allowed}
+    .wrap{width:100%;max-width:760px;margin:0 auto}
+    .title{text-align:center;margin:8px 0 4px;font-size:clamp(28px,8vw,44px);font-weight:900}
+    .subtitle{text-align:center;color:var(--sub);font-size:14px;margin-bottom:14px}
+    .banner,.card{
+      border:1px solid var(--line);background:linear-gradient(180deg,rgba(56,79,173,.34),rgba(32,42,114,.28));
+      border-radius:22px;box-shadow:var(--shadow);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px)
     }
-    .wrap{ position:relative; z-index:1; width:100%; max-width:680px; margin:0 auto; }
-    .page-title{ text-align:center; font-size:clamp(28px,7vw,44px); font-weight:900; margin:12px 0 8px; letter-spacing:.7px; }
-    .sub-title{ text-align:center; color:var(--text-sub); line-height:1.6; font-size:14px; margin-bottom:18px; }
-    .beta-banner{
-      display:flex; align-items:flex-start; gap:10px; margin:0 0 16px; padding:14px 16px;
-      border:1px solid rgba(255,202,91,.54); border-radius:17px;
-      background:linear-gradient(135deg,rgba(255,187,80,.19),rgba(255,102,138,.12));
-      color:#fff5d4; box-shadow:0 10px 28px rgba(13,25,83,.28);
-      line-height:1.55; font-size:14px; font-weight:700;
+    .banner{padding:12px 14px;margin-bottom:14px;color:#fff5d8;line-height:1.55;font-size:13px}
+    .card{padding:17px 15px;margin-bottom:14px}
+    .row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+    .between{justify-content:space-between}
+    .section-title{font-weight:900;font-size:17px}
+    .muted{color:var(--sub);font-size:13px;line-height:1.55}
+    .soft{color:var(--soft)}
+    .input,.select{
+      width:100%;min-height:48px;padding:11px 13px;border-radius:14px;border:1px solid rgba(255,255,255,.16);
+      background:rgba(255,255,255,.09);color:#fff;outline:none;font-weight:800
     }
-    .beta-badge{ flex:0 0 auto; padding:4px 8px; border-radius:8px; background:rgba(255,202,91,.25); border:1px solid rgba(255,229,165,.38); font-size:12px; font-weight:900; letter-spacing:.8px; }
-    .form-card{
-      position:relative; overflow:hidden; margin-bottom:16px; padding:20px 18px; border-radius:22px;
-      background:linear-gradient(180deg,rgba(45,70,160,.30),rgba(35,49,124,.26));
-      border:1px solid var(--card-border);
-      box-shadow:0 10px 40px rgba(13,25,83,.50),0 0 0 1px rgba(255,255,255,.06) inset;
-      backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px);
-    }
-    .form-card::before{ content:""; position:absolute; inset:0; pointer-events:none; background:linear-gradient(180deg,rgba(255,255,255,.13),rgba(255,255,255,.01) 34%,transparent 60%); }
-    .form-card > *{ position:relative; z-index:1; }
-    .form-title-line{ display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; margin-bottom:12px; }
-    .form-title{ color:#f8f9ff; font-size:17px; font-weight:900; }
-    .count-text{ font-size:14px; font-weight:800; color:var(--text-sub); white-space:nowrap; }
-    .tip{ color:var(--text-soft); font-size:13px; line-height:1.65; }
-    .form-input,select{
-      width:100%; border:none; outline:none; color:#fff; background:rgba(255,255,255,.10);
-      border:1px solid rgba(255,255,255,.14); border-radius:14px; min-height:48px;
-      padding:11px 13px; font:inherit; font-weight:800; letter-spacing:.45px;
-    }
-    .form-input::placeholder{ color:rgba(234,240,255,.42); font-weight:600; letter-spacing:0; }
-    select{ appearance:auto; -webkit-appearance:auto; }
-    select option{ color:#111827; }
-    .inline-controls{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
-    .inline-controls label{ color:var(--text-sub); font-weight:800; font-size:14px; }
-    .count-select{ width:100px; flex:0 0 100px; text-align:center; }
-    .btn-row{ display:flex; gap:10px; flex-wrap:wrap; margin-top:12px; }
-    button{
-      border:none; cursor:pointer; color:#fff; padding:12px 14px; border-radius:14px;
-      font-size:14px; font-weight:900; background:linear-gradient(135deg,rgba(109,93,252,.95),rgba(79,70,229,.98));
-      box-shadow:0 10px 22px rgba(41,30,133,.27),0 2px 0 rgba(255,255,255,.14) inset,0 -1px 0 rgba(0,0,0,.20) inset;
-      transition:transform .16s ease,opacity .16s ease,filter .16s ease;
-    }
-    button:hover{ transform:translateY(-1px); filter:brightness(1.05); }
-    button:active{ transform:translateY(1px) scale(.99); }
-    button:disabled{ opacity:.48; cursor:not-allowed; transform:none !important; filter:none !important; }
-    button.secondary{ background:linear-gradient(135deg,rgba(71,111,182,.75),rgba(46,56,128,.92)); }
-    button.danger{ background:linear-gradient(135deg,rgba(239,72,103,.88),rgba(190,41,90,.95)); }
-    button.warning{ background:linear-gradient(135deg,rgba(246,177,48,.92),rgba(220,118,24,.95)); }
-    button.transfer{ background:linear-gradient(135deg,rgba(31,177,188,.92),rgba(27,118,166,.96)); }
-    button.success{ background:linear-gradient(135deg,rgba(47,179,111,.92),rgba(28,132,80,.96)); }
-    button.ghost{ background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.14); box-shadow:none; }
-    .slider-stage{ position:relative; }
-    .slider-wrap{ overflow:hidden; margin:0 0 18px; }
-    .slider{ display:flex; gap:14px; overflow-x:auto; scroll-snap-type:x mandatory; padding:0 1px 10px; scrollbar-width:thin; scrollbar-color:rgba(193,204,255,.35) transparent; }
-    .slider::-webkit-scrollbar{ height:7px; }
-    .slider::-webkit-scrollbar-thumb{ background:rgba(193,204,255,.35); border-radius:8px; }
-    .frame-card{ flex:0 0 100%; scroll-snap-align:start; overflow:visible; }
-
-    /* 桌機專用：大型半透明玻璃左右切換箭頭 */
-    .desktop-slider-nav{
-      display:none;
-      position:absolute;
-      top:50%;
-      z-index:30;
-      width:76px;
-      min-height:128px;
-      padding:12px 8px;
-      border-radius:26px;
-      align-items:center;
-      justify-content:center;
-      flex-direction:column;
-      gap:8px;
-      color:#fff;
-      background:
-        linear-gradient(145deg,rgba(255,255,255,.22),rgba(126,119,255,.11) 48%,rgba(69,163,255,.09));
-      border:1px solid rgba(231,238,255,.34);
-      box-shadow:
-        0 22px 48px rgba(5,11,48,.38),
-        0 0 0 1px rgba(255,255,255,.08) inset,
-        0 0 34px rgba(118,106,255,.13);
-      backdrop-filter:blur(20px) saturate(145%);
-      -webkit-backdrop-filter:blur(20px) saturate(145%);
-      transform:translateY(-50%);
-      transition:transform .18s ease,background .18s ease,border-color .18s ease,box-shadow .18s ease,opacity .18s ease;
-    }
-    .desktop-slider-nav::before{
-      content:"";
-      position:absolute;
-      inset:1px;
-      border-radius:24px;
-      pointer-events:none;
-      background:linear-gradient(180deg,rgba(255,255,255,.20),transparent 42%);
-      opacity:.65;
-    }
-    .desktop-slider-nav.prev{ left:-96px; }
-    .desktop-slider-nav.next{ right:-96px; }
-    .desktop-slider-nav:hover:not(:disabled){
-      transform:translateY(-50%) scale(1.045);
-      border-color:rgba(238,242,255,.62);
-      background:linear-gradient(145deg,rgba(255,255,255,.29),rgba(126,119,255,.17) 48%,rgba(69,163,255,.14));
-      box-shadow:
-        0 26px 56px rgba(5,11,48,.44),
-        0 0 0 1px rgba(255,255,255,.12) inset,
-        0 0 42px rgba(118,106,255,.23);
-    }
-    .desktop-slider-nav:active:not(:disabled){ transform:translateY(-50%) scale(.98); }
-    .desktop-slider-nav:disabled{ opacity:.24; cursor:not-allowed; filter:saturate(.45); }
-    .desktop-slider-nav .nav-chevron{
-      position:relative;
-      z-index:1;
-      width:26px;
-      height:26px;
-      border-top:3px solid rgba(255,255,255,.96);
-      border-right:3px solid rgba(255,255,255,.96);
-      filter:drop-shadow(0 0 10px rgba(194,204,255,.55));
-    }
-    .desktop-slider-nav.prev .nav-chevron{ transform:rotate(-135deg); margin-left:8px; }
-    .desktop-slider-nav.next .nav-chevron{ transform:rotate(45deg); margin-right:8px; }
-    .desktop-slider-nav .nav-label{
-      position:relative;
-      z-index:1;
-      font-size:11px;
-      font-weight:900;
-      letter-spacing:.8px;
-      color:rgba(245,247,255,.82);
-      writing-mode:vertical-rl;
-    }
-    .desktop-frame-position{
-      display:none;
-      width:max-content;
-      max-width:100%;
-      margin:-7px auto 17px;
-      padding:7px 13px;
-      border-radius:999px;
-      color:rgba(245,247,255,.82);
-      background:rgba(255,255,255,.075);
-      border:1px solid rgba(231,238,255,.16);
-      box-shadow:0 8px 24px rgba(5,11,48,.20),0 0 0 1px rgba(255,255,255,.04) inset;
-      font-size:12px;
-      font-weight:900;
-      letter-spacing:.4px;
-      backdrop-filter:blur(12px);
-      -webkit-backdrop-filter:blur(12px);
-    }
-    @media (min-width:900px){
-      .desktop-slider-nav{ display:flex; }
-      .desktop-frame-position{ display:block; }
-    }
-    .frame-title{ display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:12px; font-size:18px; font-weight:900; }
-    .pill{ display:inline-flex; align-items:center; gap:5px; min-height:28px; padding:4px 9px; border-radius:999px; color:#fff; background:rgba(255,255,255,.10); border:1px solid rgba(255,255,255,.14); font-size:12px; font-weight:900; white-space:nowrap; }
-    .pill.transport{ background:rgba(69,163,255,.16); border-color:rgba(126,190,255,.48); }
-    .pill.bundle{ background:rgba(140,123,255,.18); border-color:rgba(183,171,255,.48); }
-    .pill.pending-transfer{ background:rgba(49,211,213,.16); border-color:rgba(126,242,242,.50); color:#d9ffff; }
-    .pill.pending-dcyl{ background:rgba(255,109,131,.18); border-color:rgba(255,158,172,.52); }
-    .pill.pending-ht{ background:rgba(255,202,91,.18); border-color:rgba(255,226,154,.54); color:#fff6d2; }
-    .status-empty{ color:var(--text-soft); padding:22px 0 5px; text-align:center; font-size:14px; line-height:1.7; }
-    .ctn-entry-grid{ display:grid; grid-template-columns:1fr; gap:12px; align-items:start; }
-    /* 主掃描與換框欄位在所有螢幕都採上下排列，避免桌機版左右擠壓。 */
-    .ctn-entry-grid.has-replacement{ grid-template-columns:1fr; }
-    .ctn-entry-block{
-      min-width:0; padding:12px; border-radius:16px;
-      background:rgba(255,255,255,.045); border:1px solid rgba(255,255,255,.10);
-    }
-    .ctn-entry-block.replacement{
-      background:rgba(69,163,255,.065);
-      border-color:rgba(126,190,255,.25);
-    }
-    .replacement-input-row{
-      display:grid;
-      grid-template-columns:minmax(0,1fr) auto;
-      gap:10px;
-      align-items:stretch;
-    }
-    .replacement-select-all{
-      min-width:92px;
-      padding:12px 14px;
-      border-radius:15px;
-      font-size:14px;
-      white-space:nowrap;
-    }
-    .replacement-context{
-      margin:8px 0 0; color:var(--text-soft); font-size:12px; line-height:1.55;
-    }
-    .replacement-context strong{ color:#dce9ff; }
-    .scan-grid{ display:grid; grid-template-columns:minmax(0,1fr) auto; gap:10px; align-items:stretch; }
-    .scan-grid button{ min-width:96px; }
-    .field-label{ display:block; margin:0 0 7px; color:rgba(241,245,255,.92); font-size:14px; font-weight:900; }
-    .field-block{ margin-top:14px; }
-    .field-grid{
-      display:grid;
-      grid-template-columns:repeat(2,minmax(0,1fr));
-      gap:12px;
-      width:100%;
-      min-width:0;
-    }
-    .field-grid > *{
-      min-width:0;
-      max-width:100%;
-    }
-    .meta-field{
-      position:relative;
-      width:100%;
-      min-width:0;
-      max-width:100%;
-      overflow:hidden;
-    }
-
-    /*
-     * 日期欄位：iPhone Safari 會以原生在地化日期文字撐大 type="date"，
-     * 即使設定 width:100% 仍可能超出卡片。改採「自製顯示層＋透明原生日期層」：
-     * 使用者仍開啟原生日期選擇器，但畫面寬度完全由外層控制。
-     */
-    .date-input-shell{
-      position:relative;
-      display:block;
-      width:100%;
-      min-width:0;
-      max-width:100%;
-      min-height:52px;
-      overflow:hidden;
-      border-radius:14px;
-    }
-    .date-input-display{
-      display:flex;
-      align-items:center;
-      width:100%;
-      min-width:0;
-      max-width:100%;
-      min-height:52px;
-      padding:11px 44px 11px 13px;
-      overflow:hidden;
-      border:1px solid rgba(255,255,255,.14);
-      border-radius:14px;
-      background:rgba(255,255,255,.10);
-      color:#fff;
-      font:inherit;
-      font-size:16px;
-      font-weight:800;
-      font-variant-numeric:tabular-nums;
-      letter-spacing:0;
-      line-height:1.25;
-      white-space:nowrap;
-      text-overflow:ellipsis;
-      pointer-events:none;
-    }
-    .date-input-display.empty{
-      color:rgba(234,240,255,.42);
-      font-weight:600;
-    }
-    .date-input-shell::after{
-      content:"▾";
-      position:absolute;
-      right:14px;
-      top:50%;
-      z-index:1;
-      transform:translateY(-50%);
-      color:rgba(255,255,255,.84);
-      font-size:16px;
-      line-height:1;
-      pointer-events:none;
-    }
-    #reportDate{
-      position:absolute !important;
-      inset:0 !important;
-      z-index:2;
-      display:block;
-      width:100% !important;
-      min-width:0 !important;
-      max-width:100% !important;
-      height:100% !important;
-      min-height:52px;
-      margin:0 !important;
-      padding:0 !important;
-      border:0 !important;
-      border-radius:14px;
-      opacity:0;
-      cursor:pointer;
-      appearance:none;
-      -webkit-appearance:none;
-      color-scheme:dark;
-    }
-    .detail-panel{ margin-top:15px; padding-top:15px; border-top:1px solid rgba(231,238,255,.16); }
-    .detail-summary{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; }
-    .data-box{ padding:12px; min-height:68px; border-radius:14px; background:rgba(255,255,255,.065); border:1px solid rgba(255,255,255,.10); }
-    .data-box .k{ color:var(--text-soft); font-size:12px; font-weight:800; margin-bottom:4px; }
-    .data-box .v{ color:#fff; font-size:15px; font-weight:900; word-break:break-all; }
-    .bottle-add-panel{
-      margin:14px 0 12px;
-      padding:12px;
-      border-radius:16px;
-      border:1px solid rgba(118,205,255,.28);
-      background:linear-gradient(135deg,rgba(27,141,184,.12),rgba(83,74,187,.12));
-    }
-    .bottle-add-head{
-      display:flex;
-      align-items:center;
-      justify-content:space-between;
-      gap:10px;
-      margin-bottom:9px;
-    }
-    .bottle-add-grid{
-      display:grid;
-      grid-template-columns:minmax(0,1.2fr) minmax(0,.9fr) auto;
-      gap:8px;
-      align-items:start;
-    }
-    .bottle-add-grid .form-input{ min-width:0; }
-    .bottle-add-button{ min-height:46px; white-space:nowrap; }
-    .bottle-add-tip{ margin-top:8px; color:var(--text-sub); font-size:12px; line-height:1.5; }
-    .pill.pending-add{
-      background:rgba(67,211,167,.17);
-      border-color:rgba(114,239,197,.55);
-      color:#d9fff2;
-    }
-    .bottle-list{ margin-top:14px; display:grid; gap:10px; }
-    .bottle-row{
-      display:grid; grid-template-columns:auto minmax(0,1fr) auto; gap:10px; align-items:center;
-      padding:11px; border-radius:15px; border:1px solid rgba(255,255,255,.11);
-      background:rgba(255,255,255,.055);
-      transition:border-color .16s ease,background .16s ease,box-shadow .16s ease,transform .16s ease;
-    }
-    .bottle-row.selected{
-      border-color:rgba(110,214,255,.88);
-      background:linear-gradient(135deg,rgba(35,177,188,.16),rgba(72,95,214,.15));
-      box-shadow:0 0 0 3px rgba(70,202,231,.11),0 12px 28px rgba(8,24,77,.22);
-    }
-    .bottle-no{ width:30px; height:30px; display:grid; place-items:center; border-radius:50%; background:rgba(140,123,255,.28); border:1px solid rgba(186,175,255,.35); font-size:13px; font-weight:900; }
-    .bottle-main{ min-width:0; }
-    .bottle-ctn{ font-size:15px; font-weight:900; letter-spacing:.6px; word-break:break-all; }
-    .bottle-rt{ color:var(--text-sub); font-size:13px; font-weight:800; margin-top:4px; }
-    .bottle-actions{ display:flex; gap:7px; align-items:center; flex-wrap:wrap; justify-content:flex-end; }
-    .bottle-actions button{ min-width:66px; padding:9px 10px; font-size:12px; }
-    .bottle-action-remove{
-      background:linear-gradient(135deg,rgba(244,63,94,.90),rgba(159,18,57,.98)) !important;
-      border-color:rgba(255,151,168,.62) !important;
-    }
-
-    /* 手機散支共用快捷工具：固定跟隨螢幕，可收合至側邊。 */
-    .mobile-quick-tools{ display:none; }
-    .mobile-quick-toggle{
-      width:42px; min-width:42px; height:54px; padding:0; border-radius:16px 0 0 16px;
-      background:linear-gradient(180deg,rgba(63,126,235,.95),rgba(37,75,170,.98));
-      border:1px solid rgba(190,218,255,.34); border-right:none;
-      box-shadow:0 12px 28px rgba(4,14,55,.38);
-      font-size:24px;
-    }
-    .mobile-quick-panel{
-      width:146px; padding:10px; border-radius:18px 0 0 18px;
-      background:linear-gradient(180deg,rgba(29,52,126,.94),rgba(30,23,94,.96));
-      border:1px solid rgba(213,226,255,.32);
-      box-shadow:0 18px 42px rgba(2,8,35,.48),0 0 0 1px rgba(255,255,255,.05) inset;
-      backdrop-filter:blur(16px); -webkit-backdrop-filter:blur(16px);
-    }
-    .mobile-quick-target{
-      min-height:42px; display:flex; align-items:center; justify-content:center;
-      margin-bottom:8px; padding:7px 8px; border-radius:12px;
-      color:#e8f5ff; background:rgba(255,255,255,.075);
-      font-size:11px; font-weight:900; line-height:1.35; text-align:center;
-      word-break:break-all;
-    }
-    .mobile-quick-action{
-      width:100%; min-height:46px; margin-top:7px; padding:9px 8px;
-      border-radius:13px; font-size:13px;
-    }
-    .mobile-quick-action.remove{
-      background:linear-gradient(135deg,#ef476f,#a80f43);
-    }
-    .mobile-quick-tools.collapsed .mobile-quick-panel{
-      opacity:0; pointer-events:none; transform:translateX(18px);
-    }
-    .mobile-quick-tools.collapsed{
-      transform:translateX(146px);
-    }
-    .summary-row.remove-warning{
-      background:linear-gradient(135deg,rgba(239,71,111,.18),rgba(120,20,65,.20));
-      border-color:rgba(255,128,151,.55);
-    }
-    .summary-row.remove-warning strong{ color:#ffd4dc; }
-
-    .bundle-action-panel{
-      margin-top:14px;
-      padding:13px;
-      border-radius:16px;
-      background:rgba(140,123,255,.075);
-      border:1px solid rgba(183,171,255,.22);
-    }
-    .bundle-action-header{
-      display:flex;
-      align-items:center;
-      justify-content:space-between;
-      gap:10px;
-      flex-wrap:wrap;
-    }
-    .bundle-action-buttons{
-      display:flex;
-      gap:8px;
-      flex-wrap:wrap;
-    }
-    .bundle-action-buttons button{ min-width:88px; }
-    .bundle-dcyl-options{
-      display:grid;
-      grid-template-columns:repeat(2,minmax(0,1fr));
-      gap:10px;
-      margin-top:12px;
-      padding-top:12px;
-      border-top:1px solid rgba(231,238,255,.13);
-    }
-    .bundle-choice{
-      width:100%;
-      min-height:52px;
-      text-align:left;
-      background:rgba(255,255,255,.065);
-      border:1px solid rgba(255,255,255,.13);
-      box-shadow:none;
-    }
-    .bundle-choice.active{
-      background:linear-gradient(135deg,rgba(239,72,103,.30),rgba(190,41,90,.24));
-      border-color:rgba(255,158,172,.58);
-    }
-    .bundle-partial-wrap{
-      grid-column:1 / -1;
-      padding:12px;
-      border-radius:14px;
-      background:rgba(255,255,255,.045);
-      border:1px solid rgba(255,255,255,.10);
-    }
-    .bundle-qty-row{
-      display:grid;
-      grid-template-columns:minmax(0,1fr) auto;
-      gap:10px;
-      align-items:center;
-    }
-    .bundle-qty-limit{
-      color:var(--text-sub);
-      font-size:13px;
-      font-weight:900;
-      white-space:nowrap;
-    }
-    .bundle-spec{
-      margin-top:8px;
-      color:var(--text-soft);
-      font-size:12px;
-      line-height:1.55;
-    }
-    .bundle-flow-display{
-      margin-top:10px;
-      padding:10px 12px;
-      border-radius:13px;
-      background:rgba(69,163,255,.07);
-      border:1px solid rgba(126,190,255,.20);
-      color:#dce9ff;
-      font-size:13px;
-      font-weight:900;
-      word-break:break-all;
-    }
-
-    .mini-note{ margin:9px 0 0; color:var(--text-soft); font-size:12px; line-height:1.55; }
-    .error{ margin-top:10px; color:#ffb4c0; font-size:13px; font-weight:900; line-height:1.55; }
-    .inline-error{
-      min-height:20px; margin-top:7px; color:#ffb4c0;
-      font-size:12px; font-weight:900; line-height:1.5;
-    }
-    .form-input.input-invalid{
-      border-color:rgba(255,109,131,.95) !important;
-      box-shadow:0 0 0 3px rgba(255,109,131,.14),0 0 18px rgba(255,109,131,.12);
-      background:rgba(255,109,131,.08);
-    }
-    .form-input.input-valid{
-      border-color:rgba(98,220,145,.76) !important;
-      box-shadow:0 0 0 3px rgba(98,220,145,.10);
-    }
-    .success-note{ margin-top:10px; color:#b8ffd0; font-size:13px; font-weight:900; line-height:1.55; }
-    .example-list{ display:grid; gap:10px; margin-top:12px; }
-    .example-row{ display:flex; align-items:center; justify-content:space-between; gap:12px; padding:11px 12px; border-radius:14px; background:rgba(255,255,255,.055); border:1px solid rgba(255,255,255,.10); }
-    .example-row code{ color:#fff; font-weight:900; letter-spacing:.8px; font-size:15px; }
-    .example-row span{ color:var(--text-sub); font-size:13px; font-weight:700; text-align:right; }
-    details summary{ cursor:pointer; font-size:14px; font-weight:900; color:#fff; }
-    .summary-card{ display:none; }
-    .summary-card.show{ display:block; }
-    .summary-list{ display:grid; gap:10px; }
-    .summary-row{ padding:12px; border-radius:14px; background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.10); line-height:1.55; }
-    .summary-row strong{ color:#fff; }
-    .summary-row .muted{ color:var(--text-sub); font-size:13px; margin-top:4px; }
-    .modal{ display:none; position:fixed; inset:0; z-index:9999; padding:18px 12px; background:rgba(2,6,23,.72); align-items:flex-end; justify-content:center; backdrop-filter:blur(7px); }
-    .modal.show{ display:flex; }
-    .modal-panel{ width:min(680px,100%); max-height:82vh; overflow:auto; padding:20px 18px; border-radius:24px 24px 16px 16px; background:linear-gradient(180deg,#1b2b70,#16134e); border:1px solid rgba(230,238,255,.26); box-shadow:0 20px 60px rgba(0,0,0,.45); }
-    .modal-title{ font-size:20px; font-weight:900; margin:0 0 8px; }
-    .modal-subtitle{ color:var(--text-sub); font-size:13px; line-height:1.6; margin:0 0 14px; }
-    .modal-summary{ display:grid; gap:10px; }
-    .modal-summary .summary-row{ background:rgba(255,255,255,.075); }
-    .footer-actions{ display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:18px; }
-    .divider{ height:1px; background:linear-gradient(90deg,rgba(231,238,255,.24),rgba(231,238,255,.04),transparent); margin:16px 0; }
-    .hidden{ display:none !important; }
-    @media (max-width:560px){
-      body{ padding:14px 10px 34px; }
-      .form-card{ padding:18px 15px; border-radius:20px; }
-      .field-grid,.detail-summary{
-        grid-template-columns:minmax(0,1fr);
-        width:100%;
-        min-width:0;
-      }
-      .meta-field{
-        width:100%;
-        min-width:0;
-        max-width:100%;
-      }
-      .date-input-shell,
-      .date-input-display,
-      #reportDate{
-        width:100% !important;
-        min-width:0 !important;
-        max-width:100% !important;
-      }
-      .date-input-display{
-        min-height:52px;
-        font-size:16px;
-      }
-      .ctn-entry-grid.has-replacement{ grid-template-columns:1fr; }
-      .scan-grid{ grid-template-columns:1fr; }
-      .scan-grid button{ width:100%; }
-      .replacement-input-row{ grid-template-columns:1fr; }
-      .replacement-select-all{ width:100%; }
-      /* 手機版每支卡片只保留 CTN／RT／狀態；操作集中到右下快捷工具。 */
-      .bottle-row{
-        grid-template-columns:auto minmax(0,1fr);
-        grid-template-areas:"number main";
-        gap:10px;
-        min-height:82px;
-        padding:13px 12px;
-        cursor:pointer;
-      }
-      .bottle-no{ grid-area:number; }
-      .bottle-main{ grid-area:main; }
-      .bottle-actions{ display:none; }
-      .mobile-quick-tools{
-        position:fixed;
-        z-index:9200;
-        right:0;
-        bottom:calc(18px + env(safe-area-inset-bottom));
-        display:flex;
-        align-items:center;
-        transition:transform .2s ease;
-      }
-      .mobile-quick-panel{ transition:opacity .18s ease,transform .18s ease; }
-      .bottle-add-grid{ grid-template-columns:1fr 1fr; }
-      .bottle-add-button{ grid-column:1 / -1; width:100%; }
-      .bundle-dcyl-options{ grid-template-columns:1fr; }
-      .bundle-qty-row{ grid-template-columns:1fr; }
-      .footer-actions{ grid-template-columns:1fr; }
-      .example-row{ align-items:flex-start; flex-direction:column; }
-      .example-row span{ text-align:left; }
+    .input::placeholder{color:rgba(235,241,255,.4)}
+    .select option{color:#111827}
+    .btn{min-height:46px;padding:10px 14px;border-radius:14px;background:linear-gradient(135deg,#7868ff,#5145e7);box-shadow:0 10px 24px rgba(37,27,133,.28)}
+    .btn.secondary{background:linear-gradient(135deg,rgba(78,111,185,.88),rgba(47,57,132,.94))}
+    .btn.ghost{background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.13);box-shadow:none}
+    .btn.success{background:linear-gradient(135deg,#39b978,#248750)}
+    .btn.warning{background:linear-gradient(135deg,#efb849,#cb7519)}
+    .btn.danger{background:linear-gradient(135deg,#ef5c78,#a91f53)}
+    .btn.cyan{background:linear-gradient(135deg,#32b9c8,#2678b3)}
+    .full{width:100%}
+    .meta-grid{display:grid;grid-template-columns:1fr 1fr;gap:11px;margin-top:12px}
+    .field label{display:block;margin-bottom:7px;color:var(--sub);font-size:13px;font-weight:900}
+    .date-shell{position:relative;min-height:48px;border-radius:14px;overflow:hidden}
+    .date-display{min-height:48px;display:flex;align-items:center;padding:11px 40px 11px 13px;border:1px solid rgba(255,255,255,.16);border-radius:14px;background:rgba(255,255,255,.09);font-weight:800}
+    .date-shell:after{content:"▾";position:absolute;right:14px;top:50%;transform:translateY(-50%);pointer-events:none}
+    #reportDate{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer}
+    .api-pill{padding:5px 9px;border-radius:999px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.07);font-size:11px;font-weight:900}
+    .api-pill.ok{color:#c9ffdb;border-color:rgba(88,214,141,.5)}
+    .api-pill.bad{color:#ffd0d8;border-color:rgba(255,113,136,.55)}
+    .summary-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px;margin-top:12px}
+    .metric{padding:11px 10px;border-radius:15px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);min-width:0}
+    .metric .k{font-size:11px;color:var(--soft);font-weight:800;line-height:1.35}
+    .metric .v{margin-top:5px;font-size:20px;font-weight:900;word-break:break-word}
+    .metric.good .v{color:#b8ffd0}.metric.warn .v{color:#ffe4a3}.metric.bad .v{color:#ffb8c4}
+    .tabs{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px}
+    .tab{padding:12px;border-radius:15px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1)}
+    .tab.active{background:linear-gradient(135deg,rgba(117,103,255,.75),rgba(59,91,194,.72));border-color:rgba(207,216,255,.46)}
+    .panel{display:none}.panel.active{display:block}
+    .scan-grid{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:9px;margin-top:12px}
+    .source-strip{display:flex;gap:8px;overflow-x:auto;padding:4px 1px 9px;margin-top:12px;scrollbar-width:thin}
+    .source-chip{flex:0 0 auto;max-width:220px;padding:9px 11px;border-radius:13px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.13);font-size:12px;text-align:left}
+    .source-chip.active{border-color:rgba(93,220,239,.8);background:rgba(41,170,187,.18);box-shadow:0 0 0 3px rgba(67,198,232,.09)}
+    .source-chip .top{font-weight:900}.source-chip .bottom{margin-top:3px;color:var(--sub)}
+    .empty{padding:26px 10px;text-align:center;color:var(--soft);line-height:1.7}
+    .detail-head{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+    .type-pill{padding:5px 9px;border-radius:999px;font-size:11px;font-weight:900;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.08)}
+    .type-pill.transport{color:#cdeaff;border-color:rgba(81,176,255,.55)}
+    .type-pill.bundle{color:#e2d9ff;border-color:rgba(173,149,255,.58)}
+    .type-pill.bottle{color:#cffff0;border-color:rgba(88,214,141,.5)}
+    .data-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:12px}
+    .data-box{padding:11px;border-radius:14px;background:rgba(255,255,255,.055);border:1px solid rgba(255,255,255,.1)}
+    .data-box .k{font-size:11px;color:var(--soft);font-weight:800}.data-box .v{margin-top:4px;font-weight:900;word-break:break-all}
+    details{margin-top:12px;border:1px solid rgba(255,255,255,.1);border-radius:15px;background:rgba(255,255,255,.04);overflow:hidden}
+    summary{padding:12px 13px;cursor:pointer;font-weight:900}
+    .bottle-list{display:grid;gap:8px;padding:0 10px 11px}
+    .bottle-item,.asset-item,.frame-item,.history-item{padding:11px;border-radius:14px;background:rgba(255,255,255,.055);border:1px solid rgba(255,255,255,.1)}
+    .bottle-item{display:grid;grid-template-columns:auto 1fr;gap:10px;align-items:center}
+    .bottle-item input[type=checkbox],.asset-item input[type=checkbox]{width:21px;height:21px;accent-color:#7868ff}
+    .bottle-ctn,.asset-name{font-weight:900;letter-spacing:.4px;word-break:break-all}
+    .bottle-sub,.asset-sub{margin-top:4px;color:var(--sub);font-size:12px;line-height:1.45}
+    .batch-total{margin-top:12px;padding:12px;border-radius:15px;background:rgba(67,198,232,.09);border:1px solid rgba(67,198,232,.24);font-weight:900;line-height:1.55}
+    .warning-box{margin-top:10px;padding:10px 11px;border-radius:13px;background:rgba(255,202,100,.1);border:1px solid rgba(255,202,100,.32);color:#fff0bd;font-size:12px;line-height:1.5}
+    .error-box{margin-top:10px;padding:10px 11px;border-radius:13px;background:rgba(255,113,136,.1);border:1px solid rgba(255,113,136,.36);color:#ffd0d8;font-size:12px;line-height:1.5}
+    .toolbar{display:flex;gap:8px;overflow-x:auto;padding:2px 0 9px}
+    .filter-btn{flex:0 0 auto;padding:8px 11px;border-radius:999px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.11);font-size:12px}
+    .filter-btn.active{background:rgba(117,103,255,.45);border-color:rgba(189,180,255,.55)}
+    .asset-list,.frame-list,.history-list{display:grid;gap:9px;margin-top:10px}
+    .asset-item{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:10px;align-items:center}
+    .asset-item.selected{border-color:rgba(67,198,232,.75);background:rgba(67,198,232,.1)}
+    .qty-input{width:72px;min-height:38px;padding:7px 8px;text-align:center;border-radius:11px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.08);color:#fff;font-weight:900}
+    .status-pill{display:inline-flex;margin-top:5px;padding:3px 7px;border-radius:999px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.1);font-size:10px;font-weight:900}
+    .frame-item .frame-head{display:flex;justify-content:space-between;gap:10px;align-items:center}
+    .frame-progress{height:8px;margin-top:9px;border-radius:999px;background:rgba(255,255,255,.08);overflow:hidden}
+    .frame-progress span{display:block;height:100%;background:linear-gradient(90deg,#43c6e8,#7767ff)}
+    .sticky-actions{position:fixed;left:50%;bottom:calc(10px + env(safe-area-inset-bottom));z-index:1000;width:min(740px,calc(100vw - 20px));transform:translateX(-50%);padding:10px;border-radius:19px;background:rgba(17,25,79,.94);border:1px solid rgba(225,234,255,.27);box-shadow:0 18px 48px rgba(2,7,34,.5);backdrop-filter:blur(16px)}
+    .sticky-actions.hidden{display:none}
+    .sticky-info{font-size:12px;color:var(--sub);font-weight:800;margin-bottom:8px}
+    .action-scroll{display:flex;gap:7px;overflow-x:auto}
+    .action-scroll .btn{flex:0 0 auto;min-height:42px;padding:9px 12px;font-size:12px}
+    .modal{display:none;position:fixed;inset:0;z-index:3000;background:rgba(2,6,28,.72);padding:14px;align-items:flex-end;justify-content:center;backdrop-filter:blur(7px)}
+    .modal.show{display:flex}
+    .modal-panel{width:min(680px,100%);padding:18px 16px;border-radius:23px 23px 15px 15px;background:linear-gradient(180deg,#203278,#17134f);border:1px solid rgba(255,255,255,.24);box-shadow:0 24px 70px rgba(0,0,0,.48)}
+    .modal-title{font-size:20px;font-weight:900;margin-bottom:8px}
+    .modal-actions{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:14px}
+    .check-line{display:flex;align-items:center;gap:10px;margin-top:12px;color:var(--sub);font-weight:800}
+    .check-line input{width:21px;height:21px;accent-color:#7767ff}
+    .toast{position:fixed;top:18px;left:50%;z-index:5000;transform:translate(-50%,-20px);width:min(420px,calc(100vw - 24px));padding:12px 14px;border-radius:16px;background:rgba(13,25,76,.97);border:1px solid rgba(89,210,230,.46);box-shadow:0 18px 48px rgba(0,0,0,.4);opacity:0;pointer-events:none;transition:.2s}
+    .toast.show{opacity:1;transform:translate(-50%,0)}
+    .toast.bad{border-color:rgba(255,113,136,.55)}
+    .loading-mask{display:none;position:fixed;inset:0;z-index:4500;background:rgba(2,6,28,.68);align-items:center;justify-content:center;text-align:center;padding:20px}
+    .loading-mask.show{display:flex}
+    .loading-card{padding:20px 18px;border-radius:20px;background:#1a2868;border:1px solid rgba(255,255,255,.22);box-shadow:var(--shadow);font-weight:900;line-height:1.7}
+    @media(max-width:620px){
+      body{padding:13px 9px 112px}.card{padding:15px 12px;border-radius:19px}.meta-grid,.data-grid{grid-template-columns:1fr}.summary-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.scan-grid{grid-template-columns:1fr}.scan-grid .btn{width:100%}.asset-item{grid-template-columns:auto minmax(0,1fr)}.asset-item .qty-input{grid-column:2;width:100%}.metric .v{font-size:18px}
     }
   </style>
 </head>
 <body>
   <main class="wrap">
-    <h1 class="page-title">自動噴砂 CTN 流轉</h1>
-    <div class="sub-title">第三階段｜隔離交易寫入 Beta</div>
+    <h1 class="title">Grinding WIP</h1>
+    <div class="subtitle">研磨站批次入站・在製追蹤・入框待噴砂｜BETA</div>
 
-    <section class="beta-banner">
-      <span class="beta-badge">BETA 3</span>
-      <div>正式 <strong>IQC_Log</strong> 與 <strong>RT list</strong> 仍維持唯讀；本階段會把待轉移、DCYL、轉 HT 與集束待噴砂運輸框正式寫入 <strong>_BETA 隔離工作表</strong>。不寫 Response、不改正式 IQC_Log，也不碰正式 ERP_CTN_EXPORT。</div>
+    <section class="banner">
+      本版不再提供「更換後運輸框」或「新增散支 CTN＋RT」。掃描運輸框、單支鋼瓶或集束 CTN 後，建立 Grinding 入站批次；所有寫入只進 BETA 隔離表。
     </section>
 
-    <section class="form-card">
-      <div class="form-title-line">
-        <div class="form-title">📦 處理框數</div>
-        <div class="count-text" id="frameCountText">目前：1 框</div>
+    <section class="card">
+      <div class="row between">
+        <div class="section-title">操作資訊</div>
+        <span id="apiPill" class="api-pill">API 檢查中</span>
       </div>
-      <div class="field-grid" style="margin-bottom:14px;">
-        <div class="meta-field date-meta-field">
-          <label class="field-label" for="reportDate">操作日期</label>
-          <div class="date-input-shell">
-            <div id="reportDateDisplay" class="date-input-display empty" aria-hidden="true">請選擇操作日期</div>
-            <input id="reportDate" type="date" aria-label="操作日期" onchange="onBetaMetaChange()">
+      <div class="meta-grid">
+        <div class="field">
+          <label>操作日期</label>
+          <div class="date-shell">
+            <div id="dateDisplay" class="date-display"></div>
+            <input id="reportDate" type="date" aria-label="操作日期">
           </div>
         </div>
-        <div class="meta-field operator-meta-field">
-          <label class="field-label" for="operatorName">操作人員</label>
-          <input id="operatorName" class="form-input" type="text" maxlength="80" placeholder="請輸入測試操作人員" autocomplete="name" oninput="onBetaMetaChange()">
+        <div class="field">
+          <label for="operatorName">操作人員</label>
+          <input id="operatorName" class="input" maxlength="80" placeholder="輸入操作人員">
         </div>
       </div>
-      <div class="inline-controls">
-        <label for="frameCount">選擇本次要掃描的框數</label>
-        <select id="frameCount" class="count-select" aria-label="處理框數"></select>
-      </div>
-      <div class="tip" style="margin-top:10px;">每一張卡代表一框。掃描後會優先讀取第三階段目前狀態；尚未有狀態時才從 IQC_Log 建立初始資料。</div>
     </section>
 
-    <section class="form-card">
-      <div class="form-title-line">
-        <div class="form-title">🔌 第三階段資料來源</div>
-        <div id="apiStatus" class="count-text">檢查中...</div>
+    <section class="card">
+      <div class="row between">
+        <div class="section-title">Grinding 即時對帳</div>
+        <button class="btn ghost" style="min-height:36px;padding:7px 10px;font-size:12px" onclick="refreshAll(true)">重新整理</button>
       </div>
-      <div class="tip">初次掃描以每日報表(AP)的 IQC_Log 建立基準；完成第三階段交易後，後續掃描會以 CTN_Current_State_BETA 為最新狀態來源。</div>
-      <div id="apiStatusMessage" class="mini-note">正在檢查 BETA API...</div>
-      <div class="btn-row">
-        <button type="button" class="ghost" onclick="checkBetaApiHealth()">重新檢查第三階段 API</button>
-      </div>
+      <div id="summaryGrid" class="summary-grid"></div>
+      <div id="dailySummary" class="muted" style="margin-top:11px"></div>
     </section>
 
-    <div class="slider-stage">
-      <button id="framePrevBtn" type="button" class="desktop-slider-nav prev" onclick="moveFrame(-1)" aria-label="切換到上一框" title="上一框">
-        <span class="nav-chevron" aria-hidden="true"></span>
-        <span class="nav-label">上一框</span>
-      </button>
-
-      <div class="slider-wrap">
-        <div id="frameCards" class="slider" aria-label="框別側滑卡片"></div>
-      </div>
-
-      <button id="frameNextBtn" type="button" class="desktop-slider-nav next" onclick="moveFrame(1)" aria-label="切換到下一框" title="下一框">
-        <span class="nav-chevron" aria-hidden="true"></span>
-        <span class="nav-label">下一框</span>
-      </button>
+    <div class="tabs">
+      <button id="tabCheckIn" class="tab active" onclick="switchTab('checkin')">多來源批次入站</button>
+      <button id="tabWip" class="tab" onclick="switchTab('wip')">Grinding WIP 處理</button>
     </div>
-    <div id="desktopFramePosition" class="desktop-frame-position" aria-live="polite">第 1 框／共 1 框</div>
 
-    <section id="draftSummary" class="form-card summary-card">
-      <div class="form-title-line">
-        <div class="form-title">🧾 本次待提交動作</div>
-        <div id="summaryCount" class="count-text">0 項</div>
-      </div>
-      <div id="summaryList" class="summary-list"></div>
+    <section id="panelCheckIn" class="panel active">
+      <section class="card">
+        <div class="row between">
+          <div class="section-title">掃描來源</div>
+          <span id="sourceCountText" class="muted">0 個來源</span>
+        </div>
+        <div class="muted">直接掃描 CTN；系統會辨識運輸框、單支鋼瓶或集束。相同 CTN 若有多種角色會直接停止，不會自行猜測。</div>
+        <div class="scan-grid">
+          <input id="scanInput" class="input" maxlength="7" autocomplete="off" autocapitalize="characters" placeholder="掃描 CTN">
+          <button id="scanBtn" class="btn" onclick="scanSource()">帶入來源</button>
+        </div>
+        <div id="sourceStrip" class="source-strip"></div>
+      </section>
+
+      <section id="sourceDetailCard" class="card">
+        <div id="sourceDetail"></div>
+      </section>
+
+      <section class="card">
+        <div class="section-title">本次 Grinding 入站</div>
+        <div id="batchSummary" class="batch-total">尚未加入來源。</div>
+        <div class="row" style="margin-top:12px">
+          <button class="btn secondary" style="flex:1" onclick="clearCheckInDraft()">清除草稿</button>
+          <button id="checkInSubmitBtn" class="btn success" style="flex:2" onclick="submitCheckIn()">確認整批進入 Grinding</button>
+        </div>
+      </section>
     </section>
 
-    <section class="form-card">
-      <div class="form-title">Beta 操作</div>
-      <div class="tip">「查看預計異動」會先整理本次動作；確認後將正式寫入第三階段 _BETA 隔離工作表。</div>
-      <div class="btn-row">
-        <button type="button" class="secondary" onclick="openPreview()">查看預計異動</button>
-        <button type="button" class="ghost" onclick="resetBetaDraft()">清除 Beta 草稿</button>
-      </div>
+    <section id="panelWip" class="panel">
+      <section class="card">
+        <div class="row between">
+          <div class="section-title">Grinding 目前在製</div>
+          <span id="wipCountText" class="muted">0 項</span>
+        </div>
+        <div class="toolbar" id="statusToolbar">
+          <button class="filter-btn active" data-filter="ALL" onclick="setWipFilter('ALL')">全部</button>
+          <button class="filter-btn" data-filter="WAIT_GRINDING" onclick="setWipFilter('WAIT_GRINDING')">待研磨</button>
+          <button class="filter-btn" data-filter="IN_PROCESS" onclick="setWipFilter('IN_PROCESS')">研磨中</button>
+          <button class="filter-btn" data-filter="COMPLETE_WAIT" onclick="setWipFilter('COMPLETE_WAIT')">完成待分流</button>
+        </div>
+        <div id="assetList" class="asset-list"></div>
+      </section>
+
+      <section class="card">
+        <div class="row between">
+          <div class="section-title">入框／待噴砂框</div>
+          <span id="frameCountText" class="muted">0 框</span>
+        </div>
+        <div id="frameList" class="frame-list"></div>
+      </section>
+
+      <section class="card">
+        <div class="section-title">DCYL／轉 HT 最近紀錄</div>
+        <div id="historyList" class="history-list"></div>
+      </section>
     </section>
   </main>
 
-  <aside id="mobileQuickTools" class="mobile-quick-tools hidden" aria-label="散支鋼瓶快速操作">
-    <button id="mobileQuickToggle" type="button" class="mobile-quick-toggle" onclick="toggleMobileQuickTools()" aria-label="收合快速操作">›</button>
-    <div class="mobile-quick-panel">
-      <div id="mobileQuickTarget" class="mobile-quick-target">請先點選鋼瓶</div>
-      <button id="mobileQuickTransfer" type="button" class="mobile-quick-action ghost" onclick="applyMobileBottleAction('transfer')">待轉移</button>
-      <button id="mobileQuickDcyl" type="button" class="mobile-quick-action ghost" onclick="applyMobileBottleAction('dcyl')">DCYL</button>
-      <button id="mobileQuickHt" type="button" class="mobile-quick-action ghost" onclick="applyMobileBottleAction('ht')">轉 HT</button>
-      <button id="mobileQuickRemove" type="button" class="mobile-quick-action remove" onclick="applyMobileBottleAction('remove')">移除</button>
+  <aside id="stickyActions" class="sticky-actions hidden">
+    <div id="stickyInfo" class="sticky-info">尚未選擇項目</div>
+    <div class="action-scroll">
+      <button class="btn ghost" onclick="submitSimpleAction('SET_WAIT_GRINDING')">待研磨</button>
+      <button class="btn cyan" onclick="submitSimpleAction('SET_IN_PROCESS')">研磨中</button>
+      <button class="btn success" onclick="submitSimpleAction('SET_COMPLETE_WAIT')">研磨完成</button>
+      <button class="btn" onclick="openLoadModal()">入框待噴砂</button>
+      <button class="btn secondary" onclick="submitSimpleAction('SEND_HYDROTEST')">送水壓</button>
+      <button class="btn danger" onclick="submitSimpleAction('DCYL')">DCYL</button>
+      <button class="btn warning" onclick="submitSimpleAction('TRANSFER_HT')">轉 HT</button>
     </div>
   </aside>
 
-  <div id="previewModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="previewTitle">
+  <div id="loadModal" class="modal">
     <div class="modal-panel">
-      <h2 id="previewTitle" class="modal-title">預計異動總覽</h2>
-      <p class="modal-subtitle">以下資料將寫入第三階段 BETA 狀態、交易履歷及 BETA ERP 匯出表；正式 Response、IQC_Log 與正式 ERP 不會異動。</p>
-      <div id="modalSummary" class="modal-summary"></div>
-      <div class="divider"></div>
-      <div class="footer-actions">
-        <button type="button" class="ghost" onclick="closePreview()">返回調整</button>
-        <button id="stage3SubmitBtn" type="button" class="success" onclick="submitStage3()">正式送出 BETA</button>
+      <div class="modal-title">入框待噴砂</div>
+      <div class="muted">選取的鋼瓶／集束批次將離開 Grinding，綁定至下列運輸框。</div>
+      <div class="field" style="margin-top:12px">
+        <label for="loadFrameCtn">運輸框架 CTN</label>
+        <input id="loadFrameCtn" class="input" maxlength="7" autocapitalize="characters" placeholder="例如 AB12CD3">
+      </div>
+      <div class="field" style="margin-top:10px">
+        <label for="loadFrameCapacity">框架容量</label>
+        <input id="loadFrameCapacity" class="input" type="number" min="1" max="18" value="18">
+      </div>
+      <label class="check-line"><input id="completeFrame" type="checkbox" checked>本次完成此框，列為「待噴砂」並計入完成框數</label>
+      <div class="modal-actions">
+        <button class="btn ghost" onclick="closeLoadModal()">取消</button>
+        <button class="btn success" onclick="submitLoadToFrame()">確認入框</button>
       </div>
     </div>
   </div>
 
+  <div id="toast" class="toast"></div>
+  <div id="loadingMask" class="loading-mask"><div id="loadingText" class="loading-card">處理中…</div></div>
+
   <script src="./api.js"></script>
   <script>
-    const BETA_STORAGE_KEY = "ds_sandblast_ctn_flow_beta_stage3_v1";
+    const CLIENT_VERSION = "BETA_GRINDING_WIP_V1_20260731";
+    const STORAGE_KEY = "ds_grinding_wip_beta_v1";
     const CTN_RE = /^[A-Z]{2}\d{2}[A-Z]{2}[A-Z0-9]$/;
+    const STATUS_LABELS = {
+      WAIT_GRINDING:"待研磨",IN_PROCESS:"研磨中",COMPLETE_WAIT:"研磨完成待分流",
+      WAIT_SANDBLAST:"入框待噴砂",DCYL:"DCYL",HT:"轉 HT"
+    };
 
-    // 第二階段只透過獨立 BETA API 唯讀查詢 IQC_Log；不提供任何寫入能力。
-    let lookupRequestSeq = 0;
+    let state = {
+      reportDate:"",operator:"",tab:"checkin",sources:[],activeSourceId:"",
+      summary:null,wip:null,wipFilter:"ALL",selected:{},selectedQty:{},
+      pendingCheckIn:null,pendingDisposition:null
+    };
+    let toastTimer = null;
 
-    let betaState = { frameCount: 1, reportDate: "", operator: "", pendingSubmissionId: "", pendingPayloadHash: "", cards: [] };
-    let stage3Submitting = false;
-    let activeFrameIndex = 0;
-    let sliderScrollRaf = 0;
-    let selectedBottleCardIndex = -1;
-    let selectedBottleIndex = -1;
-    let mobileQuickCollapsed = localStorage.getItem("ds_beta3_mobile_quick_collapsed") === "1";
-
-    function todayLocalYmd(){
-      const now = new Date();
-      const y = now.getFullYear();
-      const m = String(now.getMonth() + 1).padStart(2, "0");
-      const d = String(now.getDate()).padStart(2, "0");
-      return `${y}-${m}-${d}`;
+    function localYmd(){
+      const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
     }
-
-    function ensureBetaMeta(){
-      if(!betaState.reportDate) betaState.reportDate = todayLocalYmd();
-      betaState.operator = String(betaState.operator || "");
-      betaState.pendingSubmissionId = String(betaState.pendingSubmissionId || "");
-      betaState.pendingPayloadHash = String(betaState.pendingPayloadHash || "");
+    function normalizeCtn(v){return String(v||"").trim().toUpperCase().replace(/\s+/g,"").slice(0,7)}
+    function escapeHtml(v){return String(v??"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#039;")}
+    function safeClone(v){return JSON.parse(JSON.stringify(v))}
+    function simpleHash(v){
+      const text=JSON.stringify(v);let h=2166136261;for(let i=0;i<text.length;i++){h^=text.charCodeAt(i);h=Math.imul(h,16777619)}return ("00000000"+(h>>>0).toString(16)).slice(-8)
     }
-
-    function formatBetaDateLabel(value){
-      const text = String(value || "").trim();
-      const matched = text.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-      if(!matched) return "";
-      return `${matched[1]}年${Number(matched[2])}月${Number(matched[3])}日`;
+    function makeSubmissionId(prefix){return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2,10).toUpperCase()}`}
+    function saveState(){
+      try{localStorage.setItem(STORAGE_KEY,JSON.stringify({
+        reportDate:state.reportDate,operator:state.operator,tab:state.tab,sources:state.sources,
+        activeSourceId:state.activeSourceId,pendingCheckIn:state.pendingCheckIn,pendingDisposition:state.pendingDisposition
+      }))}catch(err){console.warn(err)}
     }
-
-    function updateReportDateDisplay(){
-      const display = document.getElementById("reportDateDisplay");
-      if(!display) return;
-
-      const label = formatBetaDateLabel(betaState.reportDate);
-      display.textContent = label || "請選擇操作日期";
-      display.classList.toggle("empty", !label);
-    }
-
-    function onBetaMetaChange(){
-      const dateInput = document.getElementById("reportDate");
-      const operatorInput = document.getElementById("operatorName");
-      betaState.reportDate = dateInput ? String(dateInput.value || "") : betaState.reportDate;
-      betaState.operator = operatorInput ? String(operatorInput.value || "").trim() : betaState.operator;
-      updateReportDateDisplay();
-      saveBetaDraft();
-    }
-
-    function normalizeCTN(value){
-      return String(value || "").trim().toUpperCase().replace(/\s+/g, "");
-    }
-
-    function isValidCTN(value){
-      return CTN_RE.test(normalizeCTN(value));
-    }
-
-    function safeClone(value){
-      return JSON.parse(JSON.stringify(value));
-    }
-
-    function createEmptyCard(index){
-      return {
-        index: index,
-        scannedCtn: "",
-        kind: "",
-        lookupStatus: "",
-        error: "",
-        loading: false,
-        lookupRequestId: "",
-        transportFrameCtn: "",
-        replacementTransportFrameCtn: "",
-        bundleTransportFrameCtn: "",
-        region: "",
-        regionCode: "",
-        regionName: "",
-        source: null,
-        warnings: [],
-        bottles: [],
-        newBottleCtn: "",
-        newBottleRt: "",
-        bundle: null
-      };
-    }
-
-    function clearCardLookupData(card, preserveScannedCtn = true){
-      const scannedCtn = preserveScannedCtn ? String(card.scannedCtn || "") : "";
-      card.scannedCtn = scannedCtn;
-      card.kind = "";
-      card.lookupStatus = "";
-      card.error = "";
-      card.loading = false;
-      card.lookupRequestId = "";
-      card.transportFrameCtn = "";
-      card.replacementTransportFrameCtn = "";
-      card.bundleTransportFrameCtn = "";
-      card.region = "";
-      card.regionCode = "";
-      card.regionName = "";
-      card.source = null;
-      card.warnings = [];
-      card.bottles = [];
-      card.newBottleCtn = "";
-      card.newBottleRt = "";
-      card.bundle = null;
-    }
-
-    function normalizeFrameCount(value){
-      const n = Number(value || 1);
-      if(!Number.isFinite(n)) return 1;
-      return Math.max(1, Math.min(18, Math.round(n)));
-    }
-
-    function ensureCardCount(){
-      const count = normalizeFrameCount(betaState.frameCount);
-      betaState.frameCount = count;
-      const current = Array.isArray(betaState.cards) ? betaState.cards : [];
-      const next = [];
-      for(let i = 0; i < count; i++){
-        next.push(current[i] ? Object.assign(createEmptyCard(i), current[i], { index:i }) : createEmptyCard(i));
-      }
-      betaState.cards = next;
-    }
-
-    function saveBetaDraft(){
+    function loadState(){
       try{
-        localStorage.setItem(BETA_STORAGE_KEY, JSON.stringify(betaState));
-      }catch(err){
-        console.warn("Beta 草稿儲存失敗", err);
-      }
+        const raw=localStorage.getItem(STORAGE_KEY);if(!raw)return;const p=JSON.parse(raw);if(!p||typeof p!=="object")return;
+        state.reportDate=String(p.reportDate||"");state.operator=String(p.operator||"");state.tab=String(p.tab||"checkin");
+        state.sources=Array.isArray(p.sources)?p.sources:[];state.activeSourceId=String(p.activeSourceId||"");
+        state.pendingCheckIn=p.pendingCheckIn||null;state.pendingDisposition=p.pendingDisposition||null;
+      }catch(err){console.warn(err)}
     }
-
-    function loadBetaDraft(){
+    function showToast(message,bad){
+      const el=document.getElementById("toast");el.textContent=message;el.classList.toggle("bad",!!bad);el.classList.add("show");
+      clearTimeout(toastTimer);toastTimer=setTimeout(()=>el.classList.remove("show"),2800)
+    }
+    function setLoading(show,text){
+      document.getElementById("loadingText").textContent=text||"處理中…";
+      document.getElementById("loadingMask").classList.toggle("show",!!show)
+    }
+    function syncMetaFromInputs(){
+      state.reportDate=document.getElementById("reportDate").value||state.reportDate;
+      state.operator=String(document.getElementById("operatorName").value||"").trim();
+      updateDateDisplay();saveState()
+    }
+    function updateDateDisplay(){
+      const v=state.reportDate||localYmd();const m=v.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+      document.getElementById("dateDisplay").textContent=m?`${m[1]}年${Number(m[2])}月${Number(m[3])}日`:"選擇日期"
+    }
+    function init(){
+      loadState();if(!state.reportDate)state.reportDate=localYmd();
+      document.getElementById("reportDate").value=state.reportDate;document.getElementById("operatorName").value=state.operator;updateDateDisplay();
+      document.getElementById("reportDate").addEventListener("change",()=>{syncMetaFromInputs();refreshAll(false)});
+      document.getElementById("operatorName").addEventListener("input",syncMetaFromInputs);
+      document.getElementById("scanInput").addEventListener("input",e=>{e.target.value=normalizeCtn(e.target.value)});
+      document.getElementById("scanInput").addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();scanSource()}});
+      document.getElementById("loadFrameCtn").addEventListener("input",e=>{e.target.value=normalizeCtn(e.target.value)});
+      switchTab(state.tab||"checkin");renderCheckIn();refreshAll(false);checkHealth()
+    }
+    async function checkHealth(){
+      const pill=document.getElementById("apiPill");
+      try{const r=await fetchBetaApiHealth();pill.textContent=`已連線｜${r.buildVersion||r.stage||"BETA"}`;pill.className="api-pill ok"}
+      catch(err){pill.textContent="API 未連線";pill.className="api-pill bad";showToast(err.message,true)}
+    }
+    async function refreshAll(showMessage){
+      syncMetaFromInputs();
       try{
-        const raw = localStorage.getItem(BETA_STORAGE_KEY);
-        if(!raw) return;
-        const parsed = JSON.parse(raw);
-        if(!parsed || typeof parsed !== "object") return;
-        betaState.frameCount = normalizeFrameCount(parsed.frameCount || 1);
-        betaState.reportDate = String(parsed.reportDate || "");
-        betaState.operator = String(parsed.operator || "");
-        betaState.pendingSubmissionId = String(parsed.pendingSubmissionId || "");
-        betaState.pendingPayloadHash = String(parsed.pendingPayloadHash || "");
-        betaState.cards = Array.isArray(parsed.cards) ? parsed.cards : [];
-        ensureBetaMeta();
-        ensureCardCount();
-        betaState.cards.forEach(function(card){
-          card.loading = false;
-          card.lookupRequestId = "";
-          card.newBottleCtn = normalizeCTN(card.newBottleCtn || "");
-          card.newBottleRt = String(card.newBottleRt || "");
-          card.bottles = (Array.isArray(card.bottles) ? card.bottles : []).map(function(bottle){
-            const nextBottle = Object.assign({}, bottle);
-            nextBottle.pendingAdd = bottle && bottle.pendingAdd === true;
-            nextBottle.pendingTransfer = bottle && bottle.pendingTransfer === true;
-            nextBottle.pendingDcyl = bottle && bottle.pendingDcyl === true;
-            nextBottle.pendingHt = bottle && bottle.pendingHt === true;
-            nextBottle.pendingRemove = bottle && bottle.pendingRemove === true;
-            nextBottle.stateVersion = Number(bottle && bottle.stateVersion || 0);
-            nextBottle.currentStatus = String(bottle && bottle.currentStatus || "ACTIVE");
-            if(nextBottle.pendingTransfer){
-              nextBottle.pendingDcyl = false;
-              nextBottle.pendingHt = false;
-              nextBottle.pendingRemove = false;
-            }else if(nextBottle.pendingDcyl){
-              nextBottle.pendingHt = false;
-              nextBottle.pendingRemove = false;
-            }else if(nextBottle.pendingHt){
-              nextBottle.pendingRemove = false;
-            }
-            return nextBottle;
-          });
-        });
-      }catch(err){
-        console.warn("Beta 草稿讀取失敗", err);
-      }
+        const [summary,wip]=await Promise.all([fetchBetaGrindingSummary(state.reportDate),fetchBetaGrindingWip(state.reportDate)]);
+        state.summary=summary;state.wip=wip;state.selected={};state.selectedQty={};renderSummary();renderWip();renderSticky();
+        if(showMessage)showToast("Grinding WIP 已更新")
+      }catch(err){showToast(err.message||"資料讀取失敗",true)}
     }
-
-    function resetBetaDraft(){
-      if(!confirm("確定清除這份 Beta 草稿嗎？只會清除此瀏覽器內的模擬資料。")) return;
-      const preservedOperator = String(betaState.operator || "");
-      betaState = {
-        frameCount: 1,
-        reportDate: todayLocalYmd(),
-        operator: preservedOperator,
-        pendingSubmissionId: "",
-        pendingPayloadHash: "",
-        cards: [createEmptyCard(0)]
-      };
-      activeFrameIndex = 0;
-      selectedBottleCardIndex = -1;
-      selectedBottleIndex = -1;
-      localStorage.removeItem(BETA_STORAGE_KEY);
-      renderAll();
+    function switchTab(tab){
+      state.tab=tab==="wip"?"wip":"checkin";saveState();
+      document.getElementById("tabCheckIn").classList.toggle("active",state.tab==="checkin");
+      document.getElementById("tabWip").classList.toggle("active",state.tab==="wip");
+      document.getElementById("panelCheckIn").classList.toggle("active",state.tab==="checkin");
+      document.getElementById("panelWip").classList.toggle("active",state.tab==="wip");renderSticky()
     }
-
-    function setupCountSelect(){
-      const select = document.getElementById("frameCount");
-      select.innerHTML = "";
-      for(let i = 1; i <= 18; i++){
-        const option = document.createElement("option");
-        option.value = String(i);
-        option.textContent = `${i} 框`;
-        select.appendChild(option);
-      }
-      select.value = String(betaState.frameCount);
-      select.addEventListener("change", function(){
-        betaState.frameCount = normalizeFrameCount(this.value);
-        ensureCardCount();
-        activeFrameIndex = Math.min(activeFrameIndex, betaState.frameCount - 1);
-        saveBetaDraft();
-        renderAll();
-      });
-    }
-
-    function getCard(index){
-      ensureCardCount();
-      return betaState.cards[index];
-    }
-
-    function escapeHtml(text){
-      return String(text || "")
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;")
-        .replace(/\"/g, "&quot;")
-        .replace(/'/g, "&#039;");
-    }
-
-    function renderAll(){
-      ensureCardCount();
-      ensureBetaMeta();
-      document.getElementById("frameCount").value = String(betaState.frameCount);
-      document.getElementById("frameCountText").textContent = `目前：${betaState.frameCount} 框`;
-      const reportDateInput = document.getElementById("reportDate");
-      const operatorInput = document.getElementById("operatorName");
-      if(reportDateInput) reportDateInput.value = betaState.reportDate;
-      updateReportDateDisplay();
-      if(operatorInput && document.activeElement !== operatorInput) operatorInput.value = betaState.operator;
-      renderCards();
-      renderDraftSummary();
-      renderMobileQuickTools();
-    }
-
-    function renderCards(){
-      const container = document.getElementById("frameCards");
-      container.innerHTML = betaState.cards.map((card, index) => renderCard(card, index)).join("");
-      requestAnimationFrame(function(){
-        scrollToFrame(activeFrameIndex, "auto");
-        updateDesktopSliderNav();
-      });
-    }
-
-    function clampFrameIndex(index){
-      const maxIndex = Math.max(0, normalizeFrameCount(betaState.frameCount) - 1);
-      return Math.max(0, Math.min(maxIndex, Number(index || 0)));
-    }
-
-    function scrollToFrame(index, behavior){
-      const container = document.getElementById("frameCards");
-      if(!container) return;
-
-      activeFrameIndex = clampFrameIndex(index);
-      const target = document.getElementById(`frame-card-${activeFrameIndex}`);
-      if(target){
-        container.scrollTo({
-          left: target.offsetLeft,
-          behavior: behavior || "smooth"
-        });
-      }
-      updateDesktopSliderNav();
-    }
-
-    function moveFrame(direction){
-      scrollToFrame(activeFrameIndex + Number(direction || 0), "smooth");
-    }
-
-    function updateDesktopSliderNav(){
-      const prev = document.getElementById("framePrevBtn");
-      const next = document.getElementById("frameNextBtn");
-      const position = document.getElementById("desktopFramePosition");
-      const count = normalizeFrameCount(betaState.frameCount);
-
-      activeFrameIndex = clampFrameIndex(activeFrameIndex);
-      if(prev) prev.disabled = activeFrameIndex <= 0;
-      if(next) next.disabled = activeFrameIndex >= count - 1;
-      if(position) position.textContent = `第 ${activeFrameIndex + 1} 框／共 ${count} 框`;
-    }
-
-    function syncActiveFrameFromScroll(){
-      const container = document.getElementById("frameCards");
-      if(!container) return;
-      const cards = Array.from(container.querySelectorAll(".frame-card"));
-      if(!cards.length) return;
-
-      const currentLeft = container.scrollLeft;
-      let nearestIndex = 0;
-      let nearestDistance = Infinity;
-      cards.forEach(function(card, index){
-        const distance = Math.abs(card.offsetLeft - currentLeft);
-        if(distance < nearestDistance){
-          nearestDistance = distance;
-          nearestIndex = index;
-        }
-      });
-      activeFrameIndex = clampFrameIndex(nearestIndex);
-      if(selectedBottleCardIndex !== activeFrameIndex){
-        selectedBottleCardIndex = -1;
-        selectedBottleIndex = -1;
-      }
-      updateDesktopSliderNav();
-      renderMobileQuickTools();
-    }
-
-    function setupSliderNavigation(){
-      const container = document.getElementById("frameCards");
-      if(!container) return;
-      container.addEventListener("scroll", function(){
-        if(sliderScrollRaf) cancelAnimationFrame(sliderScrollRaf);
-        sliderScrollRaf = requestAnimationFrame(syncActiveFrameFromScroll);
-      }, { passive:true });
-      window.addEventListener("resize", function(){
-        requestAnimationFrame(function(){
-          scrollToFrame(activeFrameIndex, "auto");
-        });
-      });
-      updateDesktopSliderNav();
-    }
-
-    function renderCard(card, index){
-      const kindPill = card.loading
-        ? '<span class="pill">讀取中</span>'
-        : card.kind === "transport"
-          ? '<span class="pill transport">散支運輸框</span>'
-          : card.kind === "bundle"
-            ? '<span class="pill bundle">集束</span>'
-            : '<span class="pill">待掃描</span>';
-
-      const scanResult = card.loading
-        ? '<div class="status-empty">正在從 IQC_Log 讀取資料，請稍候...</div>'
-        : !card.kind
-          ? '<div class="status-empty">掃描運輸框架 CTN 或集束框架 CTN 後，系統會從 IQC_Log 自動帶出最新資料。</div>'
-          : card.kind === "transport"
-            ? renderTransportDetail(card, index)
-            : renderBundleDetail(card, index);
-
-      const replacementValue = normalizeCTN(card.replacementTransportFrameCtn || "");
-      const replacementInitialCheck = replacementValue
-        ? validatePendingReplacement(card)
-        : { ok:true, value:"", message:"" };
-      const replacementInputClass = replacementValue
-        ? (replacementInitialCheck.ok ? " input-valid" : " input-invalid")
-        : "";
-      const replacementInitialError = replacementValue && !replacementInitialCheck.ok
-        ? replacementInitialCheck.message.replace(`第 ${card.index + 1} 框的`, "")
-        : "";
-      const transportBottles = card.kind === "transport" && Array.isArray(card.bottles)
-        ? card.bottles
-        : [];
-      const transferableBottles = transportBottles.filter(function(bottle){
-        return bottle && bottle.pendingAdd !== true;
-      });
-      const transferSelectedCount = transferableBottles.filter(function(bottle){
-        return bottle && bottle.pendingTransfer === true;
-      }).length;
-      const allTransferSelected = transferableBottles.length > 0 && transferSelectedCount === transferableBottles.length;
-      const transferSelectionEnabled = card.kind === "transport"
-        && transferableBottles.length > 0
-        && replacementValue
-        && replacementInitialCheck.ok;
-
-      const bundleTransportValue = normalizeCTN(card.bundleTransportFrameCtn || "");
-      const bundleTransportInitialCheck = bundleTransportValue
-        ? validatePendingBundleTransport(card)
-        : { ok:true, value:"", message:"" };
-      const bundleTransportInputClass = bundleTransportValue
-        ? (bundleTransportInitialCheck.ok ? " input-valid" : " input-invalid")
-        : "";
-      const bundleTransportInitialError = bundleTransportValue && !bundleTransportInitialCheck.ok
-        ? bundleTransportInitialCheck.message.replace(`第 ${card.index + 1} 框的`, "")
-        : "";
-
-      const secondaryCtnControl = card.kind === "transport"
-        ? `
-          <div class="ctn-entry-block replacement">
-            <label class="field-label" for="replacement-${index}">更換後運輸框架 CTN（選填）</label>
-            <div class="replacement-input-row">
-              <input id="replacement-${index}" class="form-input${replacementInputClass}" value="${escapeHtml(replacementValue)}" placeholder="例如 AB12CD3" autocomplete="off" inputmode="text" maxlength="7" aria-describedby="replacement-error-${index}" oninput="onReplacementInput(${index}, this)" onblur="validateReplacementInput(${index}, true)">
-              <button id="transfer-all-${index}" type="button" class="replacement-select-all ${allTransferSelected ? "transfer" : "ghost"}" ${transferSelectionEnabled ? "" : "disabled"} onclick="toggleAllTransfer(${index})">${allTransferSelected ? "取消全選" : "全選"}</button>
-            </div>
-            <div id="replacement-error-${index}" class="inline-error" aria-live="polite">${escapeHtml(replacementInitialError)}</div>
-            <div class="replacement-context">原框：<strong>${escapeHtml(card.transportFrameCtn || card.scannedCtn)}</strong> → 新框填在此處。已選 <strong>${transferSelectedCount}／${transportBottles.length}</strong> 支待轉移；可按「全選」一次選取全部鋼瓶。</div>
-          </div>
-        `
-        : card.kind === "bundle"
-          ? `
-            <div class="ctn-entry-block replacement">
-              <label class="field-label" for="bundle-transport-${index}">待噴砂運輸框架 CTN</label>
-              <input id="bundle-transport-${index}" class="form-input${bundleTransportInputClass}" value="${escapeHtml(bundleTransportValue)}" placeholder="鋼瓶下框後的新運輸框架 CTN" autocomplete="off" inputmode="text" maxlength="7" aria-describedby="bundle-transport-error-${index}" oninput="onBundleTransportInput(${index}, this)" onblur="validateBundleTransportInput(${index}, true)">
-              <div id="bundle-transport-error-${index}" class="inline-error" aria-live="polite">${escapeHtml(bundleTransportInitialError)}</div>
-              <div class="replacement-context">原集束框架 CTN：<strong>${escapeHtml((card.bundle && card.bundle.bundleCtn) || card.scannedCtn)}</strong>。輸入後顯示為「運輸框架 CTN（集束框架 CTN）」。</div>
-            </div>
-          `
-          : "";
-
-      const warningHtml = Array.isArray(card.warnings) && card.warnings.length
-        ? card.warnings.map(item => `<div class="error">${escapeHtml(item)}</div>`).join("")
-        : "";
-
-      return `
-        <section id="frame-card-${index}" class="form-card frame-card">
-          <div class="frame-title">
-            <span>第 ${index + 1} 框</span>
-            ${kindPill}
-          </div>
-          <div class="ctn-entry-grid ${card.kind ? "has-replacement" : ""}">
-            <div class="ctn-entry-block">
-              <label class="field-label" for="scan-ctn-${index}">掃描運輸框架／集束框架 CTN</label>
-              <div class="scan-grid">
-                <input id="scan-ctn-${index}" class="form-input" value="${escapeHtml(card.scannedCtn)}" placeholder="掃描或輸入 CTN" autocomplete="off" inputmode="text" maxlength="7" ${card.loading ? "disabled" : ""} oninput="onScanInput(${index}, this.value)" onkeydown="onScanKeydown(event, ${index})">
-                <button type="button" ${card.loading ? "disabled" : ""} onclick="lookupCard(${index})">${card.loading ? "讀取中..." : "帶入資料"}</button>
-              </div>
-            </div>
-            ${secondaryCtnControl}
-          </div>
-          <div class="tip" style="margin-top:8px;">運輸框架可累加多張 IQC 卡片；系統會合併鋼瓶清單、檢查鋼瓶 CTN 重複，並強制每框最多 18 支。</div>
-          ${card.error ? `<div class="error">${escapeHtml(card.error)}</div>` : ""}
-          ${card.lookupStatus ? `<div class="success-note">${escapeHtml(card.lookupStatus)}</div>` : ""}
-          ${warningHtml}
-          <div class="detail-panel">${scanResult}</div>
-        </section>
-      `;
-    }
-
-    function getRegionDisplay(card){
-      const code = String(card.regionCode || "").trim();
-      const name = String(card.regionName || "").trim();
-      if(code && name) return `${code}｜${name}`;
-      return code || name || "-";
-    }
-
-    function formatTaipeiDateForDisplay(value){
-      const text = String(value || "").trim();
-      if(!text) return "";
-      if(/^\d{4}-\d{2}-\d{2}$/.test(text)) return text;
-
-      const date = new Date(text);
-      if(Number.isNaN(date.getTime())) return text;
-
-      try{
-        const parts = new Intl.DateTimeFormat("en-US", {
-          timeZone:"Asia/Taipei",
-          year:"numeric",
-          month:"2-digit",
-          day:"2-digit"
-        }).formatToParts(date);
-        const map = {};
-        parts.forEach(part => { map[part.type] = part.value; });
-        if(map.year && map.month && map.day){
-          return `${map.year}-${map.month}-${map.day}`;
-        }
-      }catch(err){
-        console.warn("日期轉換失敗，改用原始值", err);
-      }
-
-      return text;
-    }
-
-    function getSourceDisplay(card){
-      const source = card && card.source ? card.source : {};
-      const date = formatTaipeiDateForDisplay(source.date || "");
-      const createdAt = formatTaipeiDateForDisplay(source.createdAt || "");
-      return date || createdAt || "-";
-    }
-
-    function renderTransportDetail(card, cardIndex){
-      const bottles = Array.isArray(card.bottles) ? card.bottles : [];
-      const currentCount = bottles.length;
-      const remaining = Math.max(0, 18 - currentCount);
-      return `
-        <div class="detail-summary">
-          <div class="data-box"><div class="k">目前運輸框架 CTN</div><div class="v">${escapeHtml(card.transportFrameCtn)}</div></div>
-          <div class="data-box"><div class="k">來源區域</div><div class="v">${escapeHtml(getRegionDisplay(card))}</div></div>
-          <div class="data-box"><div class="k">IQC 資料日期</div><div class="v">${escapeHtml(getSourceDisplay(card))}</div></div>
-          <div class="data-box"><div class="k">資料來源</div><div class="v">IQC_Log 累加＋BETA目前狀態</div></div>
-        </div>
-        <div class="field-block">
-          <div class="bottle-add-panel">
-            <div class="bottle-add-head">
-              <div class="field-label" style="margin:0;">新增散支鋼瓶 CTN＋RT</div>
-              <div class="count-text">目前 ${currentCount}／18 支｜可再新增 ${remaining} 支</div>
-            </div>
-            <div class="bottle-add-grid">
-              <input id="new-bottle-ctn-${cardIndex}" class="form-input"
-                value="${escapeHtml(normalizeCTN(card.newBottleCtn || ""))}"
-                placeholder="掃描鋼瓶 CTN" maxlength="7" autocomplete="off"
-                autocapitalize="characters"
-                oninput="onNewBottleCtnInput(${cardIndex}, this)">
-              <input id="new-bottle-rt-${cardIndex}" class="form-input"
-                value="${escapeHtml(String(card.newBottleRt || ""))}"
-                placeholder="RT123456 或 123456" autocomplete="off" inputmode="text"
-                oninput="onNewBottleRtInput(${cardIndex}, this)"
-                onkeydown="if(event.key === 'Enter'){ event.preventDefault(); addPendingBottle(${cardIndex}); }">
-              <button type="button" class="bottle-add-button"
-                ${remaining > 0 ? "" : "disabled"}
-                onclick="addPendingBottle(${cardIndex})">＋加入鋼瓶</button>
-            </div>
-            <div class="bottle-add-tip">
-              此功能只寫入 BETA 狀態與交易紀錄，不回寫正式 IQC_Log。鋼瓶 CTN 必須全域唯一，每框最多 18 支。
-            </div>
-          </div>
-
-          <div class="form-title-line" style="margin-bottom:8px;">
-            <div class="field-label" style="margin:0;">散支鋼瓶清單</div>
-            <div class="count-text">共 ${bottles.length} 支</div>
-          </div>
-          <div class="mini-note" style="margin-bottom:10px;">手機版先點選鋼瓶，再使用右下快捷工具標記待轉移、DCYL、轉 HT 或移除；待新增鋼瓶只能取消新增。桌機版維持直接按鈕操作。</div>
-          <div class="bottle-list">
-            ${bottles.length
-              ? bottles.map((bottle, bottleIndex) => renderBottleRow(cardIndex, bottleIndex, bottle)).join("")
-              : '<div class="status-empty">此運輸框目前沒有散支鋼瓶，可直接在上方新增 CTN＋RT。</div>'}
-          </div>
-        </div>
-      `;
-    }
-
-    function renderBottleRow(cardIndex, bottleIndex, bottle){
-      const pendingAdd = bottle.pendingAdd === true;
-      const transfer = bottle.pendingTransfer === true;
-      const dcyl = bottle.pendingDcyl === true;
-      const ht = bottle.pendingHt === true;
-      const remove = bottle.pendingRemove === true;
-      const selected = selectedBottleCardIndex === cardIndex && selectedBottleIndex === bottleIndex;
-      const statePills = [
-        pendingAdd ? '<span class="pill pending-add">待新增</span>' : "",
-        transfer ? '<span class="pill pending-transfer">待轉移</span>' : "",
-        dcyl ? '<span class="pill pending-dcyl">待 DCYL</span>' : "",
-        ht ? '<span class="pill pending-ht">待轉 HT</span>' : "",
-        remove ? '<span class="pill pending-dcyl">待移除</span>' : ""
+    function metric(label,value,cls){return `<div class="metric ${cls||""}"><div class="k">${escapeHtml(label)}</div><div class="v">${escapeHtml(value)}</div></div>`}
+    function renderSummary(){
+      const c=state.summary&&state.summary.current||{};const d=state.summary&&state.summary.daily||{};
+      const diff=Number(c.balance_diff||0);
+      document.getElementById("summaryGrid").innerHTML=[
+        metric("Grinding 現場 WIP",`${Number(c.grinding_wip_qty||0)} 支`),
+        metric("入框待噴砂",`${Number(c.wait_sandblast_qty||0)} 支／${Number(c.wait_sandblast_frame_count||0)} 框`),
+        metric("水壓中",`${Number(c.hydrotest_qty||0)} 支`),
+        metric("DCYL",`${Number(c.dcyl_qty||0)} 支`),
+        metric("轉 HT",`${Number(c.ht_qty||0)} 支`),
+        metric("進出差額",`${diff} 支`,diff===0?"good":"bad")
       ].join("");
-      const sequence = Number(bottle.sequence || 0) > 0
-        ? Number(bottle.sequence)
-        : bottleIndex + 1;
-      return `
-        <article class="bottle-row ${selected ? "selected" : ""}" onclick="selectBottleForQuickAction(${cardIndex}, ${bottleIndex}, event)" role="button" tabindex="0" aria-label="選取第 ${sequence} 支鋼瓶 ${escapeHtml(bottle.ctn)}">
-          <div class="bottle-no">${sequence}</div>
-          <div class="bottle-main">
-            <div class="bottle-ctn">${escapeHtml(bottle.ctn)}</div>
-            <div class="bottle-rt">RT：${escapeHtml(bottle.rt || "-")} ${statePills}</div>
-          </div>
-          <div class="bottle-actions">
-            ${pendingAdd
-              ? `<button type="button" class="bottle-action-remove" onclick="event.stopPropagation();toggleRemove(${cardIndex}, ${bottleIndex})">取消新增</button>`
-              : `
-                <button type="button" class="bottle-action-transfer ${transfer ? "transfer" : "ghost"}" onclick="event.stopPropagation();toggleTransfer(${cardIndex}, ${bottleIndex})">${transfer ? "取消轉移" : "待轉移"}</button>
-                <button type="button" class="bottle-action-dcyl ${dcyl ? "danger" : "ghost"}" onclick="event.stopPropagation();toggleDcyl(${cardIndex}, ${bottleIndex})">${dcyl ? "取消 DCYL" : "DCYL"}</button>
-                <button type="button" class="bottle-action-ht ${ht ? "warning" : "ghost"}" onclick="event.stopPropagation();toggleHt(${cardIndex}, ${bottleIndex})">${ht ? "取消 HT" : "轉 HT"}</button>
-                <button type="button" class="bottle-action-remove" onclick="event.stopPropagation();toggleRemove(${cardIndex}, ${bottleIndex})">${remove ? "取消移除" : "移除"}</button>
-              `}
-          </div>
-        </article>
-      `;
+      document.getElementById("dailySummary").innerHTML=`今日：進站 <strong>${Number(d.entered_qty||0)}</strong> 支｜入框 <strong>${Number(d.loaded_qty||0)}</strong> 支｜完成 <strong>${Number(d.completed_frame_count||0)}</strong> 框｜DCYL <strong>${Number(d.daily_dcyl_qty||0)}</strong> 支｜轉 HT <strong>${Number(d.daily_ht_qty||0)}</strong> 支`;
     }
-
-    function renderBundleDetail(card, cardIndex){
-      const bundle = card.bundle || {};
-      const frameIdText = bundle.frameId
-        ? bundle.frameId
-        : (bundle.frameIdAvailable === false ? "IQC_Log 尚無欄位" : "未填寫");
-      const capacity = Number(bundle.bundleCylinderCount || 0);
-      const capacityAvailable = capacity > 0;
-      const dcylMode = String(bundle.pendingDcylMode || "");
-      const pendingHt = bundle.pendingHt === true;
-      const partialQty = String(bundle.pendingDcylQty || "");
-      const transportCtn = normalizeCTN(card.bundleTransportFrameCtn || "");
-      const flowDisplay = transportCtn
-        ? `${transportCtn}（${bundle.bundleCtn || card.scannedCtn}）`
-        : "尚未輸入待噴砂運輸框架 CTN";
-      const currentStatus = String(bundle.currentStatus || "ACTIVE");
-      const bundleLocked = currentStatus === "DCYL" || currentStatus === "HT";
-      const currentStatusLabel = currentStatus === "PARTIAL_DCYL"
-        ? "已部分 DCYL"
-        : currentStatus === "DCYL"
-          ? "已完成 DCYL"
-          : currentStatus === "HT"
-            ? "已完成轉 HT"
-            : "可操作";
-      const statePills = [
-        dcylMode === "all" ? '<span class="pill pending-dcyl">整框待 DCYL</span>' : "",
-        dcylMode === "partial" ? `<span class="pill pending-dcyl">部分待 DCYL ${escapeHtml(partialQty || "?")} 支</span>` : "",
-        pendingHt ? '<span class="pill pending-ht">待轉 HT</span>' : ""
-      ].join("");
-
-      return `
-        <div class="detail-summary">
-          <div class="data-box"><div class="k">集束框架 CTN</div><div class="v">${escapeHtml(bundle.bundleCtn || card.scannedCtn)}</div></div>
-          <div class="data-box"><div class="k">RT料號</div><div class="v">${escapeHtml(bundle.rt || "-")}</div></div>
-          <div class="data-box"><div class="k">框架編號</div><div class="v">${escapeHtml(frameIdText)}</div></div>
-          <div class="data-box"><div class="k">來源區域</div><div class="v">${escapeHtml(getRegionDisplay(card))}</div></div>
-          <div class="data-box"><div class="k">目前可處理數量上限</div><div class="v">${capacityAvailable ? `${capacity} 支` : "無可用數量"}</div></div>
-          <div class="data-box"><div class="k">目前 BETA 狀態</div><div class="v">${escapeHtml(currentStatusLabel)}｜版本 ${Number(bundle.stateVersion || 0)}</div></div>
-          <div class="data-box"><div class="k">目前待噴砂運輸框</div><div class="v">${escapeHtml(bundle.currentTransportFrameCtn || "-")}</div></div>
-          <div class="data-box"><div class="k">RT 規格來源</div><div class="v">${escapeHtml(bundle.bundleCapacityPattern || bundle.rtDescription || "-")}</div></div>
-          <div class="data-box"><div class="k">IQC 資料日期</div><div class="v">${escapeHtml(getSourceDisplay(card))}</div></div>
-          <div class="data-box"><div class="k">資料來源</div><div class="v">IQC_Log ＋ RT list（唯讀）</div></div>
-        </div>
-
-        <div class="bundle-flow-display">噴砂流轉顯示：${escapeHtml(flowDisplay)}</div>
-
-        <div class="bundle-action-panel">
-          <div class="bundle-action-header">
-            <div>
-              <div class="field-label" style="margin:0;">集束流轉動作 ${statePills}</div>
-              <div class="mini-note">DCYL 與轉 HT 互斥；第二階段仍只記在前端草稿。</div>
-            </div>
-            <div class="bundle-action-buttons">
-              <button type="button" class="${dcylMode ? "danger" : "ghost"}" ${bundleLocked ? "disabled" : ""} onclick="toggleBundleDcylPanel(${cardIndex})">${dcylMode ? "取消 DCYL" : "DCYL"}</button>
-              <button type="button" class="${pendingHt ? "warning" : "ghost"}" ${bundleLocked ? "disabled" : ""} onclick="toggleBundleHt(${cardIndex})">${pendingHt ? "取消 HT" : "轉 HT"}</button>
-            </div>
-          </div>
-
-          ${bundle.dcylPanelOpen || dcylMode ? `
-            <div class="bundle-dcyl-options">
-              <button type="button" class="bundle-choice ${dcylMode === "all" ? "active" : ""}" onclick="setBundleDcylMode(${cardIndex}, 'all')">
-                整框鋼瓶報廢${capacityAvailable ? `（${capacity} 支）` : ""}
-              </button>
-              <button type="button" class="bundle-choice ${dcylMode === "partial" ? "active" : ""}" ${capacityAvailable ? "" : "disabled"} onclick="setBundleDcylMode(${cardIndex}, 'partial')">
-                部分報廢
-              </button>
-
-              ${dcylMode === "partial" ? `
-                <div class="bundle-partial-wrap">
-                  <label class="field-label" for="bundle-dcyl-qty-${cardIndex}">部分報廢數量</label>
-                  <div class="bundle-qty-row">
-                    <input id="bundle-dcyl-qty-${cardIndex}" class="form-input" value="${escapeHtml(partialQty)}" placeholder="輸入報廢支數" inputmode="numeric" pattern="[0-9]*" oninput="onBundleDcylQtyInput(${cardIndex}, this)">
-                    <div class="bundle-qty-limit">最多 ${capacity} 支</div>
-                  </div>
-                  <div id="bundle-dcyl-qty-error-${cardIndex}" class="inline-error">${escapeHtml(validateBundleDcylSelection(card).message || "")}</div>
-                </div>
-              ` : ""}
-            </div>
-          ` : ""}
-
-          <div class="bundle-spec">
-            ${capacityAvailable
-              ? `RT ${escapeHtml(bundle.rt || "-")} 從 RT list 解析到 ${escapeHtml(bundle.bundleCapacityPattern || "")}，因此集束鋼瓶數量上限為 ${capacity} 支。`
-              : `尚未從 RT list 解析到集束鋼瓶數量；為避免亂填，部分報廢功能已停用。整框報廢仍可先測試操作節奏。`}
-          </div>
-        </div>
-
-        <div class="mini-note">掃描到的集束 CTN 本身就是原集束框架 CTN，不會被待噴砂運輸框架 CTN 覆蓋。</div>
-      `;
+    function sourceTypeLabel(kind){return kind==="transport"?"運輸框":kind==="bundle"?"集束":"單支"}
+    function sourceQty(source){
+      if(source.kind==="transport")return (source.selectedBottles||[]).filter(b=>b.selected!==false).length;
+      if(source.kind==="bundle")return Number(source.record&&source.record.bundleCylinderCount||0);
+      return 1
     }
-
-    function onScanInput(index, value){
-      const card = getCard(index);
-      const normalized = normalizeCTN(value).slice(0, 7);
-      const changed = normalized !== normalizeCTN(card.scannedCtn || "");
-      card.scannedCtn = normalized;
-
-      if(changed && card.kind){
-        clearCardLookupData(card, true);
-        card.scannedCtn = normalized;
+    function renderCheckIn(){
+      document.getElementById("sourceCountText").textContent=`${state.sources.length} 個來源`;
+      document.getElementById("sourceStrip").innerHTML=state.sources.map((s,i)=>`
+        <button class="source-chip ${s.id===state.activeSourceId?"active":""}" onclick="selectSource('${escapeHtml(s.id)}')">
+          <div class="top">${i+1}. ${sourceTypeLabel(s.kind)}｜${escapeHtml(s.ctn)}</div>
+          <div class="bottom">${sourceQty(s)} 支</div>
+        </button>`).join("");
+      renderSourceDetail();renderBatchSummary();document.getElementById("checkInSubmitBtn").disabled=!state.sources.length
+    }
+    function renderSourceDetail(){
+      const host=document.getElementById("sourceDetail");const source=state.sources.find(s=>s.id===state.activeSourceId);
+      if(!source){host.innerHTML='<div class="empty">掃描來源後，只會展開目前選取的來源；其他框保留在上方橫向標籤，不會形成超長清單。</div>';return}
+      const r=source.record||{};const warnings=(source.warnings||[]).map(w=>`<div class="warning-box">${escapeHtml(w)}</div>`).join("");
+      const head=`<div class="detail-head"><div><div class="section-title">${sourceTypeLabel(source.kind)}｜${escapeHtml(source.ctn)}</div><div class="muted">第 ${state.sources.indexOf(source)+1} 個來源</div></div><div><span class="type-pill ${source.kind}">${sourceTypeLabel(source.kind)}</span></div></div>`;
+      const remove=`<button class="btn danger full" style="margin-top:12px" onclick="removeSource('${escapeHtml(source.id)}')">移除此來源</button>`;
+      if(source.kind==="transport"){
+        const selected=(source.selectedBottles||[]).filter(b=>b.selected!==false).length;
+        host.innerHTML=head+`
+          <div class="data-grid">
+            <div class="data-box"><div class="k">運輸框 CTN</div><div class="v">${escapeHtml(r.transportFrameCtn||source.ctn)}</div></div>
+            <div class="data-box"><div class="k">本次進站</div><div class="v">${selected}／${(source.selectedBottles||[]).length} 支</div></div>
+            <div class="data-box"><div class="k">來源區域</div><div class="v">${escapeHtml([r.regionCode,r.regionName].filter(Boolean).join("｜")||"-")}</div></div>
+            <div class="data-box"><div class="k">準備進入</div><div class="v">Grinding</div></div>
+          </div>${warnings}
+          <details><summary>查看／調整 ${(source.selectedBottles||[]).length} 支鋼瓶明細</summary><div class="bottle-list">
+            ${(source.selectedBottles||[]).map((b,i)=>`<label class="bottle-item"><input type="checkbox" ${b.selected!==false?"checked":""} onchange="toggleSourceBottle('${escapeHtml(source.id)}',${i},this.checked)"><div><div class="bottle-ctn">${escapeHtml(b.ctn)}</div><div class="bottle-sub">RT：${escapeHtml(b.rt||"-")}｜目前綁定 ${escapeHtml(source.ctn)}</div></div></label>`).join("")}
+          </div></details>${remove}`;
+      }else if(source.kind==="bundle"){
+        host.innerHTML=head+`
+          <div class="data-grid">
+            <div class="data-box"><div class="k">集束 CTN</div><div class="v">${escapeHtml(r.bundleCtn||source.ctn)}</div></div>
+            <div class="data-box"><div class="k">RT料號</div><div class="v">${escapeHtml(r.rt||"-")}</div></div>
+            <div class="data-box"><div class="k">匿名批次數量</div><div class="v">${Number(r.bundleCylinderCount||0)} 支</div></div>
+            <div class="data-box"><div class="k">框架編號</div><div class="v">${escapeHtml(r.frameId||"-")}</div></div>
+          </div><div class="warning-box">集束鋼瓶沒有個別 CTN，送出後會建立一個匿名 Grinding 批次；後續部分入框、DCYL 或轉 HT 時，系統會按數量拆分批次。</div>${warnings}${remove}`;
       }else{
-        card.error = "";
-        card.lookupStatus = "";
-        card.warnings = [];
-      }
-
-      saveBetaDraft();
-    }
-
-    function onScanKeydown(event, index){
-      if(event.key === "Enter"){
-        event.preventDefault();
-        lookupCard(index);
+        host.innerHTML=head+`
+          <div class="data-grid">
+            <div class="data-box"><div class="k">鋼瓶 CTN</div><div class="v">${escapeHtml(r.bottleCtn||source.ctn)}</div></div>
+            <div class="data-box"><div class="k">RT料號</div><div class="v">${escapeHtml(r.rt||"-")}</div></div>
+            <div class="data-box"><div class="k">目前運輸框</div><div class="v">${escapeHtml(r.currentFrameCtn||"-")}</div></div>
+            <div class="data-box"><div class="k">準備進入</div><div class="v">Grinding</div></div>
+          </div>${warnings}${remove}`
       }
     }
-
-    async function lookupCard(index){
-      const card = getCard(index);
-      const ctn = normalizeCTN(card.scannedCtn);
-      card.scannedCtn = ctn;
-      card.error = "";
-      card.lookupStatus = "";
-      card.warnings = [];
-
-      if(!ctn){
-        card.error = "請先掃描或輸入 CTN。";
-        renderAll();
-        return;
-      }
-      if(!isValidCTN(ctn)){
-        card.error = "CTN 格式錯誤：需為 7 碼，前 2 碼英文、第 3–4 碼數字、第 5–6 碼英文、第 7 碼英數皆可。";
-        renderAll();
-        return;
-      }
-
-      const duplicateCard = betaState.cards.find((item, itemIndex) =>
-        itemIndex !== index && normalizeCTN(item.scannedCtn || "") === ctn
-      );
-      if(duplicateCard){
-        card.error = `此 CTN 已在第 ${duplicateCard.index + 1} 框掃描，Beta 不允許同次重複帶入。`;
-        renderAll();
-        return;
-      }
-
-      const requestId = `lookup_${Date.now()}_${++lookupRequestSeq}`;
-      clearCardLookupData(card, true);
-      card.scannedCtn = ctn;
-      card.loading = true;
-      card.lookupRequestId = requestId;
-      card.lookupStatus = "正在從 IQC_Log 讀取...";
-      renderAll();
-
+    function renderBatchSummary(){
+      let identified=0,bundle=0;state.sources.forEach(s=>{if(s.kind==="bundle")bundle+=sourceQty(s);else identified+=sourceQty(s)});
+      const total=identified+bundle;document.getElementById("batchSummary").innerHTML=state.sources.length?`來源 <strong>${state.sources.length}</strong> 個｜可識別散支 <strong>${identified}</strong> 支｜集束匿名批次 <strong>${bundle}</strong> 支｜合計 <strong>${total}</strong> 支`:'尚未加入來源。'
+    }
+    async function scanSource(){
+      syncMetaFromInputs();const input=document.getElementById("scanInput");const ctn=normalizeCtn(input.value);
+      if(!CTN_RE.test(ctn)){showToast("CTN 格式錯誤",true);input.focus();return}
+      if(state.sources.some(s=>s.ctn===ctn)){showToast("此來源已在本次批次中",true);return}
+      setLoading(true,"正在辨識 CTN 與目前綁定…");
       try{
-        const result = await fetchBetaCtnLookup(ctn);
-        const currentCard = getCard(index);
-
-        // 使用者等待期間若已修改 CTN 或重新發出查詢，舊回應不得覆蓋新狀態。
-        if(currentCard.lookupRequestId !== requestId || normalizeCTN(currentCard.scannedCtn) !== ctn){
-          return;
-        }
-
-        currentCard.loading = false;
-        currentCard.lookupRequestId = "";
-        currentCard.lookupStatus = "";
-        currentCard.error = "";
-        currentCard.warnings = Array.isArray(result.warnings)
-          ? result.warnings.map(item => String(item || "").trim()).filter(Boolean)
-          : [];
-
-        if(!result.found || !result.record){
-          clearCardLookupData(currentCard, true);
-          currentCard.scannedCtn = ctn;
-          currentCard.error = result.message || `IQC_Log 找不到 CTN：${ctn}`;
-          saveBetaDraft();
-          renderAll();
-          return;
-        }
-
-        const record = result.record;
-        currentCard.source = {
-          date: record.sourceDate || "",
-          createdAt: record.sourceCreatedAt || "",
-          submissionId: record.sourceSubmissionId || "",
-          cardId: record.sourceCardId || ""
-        };
-        currentCard.regionCode = record.regionCode || "";
-        currentCard.regionName = record.regionName || "";
-        currentCard.region = getRegionDisplay(currentCard);
-        currentCard.replacementTransportFrameCtn = "";
-        currentCard.newBottleCtn = "";
-        currentCard.newBottleRt = "";
-
-        if(record.kind === "transport"){
-          currentCard.kind = "transport";
-          currentCard.transportFrameCtn = normalizeCTN(record.transportFrameCtn || ctn);
-          currentCard.bundle = null;
-          currentCard.bottles = (Array.isArray(record.bottles) ? record.bottles : []).map(function(item, bottleIndex){
-            return {
-              sequence: Number(item.sequence || 0) || bottleIndex + 1,
-              ctn: normalizeCTN(item.ctn || ""),
-              rt: String(item.rt || "").trim(),
-              pendingAdd: false,
-              pendingTransfer: false,
-              pendingDcyl: false,
-              pendingHt: false,
-              pendingRemove: false,
-              stateVersion: Number(item.stateVersion || 0),
-              currentStatus: String(item.currentStatus || "ACTIVE")
-            };
-          });
-          currentCard.lookupStatus = `已帶入 ${currentCard.bottles.length}／18 支目前可用散支鋼瓶。`;
-        }else if(record.kind === "bundle"){
-          currentCard.kind = "bundle";
-          currentCard.transportFrameCtn = "";
-          currentCard.bottles = [];
-          currentCard.bundleTransportFrameCtn = "";
-          currentCard.bundle = {
-            bundleCtn: normalizeCTN(record.bundleCtn || ctn),
-            rt: String(record.rt || "").trim(),
-            frameId: String(record.frameId || "").trim(),
-            frameIdAvailable: record.frameIdAvailable !== false,
-            region: currentCard.region,
-            rtDescription: String(record.rtDescription || "").trim(),
-            bundleCylinderCount: Number(record.bundleCylinderCount || 0),
-            bundleCapacityPattern: String(record.bundleCapacityPattern || "").trim(),
-            bundleCapacityAvailable: record.bundleCapacityAvailable === true || Number(record.bundleCylinderCount || 0) > 0,
-            rtListRowNumber: Number(record.rtListRowNumber || 0),
-            stateManaged: record.stateManaged === true,
-            stateVersion: Number(record.stateVersion || 0),
-            currentStatus: String(record.currentStatus || "ACTIVE"),
-            currentTransportFrameCtn: normalizeCTN(record.currentTransportFrameCtn || ""),
-            bundleOriginalCylinderCount: Number(record.bundleOriginalCylinderCount || record.bundleCylinderCount || 0),
-            dcylQty: Number(record.dcylQty || 0),
-            dcylPanelOpen: false,
-            pendingDcylMode: "",
-            pendingDcylQty: "",
-            pendingHt: false
-          };
-          currentCard.lookupStatus = "已帶入集束目前狀態、RT、框架編號與可處理數量。";
-        }else{
-          clearCardLookupData(currentCard, true);
-          currentCard.scannedCtn = ctn;
-          currentCard.error = "BETA API 回傳未知資料型態，請檢查後端版本。";
-        }
-
-        saveBetaDraft();
-        renderAll();
-      }catch(err){
-        const currentCard = getCard(index);
-        if(currentCard.lookupRequestId !== requestId) return;
-
-        clearCardLookupData(currentCard, true);
-        currentCard.scannedCtn = ctn;
-        currentCard.error = err && err.message ? err.message : "IQC_Log 反查失敗";
-        saveBetaDraft();
-        renderAll();
-      }
+        const result=await fetchBetaWipLookup(ctn);if(!result.found||!result.record)throw new Error(result.message||"找不到 CTN");
+        if(result.actionable!==true)throw new Error(result.message||"此 CTN 目前不可入站");
+        const record=result.record;const kind=record.kind;const source={id:`SRC_${Date.now()}_${Math.random().toString(36).slice(2,6)}`,ctn,kind,record:safeClone(record),warnings:result.warnings||[]};
+        if(kind==="transport")source.selectedBottles=(record.bottles||[]).map(b=>({ctn:normalizeCtn(b.ctn),rt:String(b.rt||""),expectedVersion:Number(b.betaStateVersion||0),selected:true}));
+        state.sources.push(source);state.activeSourceId=source.id;state.pendingCheckIn=null;input.value="";saveState();renderCheckIn();showToast(`已加入${sourceTypeLabel(kind)} ${ctn}`)
+      }catch(err){showToast(err.message||"CTN 讀取失敗",true)}finally{setLoading(false);input.focus()}
     }
-
-    function onBundleTransportInput(cardIndex, inputOrValue){
-      const card = getCard(cardIndex);
-      const input = inputOrValue && typeof inputOrValue === "object"
-        ? inputOrValue
-        : document.getElementById(`bundle-transport-${cardIndex}`);
-      const rawValue = input && typeof input.value !== "undefined"
-        ? input.value
-        : inputOrValue;
-      const normalized = normalizeCTN(rawValue).slice(0, 7);
-
-      card.bundleTransportFrameCtn = normalized;
-      if(input && input.value !== normalized){
-        input.value = normalized;
-      }
-
-      validateBundleTransportInput(cardIndex, normalized.length >= 7);
-      saveBetaDraft();
-      renderDraftSummary();
+    function selectSource(id){state.activeSourceId=id;saveState();renderCheckIn()}
+    function removeSource(id){
+      state.sources=state.sources.filter(s=>s.id!==id);if(state.activeSourceId===id)state.activeSourceId=state.sources[0]&&state.sources[0].id||"";state.pendingCheckIn=null;saveState();renderCheckIn()
     }
-
-    function validateBundleTransportInput(cardIndex, forceShow){
-      const card = getCard(cardIndex);
-      const input = document.getElementById(`bundle-transport-${cardIndex}`);
-      const errorEl = document.getElementById(`bundle-transport-error-${cardIndex}`);
-      const value = normalizeCTN(card.bundleTransportFrameCtn || "");
-
-      if(!input || !errorEl) return true;
-
-      input.classList.remove("input-invalid", "input-valid");
-      errorEl.textContent = "";
-
-      if(!value) return true;
-      if(!forceShow && value.length < 7) return true;
-
-      const result = validatePendingBundleTransport(card);
-      if(!result.ok){
-        input.classList.add("input-invalid");
-        errorEl.textContent = result.message.replace(`第 ${card.index + 1} 框的`, "");
-        return false;
-      }
-
-      input.classList.add("input-valid");
-      return true;
+    function toggleSourceBottle(id,index,checked){
+      const s=state.sources.find(x=>x.id===id);if(!s||!s.selectedBottles[index])return;s.selectedBottles[index].selected=!!checked;state.pendingCheckIn=null;saveState();renderCheckIn()
     }
-
-    function validatePendingBundleTransport(card){
-      const value = normalizeCTN(card.bundleTransportFrameCtn || "");
-      if(!value) return { ok:true, value:"" };
-      if(!isValidCTN(value)){
-        return {
-          ok:false,
-          message:`第 ${card.index + 1} 框的待噴砂運輸框架 CTN 格式錯誤：需為 7 碼，前 2 英文、3–4 數字、5–6 英文、第 7 碼英數。`
-        };
-      }
-      const bundleCtn = normalizeCTN(card.bundle && card.bundle.bundleCtn || card.scannedCtn || "");
-      if(value === bundleCtn){
-        return {
-          ok:false,
-          message:`第 ${card.index + 1} 框的待噴砂運輸框架 CTN 不可與原集束框架 CTN 相同。`
-        };
-      }
-      return { ok:true, value:value };
+    function clearCheckInDraft(){
+      if(state.sources.length&&!confirm("確定清除本次 Grinding 入站草稿？"))return;state.sources=[];state.activeSourceId="";state.pendingCheckIn=null;saveState();renderCheckIn()
     }
-
-    function getBundleCard(cardIndex){
-      const card = getCard(cardIndex);
-      if(card.kind !== "bundle" || !card.bundle) return null;
-      return card;
+    function buildCheckInSources(){return state.sources.map(s=>{
+      if(s.kind==="transport")return {kind:"transport",source_ctn:s.ctn,bottles:(s.selectedBottles||[]).filter(b=>b.selected!==false).map(b=>({ctn:b.ctn,expected_version:Number(b.expectedVersion||0)}))};
+      if(s.kind==="bundle")return {kind:"bundle",source_ctn:s.ctn,qty:Number(s.record.bundleCylinderCount||0),expected_version:Number(s.record.betaStateVersion||s.record.stateVersion||0)};
+      return {kind:"bottle",source_ctn:s.ctn,expected_version:Number(s.record.betaStateVersion||0)}
+    })}
+    function getPendingSubmission(kind,signature){
+      const key=kind==="checkin"?"pendingCheckIn":"pendingDisposition";const prefix=kind==="checkin"?"GRDIN":"GRDOP";
+      if(!state[key]||state[key].hash!==signature)state[key]={hash:signature,id:makeSubmissionId(prefix)};saveState();return state[key].id
     }
-
-    function toggleBundleDcylPanel(cardIndex){
-      const card = getBundleCard(cardIndex);
-      if(!card) return;
-      const bundle = card.bundle;
-
-      if(bundle.pendingDcylMode){
-        bundle.pendingDcylMode = "";
-        bundle.pendingDcylQty = "";
-        bundle.dcylPanelOpen = false;
-      }else{
-        bundle.dcylPanelOpen = !bundle.dcylPanelOpen;
-      }
-
-      if(bundle.dcylPanelOpen){
-        bundle.pendingHt = false;
-      }
-
-      saveBetaDraft();
-      renderAll();
-    }
-
-    function setBundleDcylMode(cardIndex, mode){
-      const card = getBundleCard(cardIndex);
-      if(!card) return;
-      const bundle = card.bundle;
-      const normalizedMode = mode === "partial" ? "partial" : "all";
-      const capacity = Number(bundle.bundleCylinderCount || 0);
-
-      if(normalizedMode === "partial" && !(capacity > 0)){
-        alert("RT list 尚未解析到此集束的鋼瓶數量，為避免亂填，部分報廢暫時不可使用。");
-        return;
-      }
-
-      bundle.pendingHt = false;
-      bundle.dcylPanelOpen = true;
-      bundle.pendingDcylMode = normalizedMode;
-
-      if(normalizedMode === "all"){
-        bundle.pendingDcylQty = capacity > 0 ? String(capacity) : "";
-      }else if(Number(bundle.pendingDcylQty || 0) > capacity){
-        bundle.pendingDcylQty = "";
-      }
-
-      saveBetaDraft();
-      renderAll();
-    }
-
-    function onBundleDcylQtyInput(cardIndex, inputOrValue){
-      const card = getBundleCard(cardIndex);
-      if(!card) return;
-      const input = inputOrValue && typeof inputOrValue === "object"
-        ? inputOrValue
-        : document.getElementById(`bundle-dcyl-qty-${cardIndex}`);
-      const raw = input && typeof input.value !== "undefined"
-        ? input.value
-        : inputOrValue;
-      const capacity = Number(card.bundle.bundleCylinderCount || 0);
-      let digits = String(raw || "").replace(/\D+/g, "");
-
-      if(digits){
-        const numeric = Number(digits);
-        if(capacity > 0 && numeric > capacity){
-          digits = String(capacity);
-        }
-      }
-
-      card.bundle.pendingDcylQty = digits;
-      if(input && input.value !== digits) input.value = digits;
-
-      const errorEl = document.getElementById(`bundle-dcyl-qty-error-${cardIndex}`);
-      if(errorEl){
-        errorEl.textContent = validateBundleDcylSelection(card).message || "";
-      }
-
-      saveBetaDraft();
-      renderDraftSummary();
-    }
-
-    function toggleBundleHt(cardIndex){
-      const card = getBundleCard(cardIndex);
-      if(!card) return;
-      const bundle = card.bundle;
-      bundle.pendingHt = !bundle.pendingHt;
-
-      if(bundle.pendingHt){
-        bundle.pendingDcylMode = "";
-        bundle.pendingDcylQty = "";
-        bundle.dcylPanelOpen = false;
-      }
-
-      saveBetaDraft();
-      renderAll();
-    }
-
-    function validateBundleDcylSelection(card){
-      if(!card || card.kind !== "bundle" || !card.bundle){
-        return { ok:true, mode:"", qty:0 };
-      }
-
-      const bundle = card.bundle;
-      const mode = String(bundle.pendingDcylMode || "");
-      const capacity = Number(bundle.bundleCylinderCount || 0);
-
-      if(!mode) return { ok:true, mode:"", qty:0 };
-
-      if(mode === "all"){
-        return {
-          ok:true,
-          mode:"all",
-          qty:capacity > 0 ? capacity : 0
-        };
-      }
-
-      if(mode === "partial"){
-        if(!(capacity > 0)){
-          return {
-            ok:false,
-            mode:"partial",
-            qty:0,
-            message:`第 ${card.index + 1} 框的 RT list 尚未解析到集束鋼瓶數量，部分報廢不可送出。`
-          };
-        }
-
-        const qty = Number(bundle.pendingDcylQty || 0);
-        if(!Number.isInteger(qty) || qty < 1){
-          return {
-            ok:false,
-            mode:"partial",
-            qty:0,
-            message:`第 ${card.index + 1} 框的部分報廢數量至少要輸入 1 支。`
-          };
-        }
-        if(qty > capacity){
-          return {
-            ok:false,
-            mode:"partial",
-            qty:qty,
-            message:`第 ${card.index + 1} 框的部分報廢數量不可超過 ${capacity} 支。`
-          };
-        }
-
-        return { ok:true, mode:"partial", qty:qty };
-      }
-
-      return {
-        ok:false,
-        mode:mode,
-        qty:0,
-        message:`第 ${card.index + 1} 框的 DCYL 模式不正確。`
-      };
-    }
-
-    function onReplacementInput(cardIndex, inputOrValue){
-      const card = getCard(cardIndex);
-      const input = inputOrValue && typeof inputOrValue === "object"
-        ? inputOrValue
-        : document.getElementById(`replacement-${cardIndex}`);
-      const rawValue = input && typeof input.value !== "undefined"
-        ? input.value
-        : inputOrValue;
-      const normalized = normalizeCTN(rawValue).slice(0, 7);
-
-      card.replacementTransportFrameCtn = normalized;
-      if(input && input.value !== normalized){
-        input.value = normalized;
-      }
-
-      // 掃描器通常會一次灌入完整 7 碼；達 7 碼時立即驗證。
-      // 手動輸入不足 7 碼時先不吵人，離開欄位時再提示。
-      validateReplacementInput(cardIndex, normalized.length >= 7);
-      updateTransferSelectAllButton(cardIndex);
-      saveBetaDraft();
-      renderDraftSummary();
-    }
-
-    function updateTransferSelectAllButton(cardIndex){
-      const card = getCard(cardIndex);
-      const button = document.getElementById(`transfer-all-${cardIndex}`);
-      if(!button || !card || card.kind !== "transport") return;
-
-      const bottles = (Array.isArray(card.bottles) ? card.bottles : [])
-        .filter(function(bottle){ return bottle && bottle.pendingAdd !== true; });
-      const selectedCount = bottles.filter(function(bottle){
-        return bottle && bottle.pendingTransfer === true;
-      }).length;
-      const allSelected = bottles.length > 0 && selectedCount === bottles.length;
-      const replacementCheck = validatePendingReplacement(card);
-      const enabled = bottles.length > 0 && !!replacementCheck.value && replacementCheck.ok;
-
-      button.disabled = !enabled;
-      button.textContent = allSelected ? "取消全選" : "全選";
-      button.classList.toggle("transfer", allSelected);
-      button.classList.toggle("ghost", !allSelected);
-    }
-
-    function validateReplacementInput(cardIndex, forceShow){
-      const card = getCard(cardIndex);
-      const input = document.getElementById(`replacement-${cardIndex}`);
-      const errorEl = document.getElementById(`replacement-error-${cardIndex}`);
-      const value = normalizeCTN(card.replacementTransportFrameCtn || "");
-
-      if(!input || !errorEl) return true;
-
-      input.classList.remove("input-invalid", "input-valid");
-      errorEl.textContent = "";
-
-      if(!value){
-        updateTransferSelectAllButton(cardIndex);
-        return true;
-      }
-
-      // 尚未輸入完且仍在欄位內時，不先顯示紅字；失焦時才強制提示。
-      if(!forceShow && value.length < 7){
-        updateTransferSelectAllButton(cardIndex);
-        return true;
-      }
-
-      const result = validatePendingReplacement(card);
-      if(!result.ok){
-        input.classList.add("input-invalid");
-        errorEl.textContent = result.message.replace(`第 ${card.index + 1} 框的`, "");
-        updateTransferSelectAllButton(cardIndex);
-        return false;
-      }
-
-      input.classList.add("input-valid");
-      updateTransferSelectAllButton(cardIndex);
-      return true;
-    }
-
-    function normalizePendingBottleRt(value){
-      const compact = String(value || "").trim().replace(/\s+/g, "").toUpperCase();
-      const withoutPrefix = compact.replace(/^RT/, "");
-      return /^\d+$/.test(withoutPrefix) ? withoutPrefix : "";
-    }
-
-    function onNewBottleCtnInput(cardIndex, input){
-      const card = getCard(cardIndex);
-      if(!card) return;
-      const normalized = normalizeCTN(input && input.value || "").slice(0, 7);
-      card.newBottleCtn = normalized;
-      if(input && input.value !== normalized) input.value = normalized;
-      saveBetaDraft();
-    }
-
-    function onNewBottleRtInput(cardIndex, input){
-      const card = getCard(cardIndex);
-      if(!card) return;
-      card.newBottleRt = String(input && input.value || "");
-      saveBetaDraft();
-    }
-
-    function findBottleCtnInBetaDraft(ctn){
-      const normalized = normalizeCTN(ctn);
-      for(let cardIndex = 0; cardIndex < betaState.cards.length; cardIndex++){
-        const card = betaState.cards[cardIndex];
-        const bottles = Array.isArray(card && card.bottles) ? card.bottles : [];
-        for(let bottleIndex = 0; bottleIndex < bottles.length; bottleIndex++){
-          if(normalizeCTN(bottles[bottleIndex] && bottles[bottleIndex].ctn || "") === normalized){
-            return { cardIndex, bottleIndex, bottle:bottles[bottleIndex] };
-          }
-        }
-      }
-      return null;
-    }
-
-    function addPendingBottle(cardIndex){
-      const card = getCard(cardIndex);
-      if(!card || card.kind !== "transport") return;
-
-      const bottles = Array.isArray(card.bottles) ? card.bottles : [];
-      if(bottles.length >= 18){
-        alert(`運輸框 ${card.transportFrameCtn} 已有 18 支，不能再新增。`);
-        return;
-      }
-
-      const ctn = normalizeCTN(card.newBottleCtn || "");
-      const rt = normalizePendingBottleRt(card.newBottleRt || "");
-
-      if(!isValidCTN(ctn)){
-        alert("新增鋼瓶 CTN 格式錯誤：需為 7 碼，前2英文、3–4數字、5–6英文、第7碼英數。");
-        const input = document.getElementById(`new-bottle-ctn-${cardIndex}`);
-        if(input) input.focus();
-        return;
-      }
-      if(ctn === normalizeCTN(card.transportFrameCtn || "")){
-        alert("鋼瓶 CTN 不可與目前運輸框架 CTN 相同。");
-        return;
-      }
-      if(!rt){
-        alert("新增鋼瓶的 RT料號格式錯誤；可輸入純數字或掃描 RT123456。");
-        const input = document.getElementById(`new-bottle-rt-${cardIndex}`);
-        if(input) input.focus();
-        return;
-      }
-
-      const duplicate = findBottleCtnInBetaDraft(ctn);
-      if(duplicate){
-        alert(`鋼瓶 CTN ${ctn} 已存在於第 ${duplicate.cardIndex + 1} 框清單，不能重複新增。`);
-        return;
-      }
-
-      bottles.push({
-        sequence:bottles.length + 1,
-        ctn,
-        rt,
-        pendingAdd:true,
-        pendingTransfer:false,
-        pendingDcyl:false,
-        pendingHt:false,
-        pendingRemove:false,
-        stateVersion:0,
-        currentStatus:"PENDING_ADD"
-      });
-      card.bottles = bottles;
-      card.newBottleCtn = "";
-      card.newBottleRt = "";
-      selectedBottleCardIndex = cardIndex;
-      selectedBottleIndex = bottles.length - 1;
-      saveBetaDraft();
-      renderAll();
-    }
-
-    function getSelectedQuickBottle(){
-      const card = betaState.cards[selectedBottleCardIndex];
-      if(!card || card.kind !== "transport" || !Array.isArray(card.bottles)){
-        return null;
-      }
-      const bottle = card.bottles[selectedBottleIndex];
-      if(!bottle) return null;
-      return {
-        card: card,
-        bottle: bottle,
-        cardIndex: selectedBottleCardIndex,
-        bottleIndex: selectedBottleIndex
-      };
-    }
-
-    function selectBottleForQuickAction(cardIndex, bottleIndex, event){
-      if(event && event.target && event.target.closest && event.target.closest("button")) return;
-      const bottle = getTransportBottle(cardIndex, bottleIndex);
-      if(!bottle) return;
-
-      selectedBottleCardIndex = cardIndex;
-      selectedBottleIndex = bottleIndex;
-      activeFrameIndex = cardIndex;
-      renderAll();
-    }
-
-    function toggleMobileQuickTools(){
-      mobileQuickCollapsed = !mobileQuickCollapsed;
-      localStorage.setItem(
-        "ds_beta3_mobile_quick_collapsed",
-        mobileQuickCollapsed ? "1" : "0"
-      );
-      renderMobileQuickTools();
-    }
-
-    function renderMobileQuickTools(){
-      const tools = document.getElementById("mobileQuickTools");
-      if(!tools) return;
-
-      const activeCard = betaState.cards[activeFrameIndex];
-      const canShow = activeCard &&
-        activeCard.kind === "transport" &&
-        Array.isArray(activeCard.bottles) &&
-        activeCard.bottles.length > 0;
-
-      tools.classList.toggle("hidden", !canShow);
-      tools.classList.toggle("collapsed", mobileQuickCollapsed);
-
-      const toggle = document.getElementById("mobileQuickToggle");
-      if(toggle){
-        toggle.textContent = mobileQuickCollapsed ? "‹" : "›";
-        toggle.setAttribute("aria-label", mobileQuickCollapsed ? "展開快速操作" : "收合快速操作");
-      }
-
-      if(!canShow) return;
-
-      if(selectedBottleCardIndex !== activeFrameIndex){
-        selectedBottleCardIndex = -1;
-        selectedBottleIndex = -1;
-      }
-
-      const selected = getSelectedQuickBottle();
-      const target = document.getElementById("mobileQuickTarget");
-      const transferBtn = document.getElementById("mobileQuickTransfer");
-      const dcylBtn = document.getElementById("mobileQuickDcyl");
-      const htBtn = document.getElementById("mobileQuickHt");
-      const removeBtn = document.getElementById("mobileQuickRemove");
-      const buttons = [transferBtn, dcylBtn, htBtn, removeBtn];
-
-      buttons.forEach(function(button){
-        if(button) button.disabled = !selected;
-      });
-
-      if(!selected){
-        if(target) target.textContent = "請先點選鋼瓶";
-        if(transferBtn){ transferBtn.textContent = "待轉移"; transferBtn.className = "mobile-quick-action ghost"; }
-        if(dcylBtn){ dcylBtn.textContent = "DCYL"; dcylBtn.className = "mobile-quick-action ghost"; }
-        if(htBtn){ htBtn.textContent = "轉 HT"; htBtn.className = "mobile-quick-action ghost"; }
-        if(removeBtn){ removeBtn.textContent = "移除"; removeBtn.className = "mobile-quick-action remove"; }
-        return;
-      }
-
-      const bottle = selected.bottle;
-      const pendingAdd = bottle.pendingAdd === true;
-      const sequence = Number(bottle.sequence || selected.bottleIndex + 1);
-      if(target){
-        target.textContent = `第 ${sequence} 支｜${bottle.ctn}`;
-      }
-
-      if(transferBtn) transferBtn.disabled = pendingAdd;
-      if(dcylBtn) dcylBtn.disabled = pendingAdd;
-      if(htBtn) htBtn.disabled = pendingAdd;
-
-      if(transferBtn){
-        transferBtn.textContent = pendingAdd ? "待新增中" : (bottle.pendingTransfer ? "取消待轉" : "待轉移");
-        transferBtn.className = `mobile-quick-action ${bottle.pendingTransfer ? "transfer" : "ghost"}`;
-      }
-      if(dcylBtn){
-        dcylBtn.textContent = bottle.pendingDcyl ? "取消 DCYL" : "DCYL";
-        dcylBtn.className = `mobile-quick-action ${bottle.pendingDcyl ? "danger" : "ghost"}`;
-      }
-      if(htBtn){
-        htBtn.textContent = bottle.pendingHt ? "取消 HT" : "轉 HT";
-        htBtn.className = `mobile-quick-action ${bottle.pendingHt ? "warning" : "ghost"}`;
-      }
-      if(removeBtn){
-        removeBtn.textContent = pendingAdd ? "取消新增" : (bottle.pendingRemove ? "取消移除" : "移除");
-        removeBtn.className = "mobile-quick-action remove";
-      }
-    }
-
-    function applyMobileBottleAction(action){
-      const selected = getSelectedQuickBottle();
-      if(!selected){
-        alert("請先點選要操作的散支鋼瓶。");
-        return;
-      }
-
-      if(selected.bottle.pendingAdd && action !== "remove"){
-        alert("待新增鋼瓶尚未正式建立，只能先取消新增。");
-        return;
-      }
-
-      if(action === "transfer"){
-        toggleTransfer(selected.cardIndex, selected.bottleIndex);
-      }else if(action === "dcyl"){
-        toggleDcyl(selected.cardIndex, selected.bottleIndex);
-      }else if(action === "ht"){
-        toggleHt(selected.cardIndex, selected.bottleIndex);
-      }else if(action === "remove"){
-        toggleRemove(selected.cardIndex, selected.bottleIndex);
-      }
-    }
-
-    function getTransportBottle(cardIndex, bottleIndex){
-      const card = getCard(cardIndex);
-      if(card.kind !== "transport" || !Array.isArray(card.bottles) || !card.bottles[bottleIndex]) return null;
-      return card.bottles[bottleIndex];
-    }
-
-    function ensureTransferTargetReady(cardIndex){
-      const card = getCard(cardIndex);
-      const result = validatePendingReplacement(card);
-      if(result.ok && result.value) return true;
-
-      const message = result.ok
-        ? "請先輸入更換後運輸框架 CTN，再選擇要轉移的鋼瓶。"
-        : result.message.replace(`第 ${card.index + 1} 框的`, "");
-      alert(message);
-
-      const input = document.getElementById(`replacement-${cardIndex}`);
-      if(input){
-        input.focus();
-        input.scrollIntoView({ behavior:"smooth", block:"center" });
-      }
-      validateReplacementInput(cardIndex, true);
-      return false;
-    }
-
-    function toggleTransfer(cardIndex, bottleIndex){
-      const bottle = getTransportBottle(cardIndex, bottleIndex);
-      if(!bottle) return;
-      if(bottle.pendingAdd){
-        alert("待新增鋼瓶尚未正式建立，不能直接執行待轉移。");
-        return;
-      }
-      if(!bottle.pendingTransfer && !ensureTransferTargetReady(cardIndex)) return;
-
-      bottle.pendingTransfer = !bottle.pendingTransfer;
-      if(bottle.pendingTransfer){
-        bottle.pendingDcyl = false;
-        bottle.pendingHt = false;
-        bottle.pendingRemove = false;
-      }
-      saveBetaDraft();
-      renderAll();
-    }
-
-    function toggleAllTransfer(cardIndex){
-      const card = getCard(cardIndex);
-      if(!card || card.kind !== "transport" || !Array.isArray(card.bottles) || !card.bottles.length) return;
-      if(!ensureTransferTargetReady(cardIndex)) return;
-
-      const transferable = card.bottles.filter(function(bottle){
-        return bottle && bottle.pendingAdd !== true;
-      });
-      if(!transferable.length) return;
-
-      const allSelected = transferable.every(function(bottle){
-        return bottle.pendingTransfer === true;
-      });
-      const nextSelected = !allSelected;
-
-      transferable.forEach(function(bottle){
-        bottle.pendingTransfer = nextSelected;
-        if(nextSelected){
-          bottle.pendingDcyl = false;
-          bottle.pendingHt = false;
-          bottle.pendingRemove = false;
-        }
-      });
-
-      saveBetaDraft();
-      renderAll();
-    }
-
-    function toggleDcyl(cardIndex, bottleIndex){
-      const bottle = getTransportBottle(cardIndex, bottleIndex);
-      if(!bottle) return;
-      if(bottle.pendingAdd){
-        alert("待新增鋼瓶尚未正式建立，不能直接執行DCYL。");
-        return;
-      }
-      bottle.pendingDcyl = !bottle.pendingDcyl;
-      if(bottle.pendingDcyl){
-        bottle.pendingTransfer = false;
-        bottle.pendingHt = false;
-        bottle.pendingRemove = false;
-      }
-      saveBetaDraft();
-      renderAll();
-    }
-
-    function toggleHt(cardIndex, bottleIndex){
-      const bottle = getTransportBottle(cardIndex, bottleIndex);
-      if(!bottle) return;
-      if(bottle.pendingAdd){
-        alert("待新增鋼瓶尚未正式建立，不能直接執行轉 HT。");
-        return;
-      }
-      bottle.pendingHt = !bottle.pendingHt;
-      if(bottle.pendingHt){
-        bottle.pendingTransfer = false;
-        bottle.pendingDcyl = false;
-        bottle.pendingRemove = false;
-      }
-      saveBetaDraft();
-      renderAll();
-    }
-
-    function toggleRemove(cardIndex, bottleIndex){
-      const card = getCard(cardIndex);
-      const bottle = getTransportBottle(cardIndex, bottleIndex);
-      if(!card || !bottle) return;
-
-      if(bottle.pendingAdd){
-        const confirmed = confirm(`確定取消新增鋼瓶 ${bottle.ctn}？\n\n此動作只會移除尚未送出的 BETA 草稿。`);
-        if(!confirmed) return;
-        card.bottles.splice(bottleIndex, 1);
-        card.bottles.forEach(function(item, index){ item.sequence = index + 1; });
-        selectedBottleCardIndex = -1;
-        selectedBottleIndex = -1;
-        saveBetaDraft();
-        renderAll();
-        return;
-      }
-
-      if(!bottle.pendingRemove){
-        const sequence = Number(bottle.sequence || bottleIndex + 1);
-        const confirmed = confirm(
-          `第一次確認\n\n` +
-          `確定將第 ${sequence} 支 ${bottle.ctn}\n` +
-          `從運輸框 ${card.transportFrameCtn || card.scannedCtn} 解除綁定？\n\n` +
-          `CTN 不會被刪除，正式送出前仍會再確認一次。`
-        );
-        if(!confirmed) return;
-      }
-
-      bottle.pendingRemove = !bottle.pendingRemove;
-      if(bottle.pendingRemove){
-        bottle.pendingTransfer = false;
-        bottle.pendingDcyl = false;
-        bottle.pendingHt = false;
-      }
-
-      saveBetaDraft();
-      renderAll();
-    }
-
-    function validatePendingReplacement(card){
-      const replacement = normalizeCTN(card.replacementTransportFrameCtn || "");
-      if(!replacement) return { ok:true, value:"" };
-      if(!isValidCTN(replacement)) return { ok:false, message:`第 ${card.index + 1} 框的新運輸框架 CTN 格式錯誤：需為 7 碼，前 2 英文、3–4 數字、5–6 英文、第 7 碼英數。` };
-      if(replacement === card.transportFrameCtn) return { ok:false, message:`第 ${card.index + 1} 框的新運輸框架 CTN 與原框相同，不需要換框。` };
-      return { ok:true, value:replacement };
-    }
-
-    function getOperationSummary(){
-      const rows = [];
-      betaState.cards.forEach(card => {
-        if(card.kind === "transport"){
-          const replacementCheck = validatePendingReplacement(card);
-          const bottles = Array.isArray(card.bottles) ? card.bottles : [];
-          const existingBottles = bottles.filter(function(bottle){
-            return bottle && bottle.pendingAdd !== true;
-          });
-          const transferBottles = existingBottles.filter(function(bottle){
-            return bottle && bottle.pendingTransfer === true;
-          });
-
-          if(!replacementCheck.ok){
-            rows.push({ type:"error", title:`第 ${card.index + 1} 框：換框資料待修正`, detail:replacementCheck.message });
-          }else if(transferBottles.length && !replacementCheck.value){
-            rows.push({
-              type:"error",
-              title:`第 ${card.index + 1} 框：待轉移資料缺少目的框`,
-              detail:`已選擇 ${transferBottles.length} 支待轉移，但尚未輸入更換後運輸框架 CTN。`
-            });
-          }else if(replacementCheck.value && !transferBottles.length){
-            rows.push({
-              type:"error",
-              title:`第 ${card.index + 1} 框：尚未選擇待轉移鋼瓶`,
-              detail:`已輸入新運輸框 ${replacementCheck.value}，請按「全選」或逐支標記待轉移。`
-            });
-          }else if(replacementCheck.value && transferBottles.length){
-            const allSelected = transferBottles.length === existingBottles.length;
-            rows.push({
-              type:"transfer",
-              title:`第 ${card.index + 1} 框：${allSelected ? "全部" : "部分"} ${transferBottles.length}／${existingBottles.length} 支待轉移`,
-              detail:`${card.transportFrameCtn} → ${replacementCheck.value}｜CTN：${transferBottles.map(function(bottle){ return bottle.ctn; }).join("、")}`
-            });
-          }
-
-          bottles.forEach((bottle, index) => {
-            if(bottle.pendingAdd){
-              rows.push({
-                type:"add",
-                title:`第 ${card.index + 1} 框｜新增第 ${index + 1} 支鋼瓶`,
-                detail:`CTN ${bottle.ctn}｜RT ${bottle.rt}｜加入運輸框 ${card.transportFrameCtn}`
-              });
-            }
-            if(bottle.pendingDcyl){
-              rows.push({ type:"dcyl", title:`第 ${card.index + 1} 框｜第 ${index + 1} 支：待轉 DCYL`, detail:`CTN ${bottle.ctn}｜RT ${bottle.rt}` });
-            }
-            if(bottle.pendingHt){
-              rows.push({ type:"ht", title:`第 ${card.index + 1} 框｜第 ${index + 1} 支：待轉 HT`, detail:`CTN ${bottle.ctn}｜RT ${bottle.rt}` });
-            }
-            if(bottle.pendingRemove){
-              rows.push({
-                type:"remove",
-                title:`第 ${card.index + 1} 框｜第 ${index + 1} 支：待移除`,
-                detail:`CTN ${bottle.ctn}｜將從運輸框 ${card.transportFrameCtn} 解除綁定；CTN 與歷史紀錄仍保留。`
-              });
-            }
-          });
-        }
-
-        if(card.kind === "bundle" && card.bundle){
-          const bundle = card.bundle;
-          const bundleCtn = normalizeCTN(bundle.bundleCtn || card.scannedCtn || "");
-          const transportCheck = validatePendingBundleTransport(card);
-          const dcylCheck = validateBundleDcylSelection(card);
-
-          if(!transportCheck.ok){
-            rows.push({
-              type:"error",
-              title:`第 ${card.index + 1} 框：待噴砂運輸框資料待修正`,
-              detail:transportCheck.message
-            });
-          }else if(transportCheck.value){
-            rows.push({
-              type:"bundle_transport",
-              title:`第 ${card.index + 1} 框：待轉入噴砂運輸框`,
-              detail:`${transportCheck.value}（${bundleCtn}）`
-            });
-          }
-
-          if(!dcylCheck.ok){
-            rows.push({
-              type:"error",
-              title:`第 ${card.index + 1} 框：集束 DCYL 資料待修正`,
-              detail:dcylCheck.message
-            });
-          }else if(dcylCheck.mode === "all"){
-            rows.push({
-              type:"dcyl",
-              title:`第 ${card.index + 1} 框：整框鋼瓶待轉 DCYL`,
-              detail:`集束 CTN ${bundleCtn}｜RT ${bundle.rt || "-"}${dcylCheck.qty ? `｜${dcylCheck.qty} 支` : ""}`
-            });
-          }else if(dcylCheck.mode === "partial"){
-            rows.push({
-              type:"dcyl",
-              title:`第 ${card.index + 1} 框：部分鋼瓶待轉 DCYL`,
-              detail:`集束 CTN ${bundleCtn}｜RT ${bundle.rt || "-"}｜${dcylCheck.qty}／${bundle.bundleCylinderCount} 支`
-            });
-          }
-
-          if(bundle.pendingHt === true){
-            rows.push({
-              type:"ht",
-              title:`第 ${card.index + 1} 框：集束待轉 HT`,
-              detail:`集束 CTN ${bundleCtn}｜RT ${bundle.rt || "-"}`
-            });
-          }
-        }
-      });
-      return rows;
-    }
-
-    function getFrameFillStats(){
-      const filledIndexes = [];
-      const emptyIndexes = [];
-      const invalidIndexes = [];
-
-      betaState.cards.forEach(function(card, index){
-        const scanned = normalizeCTN(card.scannedCtn || "");
-        if(card.kind){
-          filledIndexes.push(index + 1);
-        }else if(scanned || card.error){
-          invalidIndexes.push(index + 1);
-        }else{
-          emptyIndexes.push(index + 1);
-        }
-      });
-
-      return {
-        selected: normalizeFrameCount(betaState.frameCount),
-        filledIndexes: filledIndexes,
-        emptyIndexes: emptyIndexes,
-        invalidIndexes: invalidIndexes
-      };
-    }
-
-    function renderDraftSummary(){
-      const card = document.getElementById("draftSummary");
-      const list = document.getElementById("summaryList");
-      const count = document.getElementById("summaryCount");
-      const rows = getOperationSummary();
-      count.textContent = `${rows.length} 項`;
-      if(!rows.length){
-        card.classList.remove("show");
-        list.innerHTML = "";
-        return;
-      }
-      card.classList.add("show");
-      list.innerHTML = rows.map(row => `
-        <div class="summary-row ${row.type === "remove" ? "remove-warning" : ""}">
-          <strong>${escapeHtml(row.title)}</strong>
-          <div class="muted">${escapeHtml(row.detail)}</div>
-        </div>
-      `).join("");
-    }
-
-    function openPreview(){
-      const rows = getOperationSummary();
-      const activeCards = betaState.cards.filter(card => card.kind);
-      const invalid = rows.filter(row => row.type === "error");
-      const stats = getFrameFillStats();
-      const body = document.getElementById("modalSummary");
-      const statusRows = [];
-
-      const removeRows = rows.filter(function(row){ return row.type === "remove"; });
-      if(removeRows.length){
-        statusRows.push({
-          type:"remove_warning",
-          title:`⚠️ 本次共有 ${removeRows.length} 支鋼瓶將被移除`,
-          detail:`移除代表解除目前運輸框綁定，不會刪除 CTN；正式送出時會再進行第二次確認。`
-        });
-      }
-
-      statusRows.push({
-        title:`框數檢核：選擇 ${stats.selected} 框｜有效 ${stats.filledIndexes.length} 框｜空白 ${stats.emptyIndexes.length} 框`,
-        detail:stats.emptyIndexes.length
-          ? `空白框（第 ${stats.emptyIndexes.join("、")} 框）在未來正式送出時應直接略過，不建立後台資料。`
-          : "本次選擇的框數皆已帶入有效資料。"
-      });
-
-      if(stats.invalidIndexes.length){
-        statusRows.push({
-          title:`尚有 ${stats.invalidIndexes.length} 框資料未完成`,
-          detail:`請回到第 ${stats.invalidIndexes.join("、")} 框修正 CTN 或重新帶入資料；這些不是空白框，正式版不可靜默略過。`
-        });
-      }
-
-      let contentRows = [];
-      if(!activeCards.length){
-        contentRows = [{
-          title:"尚未帶入任何框別資料。",
-          detail:"請先掃描 Beta 測試資料，例如 TF01AB1 或 BU01CD1。"
-        }];
-      }else if(invalid.length){
-        contentRows = rows.map(row => ({ type:row.type, title:row.title, detail:row.detail }));
-      }else if(!rows.length){
-        contentRows = [{
-          title:"已帶入資料，但尚未選擇新增鋼瓶、待轉移、DCYL、轉 HT、換運輸框或待噴砂運輸框。",
-          detail:"這是正常情況；你可以回到卡片測試按鈕操作。"
-        }];
-      }else{
-        contentRows = rows.map(row => ({ type:row.type, title:row.title, detail:row.detail }));
-      }
-
-      body.innerHTML = statusRows.concat(contentRows).map(row => `
-        <div class="summary-row ${(row.type === "remove" || row.type === "remove_warning") ? "remove-warning" : ""}">
-          <strong>${escapeHtml(row.title)}</strong>
-          <div class="muted">${escapeHtml(row.detail)}</div>
-        </div>
-      `).join("");
-      document.getElementById("previewModal").classList.add("show");
-    }
-
-    function closePreview(){
-      document.getElementById("previewModal").classList.remove("show");
-    }
-
-    function stableCloneForHash(value){
-      if(Array.isArray(value)) return value.map(stableCloneForHash);
-      if(value && typeof value === "object"){
-        const output = {};
-        Object.keys(value).sort().forEach(function(key){
-          output[key] = stableCloneForHash(value[key]);
-        });
-        return output;
-      }
-      return value;
-    }
-
-    function simplePayloadHash(value){
-      const text = JSON.stringify(stableCloneForHash(value));
-      let hash = 2166136261;
-      for(let i = 0; i < text.length; i++){
-        hash ^= text.charCodeAt(i);
-        hash = Math.imul(hash, 16777619);
-      }
-      return ("00000000" + (hash >>> 0).toString(16)).slice(-8);
-    }
-
-    function generateSubmissionId(){
-      const random = Math.random().toString(36).slice(2, 10).toUpperCase();
-      return `BETA3_${Date.now()}_${random}`;
-    }
-
-    function collectStage3Operations(){
-      const operations = [];
-
-      betaState.cards.forEach(function(card){
-        const source = card.source || {};
-
-        if(card.kind === "transport"){
-          const sourceFrame = normalizeCTN(card.transportFrameCtn || card.scannedCtn);
-          const targetFrame = normalizeCTN(card.replacementTransportFrameCtn || "");
-
-          (Array.isArray(card.bottles) ? card.bottles : []).forEach(function(bottle, bottleIndex){
-            if(bottle.pendingAdd){
-              operations.push({
-                card_index: Number(card.index || 0) + 1,
-                sequence: Number(bottle.sequence || bottleIndex + 1),
-                asset_type: "BOTTLE",
-                action_type: "BOTTLE_ADD",
-                ctn: normalizeCTN(bottle.ctn),
-                rt: String(bottle.rt || "").trim(),
-                qty: 1,
-                mode: "",
-                source_frame_ctn: "",
-                target_frame_ctn: sourceFrame,
-                bundle_frame_ctn: "",
-                bundle_frame_id: "",
-                expected_version: 0,
-                region_code: String(card.regionCode || ""),
-                region_name: String(card.regionName || ""),
-                source_iqc_card_id: "BETA_MANUAL_ADD"
-              });
-              return;
-            }
-
-            let actionType = "";
-            if(bottle.pendingTransfer) actionType = "BOTTLE_TRANSFER";
-            if(bottle.pendingDcyl) actionType = "BOTTLE_DCYL";
-            if(bottle.pendingHt) actionType = "BOTTLE_HT";
-            if(bottle.pendingRemove) actionType = "BOTTLE_REMOVE";
-            if(!actionType) return;
-
-            operations.push({
-              card_index: Number(card.index || 0) + 1,
-              sequence: Number(bottle.sequence || bottleIndex + 1),
-              asset_type: "BOTTLE",
-              action_type: actionType,
-              ctn: normalizeCTN(bottle.ctn),
-              rt: String(bottle.rt || "").trim(),
-              qty: 1,
-              mode: actionType === "BOTTLE_DCYL" ? "single" : "",
-              source_frame_ctn: sourceFrame,
-              target_frame_ctn: actionType === "BOTTLE_TRANSFER" ? targetFrame : "",
-              bundle_frame_ctn: "",
-              bundle_frame_id: "",
-              expected_version: Number(bottle.stateVersion || 0),
-              region_code: String(card.regionCode || ""),
-              region_name: String(card.regionName || ""),
-              source_iqc_card_id: String(source.cardId || "")
-            });
-          });
-        }
-
-        if(card.kind === "bundle" && card.bundle){
-          const bundle = card.bundle;
-          const bundleCtn = normalizeCTN(bundle.bundleCtn || card.scannedCtn);
-          const targetFrame = normalizeCTN(card.bundleTransportFrameCtn || "");
-          const common = {
-            card_index: Number(card.index || 0) + 1,
-            asset_type: "BUNDLE",
-            ctn: bundleCtn,
-            rt: String(bundle.rt || "").trim(),
-            source_frame_ctn: "",
-            bundle_frame_ctn: bundleCtn,
-            bundle_frame_id: String(bundle.frameId || ""),
-            expected_version: Number(bundle.stateVersion || 0),
-            region_code: String(card.regionCode || ""),
-            region_name: String(card.regionName || ""),
-            source_iqc_card_id: String(source.cardId || "")
-          };
-
-          if(targetFrame){
-            operations.push(Object.assign({}, common, {
-              action_type: "BUNDLE_TRANSPORT",
-              target_frame_ctn: targetFrame,
-              qty: 0,
-              mode: ""
-            }));
-          }
-
-          const dcylCheck = validateBundleDcylSelection(card);
-          if(dcylCheck.ok && dcylCheck.mode){
-            operations.push(Object.assign({}, common, {
-              action_type: "BUNDLE_DCYL",
-              target_frame_ctn: "",
-              qty: Number(dcylCheck.qty || 0),
-              mode: dcylCheck.mode
-            }));
-          }
-
-          if(bundle.pendingHt === true){
-            operations.push(Object.assign({}, common, {
-              action_type: "BUNDLE_HT",
-              target_frame_ctn: "",
-              qty: Number(bundle.bundleCylinderCount || 0),
-              mode: ""
-            }));
-          }
-        }
-      });
-
-      return operations;
-    }
-
-    function buildStage3Payload(){
-      onBetaMetaChange();
-      const operations = collectStage3Operations();
-      const core = {
-        report_date: String(betaState.reportDate || ""),
-        operator: String(betaState.operator || "").trim(),
-        client_version: "BETA_STAGE3_IOS_DATE_SHELL_20260729",
-        selected_frame_count: Number(betaState.frameCount || 1),
-        operations: operations
-      };
-      const hash = simplePayloadHash(core);
-
-      if(!betaState.pendingSubmissionId || betaState.pendingPayloadHash !== hash){
-        betaState.pendingSubmissionId = generateSubmissionId();
-        betaState.pendingPayloadHash = hash;
-        saveBetaDraft();
-      }
-
-      return Object.assign({}, core, {
-        submission_id: betaState.pendingSubmissionId,
-        client_payload_hash: hash,
-        submitted_at: new Date().toISOString()
-      });
-    }
-
-    async function submitStage3(){
-      if(stage3Submitting) return;
-
-      const rows = getOperationSummary();
-      const stats = getFrameFillStats();
-      if(rows.some(row => row.type === "error") || stats.invalidIndexes.length){
-        alert("目前仍有 CTN 或換框資料錯誤，請返回調整後再送出。");
-        return;
-      }
-
-      onBetaMetaChange();
-      if(!betaState.reportDate){
-        alert("請選擇操作日期。");
-        return;
-      }
-      if(!String(betaState.operator || "").trim()){
-        alert("請填寫操作人員。");
-        const input = document.getElementById("operatorName");
-        if(input) input.focus();
-        return;
-      }
-
-      const payload = buildStage3Payload();
-      if(!payload.operations.length){
-        alert("目前沒有任何待提交動作。");
-        return;
-      }
-
-      const removeOperations = payload.operations.filter(function(operation){
-        return operation.action_type === "BOTTLE_REMOVE";
-      });
-      if(removeOperations.length){
-        const removeList = removeOperations
-          .map(function(operation, index){
-            return `${index + 1}. ${operation.ctn}（來源框 ${operation.source_frame_ctn}）`;
-          })
-          .join("\n");
-        const confirmed = confirm(
-          `⚠️ 第二次確認：移除鋼瓶\n\n` +
-          `本次共有 ${removeOperations.length} 支鋼瓶將解除目前運輸框綁定：\n\n` +
-          `${removeList}\n\n` +
-          `移除後不會刪除 CTN，但將不再顯示於原運輸框清單。\n` +
-          `確定繼續正式送出 BETA？`
-        );
-        if(!confirmed) return;
-      }
-
-      const submitButton = document.getElementById("stage3SubmitBtn");
-      stage3Submitting = true;
-      if(submitButton){
-        submitButton.disabled = true;
-        submitButton.textContent = "送出中...";
-      }
-
+    async function submitCheckIn(){
+      syncMetaFromInputs();if(!state.operator){showToast("請先輸入操作人員",true);return}if(!state.sources.length)return;
+      const sources=buildCheckInSources();if(sources.some(s=>s.kind==="transport"&&!s.bottles.length)){showToast("有運輸框未選擇任何鋼瓶",true);return}
+      const signature=simpleHash({date:state.reportDate,operator:state.operator,sources});const submissionId=getPendingSubmission("checkin",signature);
+      if(!confirm(`確認 ${state.sources.length} 個來源、共 ${state.sources.reduce((n,s)=>n+sourceQty(s),0)} 支進入 Grinding？`))return;
+      setLoading(true,"Grinding 批次入站寫入中…");
       try{
-        const result = await submitBetaOperations(payload);
-        const duplicateText = result.duplicate ? "\n（此 submission_id 已處理，回傳既有收據）" : "";
-        alert(
-          `BETA 第三階段送出成功！
-
-` +
-          `收據：${result.receipt_id || "-"}
-` +
-          `動作數：${result.operation_count || 0}
-` +
-          `狀態異動：${result.state_count || 0}
-` +
-          `${duplicateText}
-
-` +
-          `正式 Response、IQC_Log 與正式 ERP 均未異動。`
-        );
-
-        const preservedOperator = String(betaState.operator || "");
-        betaState = {
-          frameCount: 1,
-          reportDate: todayLocalYmd(),
-          operator: preservedOperator,
-          pendingSubmissionId: "",
-          pendingPayloadHash: "",
-          cards: [createEmptyCard(0)]
-        };
-        activeFrameIndex = 0;
-        selectedBottleCardIndex = -1;
-        selectedBottleIndex = -1;
-        localStorage.removeItem(BETA_STORAGE_KEY);
-        closePreview();
-        renderAll();
-      }catch(err){
-        alert(
-          `BETA 第三階段送出失敗：
-${err && err.message ? err.message : "未知錯誤"}
-
-` +
-          `草稿與 submission_id 已保留，可修正或直接重試。`
-        );
-      }finally{
-        stage3Submitting = false;
-        if(submitButton){
-          submitButton.disabled = false;
-          submitButton.textContent = "正式送出 BETA";
-        }
-      }
+        const r=await submitBetaGrindingCheckIn({submission_id:submissionId,report_date:state.reportDate,operator:state.operator,client_version:CLIENT_VERSION,sources});
+        state.sources=[];state.activeSourceId="";state.pendingCheckIn=null;saveState();renderCheckIn();showToast(r.message||"Grinding 入站完成");await refreshAll(false);switchTab("wip")
+      }catch(err){showToast(err.message||"Grinding 入站失敗",true)}finally{setLoading(false)}
     }
-
-    async function checkBetaApiHealth(){
-      const status = document.getElementById("apiStatus");
-      const message = document.getElementById("apiStatusMessage");
-
-      if(status) status.textContent = "檢查中...";
-      if(message) message.textContent = "正在連線第三階段交易 API...";
-
-      try{
-        const result = await fetchBetaApiHealth();
-        if(status) status.textContent = "第三階段 API 正常";
-        if(message) message.textContent = result.message || "可開始進行第三階段隔離交易測試。";
-      }catch(err){
-        if(status) status.textContent = "尚未連線";
-        if(message) message.textContent = err && err.message
-          ? err.message
-          : "BETA API 連線失敗，請檢查 api.js 與 Apps Script 部署。";
-      }
+    function setWipFilter(filter){state.wipFilter=filter;document.querySelectorAll(".filter-btn").forEach(b=>b.classList.toggle("active",b.dataset.filter===filter));renderWipAssets()}
+    function statusLabel(v){return STATUS_LABELS[v]||v||"-"}
+    function renderWip(){renderWipAssets();renderFrames();renderHistory()}
+    function filteredAssets(){
+      const list=state.wip&&Array.isArray(state.wip.grindingAssets)?state.wip.grindingAssets:[];
+      return state.wipFilter==="ALL"?list:list.filter(a=>a.stationStatus===state.wipFilter)
     }
-
-    window.addEventListener("DOMContentLoaded", function(){
-      loadBetaDraft();
-      ensureBetaMeta();
-      ensureCardCount();
-      setupCountSelect();
-      renderAll();
-      setupSliderNavigation();
-      checkBetaApiHealth();
-    });
+    function renderWipAssets(){
+      const list=filteredAssets();document.getElementById("wipCountText").textContent=`${list.length} 項／${list.reduce((n,a)=>n+Number(a.qty||0),0)} 支`;
+      document.getElementById("assetList").innerHTML=list.length?list.map(a=>{
+        const selected=!!state.selected[a.assetKey];const isLot=a.trackingType==="BUNDLE_LOT";const name=isLot?`集束來源 ${a.sourceCtn}`:a.assetCtn;
+        const qty=Number(state.selectedQty[a.assetKey]||a.qty||0);
+        return `<article class="asset-item ${selected?"selected":""}"><input type="checkbox" ${selected?"checked":""} onchange="toggleAsset('${escapeHtml(a.assetKey)}',this.checked)"><div><div class="asset-name">${escapeHtml(name)}</div><div class="asset-sub">RT：${escapeHtml(a.rt||"-")}｜來源：${escapeHtml(a.sourceFrameCtn||a.sourceCtn||"-")}｜數量 ${Number(a.qty||0)} 支</div><span class="status-pill">${escapeHtml(statusLabel(a.stationStatus))}</span></div>${isLot&&selected?`<input class="qty-input" type="number" min="1" max="${Number(a.qty||0)}" value="${qty}" onchange="setAssetQty('${escapeHtml(a.assetKey)}',this.value)">`:""}</article>`
+      }).join(""):'<div class="empty">目前沒有符合篩選條件的 Grinding WIP。</div>';renderSticky()
+    }
+    function toggleAsset(assetKey,checked){
+      if(checked){state.selected[assetKey]=true;const a=(state.wip.grindingAssets||[]).find(x=>x.assetKey===assetKey);state.selectedQty[assetKey]=Number(a&&a.qty||1)}else{delete state.selected[assetKey];delete state.selectedQty[assetKey]}renderWipAssets()
+    }
+    function setAssetQty(assetKey,value){
+      const a=(state.wip.grindingAssets||[]).find(x=>x.assetKey===assetKey);if(!a)return;let q=Math.round(Number(value||0));q=Math.max(1,Math.min(Number(a.qty||1),q));state.selectedQty[assetKey]=q;renderSticky()
+    }
+    function selectedItems(){
+      const assets=state.wip&&state.wip.grindingAssets||[];return Object.keys(state.selected).map(key=>{const a=assets.find(x=>x.assetKey===key);if(!a)return null;return {asset_key:key,qty:Number(state.selectedQty[key]||a.qty||1),expected_version:Number(a.stateVersion||0)}}).filter(Boolean)
+    }
+    function renderSticky(){
+      const bar=document.getElementById("stickyActions");if(state.tab!=="wip"){bar.classList.add("hidden");return}const items=selectedItems();bar.classList.toggle("hidden",!items.length);document.getElementById("stickyInfo").textContent=items.length?`已選 ${items.length} 項／${items.reduce((n,i)=>n+i.qty,0)} 支`:'尚未選擇項目'
+    }
+    function renderFrames(){
+      const list=state.wip&&state.wip.frames||[];document.getElementById("frameCountText").textContent=`${list.length} 框`;
+      document.getElementById("frameList").innerHTML=list.length?list.map(f=>{
+        const pct=Math.min(100,Math.round(Number(f.actualQty||0)/Math.max(1,Number(f.capacity||18))*100));const ready=f.status==="READY_FOR_SANDBLAST";
+        return `<article class="frame-item"><div class="frame-head"><div><div class="asset-name">${escapeHtml(f.frameCtn)}</div><div class="asset-sub">${ready?"待噴砂完成":"入框中"}｜${Number(f.actualQty||0)}／${Number(f.capacity||18)} 支</div></div>${ready?`<button class="btn cyan" style="min-height:38px;padding:7px 10px;font-size:11px" onclick="releaseFrame('${escapeHtml(f.frameCtn)}')">送往噴砂</button>`:`<button class="btn success" style="min-height:38px;padding:7px 10px;font-size:11px" onclick="markFrameReady('${escapeHtml(f.frameCtn)}')">完成此框</button>`}</div><div class="frame-progress"><span style="width:${pct}%"></span></div></article>`
+      }).join(""):'<div class="empty">目前沒有入框中或待噴砂框。</div>'
+    }
+    function renderHistory(){
+      const list=state.wip&&state.wip.dispositions||[];document.getElementById("historyList").innerHTML=list.length?list.slice(0,30).map(a=>`<article class="history-item"><div class="asset-name">${escapeHtml(a.assetCtn||`集束來源 ${a.sourceCtn}`)}</div><div class="asset-sub">${escapeHtml(statusLabel(a.lifecycleStatus))}｜${Number(a.qty||0)} 支｜RT ${escapeHtml(a.rt||"-")}｜${escapeHtml(a.updatedAt||"")}</div></article>`).join(""):'<div class="empty">尚無 DCYL 或轉 HT 紀錄。</div>'
+    }
+    async function submitDisposition(action,extra){
+      syncMetaFromInputs();const items=action==="RELEASE_TO_SANDBLAST"?[]:selectedItems();
+      const body=Object.assign({report_date:state.reportDate,operator:state.operator,client_version:CLIENT_VERSION,action,items},extra||{});
+      const signature=simpleHash(body);body.submission_id=getPendingSubmission("disposition",signature);
+      setLoading(true,"Grinding WIP 交易處理中…");
+      try{const r=await submitBetaGrindingDisposition(body);state.pendingDisposition=null;state.selected={};state.selectedQty={};saveState();showToast(r.message||"Grinding 動作完成");await refreshAll(false)}
+      catch(err){showToast(err.message||"Grinding 動作失敗",true)}finally{setLoading(false)}
+    }
+    async function submitSimpleAction(action){
+      const items=selectedItems();if(!items.length)return;const labels={SET_WAIT_GRINDING:"標記待研磨",SET_IN_PROCESS:"標記研磨中",SET_COMPLETE_WAIT:"標記研磨完成",SEND_HYDROTEST:"送水壓",DCYL:"DCYL",TRANSFER_HT:"轉 HT"};
+      if(["DCYL","TRANSFER_HT"].includes(action)&&!confirm(`確定將已選 ${items.reduce((n,i)=>n+i.qty,0)} 支執行「${labels[action]}」？`))return;
+      await submitDisposition(action,{note:labels[action]||action})
+    }
+    function openLoadModal(){if(!selectedItems().length)return;document.getElementById("loadModal").classList.add("show");document.getElementById("loadFrameCtn").focus()}
+    function closeLoadModal(){document.getElementById("loadModal").classList.remove("show")}
+    async function submitLoadToFrame(){
+      const frame=normalizeCtn(document.getElementById("loadFrameCtn").value);if(!CTN_RE.test(frame)){showToast("運輸框 CTN 格式錯誤",true);return}
+      const cap=Math.max(1,Math.min(18,Number(document.getElementById("loadFrameCapacity").value||18)));const complete=document.getElementById("completeFrame").checked;
+      closeLoadModal();await submitDisposition("LOAD_TO_FRAME",{frame_ctn:frame,frame_capacity:cap,complete_frame:complete,note:complete?"完成入框待噴砂":"持續入框"});document.getElementById("loadFrameCtn").value=""
+    }
+    async function markFrameReady(frameCtn){
+      if(!confirm(`確認運輸框 ${frameCtn} 已完成入框並列為待噴砂？`))return;await submitDisposition("MARK_FRAME_READY",{frame_ctn:frameCtn,note:"完成此框待噴砂"})
+    }
+    async function releaseFrame(frameCtn){
+      if(!confirm(`確認運輸框 ${frameCtn} 已送往噴砂？`))return;await submitDisposition("RELEASE_TO_SANDBLAST",{frame_ctn:frameCtn,note:"送往噴砂"})
+    }
+    window.addEventListener("DOMContentLoaded",init)
   </script>
 </body>
 </html>
