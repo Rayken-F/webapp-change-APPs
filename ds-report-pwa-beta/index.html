@@ -269,7 +269,7 @@
 
   <script src="./api.js"></script>
   <script>
-    const CLIENT_VERSION = "BETA_GRINDING_WIP_V1_20260731";
+    const CLIENT_VERSION = "BETA_GRINDING_WIP_V1_1_SPEED_20260731";
     const STORAGE_KEY = "ds_grinding_wip_beta_v1";
     const CTN_RE = /^[A-Z]{2}\d{2}[A-Z]{2}[A-Z0-9]$/;
     const STATUS_LABELS = {
@@ -283,6 +283,9 @@
       pendingCheckIn:null,pendingDisposition:null
     };
     let toastTimer = null;
+    let lookupQueue = [];
+    let lookupQueueTimer = 0;
+    let lookupQueueRunning = false;
 
     function localYmd(){
       const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
@@ -304,7 +307,12 @@
       try{
         const raw=localStorage.getItem(STORAGE_KEY);if(!raw)return;const p=JSON.parse(raw);if(!p||typeof p!=="object")return;
         state.reportDate=String(p.reportDate||"");state.operator=String(p.operator||"");state.tab=String(p.tab||"checkin");
-        state.sources=Array.isArray(p.sources)?p.sources:[];state.activeSourceId=String(p.activeSourceId||"");
+        state.sources=(Array.isArray(p.sources)?p.sources:[]).map(s=>{
+          const next=Object.assign({},s);
+          if(!next.lookupStatus)next.lookupStatus=next.record?"ready":"error";
+          if(next.lookupStatus==="loading"){next.lookupStatus="error";next.kind="error";next.error="上次辨識尚未完成，請移除後重新掃描"}
+          return next
+        });state.activeSourceId=String(p.activeSourceId||"");
         state.pendingCheckIn=p.pendingCheckIn||null;state.pendingDisposition=p.pendingDisposition||null;
       }catch(err){console.warn(err)}
     }
@@ -369,24 +377,39 @@
       ].join("");
       document.getElementById("dailySummary").innerHTML=`今日：進站 <strong>${Number(d.entered_qty||0)}</strong> 支｜入框 <strong>${Number(d.loaded_qty||0)}</strong> 支｜完成 <strong>${Number(d.completed_frame_count||0)}</strong> 框｜DCYL <strong>${Number(d.daily_dcyl_qty||0)}</strong> 支｜轉 HT <strong>${Number(d.daily_ht_qty||0)}</strong> 支`;
     }
-    function sourceTypeLabel(kind){return kind==="transport"?"運輸框":kind==="bundle"?"集束":"單支"}
+    function sourceTypeLabel(kind){
+      if(kind==="pending")return "辨識中";
+      if(kind==="error")return "異常";
+      return kind==="transport"?"運輸框":kind==="bundle"?"集束":"單支"
+    }
     function sourceQty(source){
+      if(!source||source.lookupStatus==="loading"||source.lookupStatus==="error")return 0;
       if(source.kind==="transport")return (source.selectedBottles||[]).filter(b=>b.selected!==false).length;
       if(source.kind==="bundle")return Number(source.record&&source.record.bundleCylinderCount||0);
       return 1
     }
     function renderCheckIn(){
-      document.getElementById("sourceCountText").textContent=`${state.sources.length} 個來源`;
+      const unresolved=state.sources.filter(s=>s.lookupStatus==="loading"||s.lookupStatus==="error").length;
+      document.getElementById("sourceCountText").textContent=`${state.sources.length} 個來源${unresolved?`｜${unresolved} 個待確認`:""}`;
       document.getElementById("sourceStrip").innerHTML=state.sources.map((s,i)=>`
         <button class="source-chip ${s.id===state.activeSourceId?"active":""}" onclick="selectSource('${escapeHtml(s.id)}')">
           <div class="top">${i+1}. ${sourceTypeLabel(s.kind)}｜${escapeHtml(s.ctn)}</div>
-          <div class="bottom">${sourceQty(s)} 支</div>
+          <div class="bottom">${s.lookupStatus==="loading"?"辨識中…":s.lookupStatus==="error"?"讀取失敗":`${sourceQty(s)} 支`}</div>
         </button>`).join("");
-      renderSourceDetail();renderBatchSummary();document.getElementById("checkInSubmitBtn").disabled=!state.sources.length
+      renderSourceDetail();renderBatchSummary();
+      document.getElementById("checkInSubmitBtn").disabled=!state.sources.length||unresolved>0
     }
     function renderSourceDetail(){
       const host=document.getElementById("sourceDetail");const source=state.sources.find(s=>s.id===state.activeSourceId);
       if(!source){host.innerHTML='<div class="empty">掃描來源後，只會展開目前選取的來源；其他框保留在上方橫向標籤，不會形成超長清單。</div>';return}
+      if(source.lookupStatus==="loading"){
+        host.innerHTML=`<div class="detail-head"><div><div class="section-title">正在辨識｜${escapeHtml(source.ctn)}</div><div class="muted">可繼續掃描下一個 CTN，不必等待本筆完成。</div></div><span class="type-pill">辨識中</span></div>`;
+        return
+      }
+      if(source.lookupStatus==="error"){
+        host.innerHTML=`<div class="detail-head"><div><div class="section-title">辨識失敗｜${escapeHtml(source.ctn)}</div><div class="muted">${escapeHtml(source.error||"CTN 讀取失敗")}</div></div><span class="type-pill">異常</span></div><button class="btn danger full" style="margin-top:12px" onclick="removeSource('${escapeHtml(source.id)}')">移除此來源</button>`;
+        return
+      }
       const r=source.record||{};const warnings=(source.warnings||[]).map(w=>`<div class="warning-box">${escapeHtml(w)}</div>`).join("");
       const head=`<div class="detail-head"><div><div class="section-title">${sourceTypeLabel(source.kind)}｜${escapeHtml(source.ctn)}</div><div class="muted">第 ${state.sources.indexOf(source)+1} 個來源</div></div><div><span class="type-pill ${source.kind}">${sourceTypeLabel(source.kind)}</span></div></div>`;
       const remove=`<button class="btn danger full" style="margin-top:12px" onclick="removeSource('${escapeHtml(source.id)}')">移除此來源</button>`;
@@ -421,21 +444,59 @@
       }
     }
     function renderBatchSummary(){
-      let identified=0,bundle=0;state.sources.forEach(s=>{if(s.kind==="bundle")bundle+=sourceQty(s);else identified+=sourceQty(s)});
-      const total=identified+bundle;document.getElementById("batchSummary").innerHTML=state.sources.length?`來源 <strong>${state.sources.length}</strong> 個｜可識別散支 <strong>${identified}</strong> 支｜集束匿名批次 <strong>${bundle}</strong> 支｜合計 <strong>${total}</strong> 支`:'尚未加入來源。'
+      let identified=0,bundle=0;const ready=state.sources.filter(s=>s.lookupStatus==="ready");
+      ready.forEach(s=>{if(s.kind==="bundle")bundle+=sourceQty(s);else identified+=sourceQty(s)});
+      const total=identified+bundle;const pending=state.sources.filter(s=>s.lookupStatus==="loading").length;
+      document.getElementById("batchSummary").innerHTML=state.sources.length?`已完成 <strong>${ready.length}</strong>／${state.sources.length} 個來源${pending?`｜辨識中 <strong>${pending}</strong> 個`:""}｜可識別散支 <strong>${identified}</strong> 支｜集束匿名批次 <strong>${bundle}</strong> 支｜合計 <strong>${total}</strong> 支`:'尚未加入來源。'
     }
-    async function scanSource(){
+    function scanSource(){
       syncMetaFromInputs();const input=document.getElementById("scanInput");const ctn=normalizeCtn(input.value);
       if(!CTN_RE.test(ctn)){showToast("CTN 格式錯誤",true);input.focus();return}
-      if(state.sources.some(s=>s.ctn===ctn)){showToast("此來源已在本次批次中",true);return}
-      setLoading(true,"正在辨識 CTN 與目前綁定…");
+      if(state.sources.some(s=>s.ctn===ctn)){showToast("此來源已在本次批次中",true);input.value="";input.focus();return}
+
+      const source={
+        id:`SRC_${Date.now()}_${Math.random().toString(36).slice(2,6)}`,
+        ctn:ctn,
+        kind:"pending",
+        lookupStatus:"loading",
+        record:null,
+        warnings:[]
+      };
+      state.sources.push(source);state.activeSourceId=source.id;state.pendingCheckIn=null;
+      lookupQueue.push({sourceId:source.id,ctn:ctn});
+      input.value="";saveState();renderCheckIn();input.focus();
+
+      clearTimeout(lookupQueueTimer);
+      lookupQueueTimer=setTimeout(flushLookupQueue,220);
+    }
+
+    async function flushLookupQueue(){
+      if(lookupQueueRunning||!lookupQueue.length)return;
+      lookupQueueRunning=true;
+      const batch=lookupQueue.splice(0,18);
       try{
-        const result=await fetchBetaWipLookup(ctn);if(!result.found||!result.record)throw new Error(result.message||"找不到 CTN");
-        if(result.actionable!==true)throw new Error(result.message||"此 CTN 目前不可入站");
-        const record=result.record;const kind=record.kind;const source={id:`SRC_${Date.now()}_${Math.random().toString(36).slice(2,6)}`,ctn,kind,record:safeClone(record),warnings:result.warnings||[]};
-        if(kind==="transport")source.selectedBottles=(record.bottles||[]).map(b=>({ctn:normalizeCtn(b.ctn),rt:String(b.rt||""),expectedVersion:Number(b.betaStateVersion||0),selected:true}));
-        state.sources.push(source);state.activeSourceId=source.id;state.pendingCheckIn=null;input.value="";saveState();renderCheckIn();showToast(`已加入${sourceTypeLabel(kind)} ${ctn}`)
-      }catch(err){showToast(err.message||"CTN 讀取失敗",true)}finally{setLoading(false);input.focus()}
+        const response=await fetchBetaWipLookupBatch(batch.map(item=>item.ctn));
+        const resultMap={};(response.results||[]).forEach(item=>{resultMap[normalizeCtn(item.ctn)]=item.result||{}});
+
+        batch.forEach(item=>{
+          const source=state.sources.find(s=>s.id===item.sourceId);
+          if(!source)return;
+          const result=resultMap[item.ctn]||{};
+          if(!result.ok||!result.found||!result.record||result.actionable!==true){
+            source.kind="error";source.lookupStatus="error";source.error=result.message||"此 CTN 目前不可入站";return
+          }
+          const record=result.record;source.kind=record.kind;source.lookupStatus="ready";source.record=safeClone(record);source.warnings=result.warnings||[];
+          if(record.kind==="transport")source.selectedBottles=(record.bottles||[]).map(b=>({ctn:normalizeCtn(b.ctn),rt:String(b.rt||""),expectedVersion:Number(b.betaStateVersion||0),selected:true}));
+        });
+        saveState();renderCheckIn();
+      }catch(err){
+        batch.forEach(item=>{const source=state.sources.find(s=>s.id===item.sourceId);if(source){source.kind="error";source.lookupStatus="error";source.error=err.message||"批次辨識失敗"}});
+        saveState();renderCheckIn();showToast(err.message||"CTN 批次辨識失敗",true)
+      }finally{
+        lookupQueueRunning=false;
+        if(lookupQueue.length)setTimeout(flushLookupQueue,0);
+        document.getElementById("scanInput").focus()
+      }
     }
     function selectSource(id){state.activeSourceId=id;saveState();renderCheckIn()}
     function removeSource(id){
@@ -447,7 +508,7 @@
     function clearCheckInDraft(){
       if(state.sources.length&&!confirm("確定清除本次 Grinding 入站草稿？"))return;state.sources=[];state.activeSourceId="";state.pendingCheckIn=null;saveState();renderCheckIn()
     }
-    function buildCheckInSources(){return state.sources.map(s=>{
+    function buildCheckInSources(){return state.sources.filter(s=>s.lookupStatus==="ready").map(s=>{
       if(s.kind==="transport")return {kind:"transport",source_ctn:s.ctn,bottles:(s.selectedBottles||[]).filter(b=>b.selected!==false).map(b=>({ctn:b.ctn,expected_version:Number(b.expectedVersion||0)}))};
       if(s.kind==="bundle")return {kind:"bundle",source_ctn:s.ctn,qty:Number(s.record.bundleCylinderCount||0),expected_version:Number(s.record.betaStateVersion||s.record.stateVersion||0)};
       return {kind:"bottle",source_ctn:s.ctn,expected_version:Number(s.record.betaStateVersion||0)}
