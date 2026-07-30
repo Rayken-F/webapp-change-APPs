@@ -783,15 +783,38 @@ user-scalable=no">
     min-height:120px;
     white-space:pre-wrap;
   } 
+  .bundle-note-layout{
+    display:grid;
+    grid-template-columns:minmax(0,max-content) minmax(0,1fr);
+    grid-template-areas:
+      "in manifold"
+      "done manifold";
+    column-gap:16px;
+    align-items:start;
+    margin-bottom:4px;
+  }
   .bundle-note-date-row{
     display:flex;
     align-items:center;
     gap:10px;
     margin-bottom:10px;
     flex-wrap:wrap;
+    min-width:0;
+  }
+  .bundle-note-in-row{
+    grid-area:in;
+  }
+  .bundle-note-done-row{
+    grid-area:done;
+  }
+  .bundle-manifold-row{
+    grid-area:manifold;
+    justify-content:flex-end;
+    align-self:center;
   }
   .bundle-note-date-row input[type="date"]{
     width:170px;
+    max-width:100%;
     padding:10px 12px;
     border:none;
     outline:none;
@@ -803,6 +826,7 @@ user-scalable=no">
   }
   .bundle-manifold-pressure{
     width:96px;
+    max-width:100%;
     padding:10px 12px;
     border:none;
     outline:none;
@@ -818,7 +842,7 @@ user-scalable=no">
     color:rgba(234,240,255,0.38);
   }
   .manifold-fixed-label{
-    margin-left:auto;
+    margin-left:0;
     white-space:nowrap;
   }
   .bundle-note-fixed-text{
@@ -833,6 +857,39 @@ user-scalable=no">
 
     .bundle-frame-card{
       flex:0 0 100%;
+    }
+
+    .bundle-note-layout{
+      grid-template-columns:minmax(0,1fr);
+      grid-template-areas:
+        "in"
+        "done"
+        "manifold";
+      row-gap:0;
+    }
+
+    .bundle-note-date-row{
+      width:100%;
+    }
+
+    .bundle-note-date-row input[type="date"]{
+      flex:1 1 180px;
+      width:auto;
+      min-width:0;
+    }
+
+    .bundle-manifold-row{
+      justify-content:flex-start;
+      margin-top:2px;
+      padding-top:10px;
+      border-top:1px solid rgba(255,255,255,0.08);
+    }
+
+    .bundle-manifold-row .bundle-manifold-pressure{
+      flex:1 1 90px;
+      width:auto;
+      min-width:80px;
+      max-width:130px;
     }
   }
 
@@ -6229,7 +6286,7 @@ function ensureBundleFramesLength(targetCount){
     status:frame.status || "",
     type:frame.type || "",
     typeOther:frame.typeOther || "",
-    frameType:frame.frameType || "",
+    frameType:frame.frameType === "MEGA" ? "2X(MEGA)" : (frame.frameType || ""),
     frameTypeOther:frame.frameTypeOther || "",
     frameId:frame.frameId || "",
     rtNo:frame.rtNo || "",
@@ -6253,7 +6310,16 @@ function getBundleTypeBaseOptions(){
 }
 
 function getBundleFrameTypeBaseOptions(){
-  return ["H2 200bar", "HP", "MEGA", "n12", "7m", "6m"];
+  return [
+    "H2 200bar",
+    "HP",
+    "6m",
+    "2X",
+    "7m",
+    "2X(MEGA)",
+    "n12",
+    "2X(VLSI)"
+  ];
 }
 
 function isBundleTypeOtherValue(value){
@@ -6347,10 +6413,12 @@ function renderBundleCards(){
           ${renderBundleRadioOptions(`bundle_frame_type_${index}`, frameTypeIsOther ? "other" : frame.frameType, [
             { value:"H2 200bar", label:"H2 200bar" },
             { value:"HP", label:"HP" },
-            { value:"MEGA", label:"MEGA" },
-            { value:"n12", label:"n12" },
-            { value:"7m", label:"7m" },
             { value:"6m", label:"6m" },
+            { value:"2X", label:"2X" },
+            { value:"7m", label:"7m" },
+            { value:"2X(MEGA)", label:"2X(MEGA)" },
+            { value:"n12", label:"n12" },
+            { value:"2X(VLSI)", label:"2X(VLSI)" },
             { value:"other", label:"other" }
           ])}
         </div>
@@ -6390,36 +6458,41 @@ function renderBundleCards(){
       <div class="bundle-field-block">
         <div class="form-title">集束備註</div>
 
-        <div class="bundle-note-date-row bundle-note-in-row">
-          <input
-            type="date"
-            class="bundle-in-date"
-            data-frame-index="${index}"
-            value="${escapeAttribute(frame.inDate || "")}"
-          >
-          <span class="bundle-note-fixed-text">入框</span>
-          <span class="bundle-note-fixed-text manifold-fixed-label">Manifold飽壓測試</span>
-          <input
-            type="number"
-            class="bundle-manifold-pressure"
-            data-frame-index="${index}"
-            min="0"
-            step="0.1"
-            inputmode="decimal"
-            value="${escapeAttribute(frame.manifoldPressure || "")}"
-            placeholder="kg"
-          >
-          <span class="bundle-note-fixed-text">kg</span>
-        </div>
+        <div class="bundle-note-layout">
+          <div class="bundle-note-date-row bundle-note-in-row">
+            <input
+              type="date"
+              class="bundle-in-date"
+              data-frame-index="${index}"
+              value="${escapeAttribute(frame.inDate || "")}"
+            >
+            <span class="bundle-note-fixed-text">入框</span>
+          </div>
 
-        <div class="bundle-note-date-row">
-          <input
-            type="date"
-            class="bundle-done-date"
-            data-frame-index="${index}"
-            value="${escapeAttribute(frame.doneDate || "")}"
-          >
-          <span class="bundle-note-fixed-text">完成</span>
+          <div class="bundle-note-date-row bundle-note-done-row">
+            <input
+              type="date"
+              class="bundle-done-date"
+              data-frame-index="${index}"
+              value="${escapeAttribute(frame.doneDate || "")}"
+            >
+            <span class="bundle-note-fixed-text">完成</span>
+          </div>
+
+          <div class="bundle-note-date-row bundle-manifold-row">
+            <span class="bundle-note-fixed-text manifold-fixed-label">Manifold飽壓測試</span>
+            <input
+              type="number"
+              class="bundle-manifold-pressure"
+              data-frame-index="${index}"
+              min="0"
+              step="0.1"
+              inputmode="decimal"
+              value="${escapeAttribute(frame.manifoldPressure || "")}"
+              placeholder="kg"
+            >
+            <span class="bundle-note-fixed-text">kg</span>
+          </div>
         </div>
 
         <textarea
