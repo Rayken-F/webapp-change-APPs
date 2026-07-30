@@ -269,7 +269,7 @@
 
   <script src="./api.js"></script>
   <script>
-    const CLIENT_VERSION = "BETA_GRINDING_WIP_V1_1_SPEED_20260731";
+    const CLIENT_VERSION = "BETA_GRINDING_WIP_V1_2_WRITE_SPEED_20260731";
     const STORAGE_KEY = "ds_grinding_wip_beta_v1";
     const CTN_RE = /^[A-Z]{2}\d{2}[A-Z]{2}[A-Z0-9]$/;
     const STATUS_LABELS = {
@@ -522,11 +522,20 @@
       const sources=buildCheckInSources();if(sources.some(s=>s.kind==="transport"&&!s.bottles.length)){showToast("有運輸框未選擇任何鋼瓶",true);return}
       const signature=simpleHash({date:state.reportDate,operator:state.operator,sources});const submissionId=getPendingSubmission("checkin",signature);
       if(!confirm(`確認 ${state.sources.length} 個來源、共 ${state.sources.reduce((n,s)=>n+sourceQty(s),0)} 支進入 Grinding？`))return;
-      setLoading(true,"Grinding 批次入站寫入中…");
+      setLoading(true,"Grinding 批次入站驗證與寫入中…");
+      const submitStartedAt=performance.now();
       try{
         const r=await submitBetaGrindingCheckIn({submission_id:submissionId,report_date:state.reportDate,operator:state.operator,client_version:CLIENT_VERSION,sources});
-        state.sources=[];state.activeSourceId="";state.pendingCheckIn=null;saveState();renderCheckIn();showToast(r.message||"Grinding 入站完成");await refreshAll(false);switchTab("wip")
-      }catch(err){showToast(err.message||"Grinding 入站失敗",true)}finally{setLoading(false)}
+        const totalSeconds=(performance.now()-submitStartedAt)/1000;
+        const serverSeconds=Number(r.server_elapsed_ms||0)/1000;
+        state.sources=[];state.activeSourceId="";state.pendingCheckIn=null;
+        if(r.current_summary||r.daily_summary){state.summary={current:r.current_summary||{},daily:r.daily_summary||{}};renderSummary()}
+        saveState();renderCheckIn();switchTab("wip");setLoading(false);
+        const timingText=serverSeconds>0?`｜總耗時 ${totalSeconds.toFixed(1)} 秒（後端 ${serverSeconds.toFixed(1)} 秒）`:`｜總耗時 ${totalSeconds.toFixed(1)} 秒`;
+        showToast((r.message||"Grinding 入站完成")+timingText);
+        // 入站已成功後，明細在背景更新；不再用全頁遮罩等待第二輪讀取。
+        refreshAll(false)
+      }catch(err){showToast(err.message||"Grinding 入站失敗",true);setLoading(false)}
     }
     function setWipFilter(filter){state.wipFilter=filter;document.querySelectorAll(".filter-btn").forEach(b=>b.classList.toggle("active",b.dataset.filter===filter));renderWipAssets()}
     function statusLabel(v){return STATUS_LABELS[v]||v||"-"}
