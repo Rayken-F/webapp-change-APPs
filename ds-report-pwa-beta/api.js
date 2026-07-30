@@ -60,6 +60,14 @@ async function fetchBetaWipLookup(ctn) {
   });
 }
 
+async function fetchBetaWipLookupBatch(ctns) {
+  return betaPostApi("wip_lookup_batch", {
+    ctns: (Array.isArray(ctns) ? ctns : [])
+      .map(value => String(value || "").trim().toUpperCase())
+      .filter(Boolean)
+  });
+}
+
 async function fetchBetaGrindingSummary(reportDate) {
   return betaGetApi("grinding_summary", {
     date: String(reportDate || "").trim()
