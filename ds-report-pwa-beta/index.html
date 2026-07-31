@@ -78,6 +78,8 @@
     .source-chip .top{font-weight:900}.source-chip .bottom{margin-top:3px;color:var(--sub)}
     .empty{padding:26px 10px;text-align:center;color:var(--soft);line-height:1.7}
     .detail-head{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+    .detail-title-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+    .source-remove-btn{min-height:30px;padding:5px 9px;border-radius:10px;background:linear-gradient(135deg,#ef5c78,#a91f53);font-size:11px;line-height:1;box-shadow:none}
     .type-pill{padding:5px 9px;border-radius:999px;font-size:11px;font-weight:900;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.08)}
     .type-pill.transport{color:#cdeaff;border-color:rgba(81,176,255,.55)}
     .type-pill.bundle{color:#e2d9ff;border-color:rgba(173,149,255,.58)}
@@ -234,7 +236,11 @@
   <aside id="stickyActions" class="sticky-actions hidden">
     <div id="stickyInfo" class="sticky-info">尚未選擇項目</div>
     <div class="action-scroll">
+      <button class="btn ghost" onclick="submitSimpleAction('SET_WAIT_GRINDING')">待研磨</button>
+      <button class="btn cyan" onclick="submitSimpleAction('SET_IN_PROCESS')">研磨中</button>
+      <button class="btn success" onclick="submitSimpleAction('SET_COMPLETE_WAIT')">研磨完成</button>
       <button class="btn" onclick="openLoadModal()">入框待噴砂</button>
+      <button class="btn secondary" onclick="submitSimpleAction('SEND_HYDROTEST')">送水壓</button>
       <button class="btn danger" onclick="submitSimpleAction('DCYL')">DCYL</button>
       <button class="btn warning" onclick="submitSimpleAction('TRANSFER_HT')">轉 HT</button>
     </div>
@@ -265,7 +271,7 @@
 
   <script src="./api.js"></script>
   <script>
-    const CLIENT_VERSION = "BETA_GRINDING_WIP_V1_5_FAST_SYNC_SELF_HEAL_20260731";
+    const CLIENT_VERSION = "BETA_GRINDING_WIP_V1_5_REMOVE_BUTTON_TOP_20260731";
     const STORAGE_KEY = "ds_grinding_wip_beta_v1";
     const CTN_RE = /^[A-Z]{2}\d{2}[A-Z]{2}[A-Z0-9]$/;
     const STATUS_LABELS = {
@@ -276,16 +282,12 @@
     let state = {
       reportDate:"",operator:"",tab:"checkin",sources:[],activeSourceId:"",
       summary:null,wip:null,wipFilter:"ALL",selected:{},selectedQty:{},
-      pendingCheckIn:null,pendingDisposition:null,revision:0,lastServerTime:"",
-      refreshing:false,dispositionBusy:false
+      pendingCheckIn:null,pendingDisposition:null
     };
     let toastTimer = null;
     let lookupQueue = [];
     let lookupQueueTimer = 0;
     let lookupQueueRunning = false;
-    let revisionTimer = 0;
-    let revisionCheckRunning = false;
-    let syncChannel = null;
 
     function localYmd(){
       const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
@@ -334,165 +336,34 @@
       document.getElementById("dateDisplay").textContent=m?`${m[1]}年${Number(m[2])}月${Number(m[3])}日`:"選擇日期"
     }
     function init(){
-      loadState();
-      if(!state.reportDate)state.reportDate=localYmd();
-      document.getElementById("reportDate").value=state.reportDate;
-      document.getElementById("operatorName").value=state.operator;
-      updateDateDisplay();
-
-      document.getElementById("reportDate").addEventListener("change",()=>{
-        syncMetaFromInputs();
-        refreshAll(false)
-      });
-      document.getElementById("operatorName").addEventListener(
-        "input",
-        syncMetaFromInputs
-      );
-      document.getElementById("scanInput").addEventListener("input",e=>{
-        e.target.value=normalizeCtn(e.target.value)
-      });
-      document.getElementById("scanInput").addEventListener("keydown",e=>{
-        if(e.key==="Enter"){
-          e.preventDefault();
-          scanSource()
-        }
-      });
-      document.getElementById("loadFrameCtn").addEventListener("input",e=>{
-        e.target.value=normalizeCtn(e.target.value)
-      });
-
-      setupGrindingSync();
-      switchTab(state.tab||"checkin");
-      renderCheckIn();
-      refreshAll(false);
-      checkHealth()
+      loadState();if(!state.reportDate)state.reportDate=localYmd();
+      document.getElementById("reportDate").value=state.reportDate;document.getElementById("operatorName").value=state.operator;updateDateDisplay();
+      document.getElementById("reportDate").addEventListener("change",()=>{syncMetaFromInputs();refreshAll(false)});
+      document.getElementById("operatorName").addEventListener("input",syncMetaFromInputs);
+      document.getElementById("scanInput").addEventListener("input",e=>{e.target.value=normalizeCtn(e.target.value)});
+      document.getElementById("scanInput").addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();scanSource()}});
+      document.getElementById("loadFrameCtn").addEventListener("input",e=>{e.target.value=normalizeCtn(e.target.value)});
+      switchTab(state.tab||"checkin");renderCheckIn();refreshAll(false);checkHealth()
     }
     async function checkHealth(){
       const pill=document.getElementById("apiPill");
-      try{
-        const r=await fetchBetaApiHealth();
-        pill.textContent=`已連線｜${r.buildVersion||r.stage||"BETA"}`;
-        pill.className="api-pill ok"
-      }catch(err){
-        pill.textContent="API 未連線";
-        pill.className="api-pill bad";
-        showToast(err.message,true)
-      }
-    }
-
-    function setupGrindingSync(){
-      try{
-        if("BroadcastChannel" in window){
-          syncChannel=new BroadcastChannel("ds_grinding_wip_beta_sync_v15");
-          syncChannel.onmessage=event=>{
-            const revision=Number(event&&event.data&&event.data.revision||0);
-            if(revision>Number(state.revision||0)){
-              refreshAll(false)
-            }
-          }
-        }
-      }catch(err){
-        console.warn("BroadcastChannel unavailable",err)
-      }
-
-      clearInterval(revisionTimer);
-      revisionTimer=setInterval(()=>{
-        checkRemoteRevision(false)
-      },8000);
-
-      document.addEventListener("visibilitychange",()=>{
-        if(!document.hidden)checkRemoteRevision(true)
-      });
-      window.addEventListener("pageshow",()=>checkRemoteRevision(true));
-      window.addEventListener("online",()=>checkRemoteRevision(true))
-    }
-
-    function broadcastRevision(revision){
-      const value=Number(revision||0);
-      if(!(value>0))return;
-      try{
-        if(syncChannel)syncChannel.postMessage({
-          revision:value,
-          at:Date.now()
-        })
-      }catch(err){
-        console.warn(err)
-      }
-    }
-
-    async function checkRemoteRevision(force){
-      if(document.hidden||revisionCheckRunning||state.refreshing)return;
-      if(!force&&state.tab!=="wip")return;
-      revisionCheckRunning=true;
-      try{
-        const r=await fetchBetaGrindingRevision(state.reportDate);
-        const remote=Number(r.revision||0);
-        if(remote>Number(state.revision||0)){
-          await refreshAll(false)
-        }
-      }catch(err){
-        console.warn("revision check failed",err)
-      }finally{
-        revisionCheckRunning=false
-      }
-    }
-
-    function applyBootstrap(r){
-      state.summary=r&&r.summary||{current:{},daily:{}};
-      state.wip=r&&r.wip||{
-        grindingAssets:[],
-        waitSandblastAssets:[],
-        frames:[],
-        dispositions:[]
-      };
-      state.revision=Number(r&&r.revision||0);
-      state.lastServerTime=String(r&&r.serverTime||"");
-      state.selected={};
-      state.selectedQty={};
-      renderSummary();
-      renderWip();
-      renderSticky()
+      try{const r=await fetchBetaApiHealth();pill.textContent=`已連線｜${r.buildVersion||r.stage||"BETA"}`;pill.className="api-pill ok"}
+      catch(err){pill.textContent="API 未連線";pill.className="api-pill bad";showToast(err.message,true)}
     }
     async function refreshAll(showMessage){
       syncMetaFromInputs();
-      if(state.refreshing)return;
-      state.refreshing=true;
       try{
-        const result=await fetchBetaGrindingBootstrap(state.reportDate);
-        applyBootstrap(result);
-        if(showMessage){
-          const cacheText=result.serverCache==="hit"?"｜快取":"";
-          showToast(`Grinding WIP 已更新${cacheText}`)
-        }
-      }catch(err){
-        showToast(err.message||"資料讀取失敗",true)
-      }finally{
-        state.refreshing=false
-      }
+        const [summary,wip]=await Promise.all([fetchBetaGrindingSummary(state.reportDate),fetchBetaGrindingWip(state.reportDate)]);
+        state.summary=summary;state.wip=wip;state.selected={};state.selectedQty={};renderSummary();renderWip();renderSticky();
+        if(showMessage)showToast("Grinding WIP 已更新")
+      }catch(err){showToast(err.message||"資料讀取失敗",true)}
     }
     function switchTab(tab){
-      state.tab=tab==="wip"?"wip":"checkin";
-      saveState();
-      document.getElementById("tabCheckIn").classList.toggle(
-        "active",
-        state.tab==="checkin"
-      );
-      document.getElementById("tabWip").classList.toggle(
-        "active",
-        state.tab==="wip"
-      );
-      document.getElementById("panelCheckIn").classList.toggle(
-        "active",
-        state.tab==="checkin"
-      );
-      document.getElementById("panelWip").classList.toggle(
-        "active",
-        state.tab==="wip"
-      );
-      renderSticky();
-      if(state.tab==="wip"){
-        setTimeout(()=>checkRemoteRevision(true),0)
-      }
+      state.tab=tab==="wip"?"wip":"checkin";saveState();
+      document.getElementById("tabCheckIn").classList.toggle("active",state.tab==="checkin");
+      document.getElementById("tabWip").classList.toggle("active",state.tab==="wip");
+      document.getElementById("panelCheckIn").classList.toggle("active",state.tab==="checkin");
+      document.getElementById("panelWip").classList.toggle("active",state.tab==="wip");renderSticky()
     }
     function metric(label,value,cls){return `<div class="metric ${cls||""}"><div class="k">${escapeHtml(label)}</div><div class="v">${escapeHtml(value)}</div></div>`}
     function renderSummary(){
@@ -538,12 +409,11 @@
         return
       }
       if(source.lookupStatus==="error"){
-        host.innerHTML=`<div class="detail-head"><div><div class="section-title">辨識失敗｜${escapeHtml(source.ctn)}</div><div class="muted">${escapeHtml(source.error||"CTN 讀取失敗")}</div></div><span class="type-pill">異常</span></div><button class="btn danger full" style="margin-top:12px" onclick="removeSource('${escapeHtml(source.id)}')">移除此來源</button>`;
+        host.innerHTML=`<div class="detail-head"><div><div class="detail-title-row"><div class="section-title">辨識失敗｜${escapeHtml(source.ctn)}</div><button class="source-remove-btn" onclick="removeSource('${escapeHtml(source.id)}')">移除此來源</button></div><div class="muted">${escapeHtml(source.error||"CTN 讀取失敗")}</div></div><span class="type-pill">異常</span></div>`;
         return
       }
       const r=source.record||{};const warnings=(source.warnings||[]).map(w=>`<div class="warning-box">${escapeHtml(w)}</div>`).join("");
-      const head=`<div class="detail-head"><div><div class="section-title">${sourceTypeLabel(source.kind)}｜${escapeHtml(source.ctn)}</div><div class="muted">第 ${state.sources.indexOf(source)+1} 個來源</div></div><div><span class="type-pill ${source.kind}">${sourceTypeLabel(source.kind)}</span></div></div>`;
-      const remove=`<button class="btn danger full" style="margin-top:12px" onclick="removeSource('${escapeHtml(source.id)}')">移除此來源</button>`;
+      const head=`<div class="detail-head"><div><div class="detail-title-row"><div class="section-title">${sourceTypeLabel(source.kind)}｜${escapeHtml(source.ctn)}</div><button class="source-remove-btn" onclick="removeSource('${escapeHtml(source.id)}')">移除此來源</button></div><div class="muted">第 ${state.sources.indexOf(source)+1} 個來源</div></div><div><span class="type-pill ${source.kind}">${sourceTypeLabel(source.kind)}</span></div></div>`;
       if(source.kind==="transport"){
         const selected=(source.selectedBottles||[]).filter(b=>b.selected!==false).length;
         host.innerHTML=head+`
@@ -555,7 +425,7 @@
           </div>${warnings}
           <details><summary>查看／調整 ${(source.selectedBottles||[]).length} 支鋼瓶明細</summary><div class="bottle-list">
             ${(source.selectedBottles||[]).map((b,i)=>`<label class="bottle-item"><input type="checkbox" ${b.selected!==false?"checked":""} onchange="toggleSourceBottle('${escapeHtml(source.id)}',${i},this.checked)"><div><div class="bottle-ctn">${escapeHtml(b.ctn)}</div><div class="bottle-sub">RT：${escapeHtml(b.rt||"-")}｜目前綁定 ${escapeHtml(source.ctn)}</div></div></label>`).join("")}
-          </div></details>${remove}`;
+          </div></details>`;
       }else if(source.kind==="bundle"){
         host.innerHTML=head+`
           <div class="data-grid">
@@ -563,7 +433,7 @@
             <div class="data-box"><div class="k">RT料號</div><div class="v">${escapeHtml(r.rt||"-")}</div></div>
             <div class="data-box"><div class="k">匿名批次數量</div><div class="v">${Number(r.bundleCylinderCount||0)} 支</div></div>
             <div class="data-box"><div class="k">框架編號</div><div class="v">${escapeHtml(r.frameId||"-")}</div></div>
-          </div><div class="warning-box">集束鋼瓶沒有個別 CTN，送出後會建立一個匿名 Grinding 批次；後續部分入框、DCYL 或轉 HT 時，系統會按數量拆分批次。</div>${warnings}${remove}`;
+          </div><div class="warning-box">集束鋼瓶沒有個別 CTN，送出後會建立一個匿名 Grinding 批次；後續部分入框、DCYL 或轉 HT 時，系統會按數量拆分批次。</div>${warnings}`;
       }else{
         host.innerHTML=head+`
           <div class="data-grid">
@@ -571,7 +441,7 @@
             <div class="data-box"><div class="k">RT料號</div><div class="v">${escapeHtml(r.rt||"-")}</div></div>
             <div class="data-box"><div class="k">目前運輸框</div><div class="v">${escapeHtml(r.currentFrameCtn||"-")}</div></div>
             <div class="data-box"><div class="k">準備進入</div><div class="v">Grinding</div></div>
-          </div>${warnings}${remove}`
+          </div>${warnings}`
       }
     }
     function renderBatchSummary(){
@@ -649,79 +519,24 @@
       if(!state[key]||state[key].hash!==signature)state[key]={hash:signature,id:makeSubmissionId(prefix)};saveState();return state[key].id
     }
     async function submitCheckIn(){
-      syncMetaFromInputs();
-      if(!state.operator){
-        showToast("請先輸入操作人員",true);
-        return
-      }
-      if(!state.sources.length)return;
-
-      const sources=buildCheckInSources();
-      if(sources.some(s=>s.kind==="transport"&&!s.bottles.length)){
-        showToast("有運輸框未選擇任何鋼瓶",true);
-        return
-      }
-
-      const signature=simpleHash({
-        date:state.reportDate,
-        operator:state.operator,
-        sources
-      });
-      const submissionId=getPendingSubmission("checkin",signature);
-      const total=state.sources.reduce((n,s)=>n+sourceQty(s),0);
-
-      if(!confirm(
-        `確認 ${state.sources.length} 個來源、共 ${total} 支進入 Grinding？`
-      ))return;
-
+      syncMetaFromInputs();if(!state.operator){showToast("請先輸入操作人員",true);return}if(!state.sources.length)return;
+      const sources=buildCheckInSources();if(sources.some(s=>s.kind==="transport"&&!s.bottles.length)){showToast("有運輸框未選擇任何鋼瓶",true);return}
+      const signature=simpleHash({date:state.reportDate,operator:state.operator,sources});const submissionId=getPendingSubmission("checkin",signature);
+      if(!confirm(`確認 ${state.sources.length} 個來源、共 ${state.sources.reduce((n,s)=>n+sourceQty(s),0)} 支進入 Grinding？`))return;
       setLoading(true,"Grinding 批次入站驗證與寫入中…");
       const submitStartedAt=performance.now();
-
       try{
-        const r=await submitBetaGrindingCheckIn({
-          submission_id:submissionId,
-          report_date:state.reportDate,
-          operator:state.operator,
-          client_version:CLIENT_VERSION,
-          base_revision:Number(state.revision||0),
-          sources
-        });
-
+        const r=await submitBetaGrindingCheckIn({submission_id:submissionId,report_date:state.reportDate,operator:state.operator,client_version:CLIENT_VERSION,sources});
         const totalSeconds=(performance.now()-submitStartedAt)/1000;
         const serverSeconds=Number(r.server_elapsed_ms||0)/1000;
-        state.sources=[];
-        state.activeSourceId="";
-        state.pendingCheckIn=null;
-
-        if(r.current_summary||r.daily_summary){
-          state.summary={
-            current:r.current_summary||{},
-            daily:r.daily_summary||{}
-          };
-          state.revision=Number(
-            r.revision||
-            r.current_summary&&r.current_summary.revision||
-            state.revision||0
-          );
-          renderSummary()
-        }
-
-        saveState();
-        renderCheckIn();
-        switchTab("wip");
-        setLoading(false);
-        broadcastRevision(state.revision);
-
-        const timingText=serverSeconds>0
-          ?`｜總耗時 ${totalSeconds.toFixed(1)} 秒（後端 ${serverSeconds.toFixed(1)} 秒）`
-          :`｜總耗時 ${totalSeconds.toFixed(1)} 秒`;
+        state.sources=[];state.activeSourceId="";state.pendingCheckIn=null;
+        if(r.current_summary||r.daily_summary){state.summary={current:r.current_summary||{},daily:r.daily_summary||{}};renderSummary()}
+        saveState();renderCheckIn();switchTab("wip");setLoading(false);
+        const timingText=serverSeconds>0?`｜總耗時 ${totalSeconds.toFixed(1)} 秒（後端 ${serverSeconds.toFixed(1)} 秒）`:`｜總耗時 ${totalSeconds.toFixed(1)} 秒`;
         showToast((r.message||"Grinding 入站完成")+timingText);
-
+        // 入站已成功後，明細在背景更新；不再用全頁遮罩等待第二輪讀取。
         refreshAll(false)
-      }catch(err){
-        showToast(err.message||"Grinding 入站失敗",true);
-        setLoading(false)
-      }
+      }catch(err){showToast(err.message||"Grinding 入站失敗",true);setLoading(false)}
     }
     function setWipFilter(filter){state.wipFilter=filter;document.querySelectorAll(".filter-btn").forEach(b=>b.classList.toggle("active",b.dataset.filter===filter));renderWipAssets()}
     function statusLabel(v){return STATUS_LABELS[v]||v||"-"}
@@ -748,21 +563,7 @@
       const assets=state.wip&&state.wip.grindingAssets||[];return Object.keys(state.selected).map(key=>{const a=assets.find(x=>x.assetKey===key);if(!a)return null;return {asset_key:key,qty:Number(state.selectedQty[key]||a.qty||1),expected_version:Number(a.stateVersion||0)}}).filter(Boolean)
     }
     function renderSticky(){
-      const bar=document.getElementById("stickyActions");
-      if(state.tab!=="wip"){
-        bar.classList.add("hidden");
-        return
-      }
-
-      const items=selectedItems();
-      bar.classList.toggle("hidden",!items.length);
-      document.getElementById("stickyInfo").textContent=items.length
-        ?`已選 ${items.length} 項／${items.reduce((n,i)=>n+i.qty,0)} 支`
-        :"尚未選擇項目";
-
-      bar.querySelectorAll("button").forEach(button=>{
-        button.disabled=state.dispositionBusy
-      })
+      const bar=document.getElementById("stickyActions");if(state.tab!=="wip"){bar.classList.add("hidden");return}const items=selectedItems();bar.classList.toggle("hidden",!items.length);document.getElementById("stickyInfo").textContent=items.length?`已選 ${items.length} 項／${items.reduce((n,i)=>n+i.qty,0)} 支`:'尚未選擇項目'
     }
     function renderFrames(){
       const list=state.wip&&state.wip.frames||[];document.getElementById("frameCountText").textContent=`${list.length} 框`;
@@ -774,211 +575,17 @@
     function renderHistory(){
       const list=state.wip&&state.wip.dispositions||[];document.getElementById("historyList").innerHTML=list.length?list.slice(0,30).map(a=>`<article class="history-item"><div class="asset-name">${escapeHtml(a.assetCtn||`集束來源 ${a.sourceCtn}`)}</div><div class="asset-sub">${escapeHtml(statusLabel(a.lifecycleStatus))}｜${Number(a.qty||0)} 支｜RT ${escapeHtml(a.rt||"-")}｜${escapeHtml(a.updatedAt||"")}</div></article>`).join(""):'<div class="empty">尚無 DCYL 或轉 HT 紀錄。</div>'
     }
-    function applyOptimisticDisposition(action,items,extra){
-      if(!state.wip)return;
-      const selectedMap={};
-      items.forEach(item=>selectedMap[item.asset_key]=Number(item.qty||0));
-      const moved=[];
-      const remain=[];
-
-      (state.wip.grindingAssets||[]).forEach(asset=>{
-        const qty=Number(selectedMap[asset.assetKey]||0);
-        if(!(qty>0)){
-          remain.push(asset);
-          return
-        }
-
-        const sourceQty=Number(asset.qty||0);
-        if(qty<sourceQty&&asset.trackingType==="BUNDLE_LOT"){
-          remain.push(Object.assign({},asset,{qty:sourceQty-qty}));
-          moved.push(Object.assign({},asset,{qty}))
-        }else{
-          moved.push(Object.assign({},asset,{qty:sourceQty}))
-        }
-      });
-      state.wip.grindingAssets=remain;
-
-      const current=state.summary&&state.summary.current||{};
-      const daily=state.summary&&state.summary.daily||{};
-      let total=0;
-      moved.forEach(asset=>{
-        total+=Number(asset.qty||0);
-        const status=asset.stationStatus;
-        if(status==="WAIT_GRINDING"){
-          current.wait_grinding_qty=Math.max(
-            0,
-            Number(current.wait_grinding_qty||0)-Number(asset.qty||0)
-          )
-        }else if(status==="IN_PROCESS"){
-          current.in_process_qty=Math.max(
-            0,
-            Number(current.in_process_qty||0)-Number(asset.qty||0)
-          )
-        }else if(status==="COMPLETE_WAIT"){
-          current.complete_wait_qty=Math.max(
-            0,
-            Number(current.complete_wait_qty||0)-Number(asset.qty||0)
-          )
-        }
-      });
-      current.grinding_wip_qty=Math.max(
-        0,
-        Number(current.wait_grinding_qty||0)+
-        Number(current.in_process_qty||0)+
-        Number(current.complete_wait_qty||0)
-      );
-
-      if(action==="DCYL"||action==="TRANSFER_HT"){
-        const lifecycle=action==="DCYL"?"DCYL":"HT";
-        const list=state.wip.dispositions||[];
-        moved.forEach(asset=>list.unshift(Object.assign({},asset,{
-          lifecycleStatus:lifecycle,
-          updatedAt:"同步中…"
-        })));
-        state.wip.dispositions=list;
-        if(action==="DCYL"){
-          current.dcyl_qty=Number(current.dcyl_qty||0)+total;
-          daily.daily_dcyl_qty=Number(daily.daily_dcyl_qty||0)+total
-        }else{
-          current.ht_qty=Number(current.ht_qty||0)+total;
-          daily.daily_ht_qty=Number(daily.daily_ht_qty||0)+total
-        }
-      }
-
-      if(action==="LOAD_TO_FRAME"){
-        const frame=normalizeCtn(extra&&extra.frame_ctn||"");
-        const complete=!!(extra&&extra.complete_frame);
-        const cap=Number(extra&&extra.frame_capacity||18);
-        const frames=state.wip.frames||[];
-        let target=frames.find(item=>item.frameCtn===frame);
-        if(!target){
-          target={
-            frameCtn:frame,
-            status:complete?"READY_FOR_SANDBLAST":"LOADING",
-            actualQty:0,
-            capacity:cap,
-            startedAt:"同步中…",
-            stateVersion:0
-          };
-          frames.push(target)
-        }
-        target.actualQty=Number(target.actualQty||0)+total;
-        target.capacity=cap;
-        target.status=complete?"READY_FOR_SANDBLAST":"LOADING";
-        state.wip.frames=frames;
-
-        current.wait_sandblast_qty=
-          Number(current.wait_sandblast_qty||0)+total;
-        daily.loaded_qty=Number(daily.loaded_qty||0)+total;
-        if(complete){
-          current.wait_sandblast_frame_count=
-            Number(current.wait_sandblast_frame_count||0)+1;
-          daily.completed_frame_count=
-            Number(daily.completed_frame_count||0)+1
-        }
-      }
-
-      if(action==="MARK_FRAME_READY"){
-        const frame=normalizeCtn(extra&&extra.frame_ctn||"");
-        const target=(state.wip.frames||[]).find(
-          item=>item.frameCtn===frame
-        );
-        if(target)target.status="READY_FOR_SANDBLAST"
-      }
-
-      if(action==="RELEASE_TO_SANDBLAST"){
-        const frame=normalizeCtn(extra&&extra.frame_ctn||"");
-        state.wip.frames=(state.wip.frames||[]).filter(
-          item=>item.frameCtn!==frame
-        )
-      }
-
-      renderSummary();
-      renderWip();
-      renderSticky()
-    }
-
     async function submitDisposition(action,extra){
-      if(state.dispositionBusy)return;
-      syncMetaFromInputs();
-
-      const items=action==="RELEASE_TO_SANDBLAST"||
-        action==="MARK_FRAME_READY"
-        ?[]
-        :selectedItems();
-
-      const body=Object.assign({
-        report_date:state.reportDate,
-        operator:state.operator,
-        client_version:CLIENT_VERSION,
-        base_revision:Number(state.revision||0),
-        action,
-        items
-      },extra||{});
-
-      const signature=simpleHash(body);
-      body.submission_id=getPendingSubmission("disposition",signature);
-
-      const snapshot={
-        summary:safeClone(state.summary),
-        wip:safeClone(state.wip),
-        selected:safeClone(state.selected),
-        selectedQty:safeClone(state.selectedQty),
-        revision:state.revision
-      };
-
-      state.dispositionBusy=true;
-      applyOptimisticDisposition(action,items,extra||{});
-      showToast("已送出，後台同步中…");
-
-      try{
-        const r=await submitBetaGrindingDisposition(body);
-        state.pendingDisposition=null;
-        state.selected={};
-        state.selectedQty={};
-
-        if(r.current_summary||r.daily_summary){
-          state.summary={
-            current:r.current_summary||{},
-            daily:r.daily_summary||{}
-          }
-        }
-        state.revision=Number(
-          r.revision||
-          r.current_summary&&r.current_summary.revision||
-          state.revision||0
-        );
-
-        saveState();
-        renderSummary();
-        renderWip();
-        broadcastRevision(state.revision);
-        showToast(r.message||"Grinding 動作完成");
-        refreshAll(false)
-      }catch(err){
-        state.summary=snapshot.summary;
-        state.wip=snapshot.wip;
-        state.selected=snapshot.selected;
-        state.selectedQty=snapshot.selectedQty;
-        state.revision=snapshot.revision;
-        renderSummary();
-        renderWip();
-        showToast(err.message||"Grinding 動作失敗",true)
-      }finally{
-        state.dispositionBusy=false;
-        renderSticky()
-      }
+      syncMetaFromInputs();const items=action==="RELEASE_TO_SANDBLAST"?[]:selectedItems();
+      const body=Object.assign({report_date:state.reportDate,operator:state.operator,client_version:CLIENT_VERSION,action,items},extra||{});
+      const signature=simpleHash(body);body.submission_id=getPendingSubmission("disposition",signature);
+      setLoading(true,"Grinding WIP 交易處理中…");
+      try{const r=await submitBetaGrindingDisposition(body);state.pendingDisposition=null;state.selected={};state.selectedQty={};saveState();showToast(r.message||"Grinding 動作完成");await refreshAll(false)}
+      catch(err){showToast(err.message||"Grinding 動作失敗",true)}finally{setLoading(false)}
     }
     async function submitSimpleAction(action){
-      const items=selectedItems();
-      if(!items.length)return;
-      const labels={
-        DCYL:"DCYL",
-        TRANSFER_HT:"轉 HT"
-      };
-      if(!confirm(
-        `確定將已選 ${items.reduce((n,i)=>n+i.qty,0)} 支執行「${labels[action]||action}」？`
-      ))return;
+      const items=selectedItems();if(!items.length)return;const labels={SET_WAIT_GRINDING:"標記待研磨",SET_IN_PROCESS:"標記研磨中",SET_COMPLETE_WAIT:"標記研磨完成",SEND_HYDROTEST:"送水壓",DCYL:"DCYL",TRANSFER_HT:"轉 HT"};
+      if(["DCYL","TRANSFER_HT"].includes(action)&&!confirm(`確定將已選 ${items.reduce((n,i)=>n+i.qty,0)} 支執行「${labels[action]}」？`))return;
       await submitDisposition(action,{note:labels[action]||action})
     }
     function openLoadModal(){if(!selectedItems().length)return;document.getElementById("loadModal").classList.add("show");document.getElementById("loadFrameCtn").focus()}
