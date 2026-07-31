@@ -80,6 +80,18 @@ async function fetchBetaGrindingWip(reportDate) {
   });
 }
 
+async function fetchBetaGrindingBootstrap(reportDate) {
+  return betaGetApi("wip_bootstrap", {
+    date: String(reportDate || "").trim()
+  });
+}
+
+async function fetchBetaGrindingRevision(reportDate) {
+  return betaGetApi("wip_revision", {
+    date: String(reportDate || "").trim()
+  });
+}
+
 async function submitBetaGrindingCheckIn(payload) {
   return betaPostApi("grinding_check_in", payload);
 }
