@@ -1,4 +1,4 @@
-// Grinding WIP BETA｜前端 API
+// Grinding WIP BETA v1.6｜前端 API（路由不變）
 const BETA_API_URL = "https://script.google.com/macros/s/AKfycbw3Xg0ev3zoTO-WFfe7sTIUlr6wF4P-qAgZEZUF3uUhioT63bQYT-9QRgZqLU0IhB6G/exec";
 const BETA_API_TOKEN = "-M-yiaurzifieaJyYS4838MCYiuDh4wB";
 
