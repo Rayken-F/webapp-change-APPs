@@ -1,7 +1,7 @@
 // Grinding WIP BETA v1.8｜Barcoder＋低負載同步＋後端版本鎖
 const BETA_API_URL = "https://script.google.com/macros/s/AKfycbw3Xg0ev3zoTO-WFfe7sTIUlr6wF4P-qAgZEZUF3uUhioT63bQYT-9QRgZqLU0IhB6G/exec";
 const BETA_API_TOKEN = "-M-yiaurzifieaJyYS4838MCYiuDh4wB";
-const BETA_CLIENT_VERSION = "BETA_GRINDING_WIP_V1_8_BARCODER_LOW_LOAD_SYNC_20260801";
+const BETA_CLIENT_VERSION = "BETA_GRINDING_WIP_V1_9_ALL_WIP_CTN_BARCODER_20260801";
 
 function isBetaApiConfigured() {
   return /^https:\/\/script\.google\.com\/macros\/s\/.+\/exec$/.test(
