@@ -3,6 +3,9 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
   <title>鼎世日報系統｜Grinding WIP BETA</title>
   <style>
     *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
@@ -127,6 +130,18 @@
     .loading-mask{display:none;position:fixed;inset:0;z-index:4500;background:rgba(2,6,28,.68);align-items:center;justify-content:center;text-align:center;padding:20px}
     .loading-mask.show{display:flex}
     .loading-card{padding:20px 18px;border-radius:20px;background:#1a2868;border:1px solid rgba(255,255,255,.22);box-shadow:var(--shadow);font-weight:900;line-height:1.7}
+    .barcode-card{border-color:rgba(67,198,232,.34);background:linear-gradient(180deg,rgba(34,97,170,.34),rgba(30,48,127,.3))}
+    .barcode-status{margin-top:10px;padding:10px 11px;border-radius:13px;background:rgba(255,255,255,.055);border:1px solid rgba(255,255,255,.1);font-size:12px;line-height:1.55}
+    .barcode-status.ok{color:#cbffe0;border-color:rgba(88,214,141,.38);background:rgba(88,214,141,.09)}
+    .barcode-status.bad{color:#ffd0d8;border-color:rgba(255,113,136,.4);background:rgba(255,113,136,.09)}
+    .barcode-status.warn{color:#fff0bd;border-color:rgba(255,202,100,.38);background:rgba(255,202,100,.09)}
+    .barcode-recent{display:flex;gap:7px;overflow-x:auto;margin-top:9px;padding-bottom:2px}
+    .barcode-chip{flex:0 0 auto;padding:7px 9px;border-radius:11px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);font-size:11px;font-weight:900}
+    .barcode-chip.ok{border-color:rgba(88,214,141,.45);color:#d5ffe4}
+    .barcode-chip.bad{border-color:rgba(255,113,136,.5);color:#ffd0d8}
+    .barcode-chip.warn{border-color:rgba(255,202,100,.45);color:#fff0bd}
+    .barcode-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+    .barcode-actions .btn{min-height:38px;padding:7px 10px;font-size:11px}
     @media(max-width:620px){
       body{padding:13px 9px 112px}.card{padding:15px 12px;border-radius:19px}.meta-grid,.data-grid{grid-template-columns:1fr}.summary-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.scan-grid{grid-template-columns:1fr}.scan-grid .btn{width:100%}.asset-item{grid-template-columns:auto minmax(0,1fr)}.asset-item .qty-input{grid-column:2;width:100%}.metric .v{font-size:18px}
     }
@@ -204,6 +219,24 @@
     </section>
 
     <section id="panelWip" class="panel">
+      <section class="card barcode-card">
+        <div class="row between">
+          <div class="section-title">Barcoder 快速選取</div>
+          <span id="barcodeSelectedText" class="muted">已掃描選取 0 支</span>
+        </div>
+        <div class="muted">只比對「已進入 Grinding、目前仍在 Grinding」的散支鋼瓶 CTN。掃描只會選取，不會先改帳；按下待噴砂、DCYL 或轉 HT 後，後端才會從 Grinding WIP 扣除。</div>
+        <div class="scan-grid">
+          <input id="wipBarcodeInput" class="input" maxlength="7" autocomplete="off" autocapitalize="characters" placeholder="掃描 Grinding 內鋼瓶 CTN">
+          <button id="wipBarcodeBtn" class="btn cyan" onclick="scanGrindingWipBarcode()">掃描選取</button>
+        </div>
+        <div id="barcodeStatus" class="barcode-status">等待掃描。系統不會接受未進 Grinding、已入框、已 DCYL、已轉 HT 或不存在的 CTN。</div>
+        <div id="barcodeRecent" class="barcode-recent"></div>
+        <div class="barcode-actions">
+          <button class="btn ghost" onclick="clearBarcodeSelections()">清除掃描選取</button>
+          <button class="btn ghost" onclick="focusWipBarcode()">重新聚焦掃描欄</button>
+        </div>
+      </section>
+
       <section class="card">
         <div class="row between">
           <div class="section-title">Grinding 目前在製</div>
@@ -261,12 +294,28 @@
     </div>
   </div>
 
+  <div id="versionLockModal" class="modal">
+    <div class="modal-panel">
+      <div class="modal-title">Grinding WIP 已有新版</div>
+      <div id="versionLockMessage" class="muted">
+        此裝置版本已停止使用，正在更新至最新版本。
+      </div>
+      <div class="warning-box" style="margin-top:12px">
+        為避免舊版覆蓋新資料，更新完成前所有讀取與寫入都已由後端鎖定。
+      </div>
+      <div class="modal-actions">
+        <button class="btn ghost" onclick="copyCurrentVersionInfo()">查看版本</button>
+        <button class="btn success" onclick="forceGrindingClientUpdate()">立即更新</button>
+      </div>
+    </div>
+  </div>
+
   <div id="toast" class="toast"></div>
   <div id="loadingMask" class="loading-mask"><div id="loadingText" class="loading-card">處理中…</div></div>
 
-  <script src="./api.js"></script>
+  <script src="./api.js?v=BETA_GRINDING_WIP_V1_8_BARCODER_LOW_LOAD_SYNC_20260801"></script>
   <script>
-    const CLIENT_VERSION = "BETA_GRINDING_WIP_V1_6_FAST_SNAPSHOT_SYNC_20260801";
+    const CLIENT_VERSION = BETA_CLIENT_VERSION;
     const STORAGE_KEY = "ds_grinding_wip_beta_v1";
     const CTN_RE = /^[A-Z]{2}\d{2}[A-Z]{2}[A-Z0-9]$/;
     const STATUS_LABELS = {
@@ -278,15 +327,21 @@
       reportDate:"",operator:"",tab:"checkin",sources:[],activeSourceId:"",
       summary:null,wip:null,wipFilter:"ALL",selected:{},selectedQty:{},
       pendingCheckIn:null,pendingDisposition:null,revision:0,lastServerTime:"",
-      refreshing:false,dispositionBusy:false
+      refreshing:false,dispositionBusy:false,clientWriteBlocked:false,
+      requiredClientVersion:"",clientUpdateUrl:"",barcodeSelected:{},barcodeRecent:[],
+      lastBootstrapAt:0,lastHealthCheckAt:0
     };
     let toastTimer = null;
     let lookupQueue = [];
     let lookupQueueTimer = 0;
     let lookupQueueRunning = false;
     let revisionTimer = 0;
+    let versionTimer = 0;
     let revisionCheckRunning = false;
+    let healthCheckRunning = false;
     let syncChannel = null;
+    let clientUpdateReloading = false;
+    const CLIENT_UPDATE_ATTEMPT_PREFIX = "ds_grinding_wip_update_attempt_";
 
     function localYmd(){
       const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
@@ -334,6 +389,86 @@
       const v=state.reportDate||localYmd();const m=v.match(/^(\d{4})-(\d{2})-(\d{2})$/);
       document.getElementById("dateDisplay").textContent=m?`${m[1]}年${Number(m[2])}月${Number(m[3])}日`:"選擇日期"
     }
+    function isClientVersionCurrent(requiredVersion){
+      const required=String(requiredVersion||"").trim();
+      return !required||required===CLIENT_VERSION
+    }
+
+    function ensureClientWriteAllowed(){
+      if(!state.clientWriteBlocked)return true;
+      showToast(
+        `此裝置版本已停用，必須更新至 ${state.requiredClientVersion||"最新版本"}。`,
+        true
+      );
+      document.getElementById("versionLockModal").classList.add("show");
+      return false
+    }
+
+    function copyCurrentVersionInfo(){
+      const text=`目前：${CLIENT_VERSION}\n要求：${state.requiredClientVersion||"-"}`;
+      if(navigator.clipboard&&navigator.clipboard.writeText){
+        navigator.clipboard.writeText(text).then(
+          ()=>showToast("版本資訊已複製"),
+          ()=>showToast(text,true)
+        )
+      }else{
+        showToast(text,true)
+      }
+    }
+
+    function buildGrindingUpdateUrl(){
+      const required=state.requiredClientVersion||CLIENT_VERSION;
+      const base=state.clientUpdateUrl||`${location.origin}${location.pathname}`;
+      const url=new URL(base,location.href);
+      url.searchParams.set("app_v",required);
+      url.searchParams.set("update_nonce",String(Date.now()));
+      return url.toString()
+    }
+
+    async function forceGrindingClientUpdate(){
+      if(clientUpdateReloading)return;
+      clientUpdateReloading=true;
+      const required=state.requiredClientVersion||CLIENT_VERSION;
+      try{
+        if("serviceWorker" in navigator){
+          const registrations=await navigator.serviceWorker.getRegistrations();
+          await Promise.all(registrations.map(registration=>registration.update()))
+        }
+      }catch(err){
+        console.warn("service worker update failed",err)
+      }
+      sessionStorage.setItem(
+        CLIENT_UPDATE_ATTEMPT_PREFIX+required,
+        String(Date.now())
+      );
+      location.replace(buildGrindingUpdateUrl())
+    }
+
+    function lockClientForUpdate(detail){
+      const info=detail&&typeof detail==="object"?detail:{};
+      const required=String(
+        info.requiredClientVersion||state.requiredClientVersion||""
+      ).trim();
+      state.clientWriteBlocked=true;
+      state.requiredClientVersion=required;
+      state.clientUpdateUrl=String(info.updateUrl||state.clientUpdateUrl||"");
+      const message=info.message||
+        `此裝置版本 ${CLIENT_VERSION} 已停止使用，必須更新至 ${required||"最新版本"}。`;
+      document.getElementById("versionLockMessage").textContent=message;
+      document.getElementById("versionLockModal").classList.add("show");
+      document.getElementById("apiPill").textContent="版本過舊｜已禁止送出";
+      document.getElementById("apiPill").className="api-pill bad";
+
+      const attemptKey=CLIENT_UPDATE_ATTEMPT_PREFIX+(required||"LATEST");
+      if(!sessionStorage.getItem(attemptKey)){
+        setTimeout(()=>forceGrindingClientUpdate(),700)
+      }
+    }
+
+    window.addEventListener("beta-client-update-required",event=>{
+      lockClientForUpdate(event&&event.detail||{})
+    });
+
     function init(){
       loadState();
       if(!state.reportDate)state.reportDate=localYmd();
@@ -361,23 +496,57 @@
       document.getElementById("loadFrameCtn").addEventListener("input",e=>{
         e.target.value=normalizeCtn(e.target.value)
       });
+      document.getElementById("wipBarcodeInput").addEventListener("input",e=>{
+        e.target.value=normalizeCtn(e.target.value)
+      });
+      document.getElementById("wipBarcodeInput").addEventListener("keydown",e=>{
+        if(e.key==="Enter"){
+          e.preventDefault();
+          scanGrindingWipBarcode()
+        }
+      });
 
       setupGrindingSync();
       switchTab(state.tab||"checkin");
       renderCheckIn();
-      refreshAll(false);
-      checkHealth()
+      checkHealth().then(ok=>{
+        if(ok)refreshAll(false)
+      })
     }
     async function checkHealth(){
+      if(healthCheckRunning)return !state.clientWriteBlocked;
+      healthCheckRunning=true;
       const pill=document.getElementById("apiPill");
       try{
         const r=await fetchBetaApiHealth();
+        const required=String(r.requiredClientVersion||"").trim();
+        if(!isClientVersionCurrent(required)){
+          lockClientForUpdate({
+            requiredClientVersion:required,
+            updateUrl:r.updateUrl||"",
+            message:`此裝置版本 ${CLIENT_VERSION} 已停止使用，必須更新至 ${required}。`
+          });
+          return false
+        }
+        state.clientWriteBlocked=false;
+        state.requiredClientVersion=required||CLIENT_VERSION;
+        state.clientUpdateUrl=String(r.updateUrl||"");
+        document.getElementById("versionLockModal").classList.remove("show");
         pill.textContent=`已連線｜${r.buildVersion||r.stage||"BETA"}`;
-        pill.className="api-pill ok"
+        pill.className="api-pill ok";
+        state.lastHealthCheckAt=Date.now();
+        return true
       }catch(err){
+        if(err&&err.code==="CLIENT_UPDATE_REQUIRED"){
+          lockClientForUpdate(err);
+          return false
+        }
         pill.textContent="API 未連線";
         pill.className="api-pill bad";
-        showToast(err.message,true)
+        showToast(err.message,true);
+        return false
+      }finally{
+        healthCheckRunning=false
       }
     }
 
@@ -397,15 +566,19 @@
       }
 
       clearInterval(revisionTimer);
+      clearInterval(versionTimer);
       revisionTimer=setInterval(()=>{
-        checkRemoteRevision(false)
-      },8000);
+        if(!state.clientWriteBlocked)checkRemoteRevision(false)
+      },15000);
+      versionTimer=setInterval(()=>{
+        if(!document.hidden)checkHealth()
+      },300000);
 
       document.addEventListener("visibilitychange",()=>{
-        if(!document.hidden)checkRemoteRevision(true)
+        if(!document.hidden)checkHealth().then(ok=>{if(ok)checkRemoteRevision(true)})
       });
-      window.addEventListener("pageshow",()=>checkRemoteRevision(true));
-      window.addEventListener("online",()=>checkRemoteRevision(true))
+      window.addEventListener("pageshow",()=>checkHealth().then(ok=>{if(ok)checkRemoteRevision(true)}));
+      window.addEventListener("online",()=>checkHealth().then(ok=>{if(ok)checkRemoteRevision(true)}))
     }
 
     function broadcastRevision(revision){
@@ -450,8 +623,12 @@
       state.lastServerTime=String(r&&r.serverTime||"");
       state.selected={};
       state.selectedQty={};
+      state.barcodeSelected={};
+      state.barcodeRecent=[];
+      state.lastBootstrapAt=Date.now();
       renderSummary();
       renderWip();
+      renderBarcodeScanner();
       renderSticky()
     }
     async function refreshAll(showMessage){
@@ -492,7 +669,7 @@
       );
       renderSticky();
       if(state.tab==="wip"){
-        setTimeout(()=>checkRemoteRevision(true),0)
+        setTimeout(()=>{checkRemoteRevision(true);focusWipBarcode()},0)
       }
     }
     function metric(label,value,cls){return `<div class="metric ${cls||""}"><div class="k">${escapeHtml(label)}</div><div class="v">${escapeHtml(value)}</div></div>`}
@@ -581,6 +758,7 @@
       document.getElementById("batchSummary").innerHTML=state.sources.length?`已完成 <strong>${ready.length}</strong>／${state.sources.length} 個來源${pending?`｜辨識中 <strong>${pending}</strong> 個`:""}｜可識別散支 <strong>${identified}</strong> 支｜集束匿名批次 <strong>${bundle}</strong> 支｜合計 <strong>${total}</strong> 支`:'尚未加入來源。'
     }
     function scanSource(){
+      if(!ensureClientWriteAllowed())return;
       syncMetaFromInputs();const input=document.getElementById("scanInput");const ctn=normalizeCtn(input.value);
       if(!CTN_RE.test(ctn)){showToast("CTN 格式錯誤",true);input.focus();return}
       if(state.sources.some(s=>s.ctn===ctn)){showToast("此來源已在本次批次中",true);input.value="";input.focus();return}
@@ -650,6 +828,7 @@
       if(!state[key]||state[key].hash!==signature)state[key]={hash:signature,id:makeSubmissionId(prefix)};saveState();return state[key].id
     }
     async function submitCheckIn(){
+      if(!ensureClientWriteAllowed())return;
       syncMetaFromInputs();
       if(!state.operator){
         showToast("請先輸入操作人員",true);
@@ -731,7 +910,7 @@
     }
     function setWipFilter(filter){state.wipFilter=filter;document.querySelectorAll(".filter-btn").forEach(b=>b.classList.toggle("active",b.dataset.filter===filter));renderWipAssets()}
     function statusLabel(v){return STATUS_LABELS[v]||v||"-"}
-    function renderWip(){renderWipAssets();renderFrames();renderHistory()}
+    function renderWip(){renderWipAssets();renderFrames();renderHistory();renderBarcodeScanner()}
     function filteredAssets(){
       const list=state.wip&&Array.isArray(state.wip.grindingAssets)?state.wip.grindingAssets:[];
       if(state.wipFilter==="ALL")return list;
@@ -742,14 +921,135 @@
       document.getElementById("assetList").innerHTML=list.length?list.map(a=>{
         const selected=!!state.selected[a.assetKey];const isLot=a.trackingType==="BUNDLE_LOT";const name=isLot?`集束來源 ${a.sourceCtn}`:a.assetCtn;
         const qty=Number(state.selectedQty[a.assetKey]||a.qty||0);
-        return `<article class="asset-item ${selected?"selected":""}"><input type="checkbox" ${selected?"checked":""} onchange="toggleAsset('${escapeHtml(a.assetKey)}',this.checked)"><div><div class="asset-name">${escapeHtml(name)}</div><div class="asset-sub">RT：${escapeHtml(a.rt||"-")}｜來源：${escapeHtml(a.sourceFrameCtn||a.sourceCtn||"-")}｜數量 ${Number(a.qty||0)} 支</div><span class="status-pill">${escapeHtml(statusLabel(a.stationStatus))}</span></div>${isLot&&selected?`<input class="qty-input" type="number" min="1" max="${Number(a.qty||0)}" value="${qty}" onchange="setAssetQty('${escapeHtml(a.assetKey)}',this.value)">`:""}</article>`
+        return `<article class="asset-item ${selected?"selected":""}" data-asset-key="${escapeHtml(a.assetKey)}"><input data-asset-checkbox="1" type="checkbox" ${selected?"checked":""} onchange="toggleAsset('${escapeHtml(a.assetKey)}',this.checked)"><div><div class="asset-name">${escapeHtml(name)}</div><div class="asset-sub">RT：${escapeHtml(a.rt||"-")}｜來源：${escapeHtml(a.sourceFrameCtn||a.sourceCtn||"-")}｜數量 ${Number(a.qty||0)} 支</div><span class="status-pill">${escapeHtml(statusLabel(a.stationStatus))}</span></div>${isLot&&selected?`<input class="qty-input" type="number" min="1" max="${Number(a.qty||0)}" value="${qty}" onchange="setAssetQty('${escapeHtml(a.assetKey)}',this.value)">`:""}</article>`
       }).join(""):'<div class="empty">目前沒有符合篩選條件的 Grinding WIP。</div>';renderSticky()
     }
     function toggleAsset(assetKey,checked){
-      if(checked){state.selected[assetKey]=true;const a=(state.wip.grindingAssets||[]).find(x=>x.assetKey===assetKey);state.selectedQty[assetKey]=Number(a&&a.qty||1)}else{delete state.selected[assetKey];delete state.selectedQty[assetKey]}renderWipAssets()
+      if(checked){
+        state.selected[assetKey]=true;
+        const a=(state.wip.grindingAssets||[]).find(x=>x.assetKey===assetKey);
+        state.selectedQty[assetKey]=Number(a&&a.qty||1)
+      }else{
+        delete state.selected[assetKey];
+        delete state.selectedQty[assetKey];
+        delete state.barcodeSelected[assetKey]
+      }
+      renderWipAssets();
+      renderBarcodeScanner()
     }
     function setAssetQty(assetKey,value){
       const a=(state.wip.grindingAssets||[]).find(x=>x.assetKey===assetKey);if(!a)return;let q=Math.round(Number(value||0));q=Math.max(1,Math.min(Number(a.qty||1),q));state.selectedQty[assetKey]=q;renderSticky()
+    }
+    function focusWipBarcode(){
+      if(state.tab!=="wip")return;
+      const input=document.getElementById("wipBarcodeInput");
+      if(input){input.focus();input.select()}
+    }
+    function pushBarcodeRecent_(ctn,status,message){
+      state.barcodeRecent.unshift({ctn,status,message,at:Date.now()});
+      state.barcodeRecent=state.barcodeRecent.slice(0,6);
+      renderBarcodeScanner()
+    }
+    function renderBarcodeScanner(){
+      const selectedKeys=Object.keys(state.barcodeSelected||{}).filter(key=>state.selected[key]);
+      const qty=selectedKeys.reduce((sum,key)=>sum+Number(state.selectedQty[key]||1),0);
+      const countEl=document.getElementById("barcodeSelectedText");
+      const statusEl=document.getElementById("barcodeStatus");
+      const recentEl=document.getElementById("barcodeRecent");
+      if(countEl)countEl.textContent=`已掃描選取 ${qty} 支`;
+      if(statusEl&&!state.barcodeRecent.length){
+        statusEl.className="barcode-status";
+        statusEl.textContent="等待掃描。系統不會接受未進 Grinding、已入框、已 DCYL、已轉 HT 或不存在的 CTN。"
+      }else if(statusEl&&state.barcodeRecent.length){
+        const last=state.barcodeRecent[0];
+        statusEl.className=`barcode-status ${last.status||""}`;
+        statusEl.textContent=last.message
+      }
+      if(recentEl){
+        recentEl.innerHTML=(state.barcodeRecent||[]).map(item=>
+          `<span class="barcode-chip ${escapeHtml(item.status||"")}">${escapeHtml(item.ctn)}｜${escapeHtml(item.status==="ok"?"已選":item.status==="warn"?"重複":"拒絕")}</span>`
+        ).join("")
+      }
+    }
+    function updateAssetSelectionDom_(assetKey,selected){
+      document.querySelectorAll('.asset-item[data-asset-key]').forEach(card=>{
+        if(card.getAttribute('data-asset-key')!==assetKey)return;
+        card.classList.toggle('selected',!!selected);
+        const checkbox=card.querySelector('[data-asset-checkbox]');
+        if(checkbox)checkbox.checked=!!selected
+      })
+    }
+    function findGrindingBottleByCtn_(ctn){
+      const list=state.wip&&Array.isArray(state.wip.grindingAssets)?state.wip.grindingAssets:[];
+      return list.find(asset=>
+        String(asset.trackingType||"").toUpperCase()==="BOTTLE"&&
+        normalizeCtn(asset.assetCtn||"")===ctn
+      )||null
+    }
+    function describeRejectedBarcode_(ctn){
+      const waitList=state.wip&&Array.isArray(state.wip.waitSandblastAssets)?state.wip.waitSandblastAssets:[];
+      const waiting=waitList.find(asset=>normalizeCtn(asset.assetCtn||"")===ctn);
+      if(waiting)return `CTN ${ctn} 已離開 Grinding，現在是入框待噴砂，不可再次從 Grinding 扣除。`;
+      const history=state.wip&&Array.isArray(state.wip.dispositions)?state.wip.dispositions:[];
+      const disposed=history.find(asset=>normalizeCtn(asset.assetCtn||"")===ctn);
+      if(disposed){
+        const status=String(disposed.lifecycleStatus||disposed.stationStatus||"").toUpperCase();
+        return `CTN ${ctn} 已離開 Grinding，目前狀態為 ${statusLabel(status)}。`
+      }
+      return `CTN ${ctn} 不在目前 Grinding 散支 WIP，已拒絕選取；不會建立新帳，也不會直接入框、DCYL 或轉 HT。`
+    }
+    async function scanGrindingWipBarcode(){
+      if(!ensureClientWriteAllowed())return;
+      const input=document.getElementById("wipBarcodeInput");
+      const ctn=normalizeCtn(input&&input.value||"");
+      if(input)input.value="";
+      if(!CTN_RE.test(ctn)){
+        pushBarcodeRecent_(ctn||"格式錯誤","bad","Barcoder CTN 格式錯誤，需為 7 碼。未寫入任何資料。");
+        if(navigator.vibrate)navigator.vibrate([80,40,80]);
+        focusWipBarcode();
+        return
+      }
+
+      let asset=findGrindingBottleByCtn_(ctn);
+      if(!asset&&Date.now()-Number(state.lastBootstrapAt||0)>15000&&!state.refreshing){
+        await checkRemoteRevision(true);
+        asset=findGrindingBottleByCtn_(ctn)
+      }
+
+      if(!asset){
+        pushBarcodeRecent_(ctn,"bad",describeRejectedBarcode_(ctn));
+        if(navigator.vibrate)navigator.vibrate([100,50,100]);
+        focusWipBarcode();
+        return
+      }
+      if(state.selected[asset.assetKey]){
+        state.barcodeSelected[asset.assetKey]=true;
+        pushBarcodeRecent_(ctn,"warn",`CTN ${ctn} 已經選取，不會重複計數。`);
+        if(navigator.vibrate)navigator.vibrate(70);
+        focusWipBarcode();
+        return
+      }
+
+      state.selected[asset.assetKey]=true;
+      state.selectedQty[asset.assetKey]=1;
+      state.barcodeSelected[asset.assetKey]=true;
+      updateAssetSelectionDom_(asset.assetKey,true);
+      renderSticky();
+      pushBarcodeRecent_(ctn,"ok",`CTN ${ctn} 已從目前 Grinding WIP 比對成功並加入選取。尚未改帳，請再選擇待噴砂、DCYL 或轉 HT。`);
+      if(navigator.vibrate)navigator.vibrate(35);
+      focusWipBarcode()
+    }
+    function clearBarcodeSelections(){
+      Object.keys(state.barcodeSelected||{}).forEach(key=>{
+        delete state.selected[key];
+        delete state.selectedQty[key];
+        updateAssetSelectionDom_(key,false)
+      });
+      state.barcodeSelected={};
+      state.barcodeRecent=[];
+      renderSticky();
+      renderBarcodeScanner();
+      focusWipBarcode()
     }
     function selectedItems(){
       const assets=state.wip&&state.wip.grindingAssets||[];return Object.keys(state.selected).map(key=>{const a=assets.find(x=>x.assetKey===key);if(!a)return null;return {asset_key:key,qty:Number(state.selectedQty[key]||a.qty||1),expected_version:Number(a.stateVersion||0)}}).filter(Boolean)
@@ -906,6 +1206,7 @@
     }
 
     async function submitDisposition(action,extra){
+      if(!ensureClientWriteAllowed())return;
       if(state.dispositionBusy)return;
       syncMetaFromInputs();
 
@@ -931,6 +1232,8 @@
         wip:safeClone(state.wip),
         selected:safeClone(state.selected),
         selectedQty:safeClone(state.selectedQty),
+        barcodeSelected:safeClone(state.barcodeSelected),
+        barcodeRecent:safeClone(state.barcodeRecent),
         revision:state.revision
       };
 
@@ -943,6 +1246,8 @@
         state.pendingDisposition=null;
         state.selected={};
         state.selectedQty={};
+        state.barcodeSelected={};
+        state.barcodeRecent=[];
 
         if(r.current_summary||r.daily_summary){
           state.summary={
@@ -967,6 +1272,8 @@
         state.wip=snapshot.wip;
         state.selected=snapshot.selected;
         state.selectedQty=snapshot.selectedQty;
+        state.barcodeSelected=snapshot.barcodeSelected;
+        state.barcodeRecent=snapshot.barcodeRecent;
         state.revision=snapshot.revision;
         renderSummary();
         renderWip();
