@@ -221,15 +221,15 @@
     <section id="panelWip" class="panel">
       <section class="card barcode-card">
         <div class="row between">
-          <div class="section-title">Barcoder 快速選取</div>
+          <div class="section-title">Barcoder WIP 快速選取</div>
           <span id="barcodeSelectedText" class="muted">已掃描選取 0 支</span>
         </div>
-        <div class="muted">只比對「已進入 Grinding、目前仍在 Grinding」的散支鋼瓶 CTN。掃描只會選取，不會先改帳；按下待噴砂、DCYL 或轉 HT 後，後端才會從 Grinding WIP 扣除。</div>
+        <div class="muted">只比對「已進入 Grinding、目前仍在 Grinding」的 WIP CTN，散支鋼瓶 CTN 與集束 CTN 都可掃描。掃描只會選取，不會先改帳；按下待噴砂、DCYL 或轉 HT 後，後端才會從 Grinding WIP 扣除。</div>
         <div class="scan-grid">
-          <input id="wipBarcodeInput" class="input" maxlength="7" autocomplete="off" autocapitalize="characters" placeholder="掃描 Grinding 內鋼瓶 CTN">
+          <input id="wipBarcodeInput" class="input" maxlength="7" autocomplete="off" autocapitalize="characters" placeholder="掃描 Grinding WIP CTN（散支／集束）">
           <button id="wipBarcodeBtn" class="btn cyan" onclick="scanGrindingWipBarcode()">掃描選取</button>
         </div>
-        <div id="barcodeStatus" class="barcode-status">等待掃描。系統不會接受未進 Grinding、已入框、已 DCYL、已轉 HT 或不存在的 CTN。</div>
+        <div id="barcodeStatus" class="barcode-status">等待掃描。可掃描目前 Grinding WIP 內的散支鋼瓶 CTN 或集束 CTN；未進站、已入框、已 DCYL、已轉 HT 或不存在的 CTN 都會拒絕。</div>
         <div id="barcodeRecent" class="barcode-recent"></div>
         <div class="barcode-actions">
           <button class="btn ghost" onclick="clearBarcodeSelections()">清除掃描選取</button>
@@ -959,7 +959,7 @@
       if(countEl)countEl.textContent=`已掃描選取 ${qty} 支`;
       if(statusEl&&!state.barcodeRecent.length){
         statusEl.className="barcode-status";
-        statusEl.textContent="等待掃描。系統不會接受未進 Grinding、已入框、已 DCYL、已轉 HT 或不存在的 CTN。"
+        statusEl.textContent="等待掃描。可掃描目前 Grinding WIP 內的散支鋼瓶 CTN 或集束 CTN；未進站、已入框、已 DCYL、已轉 HT 或不存在的 CTN 都會拒絕。"
       }else if(statusEl&&state.barcodeRecent.length){
         const last=state.barcodeRecent[0];
         statusEl.className=`barcode-status ${last.status||""}`;
@@ -979,24 +979,28 @@
         if(checkbox)checkbox.checked=!!selected
       })
     }
-    function findGrindingBottleByCtn_(ctn){
+    function getGrindingAssetBarcodeCtn_(asset){
+      const type=String(asset&&asset.trackingType||"").toUpperCase();
+      if(type==="BOTTLE")return normalizeCtn(asset.assetCtn||"");
+      if(type==="BUNDLE_LOT")return normalizeCtn(asset.sourceCtn||asset.assetCtn||"");
+      return normalizeCtn(asset&&asset.assetCtn||asset&&asset.sourceCtn||"")
+    }
+    function findGrindingAssetsByCtn_(ctn){
       const list=state.wip&&Array.isArray(state.wip.grindingAssets)?state.wip.grindingAssets:[];
-      return list.find(asset=>
-        String(asset.trackingType||"").toUpperCase()==="BOTTLE"&&
-        normalizeCtn(asset.assetCtn||"")===ctn
-      )||null
+      return list.filter(asset=>getGrindingAssetBarcodeCtn_(asset)===ctn)
+    }
+    function findAssetByCtnInList_(list,ctn){
+      return (Array.isArray(list)?list:[]).find(asset=>getGrindingAssetBarcodeCtn_(asset)===ctn)||null
     }
     function describeRejectedBarcode_(ctn){
-      const waitList=state.wip&&Array.isArray(state.wip.waitSandblastAssets)?state.wip.waitSandblastAssets:[];
-      const waiting=waitList.find(asset=>normalizeCtn(asset.assetCtn||"")===ctn);
+      const waiting=findAssetByCtnInList_(state.wip&&state.wip.waitSandblastAssets,ctn);
       if(waiting)return `CTN ${ctn} 已離開 Grinding，現在是入框待噴砂，不可再次從 Grinding 扣除。`;
-      const history=state.wip&&Array.isArray(state.wip.dispositions)?state.wip.dispositions:[];
-      const disposed=history.find(asset=>normalizeCtn(asset.assetCtn||"")===ctn);
+      const disposed=findAssetByCtnInList_(state.wip&&state.wip.dispositions,ctn);
       if(disposed){
         const status=String(disposed.lifecycleStatus||disposed.stationStatus||"").toUpperCase();
         return `CTN ${ctn} 已離開 Grinding，目前狀態為 ${statusLabel(status)}。`
       }
-      return `CTN ${ctn} 不在目前 Grinding 散支 WIP，已拒絕選取；不會建立新帳，也不會直接入框、DCYL 或轉 HT。`
+      return `CTN ${ctn} 不在目前 Grinding WIP，已拒絕選取；不會建立新帳，也不會直接入框、DCYL 或轉 HT。`
     }
     async function scanGrindingWipBarcode(){
       if(!ensureClientWriteAllowed())return;
@@ -1010,32 +1014,42 @@
         return
       }
 
-      let asset=findGrindingBottleByCtn_(ctn);
-      if(!asset&&Date.now()-Number(state.lastBootstrapAt||0)>15000&&!state.refreshing){
+      let assets=findGrindingAssetsByCtn_(ctn);
+      if(!assets.length&&Date.now()-Number(state.lastBootstrapAt||0)>15000&&!state.refreshing){
         await checkRemoteRevision(true);
-        asset=findGrindingBottleByCtn_(ctn)
+        assets=findGrindingAssetsByCtn_(ctn)
       }
 
-      if(!asset){
+      if(!assets.length){
         pushBarcodeRecent_(ctn,"bad",describeRejectedBarcode_(ctn));
         if(navigator.vibrate)navigator.vibrate([100,50,100]);
         focusWipBarcode();
         return
       }
-      if(state.selected[asset.assetKey]){
-        state.barcodeSelected[asset.assetKey]=true;
+
+      const unselected=assets.filter(asset=>!state.selected[asset.assetKey]);
+      if(!unselected.length){
+        assets.forEach(asset=>{state.barcodeSelected[asset.assetKey]=true});
         pushBarcodeRecent_(ctn,"warn",`CTN ${ctn} 已經選取，不會重複計數。`);
         if(navigator.vibrate)navigator.vibrate(70);
         focusWipBarcode();
         return
       }
 
-      state.selected[asset.assetKey]=true;
-      state.selectedQty[asset.assetKey]=1;
-      state.barcodeSelected[asset.assetKey]=true;
-      updateAssetSelectionDom_(asset.assetKey,true);
+      unselected.forEach(asset=>{
+        state.selected[asset.assetKey]=true;
+        state.selectedQty[asset.assetKey]=Number(asset.qty||1);
+        state.barcodeSelected[asset.assetKey]=true;
+        updateAssetSelectionDom_(asset.assetKey,true)
+      });
+      renderWipAssets();
       renderSticky();
-      pushBarcodeRecent_(ctn,"ok",`CTN ${ctn} 已從目前 Grinding WIP 比對成功並加入選取。尚未改帳，請再選擇待噴砂、DCYL 或轉 HT。`);
+
+      const selectedQty=unselected.reduce((sum,asset)=>sum+Number(asset.qty||1),0);
+      const hasBundle=unselected.some(asset=>String(asset.trackingType||"").toUpperCase()==="BUNDLE_LOT");
+      const typeText=hasBundle?"集束 WIP":"散支鋼瓶";
+      const segmentText=unselected.length>1?`（${unselected.length} 筆在製片段）`:"";
+      pushBarcodeRecent_(ctn,"ok",`CTN ${ctn} 已從目前 Grinding ${typeText}${segmentText}比對成功，共選取 ${selectedQty} 支。尚未改帳，請再選擇待噴砂、DCYL 或轉 HT。`);
       if(navigator.vibrate)navigator.vibrate(35);
       focusWipBarcode()
     }
