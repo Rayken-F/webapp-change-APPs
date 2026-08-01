@@ -1,11 +1,30 @@
-// Grinding WIP BETA v1.6｜前端 API（路由不變）
+// Grinding WIP BETA v1.8｜Barcoder＋低負載同步＋後端版本鎖
 const BETA_API_URL = "https://script.google.com/macros/s/AKfycbw3Xg0ev3zoTO-WFfe7sTIUlr6wF4P-qAgZEZUF3uUhioT63bQYT-9QRgZqLU0IhB6G/exec";
 const BETA_API_TOKEN = "-M-yiaurzifieaJyYS4838MCYiuDh4wB";
+const BETA_CLIENT_VERSION = "BETA_GRINDING_WIP_V1_8_BARCODER_LOW_LOAD_SYNC_20260801";
 
 function isBetaApiConfigured() {
   return /^https:\/\/script\.google\.com\/macros\/s\/.+\/exec$/.test(
     String(BETA_API_URL || "").trim()
   );
+}
+
+function emitBetaClientUpdateRequired(data) {
+  try {
+    window.dispatchEvent(new CustomEvent("beta-client-update-required", {
+      detail: {
+        code: "CLIENT_UPDATE_REQUIRED",
+        message: data && data.message ? data.message : "Grinding WIP 版本已更新。",
+        receivedClientVersion: data && data.receivedClientVersion
+          ? data.receivedClientVersion
+          : BETA_CLIENT_VERSION,
+        requiredClientVersion: data && data.requiredClientVersion
+          ? data.requiredClientVersion
+          : "",
+        updateUrl: data && data.updateUrl ? data.updateUrl : ""
+      }
+    }));
+  } catch (ignore) {}
 }
 
 async function parseBetaApiJsonResponse(response) {
@@ -16,8 +35,25 @@ async function parseBetaApiJsonResponse(response) {
   } catch (err) {
     throw new Error("BETA API 回傳格式錯誤");
   }
+
   if (!response.ok || !data || data.ok !== true) {
-    throw new Error(data && data.message ? data.message : "BETA API 請求失敗");
+    if (data && data.code === "CLIENT_UPDATE_REQUIRED") {
+      emitBetaClientUpdateRequired(data);
+    }
+    const error = new Error(
+      data && data.message ? data.message : "BETA API 請求失敗"
+    );
+    error.code = data && data.code ? String(data.code) : "";
+    error.requiredClientVersion =
+      data && data.requiredClientVersion
+        ? String(data.requiredClientVersion)
+        : "";
+    error.receivedClientVersion =
+      data && data.receivedClientVersion
+        ? String(data.receivedClientVersion)
+        : "";
+    error.updateUrl = data && data.updateUrl ? String(data.updateUrl) : "";
+    throw error;
   }
   return data;
 }
@@ -26,7 +62,9 @@ async function betaGetApi(api, params) {
   if (!isBetaApiConfigured()) throw new Error("尚未設定 BETA_API_URL");
   const query = new URLSearchParams(Object.assign({}, params || {}, {
     api: api,
-    token: BETA_API_TOKEN
+    token: BETA_API_TOKEN,
+    client_version: BETA_CLIENT_VERSION,
+    request_nonce: String(Date.now())
   }));
   const response = await fetch(`${BETA_API_URL}?${query.toString()}`, {
     method: "GET",
@@ -39,7 +77,8 @@ async function betaPostApi(api, payload) {
   if (!isBetaApiConfigured()) throw new Error("尚未設定 BETA_API_URL");
   const requestBody = Object.assign({}, payload || {}, {
     api: api,
-    token: BETA_API_TOKEN
+    token: BETA_API_TOKEN,
+    client_version: BETA_CLIENT_VERSION
   });
   const response = await fetch(BETA_API_URL, {
     method: "POST",
@@ -100,7 +139,6 @@ async function submitBetaGrindingDisposition(payload) {
   return betaPostApi("grinding_disposition", payload);
 }
 
-// 保留舊 Stage 3 API，方便必要時回查既有測試資料。
 async function fetchBetaCtnLookup(ctn) {
   return betaGetApi("ctn_lookup", {
     ctn: String(ctn || "").trim().toUpperCase()
