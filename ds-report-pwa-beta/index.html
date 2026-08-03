@@ -61,7 +61,9 @@
     .date-shell{position:relative;min-height:48px;border-radius:14px;overflow:hidden}
     .date-display{min-height:48px;display:flex;align-items:center;padding:11px 40px 11px 13px;border:1px solid rgba(255,255,255,.16);border-radius:14px;background:rgba(255,255,255,.09);font-weight:800}
     .date-shell:after{content:"▾";position:absolute;right:14px;top:50%;transform:translateY(-50%);pointer-events:none}
-    #reportDate{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer}
+    .date-shell input[type=date]{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;-webkit-appearance:none;appearance:none;color:transparent;background:transparent;border:0;padding:0}
+    body.modal-open{overflow:hidden;touch-action:none}
+    .history-date-shell{width:100%}
     .api-pill{padding:5px 9px;border-radius:999px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.07);font-size:11px;font-weight:900}
     .api-pill.ok{color:#c9ffdb;border-color:rgba(88,214,141,.5)}
     .api-pill.bad{color:#ffd0d8;border-color:rgba(255,113,136,.55)}
@@ -117,11 +119,15 @@
     .sticky-info{font-size:12px;color:var(--sub);font-weight:800;margin-bottom:8px}
     .action-scroll{display:flex;gap:7px;overflow-x:auto}
     .action-scroll .btn{flex:0 0 auto;min-height:42px;padding:9px 12px;font-size:12px}
-    .modal{display:none;position:fixed;inset:0;z-index:3000;background:rgba(2,6,28,.72);padding:14px;align-items:flex-end;justify-content:center;backdrop-filter:blur(7px)}
+    .modal{display:none;position:fixed;inset:0;z-index:3000;background:rgba(2,6,28,.72);padding:max(12px,env(safe-area-inset-top)) 12px max(12px,env(safe-area-inset-bottom));align-items:center;justify-content:center;backdrop-filter:blur(7px);overflow:hidden}
     .modal.show{display:flex}
-    .modal-panel{width:min(680px,100%);padding:18px 16px;border-radius:23px 23px 15px 15px;background:linear-gradient(180deg,#203278,#17134f);border:1px solid rgba(255,255,255,.24);box-shadow:0 24px 70px rgba(0,0,0,.48)}
+    .modal-panel{width:min(680px,100%);max-height:calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 24px);overflow:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;padding:18px 16px;border-radius:23px;background:linear-gradient(180deg,#203278,#17134f);border:1px solid rgba(255,255,255,.24);box-shadow:0 24px 70px rgba(0,0,0,.48)}
+    .modal-head{position:sticky;top:-18px;z-index:8;margin:-18px -16px 8px;padding:18px 16px 10px;background:linear-gradient(180deg,#203278 78%,rgba(32,50,120,.96));border-bottom:1px solid rgba(255,255,255,.08)}
     .modal-title{font-size:20px;font-weight:900;margin-bottom:8px}
     .modal-actions{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:14px}
+    .modal-actions.three{grid-template-columns:repeat(3,minmax(0,1fr))}
+    .modal-status{display:none;margin-top:10px;padding:9px 11px;border-radius:12px;background:rgba(67,198,232,.10);border:1px solid rgba(67,198,232,.30);color:#d7f8ff;font-size:12px;font-weight:800}
+    .modal-status.show{display:block}
     .check-line{display:flex;align-items:center;gap:10px;margin-top:12px;color:var(--sub);font-weight:800}
     .check-line input{width:21px;height:21px;accent-color:#7767ff}
     .toast{position:fixed;top:18px;left:50%;z-index:5000;transform:translate(-50%,-20px);width:min(420px,calc(100vw - 24px));padding:12px 14px;border-radius:16px;background:rgba(13,25,76,.97);border:1px solid rgba(89,210,230,.46);box-shadow:0 18px 48px rgba(0,0,0,.4);opacity:0;pointer-events:none;transition:.2s}
@@ -144,6 +150,11 @@
     .barcode-actions .btn{min-height:38px;padding:7px 10px;font-size:11px}
     @media(max-width:620px){
       body{padding:13px 9px 112px}.card{padding:15px 12px;border-radius:19px}.meta-grid,.data-grid{grid-template-columns:1fr}.summary-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.scan-grid{grid-template-columns:1fr}.scan-grid .btn{width:100%}.asset-item{grid-template-columns:auto minmax(0,1fr)}.asset-item .qty-input{grid-column:2;width:100%}.metric .v{font-size:18px}
+      .modal{align-items:stretch;padding:max(8px,env(safe-area-inset-top)) 8px max(8px,env(safe-area-inset-bottom))}
+      .modal-panel{max-height:calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 16px);border-radius:20px;padding:16px 12px}
+      .modal-head{top:-16px;margin:-16px -12px 8px;padding:16px 12px 10px}
+      .modal-actions.three{gap:7px}.modal-actions.three .btn{padding:9px 7px;font-size:12px;min-width:0}
+      #historyTimeline{max-height:none!important}
     }
   </style>
 </head>
@@ -153,7 +164,7 @@
     <div class="subtitle">研磨站批次入站・在製追蹤・入框待噴砂｜BETA</div>
 
     <section class="banner">
-      v2.0 支援待噴砂框內容回修、Grinding 歷史查詢與 Barcoder 快速選取；操作日期每次開啟自動更新為當天，所有寫入只進 BETA 隔離表。
+      v2.0.2 支援待噴砂框退回 Grinding／轉 DCYL／轉 HT、低阻塞寫入與手機日期視窗修正；操作日期每次開啟自動更新為當天，所有寫入只進 BETA 隔離表。
     </section>
 
     <section class="card">
@@ -299,7 +310,7 @@
 
   <div id="frameEditModal" class="modal">
     <div class="modal-panel">
-      <div class="row between">
+      <div class="row between modal-head">
         <div>
           <div id="frameEditTitle" class="modal-title">待噴砂框</div>
           <div id="frameEditSummary" class="muted">讀取中…</div>
@@ -308,16 +319,18 @@
       </div>
       <div class="warning-box">框內內容一旦變更，原本「完成此框」確認會失效，必須重新完成此框後才能送往噴砂。</div>
       <div id="frameEditList" class="asset-list" style="max-height:48vh;overflow:auto"></div>
-      <div class="modal-actions">
+      <div id="frameEditStatus" class="modal-status"></div>
+      <div class="modal-actions three">
         <button id="frameReturnBtn" class="btn secondary" onclick="submitFrameEdit('FRAME_ITEM_RETURN_GRINDING')">退回 Grinding</button>
         <button id="frameDcylBtn" class="btn danger" onclick="submitFrameEdit('FRAME_ITEM_DCYL')">轉 DCYL</button>
+        <button id="frameHtBtn" class="btn warning" onclick="submitFrameEdit('FRAME_ITEM_HT')">轉 HT</button>
       </div>
     </div>
   </div>
 
   <div id="historyModal" class="modal">
     <div class="modal-panel">
-      <div class="row between">
+      <div class="row between modal-head">
         <div class="modal-title">Grinding 歷史紀錄</div>
         <button class="btn ghost" style="min-height:36px;padding:7px 10px" onclick="closeHistoryModal()">關閉</button>
       </div>
@@ -334,8 +347,8 @@
           <option value="SANDBLAST">送噴砂</option>
         </select></div>
         <div class="field"><label>搜尋 CTN／框架／批次</label><input id="historyQuery" class="input" placeholder="輸入關鍵字"></div>
-        <div class="field"><label>開始日期</label><input id="historyStartDate" class="input" type="date"></div>
-        <div class="field"><label>結束日期</label><input id="historyEndDate" class="input" type="date"></div>
+        <div class="field"><label>開始日期</label><div class="date-shell history-date-shell"><div id="historyStartDisplay" class="date-display"></div><input id="historyStartDate" type="date" aria-label="歷史開始日期"></div></div>
+        <div class="field"><label>結束日期</label><div class="date-shell history-date-shell"><div id="historyEndDisplay" class="date-display"></div><input id="historyEndDate" type="date" aria-label="歷史結束日期"></div></div>
         <div class="field"><label>操作人員</label><input id="historyOperator" class="input" placeholder="全部人員"></div>
       </div>
       <button class="btn cyan full" style="margin-top:11px" onclick="loadHistory(true)">查詢</button>
@@ -519,9 +532,20 @@
       state.operator=String(document.getElementById("operatorName").value||"").trim();
       updateDateDisplay();saveState()
     }
+    function formatYmdDisplay(v){
+      const m=String(v||"").match(/^(\d{4})-(\d{2})-(\d{2})$/);
+      return m?`${m[1]}年${Number(m[2])}月${Number(m[3])}日`:"選擇日期"
+    }
     function updateDateDisplay(){
-      const v=state.reportDate||localYmd();const m=v.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-      document.getElementById("dateDisplay").textContent=m?`${m[1]}年${Number(m[2])}月${Number(m[3])}日`:"選擇日期"
+      document.getElementById("dateDisplay").textContent=formatYmdDisplay(state.reportDate||localYmd())
+    }
+    function updateHistoryDateDisplays(){
+      const start=document.getElementById("historyStartDate");
+      const end=document.getElementById("historyEndDate");
+      const startDisplay=document.getElementById("historyStartDisplay");
+      const endDisplay=document.getElementById("historyEndDisplay");
+      if(startDisplay)startDisplay.textContent=formatYmdDisplay(start&&start.value||"");
+      if(endDisplay)endDisplay.textContent=formatYmdDisplay(end&&end.value||"")
     }
     function isClientVersionCurrent(requiredVersion){
       const required=String(requiredVersion||"").trim();
@@ -638,6 +662,22 @@
           e.preventDefault();
           scanGrindingWipBarcode()
         }
+      });
+      ["historyStartDate","historyEndDate"].forEach(id=>{
+        const input=document.getElementById(id);
+        if(input)input.addEventListener("change",updateHistoryDateDisplays)
+      });
+      ["frameEditModal","historyModal"].forEach(id=>{
+        const modal=document.getElementById(id);
+        if(modal)modal.addEventListener("click",event=>{
+          if(event.target!==modal)return;
+          if(id==="frameEditModal")closeFrameEditModal();else closeHistoryModal()
+        })
+      });
+      document.addEventListener("keydown",event=>{
+        if(event.key!=="Escape")return;
+        if(document.getElementById("frameEditModal").classList.contains("show"))closeFrameEditModal();
+        else if(document.getElementById("historyModal").classList.contains("show"))closeHistoryModal()
       });
 
       setupGrindingSync();
@@ -1022,7 +1062,10 @@
         `確認 ${state.sources.length} 個來源、共 ${total} 支進入 Grinding？`
       ))return;
 
-      setLoading(true,"Grinding 批次入站驗證與寫入中…");
+      const submitButton=document.getElementById("checkInSubmitBtn");
+      const originalSubmitText=submitButton?submitButton.textContent:"確認整批進入 Grinding";
+      if(submitButton){submitButton.disabled=true;submitButton.textContent="批次寫入中…"}
+      showToast("已送出，後台寫入中；畫面不會被鎖住");
       const submitStartedAt=performance.now();
 
       const checkInPayload={
@@ -1060,7 +1103,6 @@
         saveState();
         renderCheckIn();
         switchTab("wip");
-        setLoading(false);
         broadcastRevision(state.revision);
 
         const timingText=serverSeconds>0
@@ -1073,11 +1115,12 @@
             :"";
         showToast((r.message||"Grinding 入站完成")+timingText+validationText);
 
-        refreshAll(false)
+        setTimeout(()=>refreshAll(false),250)
       }catch(err){
         markPendingSubmission("checkin",checkInPayload,"failed_or_unknown");
-        showToast(err.message||"Grinding 入站失敗；已保留 submission_id 與送出草稿供安全重試",true);
-        setLoading(false)
+        showToast(err.message||"Grinding 入站失敗；已保留 submission_id 與送出草稿供安全重試",true)
+      }finally{
+        if(submitButton){submitButton.disabled=false;submitButton.textContent=originalSubmitText}
       }
     }
     function setWipFilter(filter){state.wipFilter=filter;document.querySelectorAll(".filter-btn").forEach(b=>b.classList.toggle("active",b.dataset.filter===filter));renderWipAssets()}
@@ -1495,7 +1538,7 @@
       document.getElementById("frameEditTitle").textContent=`待噴砂框｜${frameCtn}`;
       document.getElementById("frameEditSummary").textContent="正在讀取框內目前內容…";
       document.getElementById("frameEditList").innerHTML='<div class="empty">讀取中…</div>';
-      document.getElementById("frameEditModal").classList.add("show");
+      document.getElementById("frameEditModal").classList.add("show");document.body.classList.add("modal-open");
       try{
         const r=await fetchBetaWipFrameDetail(frameCtn);
         if(!r.found)throw new Error(r.message||"找不到框架");
@@ -1510,7 +1553,7 @@
         document.getElementById("frameEditList").innerHTML='<div class="error-box">'+escapeHtml(err.message||"讀取失敗")+'</div>'
       }
     }
-    function closeFrameEditModal(){document.getElementById("frameEditModal").classList.remove("show")}
+    function closeFrameEditModal(){document.getElementById("frameEditModal").classList.remove("show");document.body.classList.remove("modal-open");setFrameEditBusy(false,"")}
     function renderFrameEditor(){
       const data=state.frameEditor;if(!data)return;
       const f=data.frame||{};const assets=data.assets||[];
@@ -1522,7 +1565,15 @@
       }).join(""):'<div class="empty">此框目前沒有可回修項目。</div>';
       const disabled=!data.editable||!assets.length;
       document.getElementById("frameReturnBtn").disabled=disabled;
-      document.getElementById("frameDcylBtn").disabled=disabled
+      document.getElementById("frameDcylBtn").disabled=disabled;
+      document.getElementById("frameHtBtn").disabled=disabled
+    }
+    function setFrameEditBusy(busy,message){
+      ["frameReturnBtn","frameDcylBtn","frameHtBtn"].forEach(id=>{
+        const button=document.getElementById(id);if(button)button.disabled=!!busy
+      });
+      const status=document.getElementById("frameEditStatus");
+      if(status){status.textContent=message||"";status.classList.toggle("show",!!busy)}
     }
     function toggleFrameEditAsset(key,checked){state.frameEditSelected[key]=checked;renderFrameEditor()}
     function setFrameEditQty(key,value){
@@ -1544,39 +1595,83 @@
       if(!state.operator){showToast("請先輸入操作人員",true);return}
       const items=selectedFrameEditItems();if(!items.length){showToast("請先選擇框內項目",true);return}
       const qty=items.reduce((n,i)=>n+Number(i.qty||0),0);
-      const label=action==="FRAME_ITEM_RETURN_GRINDING"?"退回 Grinding":"轉 DCYL";
+      const labels={
+        FRAME_ITEM_RETURN_GRINDING:"退回 Grinding",
+        FRAME_ITEM_DCYL:"轉 DCYL",
+        FRAME_ITEM_HT:"轉 HT"
+      };
+      const label=labels[action]||action;
       if(!confirm(`確認將 ${qty} 支從 ${state.frameEditor.frame.frameCtn} 執行「${label}」？框架完成確認將失效。`))return;
-      setLoading(true,"待噴砂框內容回修中…");
+
+      const body={
+        submission_id:makeSubmissionId("GRDFRM"),report_date:state.reportDate,
+        operator:state.operator,client_version:CLIENT_VERSION,
+        base_revision:Number(state.revision||0),
+        expected_frame_version:Number(state.frameEditor.frame.stateVersion||0),
+        frame_ctn:state.frameEditor.frame.frameCtn,
+        action,items,note:label
+      };
+      const startedAt=performance.now();
+      setFrameEditBusy(true,`${label}寫入中，畫面不會被鎖住…`);
+
       try{
-        const body={
-          submission_id:makeSubmissionId("GRDFRM"),report_date:state.reportDate,
-          operator:state.operator,client_version:CLIENT_VERSION,
-          base_revision:Number(state.revision||0),frame_ctn:state.frameEditor.frame.frameCtn,
-          action,items,note:label
-        };
         const r=await submitBetaGrindingFrameEdit(body);
-        closeFrameEditModal();
         state.revision=Number(r.revision||state.revision||0);
-        showToast(r.message||"框內回修完成");
-        await refreshAll(false)
-      }catch(err){showToast(err.message||"框內回修失敗",true)}finally{setLoading(false)}
+        if(r.current_summary||r.daily_summary){
+          state.summary={
+            current:r.current_summary||state.summary.current||{},
+            daily:r.daily_summary||state.summary.daily||{}
+          };
+          renderSummary()
+        }
+
+        const frameCtn=state.frameEditor.frame.frameCtn;
+        const frames=state.wip&&Array.isArray(state.wip.frames)?state.wip.frames:[];
+        const target=frames.find(frame=>frame.frameCtn===frameCtn);
+        if(target&&r.frame){
+          target.actualQty=Number(r.frame.actualQty||0);
+          target.status=String(r.frame.status||target.status||"");
+          target.stateVersion=Number(r.frame.stateVersion||target.stateVersion||0)
+        }
+        if(r.frame&&Number(r.frame.actualQty||0)<=0){
+          state.wip.frames=frames.filter(frame=>frame.frameCtn!==frameCtn)
+        }
+
+        closeFrameEditModal();
+        renderFrames();
+        broadcastRevision(state.revision);
+        console.info("Grinding frame edit timing",r.timing||{});
+        const seconds=(performance.now()-startedAt)/1000;
+        const serverSeconds=Number(r.server_elapsed_ms||0)/1000;
+        const timing=serverSeconds>0
+          ?`｜${seconds.toFixed(1)}秒（後端${serverSeconds.toFixed(1)}秒）`
+          :`｜${seconds.toFixed(1)}秒`;
+        showToast((r.message||"框內回修完成")+timing);
+
+        setTimeout(()=>refreshAll(false),250)
+      }catch(err){
+        setFrameEditBusy(false,"");
+        showToast(err.message||"框內回修失敗",true)
+      }
     }
 
     function historyYmdDaysAgo(days){const d=new Date();d.setDate(d.getDate()-Math.max(0,Number(days||0)));return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`}
     function openHistoryModal(){
       document.getElementById("historyModal").classList.add("show");
+      document.body.classList.add("modal-open");
       setHistoryDays(state.historyDays||7)
     }
-    function closeHistoryModal(){document.getElementById("historyModal").classList.remove("show")}
+    function closeHistoryModal(){document.getElementById("historyModal").classList.remove("show");document.body.classList.remove("modal-open")}
     function setHistoryDays(days){
       state.historyDays=Number(days||7);
       document.querySelectorAll("[data-history-days]").forEach(b=>b.classList.toggle("active",Number(b.dataset.historyDays)===state.historyDays));
       document.getElementById("historyStartDate").value=historyYmdDaysAgo(state.historyDays-1);
       document.getElementById("historyEndDate").value=localYmd();
+      updateHistoryDateDisplays();
       loadHistory(true)
     }
     function historyActionLabel(action){
-      const map={GRINDING_CHECK_IN:"進入 Grinding",LOAD_TO_FRAME:"入框",FRAME_READY_SANDBLAST:"完成待噴砂框",FRAME_CONTENT_CHANGED:"框內內容變更",FRAME_ITEM_RETURN_GRINDING:"退回 Grinding",DCYL:"DCYL",FRAME_ITEM_DCYL:"框內轉 DCYL",TRANSFER_HT:"轉 HT",HYDROTEST_MIGRATED_TO_HT:"舊水壓轉 HT",RELEASE_TO_SANDBLAST:"送往噴砂"};
+      const map={GRINDING_CHECK_IN:"進入 Grinding",LOAD_TO_FRAME:"入框",FRAME_READY_SANDBLAST:"完成待噴砂框",FRAME_CONTENT_CHANGED:"框內內容變更",FRAME_ITEM_RETURN_GRINDING:"退回 Grinding",DCYL:"DCYL",FRAME_ITEM_DCYL:"框內轉 DCYL",FRAME_ITEM_HT:"框內轉 HT",TRANSFER_HT:"轉 HT",HYDROTEST_MIGRATED_TO_HT:"舊水壓轉 HT",RELEASE_TO_SANDBLAST:"送往噴砂"};
       return map[action]||action||"-"
     }
     function renderHistoryTimeline(){
