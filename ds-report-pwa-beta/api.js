@@ -1,7 +1,7 @@
-// Grinding WIP BETA v2.0｜待噴砂框回修＋歷史查詢＋後端版本鎖
+// Grinding WIP BETA v2.0.2｜待噴砂框轉HT＋低阻塞寫入＋手機日期修正
 const BETA_API_URL = "https://script.google.com/macros/s/AKfycbw3Xg0ev3zoTO-WFfe7sTIUlr6wF4P-qAgZEZUF3uUhioT63bQYT-9QRgZqLU0IhB6G/exec";
 const BETA_API_TOKEN = "-M-yiaurzifieaJyYS4838MCYiuDh4wB";
-const BETA_CLIENT_VERSION = "BETA_GRINDING_WIP_V2_0_FRAME_REWORK_HISTORY_20260803";
+const BETA_CLIENT_VERSION = "BETA_GRINDING_WIP_V2_0_2_WRITE_TUNE_HT_MOBILE_MODAL_20260803";
 
 function isBetaApiConfigured() {
   return /^https:\/\/script\.google\.com\/macros\/s\/.+\/exec$/.test(
