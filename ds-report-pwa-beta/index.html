@@ -153,7 +153,7 @@
     <div class="subtitle">研磨站批次入站・在製追蹤・入框待噴砂｜BETA</div>
 
     <section class="banner">
-      本版不再提供「更換後運輸框」或「新增散支 CTN＋RT」。掃描運輸框、單支鋼瓶或集束 CTN 後，建立 Grinding 入站批次；所有寫入只進 BETA 隔離表。
+      v2.0 支援待噴砂框內容回修、Grinding 歷史查詢與 Barcoder 快速選取；操作日期每次開啟自動更新為當天，所有寫入只進 BETA 隔離表。
     </section>
 
     <section class="card">
@@ -179,7 +179,10 @@
     <section class="card">
       <div class="row between">
         <div class="section-title">Grinding 即時對帳</div>
-        <button class="btn ghost" style="min-height:36px;padding:7px 10px;font-size:12px" onclick="refreshAll(true)">重新整理</button>
+        <div class="row" style="gap:7px">
+          <button class="btn ghost" style="min-height:36px;padding:7px 10px;font-size:12px" onclick="openHistoryModal()">歷史紀錄</button>
+          <button class="btn ghost" style="min-height:36px;padding:7px 10px;font-size:12px" onclick="refreshAll(true)">重新整理</button>
+        </div>
       </div>
       <div id="summaryGrid" class="summary-grid"></div>
       <div id="dailySummary" class="muted" style="margin-top:11px"></div>
@@ -294,6 +297,53 @@
     </div>
   </div>
 
+  <div id="frameEditModal" class="modal">
+    <div class="modal-panel">
+      <div class="row between">
+        <div>
+          <div id="frameEditTitle" class="modal-title">待噴砂框</div>
+          <div id="frameEditSummary" class="muted">讀取中…</div>
+        </div>
+        <button class="btn ghost" style="min-height:36px;padding:7px 10px" onclick="closeFrameEditModal()">關閉</button>
+      </div>
+      <div class="warning-box">框內內容一旦變更，原本「完成此框」確認會失效，必須重新完成此框後才能送往噴砂。</div>
+      <div id="frameEditList" class="asset-list" style="max-height:48vh;overflow:auto"></div>
+      <div class="modal-actions">
+        <button id="frameReturnBtn" class="btn secondary" onclick="submitFrameEdit('FRAME_ITEM_RETURN_GRINDING')">退回 Grinding</button>
+        <button id="frameDcylBtn" class="btn danger" onclick="submitFrameEdit('FRAME_ITEM_DCYL')">轉 DCYL</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="historyModal" class="modal">
+    <div class="modal-panel">
+      <div class="row between">
+        <div class="modal-title">Grinding 歷史紀錄</div>
+        <button class="btn ghost" style="min-height:36px;padding:7px 10px" onclick="closeHistoryModal()">關閉</button>
+      </div>
+      <div class="toolbar" style="margin-top:8px">
+        <button class="filter-btn active" data-history-days="7" onclick="setHistoryDays(7)">7天</button>
+        <button class="filter-btn" data-history-days="30" onclick="setHistoryDays(30)">30天</button>
+        <button class="filter-btn" data-history-days="90" onclick="setHistoryDays(90)">90天</button>
+      </div>
+      <div class="meta-grid">
+        <div class="field"><label>類型</label><select id="historyType" class="select">
+          <option value="ALL">全部</option><option value="CHECK_IN">進站</option>
+          <option value="LOAD">入框／框架變更</option><option value="RETURN">退回 Grinding</option>
+          <option value="DCYL">DCYL</option><option value="HT">轉 HT</option>
+          <option value="SANDBLAST">送噴砂</option>
+        </select></div>
+        <div class="field"><label>搜尋 CTN／框架／批次</label><input id="historyQuery" class="input" placeholder="輸入關鍵字"></div>
+        <div class="field"><label>開始日期</label><input id="historyStartDate" class="input" type="date"></div>
+        <div class="field"><label>結束日期</label><input id="historyEndDate" class="input" type="date"></div>
+        <div class="field"><label>操作人員</label><input id="historyOperator" class="input" placeholder="全部人員"></div>
+      </div>
+      <button class="btn cyan full" style="margin-top:11px" onclick="loadHistory(true)">查詢</button>
+      <div id="historyTimeline" class="history-list" style="max-height:45vh;overflow:auto;margin-top:12px"></div>
+      <button id="historyMoreBtn" class="btn ghost full" style="margin-top:10px;display:none" onclick="loadHistory(false)">載入更多</button>
+    </div>
+  </div>
+
   <div id="versionLockModal" class="modal">
     <div class="modal-panel">
       <div class="modal-title">Grinding WIP 已有新版</div>
@@ -313,10 +363,13 @@
   <div id="toast" class="toast"></div>
   <div id="loadingMask" class="loading-mask"><div id="loadingText" class="loading-card">處理中…</div></div>
 
-  <script src="./api.js?v=BETA_GRINDING_WIP_V1_8_BARCODER_LOW_LOAD_SYNC_20260801"></script>
+  <script src="./api.js?v=BETA_GRINDING_WIP_V2_0_LOCALSTORAGE_SAFE_DRAFT_20260803"></script>
   <script>
     const CLIENT_VERSION = BETA_CLIENT_VERSION;
-    const STORAGE_KEY = "ds_grinding_wip_beta_v1";
+    const STORAGE_KEY = "ds_grinding_wip_beta_v2_local_draft";
+    const LEGACY_STORAGE_KEYS = ["ds_grinding_wip_beta_v1"];
+    const LOCAL_DRAFT_SCHEMA_VERSION = 2;
+    const LOCAL_DRAFT_TTL_MS = 24 * 60 * 60 * 1000;
     const CTN_RE = /^[A-Z]{2}\d{2}[A-Z]{2}[A-Z0-9]$/;
     const STATUS_LABELS = {
       WAIT_GRINDING:"待研磨",IN_PROCESS:"研磨中",COMPLETE_WAIT:"研磨完成待分流",
@@ -329,7 +382,9 @@
       pendingCheckIn:null,pendingDisposition:null,revision:0,lastServerTime:"",
       refreshing:false,dispositionBusy:false,clientWriteBlocked:false,
       requiredClientVersion:"",clientUpdateUrl:"",barcodeSelected:{},barcodeRecent:[],
-      lastBootstrapAt:0,lastHealthCheckAt:0
+      lastBootstrapAt:0,lastHealthCheckAt:0,
+      frameEditor:null,frameEditSelected:{},frameEditQty:{},
+      historyDays:7,historyOffset:0,historyHasMore:false,historyItems:[]
     };
     let toastTimer = null;
     let lookupQueue = [];
@@ -353,24 +408,103 @@
       const text=JSON.stringify(v);let h=2166136261;for(let i=0;i<text.length;i++){h^=text.charCodeAt(i);h=Math.imul(h,16777619)}return ("00000000"+(h>>>0).toString(16)).slice(-8)
     }
     function makeSubmissionId(prefix){return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2,10).toUpperCase()}`}
+    function normalizePendingLocalRecord(value){
+      if(!value||typeof value!=="object")return null;
+      const id=String(value.id||"").trim();
+      const hash=String(value.hash||"").trim();
+      if(!id||!hash)return null;
+      return {
+        id,
+        hash,
+        status:String(value.status||"prepared"),
+        createdAt:Number(value.createdAt||Date.now()),
+        updatedAt:Number(value.updatedAt||Date.now()),
+        payload:value.payload&&typeof value.payload==="object"?safeClone(value.payload):null
+      }
+    }
     function saveState(){
-      try{localStorage.setItem(STORAGE_KEY,JSON.stringify({
-        reportDate:state.reportDate,operator:state.operator,tab:state.tab,sources:state.sources,
-        activeSourceId:state.activeSourceId,pendingCheckIn:state.pendingCheckIn,pendingDisposition:state.pendingDisposition
-      }))}catch(err){console.warn(err)}
+      try{
+        localStorage.setItem(STORAGE_KEY,JSON.stringify({
+          schemaVersion:LOCAL_DRAFT_SCHEMA_VERSION,
+          savedAt:Date.now(),
+          operator:state.operator,
+          tab:state.tab,
+          sources:state.sources,
+          activeSourceId:state.activeSourceId,
+          pendingCheckIn:state.pendingCheckIn,
+          pendingDisposition:state.pendingDisposition
+        }))
+      }catch(err){console.warn("Grinding local draft save failed",err)}
+    }
+    function readLocalDraft_(){
+      const keys=[STORAGE_KEY].concat(LEGACY_STORAGE_KEYS);
+      for(const key of keys){
+        const raw=localStorage.getItem(key);
+        if(!raw)continue;
+        try{
+          const parsed=JSON.parse(raw);
+          if(parsed&&typeof parsed==="object")return {key,data:parsed}
+        }catch(err){console.warn("Grinding local draft parse failed",err)}
+      }
+      return null
     }
     function loadState(){
       try{
-        const raw=localStorage.getItem(STORAGE_KEY);if(!raw)return;const p=JSON.parse(raw);if(!p||typeof p!=="object")return;
-        state.reportDate=String(p.reportDate||"");state.operator=String(p.operator||"");state.tab=String(p.tab||"checkin");
-        state.sources=(Array.isArray(p.sources)?p.sources:[]).map(s=>{
-          const next=Object.assign({},s);
-          if(!next.lookupStatus)next.lookupStatus=next.record?"ready":"error";
-          if(next.lookupStatus==="loading"){next.lookupStatus="error";next.kind="error";next.error="上次辨識尚未完成，請移除後重新掃描"}
-          return next
-        });state.activeSourceId=String(p.activeSourceId||"");
-        state.pendingCheckIn=p.pendingCheckIn||null;state.pendingDisposition=p.pendingDisposition||null;
-      }catch(err){console.warn(err)}
+        const found=readLocalDraft_();
+        if(!found)return;
+        const p=found.data;
+        const savedAt=Number(p.savedAt||0);
+        const ageMs=savedAt>0?Date.now()-savedAt:0;
+        const hasWork=(Array.isArray(p.sources)&&p.sources.length)||p.pendingCheckIn||p.pendingDisposition;
+        let restoreWork=true;
+        if(hasWork&&savedAt>0&&ageMs>LOCAL_DRAFT_TTL_MS){
+          restoreWork=confirm("發現超過24小時的未完成 Grinding 草稿。是否載入查看？載入後仍會重新向後台驗證，不會直接送出。");
+        }
+
+        state.operator=String(p.operator||"");
+        state.tab=String(p.tab||"checkin");
+        if(restoreWork){
+          state.sources=(Array.isArray(p.sources)?p.sources:[]).map(s=>{
+            const next=Object.assign({},s);
+            const selectedMap={};
+            (Array.isArray(next.selectedBottles)?next.selectedBottles:[]).forEach(item=>{
+              const ctn=normalizeCtn(item&&item.ctn||"");
+              if(ctn)selectedMap[ctn]=item.selected!==false
+            });
+            next.restoredSelectedMap=selectedMap;
+            next.kind="pending";
+            next.lookupStatus="loading";
+            next.record=null;
+            next.lookupSnapshot=null;
+            next.error="";
+            return next
+          });
+          state.activeSourceId=String(p.activeSourceId||"");
+          state.pendingCheckIn=normalizePendingLocalRecord(p.pendingCheckIn);
+          state.pendingDisposition=normalizePendingLocalRecord(p.pendingDisposition)
+        }else{
+          state.sources=[];
+          state.activeSourceId="";
+          state.pendingCheckIn=null;
+          state.pendingDisposition=null
+        }
+
+        if(found.key!==STORAGE_KEY){
+          LEGACY_STORAGE_KEYS.forEach(key=>localStorage.removeItem(key));
+          saveState()
+        }
+      }catch(err){console.warn("Grinding local draft load failed",err)}
+    }
+    function revalidateRestoredDraftSources(){
+      const restored=state.sources.filter(source=>source&&source.lookupStatus==="loading"&&source.ctn);
+      if(!restored.length)return;
+      restored.forEach(source=>{
+        lookupQueue.push({sourceId:source.id,ctn:normalizeCtn(source.ctn)})
+      });
+      renderCheckIn();
+      showToast(`已恢復 ${restored.length} 個來源草稿，正在重新核對後台狀態`);
+      clearTimeout(lookupQueueTimer);
+      lookupQueueTimer=setTimeout(flushLookupQueue,0)
     }
     function showToast(message,bad){
       const el=document.getElementById("toast");el.textContent=message;el.classList.toggle("bad",!!bad);el.classList.add("show");
@@ -471,7 +605,7 @@
 
     function init(){
       loadState();
-      if(!state.reportDate)state.reportDate=localYmd();
+      state.reportDate=localYmd();
       document.getElementById("reportDate").value=state.reportDate;
       document.getElementById("operatorName").value=state.operator;
       updateDateDisplay();
@@ -510,7 +644,10 @@
       switchTab(state.tab||"checkin");
       renderCheckIn();
       checkHealth().then(ok=>{
-        if(ok)refreshAll(false)
+        if(ok){
+          refreshAll(false);
+          revalidateRestoredDraftSources()
+        }
       })
     }
     async function checkHealth(){
@@ -679,7 +816,6 @@
       document.getElementById("summaryGrid").innerHTML=[
         metric("Grinding 現場 WIP",`${Number(c.grinding_wip_qty||0)} 支`),
         metric("入框待噴砂",`${Number(c.wait_sandblast_qty||0)} 支／${Number(c.wait_sandblast_frame_count||0)} 框`),
-        metric("水壓中",`${Number(c.hydrotest_qty||0)} 支`),
         metric("DCYL",`${Number(c.dcyl_qty||0)} 支`),
         metric("轉 HT",`${Number(c.ht_qty||0)} 支`),
         metric("進出差額",`${diff} 支`,diff===0?"good":"bad")
@@ -795,7 +931,19 @@
             source.kind="error";source.lookupStatus="error";source.error=result.message||"此 CTN 目前不可入站";return
           }
           const record=result.record;source.kind=record.kind;source.lookupStatus="ready";source.record=safeClone(record);source.lookupSnapshot=result.lookup_snapshot?safeClone(result.lookup_snapshot):null;source.warnings=result.warnings||[];
-          if(record.kind==="transport")source.selectedBottles=(record.bottles||[]).map(b=>({ctn:normalizeCtn(b.ctn),rt:String(b.rt||""),expectedVersion:Number(b.betaStateVersion||0),selected:true}));
+          if(record.kind==="transport"){
+            const restoredMap=source.restoredSelectedMap&&typeof source.restoredSelectedMap==="object"?source.restoredSelectedMap:{};
+            source.selectedBottles=(record.bottles||[]).map(b=>{
+              const bottleCtn=normalizeCtn(b.ctn);
+              return {
+                ctn:bottleCtn,
+                rt:String(b.rt||""),
+                expectedVersion:Number(b.betaStateVersion||0),
+                selected:Object.prototype.hasOwnProperty.call(restoredMap,bottleCtn)?restoredMap[bottleCtn]:true
+              }
+            });
+            delete source.restoredSelectedMap
+          }
         });
         saveState();renderCheckIn();
       }catch(err){
@@ -824,8 +972,28 @@
       return {kind:"bottle",source_ctn:s.ctn,lookup_snapshot:snapshot,expected_version:Number(s.record.betaStateVersion||0)}
     })}
     function getPendingSubmission(kind,signature){
-      const key=kind==="checkin"?"pendingCheckIn":"pendingDisposition";const prefix=kind==="checkin"?"GRDIN":"GRDOP";
-      if(!state[key]||state[key].hash!==signature)state[key]={hash:signature,id:makeSubmissionId(prefix)};saveState();return state[key].id
+      const key=kind==="checkin"?"pendingCheckIn":"pendingDisposition";
+      const prefix=kind==="checkin"?"GRDIN":"GRDOP";
+      if(!state[key]||state[key].hash!==signature){
+        state[key]={
+          hash:signature,
+          id:makeSubmissionId(prefix),
+          status:"prepared",
+          createdAt:Date.now(),
+          updatedAt:Date.now(),
+          payload:null
+        }
+      }
+      saveState();
+      return state[key].id
+    }
+    function markPendingSubmission(kind,payload,status){
+      const key=kind==="checkin"?"pendingCheckIn":"pendingDisposition";
+      if(!state[key])return;
+      state[key].status=String(status||"prepared");
+      state[key].updatedAt=Date.now();
+      state[key].payload=payload&&typeof payload==="object"?safeClone(payload):null;
+      saveState()
     }
     async function submitCheckIn(){
       if(!ensureClientWriteAllowed())return;
@@ -857,15 +1025,18 @@
       setLoading(true,"Grinding 批次入站驗證與寫入中…");
       const submitStartedAt=performance.now();
 
+      const checkInPayload={
+        submission_id:submissionId,
+        report_date:state.reportDate,
+        operator:state.operator,
+        client_version:CLIENT_VERSION,
+        base_revision:Number(state.revision||0),
+        sources
+      };
+      markPendingSubmission("checkin",checkInPayload,"sending");
+
       try{
-        const r=await submitBetaGrindingCheckIn({
-          submission_id:submissionId,
-          report_date:state.reportDate,
-          operator:state.operator,
-          client_version:CLIENT_VERSION,
-          base_revision:Number(state.revision||0),
-          sources
-        });
+        const r=await submitBetaGrindingCheckIn(checkInPayload);
 
         const totalSeconds=(performance.now()-submitStartedAt)/1000;
         const serverSeconds=Number(r.server_elapsed_ms||0)/1000;
@@ -904,7 +1075,8 @@
 
         refreshAll(false)
       }catch(err){
-        showToast(err.message||"Grinding 入站失敗",true);
+        markPendingSubmission("checkin",checkInPayload,"failed_or_unknown");
+        showToast(err.message||"Grinding 入站失敗；已保留 submission_id 與送出草稿供安全重試",true);
         setLoading(false)
       }
     }
@@ -1086,10 +1258,16 @@
       })
     }
     function renderFrames(){
-      const list=state.wip&&state.wip.frames||[];document.getElementById("frameCountText").textContent=`${list.length} 框`;
+      const list=state.wip&&state.wip.frames||[];
+      document.getElementById("frameCountText").textContent=`${list.length} 框`;
       document.getElementById("frameList").innerHTML=list.length?list.map(f=>{
-        const pct=Math.min(100,Math.round(Number(f.actualQty||0)/Math.max(1,Number(f.capacity||18))*100));const ready=f.status==="READY_FOR_SANDBLAST";
-        return `<article class="frame-item"><div class="frame-head"><div><div class="asset-name">${escapeHtml(f.frameCtn)}</div><div class="asset-sub">${ready?"待噴砂完成":"入框中"}｜${Number(f.actualQty||0)}／${Number(f.capacity||18)} 支</div></div>${ready?`<button class="btn cyan" style="min-height:38px;padding:7px 10px;font-size:11px" onclick="releaseFrame('${escapeHtml(f.frameCtn)}')">送往噴砂</button>`:`<button class="btn success" style="min-height:38px;padding:7px 10px;font-size:11px" onclick="markFrameReady('${escapeHtml(f.frameCtn)}')">完成此框</button>`}</div><div class="frame-progress"><span style="width:${pct}%"></span></div></article>`
+        const pct=Math.min(100,Math.round(Number(f.actualQty||0)/Math.max(1,Number(f.capacity||18))*100));
+        const ready=f.status==="READY_FOR_SANDBLAST";
+        const frame=escapeHtml(f.frameCtn);
+        const actionButton=ready
+          ?`<button class="btn cyan" style="min-height:38px;padding:7px 10px;font-size:11px" onclick="event.stopPropagation();releaseFrame('${frame}')">送往噴砂</button>`
+          :`<button class="btn success" style="min-height:38px;padding:7px 10px;font-size:11px" onclick="event.stopPropagation();markFrameReady('${frame}')">完成此框</button>`;
+        return `<article class="frame-item" role="button" tabindex="0" onclick="openFrameDetail('${frame}')" onkeydown="if(event.key==='Enter')openFrameDetail('${frame}')"><div class="frame-head"><div><div class="asset-name">${frame}</div><div class="asset-sub">${ready?"待噴砂完成":"入框中"}｜${Number(f.actualQty||0)}／${Number(f.capacity||18)} 支｜點擊查看框內 CTN／RT</div></div>${actionButton}</div><div class="frame-progress"><span style="width:${pct}%"></span></div></article>`
       }).join(""):'<div class="empty">目前沒有入框中或待噴砂框。</div>'
     }
     function renderHistory(){
@@ -1240,6 +1418,7 @@
 
       const signature=simpleHash(body);
       body.submission_id=getPendingSubmission("disposition",signature);
+      markPendingSubmission("disposition",body,"sending");
 
       const snapshot={
         summary:safeClone(state.summary),
@@ -1291,7 +1470,8 @@
         state.revision=snapshot.revision;
         renderSummary();
         renderWip();
-        showToast(err.message||"Grinding 動作失敗",true)
+        markPendingSubmission("disposition",body,"failed_or_unknown");
+        showToast(err.message||"Grinding 動作失敗；已保留 submission_id 與送出草稿供安全重試",true)
       }finally{
         state.dispositionBusy=false;
         renderSticky()
@@ -1309,6 +1489,123 @@
       ))return;
       await submitDisposition(action,{note:labels[action]||action})
     }
+    async function openFrameDetail(frameCtn){
+      if(!ensureClientWriteAllowed())return;
+      state.frameEditor=null;state.frameEditSelected={};state.frameEditQty={};
+      document.getElementById("frameEditTitle").textContent=`待噴砂框｜${frameCtn}`;
+      document.getElementById("frameEditSummary").textContent="正在讀取框內目前內容…";
+      document.getElementById("frameEditList").innerHTML='<div class="empty">讀取中…</div>';
+      document.getElementById("frameEditModal").classList.add("show");
+      try{
+        const r=await fetchBetaWipFrameDetail(frameCtn);
+        if(!r.found)throw new Error(r.message||"找不到框架");
+        state.frameEditor=r;
+        (r.assets||[]).forEach(a=>{
+          state.frameEditSelected[a.assetKey]=false;
+          state.frameEditQty[a.assetKey]=Number(a.qty||1)
+        });
+        renderFrameEditor()
+      }catch(err){
+        document.getElementById("frameEditSummary").textContent=err.message||"讀取失敗";
+        document.getElementById("frameEditList").innerHTML='<div class="error-box">'+escapeHtml(err.message||"讀取失敗")+'</div>'
+      }
+    }
+    function closeFrameEditModal(){document.getElementById("frameEditModal").classList.remove("show")}
+    function renderFrameEditor(){
+      const data=state.frameEditor;if(!data)return;
+      const f=data.frame||{};const assets=data.assets||[];
+      document.getElementById("frameEditSummary").textContent=`${f.status==="READY_FOR_SANDBLAST"?"待噴砂完成":"入框中"}｜${Number(f.actualQty||0)}／${Number(f.capacity||18)} 支｜${assets.length} 個項目`;
+      document.getElementById("frameEditList").innerHTML=assets.length?assets.map(a=>{
+        const lot=a.trackingType==="BUNDLE_LOT";const name=lot?`集束來源 ${a.sourceCtn}`:a.assetCtn;
+        const checked=!!state.frameEditSelected[a.assetKey];const qty=Number(state.frameEditQty[a.assetKey]||a.qty||1);
+        return `<article class="asset-item ${checked?"selected":""}"><input type="checkbox" ${checked?"checked":""} onchange="toggleFrameEditAsset('${escapeHtml(a.assetKey)}',this.checked)"><div><div class="asset-name">${escapeHtml(name)}</div><div class="asset-sub">RT：${escapeHtml(a.rt||"-")}｜數量 ${Number(a.qty||0)} 支</div></div>${lot&&checked?`<input class="qty-input" type="number" min="1" max="${Number(a.qty||0)}" value="${qty}" onchange="setFrameEditQty('${escapeHtml(a.assetKey)}',this.value)">`:""}</article>`
+      }).join(""):'<div class="empty">此框目前沒有可回修項目。</div>';
+      const disabled=!data.editable||!assets.length;
+      document.getElementById("frameReturnBtn").disabled=disabled;
+      document.getElementById("frameDcylBtn").disabled=disabled
+    }
+    function toggleFrameEditAsset(key,checked){state.frameEditSelected[key]=checked;renderFrameEditor()}
+    function setFrameEditQty(key,value){
+      const asset=(state.frameEditor&&state.frameEditor.assets||[]).find(a=>a.assetKey===key);
+      if(!asset)return;
+      state.frameEditQty[key]=Math.max(1,Math.min(Number(asset.qty||1),Number(value||1)))
+    }
+    function selectedFrameEditItems(){
+      const assets=state.frameEditor&&state.frameEditor.assets||[];
+      return assets.filter(a=>state.frameEditSelected[a.assetKey]).map(a=>({
+        asset_key:a.assetKey,
+        qty:Number(state.frameEditQty[a.assetKey]||a.qty||1),
+        expected_version:Number(a.stateVersion||0)
+      }))
+    }
+    async function submitFrameEdit(action){
+      if(!state.frameEditor||!ensureClientWriteAllowed())return;
+      syncMetaFromInputs();
+      if(!state.operator){showToast("請先輸入操作人員",true);return}
+      const items=selectedFrameEditItems();if(!items.length){showToast("請先選擇框內項目",true);return}
+      const qty=items.reduce((n,i)=>n+Number(i.qty||0),0);
+      const label=action==="FRAME_ITEM_RETURN_GRINDING"?"退回 Grinding":"轉 DCYL";
+      if(!confirm(`確認將 ${qty} 支從 ${state.frameEditor.frame.frameCtn} 執行「${label}」？框架完成確認將失效。`))return;
+      setLoading(true,"待噴砂框內容回修中…");
+      try{
+        const body={
+          submission_id:makeSubmissionId("GRDFRM"),report_date:state.reportDate,
+          operator:state.operator,client_version:CLIENT_VERSION,
+          base_revision:Number(state.revision||0),frame_ctn:state.frameEditor.frame.frameCtn,
+          action,items,note:label
+        };
+        const r=await submitBetaGrindingFrameEdit(body);
+        closeFrameEditModal();
+        state.revision=Number(r.revision||state.revision||0);
+        showToast(r.message||"框內回修完成");
+        await refreshAll(false)
+      }catch(err){showToast(err.message||"框內回修失敗",true)}finally{setLoading(false)}
+    }
+
+    function historyYmdDaysAgo(days){const d=new Date();d.setDate(d.getDate()-Math.max(0,Number(days||0)));return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`}
+    function openHistoryModal(){
+      document.getElementById("historyModal").classList.add("show");
+      setHistoryDays(state.historyDays||7)
+    }
+    function closeHistoryModal(){document.getElementById("historyModal").classList.remove("show")}
+    function setHistoryDays(days){
+      state.historyDays=Number(days||7);
+      document.querySelectorAll("[data-history-days]").forEach(b=>b.classList.toggle("active",Number(b.dataset.historyDays)===state.historyDays));
+      document.getElementById("historyStartDate").value=historyYmdDaysAgo(state.historyDays-1);
+      document.getElementById("historyEndDate").value=localYmd();
+      loadHistory(true)
+    }
+    function historyActionLabel(action){
+      const map={GRINDING_CHECK_IN:"進入 Grinding",LOAD_TO_FRAME:"入框",FRAME_READY_SANDBLAST:"完成待噴砂框",FRAME_CONTENT_CHANGED:"框內內容變更",FRAME_ITEM_RETURN_GRINDING:"退回 Grinding",DCYL:"DCYL",FRAME_ITEM_DCYL:"框內轉 DCYL",TRANSFER_HT:"轉 HT",HYDROTEST_MIGRATED_TO_HT:"舊水壓轉 HT",RELEASE_TO_SANDBLAST:"送往噴砂"};
+      return map[action]||action||"-"
+    }
+    function renderHistoryTimeline(){
+      const list=state.historyItems||[];
+      document.getElementById("historyTimeline").innerHTML=list.length?list.map(item=>{
+        const name=item.assetCtn||item.sourceCtn||item.toFrameCtn||item.fromFrameCtn||item.assetKey;
+        return `<article class="history-item"><div class="asset-name">${escapeHtml(historyActionLabel(item.actionType))}｜${escapeHtml(name||"-")}</div><div class="asset-sub">${escapeHtml(item.operatedAt||item.reportDate||"")}｜${Number(item.qty||0)} 支｜操作：${escapeHtml(item.operator||"-")}${item.note?`<br>${escapeHtml(item.note)}`:""}</div></article>`
+      }).join(""):'<div class="empty">查無符合條件的歷史紀錄。</div>';
+      document.getElementById("historyMoreBtn").style.display=state.historyHasMore?"block":"none"
+    }
+    async function loadHistory(reset){
+      if(reset){state.historyOffset=0;state.historyItems=[]}
+      document.getElementById("historyTimeline").innerHTML='<div class="empty">歷史讀取中…</div>';
+      try{
+        const r=await fetchBetaWipHistory({
+          start_date:document.getElementById("historyStartDate").value,
+          end_date:document.getElementById("historyEndDate").value,
+          type:document.getElementById("historyType").value,
+          q:document.getElementById("historyQuery").value.trim(),
+          operator:document.getElementById("historyOperator").value.trim(),
+          offset:state.historyOffset,limit:50
+        });
+        state.historyItems=reset?(r.items||[]):state.historyItems.concat(r.items||[]);
+        state.historyOffset=r.nextOffset===null?state.historyOffset:Number(r.nextOffset||0);
+        state.historyHasMore=!!r.hasMore;
+        renderHistoryTimeline()
+      }catch(err){document.getElementById("historyTimeline").innerHTML='<div class="error-box">'+escapeHtml(err.message||"歷史讀取失敗")+'</div>'}
+    }
+
     function openLoadModal(){if(!selectedItems().length)return;document.getElementById("loadModal").classList.add("show");document.getElementById("loadFrameCtn").focus()}
     function closeLoadModal(){document.getElementById("loadModal").classList.remove("show")}
     async function submitLoadToFrame(){
