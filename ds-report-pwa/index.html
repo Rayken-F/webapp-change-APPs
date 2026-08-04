@@ -1598,6 +1598,127 @@ user-scalable=no">
     pointer-events:none;
   }
 
+  .iqc-quick-action.iqc-bulk-action-trigger{
+    font-size:16px;
+    letter-spacing:.04em;
+    background:linear-gradient(145deg, rgba(76,190,203,0.96), rgba(48,92,184,0.98));
+  }
+
+  .iqc-quick-bulk-panel{
+    position:absolute;
+    right:calc(100% + 12px);
+    bottom:0;
+    width:min(320px, calc(100vw - 112px));
+    display:none;
+    flex-direction:column;
+    gap:10px;
+    padding:14px;
+    border:1px solid rgba(205,216,255,0.46);
+    border-radius:20px;
+    background:linear-gradient(160deg, rgba(34,45,126,0.98), rgba(18,25,78,0.99));
+    box-shadow:0 20px 48px rgba(4,8,40,0.58), inset 0 0 0 1px rgba(255,255,255,0.06);
+    backdrop-filter:blur(16px);
+    -webkit-backdrop-filter:blur(16px);
+  }
+
+  .iqc-quick-bulk-panel.show{ display:flex; }
+  .iqc-quick-dock.collapsed .iqc-quick-bulk-panel{ display:none !important; }
+
+  .iqc-quick-bulk-head{
+    display:flex;
+    align-items:flex-start;
+    justify-content:space-between;
+    gap:10px;
+  }
+
+  .iqc-quick-bulk-title{
+    font-size:15px;
+    font-weight:900;
+    color:#ffffff;
+  }
+
+  .iqc-quick-bulk-subtitle{
+    margin-top:3px;
+    color:rgba(231,237,255,0.66);
+    font-size:12px;
+    line-height:1.4;
+  }
+
+  .iqc-quick-bulk-close{
+    width:32px;
+    height:32px;
+    min-width:32px;
+    padding:0;
+    border-radius:11px;
+    font-size:20px;
+    background:rgba(72,85,172,0.72);
+  }
+
+  .iqc-quick-bulk-source{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:10px;
+    padding:10px 11px;
+    border:1px solid rgba(205,216,255,0.20);
+    border-radius:14px;
+    background:rgba(9,18,64,0.42);
+    color:rgba(242,246,255,0.86);
+    font-size:13px;
+    font-weight:800;
+  }
+
+  .iqc-quick-bulk-source select{
+    min-width:112px;
+    max-width:150px;
+    padding:9px 34px 9px 12px;
+    border:1px solid rgba(205,216,255,0.26);
+    border-radius:12px;
+    background:rgba(61,76,165,0.72);
+    color:#ffffff;
+    font-size:14px;
+    font-weight:900;
+    appearance:auto;
+    -webkit-appearance:menulist;
+  }
+
+  .iqc-quick-bulk-source select option{ color:#111827; }
+
+  .iqc-quick-bulk-count{
+    color:#bff7ff;
+    font-size:13px;
+    font-weight:900;
+  }
+
+  .iqc-quick-bulk-grid{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:9px;
+  }
+
+  .iqc-quick-bulk-grid button{
+    min-height:44px;
+    padding:10px 8px;
+    border-radius:14px;
+    font-size:14px;
+  }
+
+  .iqc-quick-bulk-grid .iqc-quick-bulk-apply{
+    background:linear-gradient(145deg, rgba(107,91,255,0.96), rgba(65,71,205,0.98));
+  }
+
+  .iqc-quick-bulk-grid .iqc-quick-bulk-secondary{
+    background:linear-gradient(145deg, rgba(66,88,174,0.92), rgba(37,49,126,0.98));
+  }
+
+  @media (max-width:520px){
+    .iqc-quick-bulk-panel{
+      width:min(300px, calc(100vw - 100px));
+      padding:12px;
+    }
+    .iqc-quick-bulk-grid button{ font-size:13px; }
+  }
+
   .iqc-delete-overlay{
     position:fixed;
     inset:0;
@@ -2235,10 +2356,31 @@ user-scalable=no">
 
 
   <div id="iqcQuickDock" class="iqc-quick-dock" aria-hidden="true">
+    <div id="iqcQuickBulkPanel" class="iqc-quick-bulk-panel" aria-hidden="true">
+      <div class="iqc-quick-bulk-head">
+        <div>
+          <div id="iqcQuickBulkTitle" class="iqc-quick-bulk-title">批次套用</div>
+          <div class="iqc-quick-bulk-subtitle">先勾選目標鋼瓶，再指定來源列套用 RT 或狀態。</div>
+        </div>
+        <button type="button" class="iqc-quick-bulk-close" onclick="closeIqcQuickBulkPanel()" aria-label="關閉批次套用">×</button>
+      </div>
+      <label class="iqc-quick-bulk-source">
+        <span>複製來源</span>
+        <select id="iqcQuickBulkSource" aria-label="批次複製來源"></select>
+      </label>
+      <div id="iqcQuickBulkCount" class="iqc-quick-bulk-count">已選 0 支</div>
+      <div class="iqc-quick-bulk-grid">
+        <button type="button" class="iqc-quick-bulk-secondary" onclick="toggleIqcBulkTargetsFromQuickDock(true)">全選</button>
+        <button type="button" class="iqc-quick-bulk-secondary" onclick="toggleIqcBulkTargetsFromQuickDock(false)">清除勾選</button>
+        <button type="button" class="iqc-quick-bulk-apply" onclick="applyIqcLooseBulkValueFromQuickDock('rtNo')">套用 RT</button>
+        <button type="button" class="iqc-quick-bulk-apply" onclick="applyIqcLooseBulkValueFromQuickDock('cylinderStatus')">套用狀態</button>
+      </div>
+    </div>
     <button type="button" id="iqcQuickToggle" class="iqc-quick-toggle" onclick="toggleIqcQuickDock()" aria-label="收合 IQC 快捷功能" aria-expanded="true">›</button>
     <div class="iqc-quick-stack">
       <button type="button" id="iqcQuickAdd" class="iqc-quick-action" onclick="addIqcLoosePairFromQuickDock()" aria-label="增加 1 支散支鋼瓶" title="增加 1 支">＋</button>
       <button type="button" id="iqcQuickDelete" class="iqc-quick-action iqc-delete-action" onclick="openIqcDeletePicker()" aria-label="選擇要刪除的散支鋼瓶" title="選擇刪除">刪</button>
+      <button type="button" id="iqcQuickBulk" class="iqc-quick-action iqc-bulk-action-trigger" onclick="toggleIqcQuickBulkPanel()" aria-label="批次套用 RT 或鋼瓶狀態" title="批次套用">批</button>
     </div>
   </div>
 
@@ -5064,15 +5206,7 @@ function bindFramePairTableEvents(){
           <span>鋼瓶數量</span>
           <select class="iqc-pair-count-select iqc-loose-pair-count" data-iqc-card-index="${index}" aria-label="第${index + 1}筆 IQC 散支鋼瓶數量">${renderIqcLoosePairCountOptions(pairCount)}</select>
         </label>
-        <label class="iqc-bulk-source-control">
-          <span>複製來源</span>
-          <select class="iqc-bulk-source-select" data-iqc-card-index="${index}" aria-label="批次複製來源">${renderIqcBulkSourceOptions(pairCount)}</select>
-        </label>
-        <button type="button" class="iqc-bulk-action" onclick="applyIqcLooseBulkValue(${index}, 'rtNo')">套用 RT 至勾選</button>
-        <button type="button" class="iqc-bulk-action" onclick="applyIqcLooseBulkValue(${index}, 'cylinderStatus')">套用狀態至勾選</button>
-        <button type="button" class="iqc-bulk-clear" onclick="toggleIqcBulkTargets(${index}, true)">全選</button>
-        <button type="button" class="iqc-bulk-clear" onclick="toggleIqcBulkTargets(${index}, false)">清除勾選</button>
-        <span id="iqc-bulk-selection-count-${index}" class="iqc-bulk-selection-count">已選 0 支</span>
+        <span id="iqc-bulk-selection-count-${index}" class="iqc-bulk-selection-count">已選 0 支｜批次功能請使用右側「批」</span>
       </div>
 
       <div class="pair-table-wrap">
@@ -5919,15 +6053,70 @@ function bindFramePairTableEvents(){
     if(!dock) return;
 
     const collapsed = !dock.classList.contains("collapsed");
+    if(collapsed) closeIqcQuickBulkPanel();
     saveIqcQuickDockCollapsedState(collapsed);
     applyIqcQuickDockCollapsedState();
+  }
+
+  function renderIqcQuickBulkPanel(){
+    collectIqcCardsFromUI();
+    const cardIndex = clampIqcCardIndex(iqcActiveCardIndex);
+    const card = formData.iqc_cards && formData.iqc_cards[cardIndex];
+    const panel = document.getElementById("iqcQuickBulkPanel");
+    const title = document.getElementById("iqcQuickBulkTitle");
+    const source = document.getElementById("iqcQuickBulkSource");
+    if(!panel || !source || !card || String(card.type || "") !== "散支") return false;
+
+    const pairs = normalizeIqcPairs(card.loosePairs);
+    source.innerHTML = renderIqcBulkSourceOptions(pairs.length);
+    source.dataset.iqcCardIndex = String(cardIndex);
+    if(title) title.textContent = `批次套用｜第${cardIndex + 1}筆 IQC`;
+    updateIqcBulkSelectionCount(cardIndex);
+    return true;
+  }
+
+  function openIqcQuickBulkPanel(){
+    const panel = document.getElementById("iqcQuickBulkPanel");
+    const dock = document.getElementById("iqcQuickDock");
+    if(!panel || !dock || dock.classList.contains("collapsed")) return;
+    if(!renderIqcQuickBulkPanel()) return;
+    panel.classList.add("show");
+    panel.setAttribute("aria-hidden", "false");
+  }
+
+  function closeIqcQuickBulkPanel(){
+    const panel = document.getElementById("iqcQuickBulkPanel");
+    if(!panel) return;
+    panel.classList.remove("show");
+    panel.setAttribute("aria-hidden", "true");
+  }
+
+  function toggleIqcQuickBulkPanel(){
+    const panel = document.getElementById("iqcQuickBulkPanel");
+    if(!panel) return;
+    if(panel.classList.contains("show")){
+      closeIqcQuickBulkPanel();
+    }else{
+      openIqcQuickBulkPanel();
+    }
+  }
+
+  function toggleIqcBulkTargetsFromQuickDock(checked){
+    const cardIndex = clampIqcCardIndex(iqcActiveCardIndex);
+    toggleIqcBulkTargets(cardIndex, checked);
+  }
+
+  function applyIqcLooseBulkValueFromQuickDock(fieldName){
+    const cardIndex = clampIqcCardIndex(iqcActiveCardIndex);
+    applyIqcLooseBulkValue(cardIndex, fieldName);
   }
 
   function updateIqcQuickDock(){
     const dock = document.getElementById("iqcQuickDock");
     const addButton = document.getElementById("iqcQuickAdd");
     const deleteButton = document.getElementById("iqcQuickDelete");
-    if(!dock || !addButton || !deleteButton) return;
+    const bulkButton = document.getElementById("iqcQuickBulk");
+    if(!dock || !addButton || !deleteButton || !bulkButton) return;
 
     const page = document.getElementById("pageIQC");
     const card = formData.iqc_cards && formData.iqc_cards[clampIqcCardIndex(iqcActiveCardIndex)];
@@ -5943,6 +6132,7 @@ function bindFramePairTableEvents(){
 
     if(!shouldShow){
       closeIqcDeletePicker();
+      closeIqcQuickBulkPanel();
       return;
     }
 
@@ -5956,6 +6146,15 @@ function bindFramePairTableEvents(){
     deleteButton.hidden = pairCount <= IQC_LOOSE_PAIR_MIN;
     deleteButton.disabled = pairCount <= IQC_LOOSE_PAIR_MIN;
     deleteButton.title = `第${iqcActiveCardIndex + 1}筆 IQC：選擇要刪除的鋼瓶`;
+
+    bulkButton.disabled = pairCount <= IQC_LOOSE_PAIR_MIN;
+    bulkButton.title = pairCount <= IQC_LOOSE_PAIR_MIN
+      ? "至少 2 支鋼瓶才可使用批次套用"
+      : `第${iqcActiveCardIndex + 1}筆 IQC：批次套用 RT／鋼瓶狀態`;
+    if(pairCount <= IQC_LOOSE_PAIR_MIN) closeIqcQuickBulkPanel();
+    if(document.getElementById("iqcQuickBulkPanel")?.classList.contains("show")){
+      renderIqcQuickBulkPanel();
+    }
 
     applyIqcQuickDockCollapsedState();
   }
@@ -6057,10 +6256,15 @@ function bindFramePairTableEvents(){
   }
 
   function updateIqcBulkSelectionCount(cardIndex){
-    const countEl = document.getElementById(`iqc-bulk-selection-count-${cardIndex}`);
-    if(!countEl) return;
     const count = getIqcBulkTargetIndexes(cardIndex).length;
-    countEl.textContent = `已選 ${count} 支`;
+    const countEl = document.getElementById(`iqc-bulk-selection-count-${cardIndex}`);
+    if(countEl) countEl.textContent = `已選 ${count} 支｜批次功能請使用右側「批」`;
+
+    const quickCount = document.getElementById("iqcQuickBulkCount");
+    const quickSource = document.getElementById("iqcQuickBulkSource");
+    if(quickCount && quickSource && Number(quickSource.dataset.iqcCardIndex || -1) === Number(cardIndex)){
+      quickCount.textContent = `已選 ${count} 支`;
+    }
   }
 
   function toggleIqcBulkTargets(cardIndex, checked){
@@ -6075,7 +6279,10 @@ function bindFramePairTableEvents(){
     const card = formData.iqc_cards && formData.iqc_cards[cardIndex];
     if(!card || String(card.type || "") !== "散支") return;
 
-    const sourceSelect = document.querySelector(`.iqc-bulk-source-select[data-iqc-card-index="${cardIndex}"]`);
+    const quickSource = document.getElementById("iqcQuickBulkSource");
+    const quickSourceMatches = quickSource && Number(quickSource.dataset.iqcCardIndex || -1) === Number(cardIndex);
+    const legacySource = document.querySelector(`.iqc-bulk-source-select[data-iqc-card-index="${cardIndex}"]`);
+    const sourceSelect = quickSourceMatches ? quickSource : legacySource;
     const sourceIndex = Number(sourceSelect ? sourceSelect.value : 0);
     const pairs = normalizeIqcPairs(card.loosePairs);
     const sourcePair = pairs[sourceIndex];
