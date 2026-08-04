@@ -2650,6 +2650,15 @@ user-scalable=no">
   let iqcRegionLoadError = "";
   let iqcRegionRequestSeq = 0;
 
+  // IQC RT 主檔：集束只接受 RT list 的集束RT；散支只接受 RT list 的散支RT。
+  // 前端只做即時提示；正式寫入前 IqcLog.gs 仍會重新讀取 RT list 做最終硬性驗證。
+  let iqcRtMaster = { bundle:[], loose:[] };
+  let iqcRtMasterMaps = { bundle:new Map(), loose:new Map() };
+  let iqcRtMasterLoaded = false;
+  let iqcRtMasterLoadError = "";
+  let iqcRtMasterRequestSeq = 0;
+  let iqcRtMasterLoadedAt = 0;
+
   // 散支 CTN／RT 配對：手機端以選單一次產生 1～18 支欄位。
   const IQC_LOOSE_PAIR_MIN = 1;
   const IQC_LOOSE_PAIR_MAX = 18;
@@ -2754,6 +2763,100 @@ user-scalable=no">
     }
 
     renderIqcCards();
+  }
+
+  function normalizeIqcRtMasterEntry(entry){
+    const source = entry && typeof entry === "object" ? entry : {};
+    const rtNo = normalizeIqcRtNo(source.rtNo || source.rt_no || "");
+    if(!/^\d+$/.test(rtNo)) return null;
+
+    return {
+      rtNo:rtNo,
+      description:String(source.description || source.label || "").trim(),
+      rowNumber:Number(source.rowNumber || source.row_number || 0)
+    };
+  }
+
+  function buildIqcRtMasterMap(entries){
+    const map = new Map();
+    (Array.isArray(entries) ? entries : []).forEach(entry => {
+      const normalized = normalizeIqcRtMasterEntry(entry);
+      if(!normalized || map.has(normalized.rtNo)) return;
+      map.set(normalized.rtNo, normalized);
+    });
+    return map;
+  }
+
+  async function loadIqcRtMaster(forceReload = false){
+    if(iqcRtMasterLoaded && !forceReload) return iqcRtMaster;
+    if(typeof fetchIqcRtMaster !== "function"){
+      iqcRtMasterLoaded = false;
+      iqcRtMasterLoadError = "IQC RT主檔 API 尚未載入，請更新 api.js 並重新整理。";
+      return iqcRtMaster;
+    }
+
+    const requestSeq = ++iqcRtMasterRequestSeq;
+    iqcRtMasterLoaded = false;
+    iqcRtMasterLoadError = "";
+
+    try{
+      const result = await fetchIqcRtMaster();
+      if(requestSeq !== iqcRtMasterRequestSeq) return iqcRtMaster;
+
+      const bundle = (Array.isArray(result && result.bundle) ? result.bundle : [])
+        .map(normalizeIqcRtMasterEntry)
+        .filter(Boolean);
+      const loose = (Array.isArray(result && result.loose) ? result.loose : [])
+        .map(normalizeIqcRtMasterEntry)
+        .filter(Boolean);
+
+      if(!bundle.length || !loose.length){
+        throw new Error("RT list 的集束RT或散支RT沒有可用料號，請檢查後台主檔。" );
+      }
+
+      iqcRtMaster = { bundle:bundle, loose:loose };
+      iqcRtMasterMaps = {
+        bundle:buildIqcRtMasterMap(bundle),
+        loose:buildIqcRtMasterMap(loose)
+      };
+      iqcRtMasterLoaded = true;
+      iqcRtMasterLoadedAt = Date.now();
+    }
+    catch(err){
+      if(requestSeq !== iqcRtMasterRequestSeq) return iqcRtMaster;
+      console.error("IQC RT主檔讀取失敗", err);
+      iqcRtMaster = { bundle:[], loose:[] };
+      iqcRtMasterMaps = { bundle:new Map(), loose:new Map() };
+      iqcRtMasterLoaded = false;
+      iqcRtMasterLoadError = String(err && err.message || "IQC RT主檔讀取失敗");
+    }
+
+    applyIqcLiveValidation();
+    return iqcRtMaster;
+  }
+
+  function getIqcRtMasterKey(type){
+    return String(type || "").trim() === "集束" ? "bundle" : "loose";
+  }
+
+  function isIqcRtAllowedForType(rtNo, type){
+    const normalized = normalizeIqcRtNo(rtNo || "");
+    if(!/^\d+$/.test(normalized) || !iqcRtMasterLoaded) return false;
+    const key = getIqcRtMasterKey(type);
+    return !!(iqcRtMasterMaps[key] && iqcRtMasterMaps[key].has(normalized));
+  }
+
+  function getIqcRtWrongTypeMessage(rtNo, type){
+    const normalized = normalizeIqcRtNo(rtNo || "");
+    const expectedKey = getIqcRtMasterKey(type);
+    const otherKey = expectedKey === "bundle" ? "loose" : "bundle";
+    const expectedLabel = expectedKey === "bundle" ? "集束RT" : "散支RT";
+    const otherLabel = otherKey === "bundle" ? "集束RT" : "散支RT";
+
+    if(iqcRtMasterMaps[otherKey] && iqcRtMasterMaps[otherKey].has(normalized)){
+      return `RT ${normalized} 只存在於 RT list 的「${otherLabel}」，不可用於${type} IQC。`;
+    }
+    return `RT ${normalized} 不存在於 RT list 的「${expectedLabel}」，不可送入 IQC_Log。`;
   }
 
   async function loadProjectOptions(){
@@ -4945,6 +5048,7 @@ function bindFramePairTableEvents(){
     }
     else if(siteValue === "IQC"){
       targetPage = "pageIQC";
+      loadIqcRtMaster(false);
     }
     else if(siteValue === "專案"){
       targetPage = "pageProject";
@@ -5011,6 +5115,9 @@ function bindFramePairTableEvents(){
       input.addEventListener("change", function(){
         formData.site = this.checked ? this.value : "";
         updateStationContextBanner();
+        if(this.checked && this.value === "IQC"){
+          loadIqcRtMaster(true);
+        }
       });
     });
   }
@@ -5300,6 +5407,7 @@ function bindFramePairTableEvents(){
         <div class="iqc-field">
           <label class="iqc-field-label">RT料號 <span class="required">*</span></label>
           <input type="text" class="form-input iqc-bundle-rt" data-iqc-card-index="${index}" value="${escapeAttribute(normalizeIqcRtNo(card.bundleRtNo || ""))}" placeholder="請輸入數字 RT料號" inputmode="numeric" pattern="[0-9]*" autocomplete="off">
+          <div class="iqc-region-help">只接受後台 RT list「集束RT」欄內的料號。</div>
         </div>
         <div class="iqc-field">
           <label class="iqc-field-label">集束框架 CTN <span class="required">*</span></label>
@@ -5345,7 +5453,7 @@ function bindFramePairTableEvents(){
 
       <div class="iqc-pair-heading">
         <div>散支 CTN＋RT料號＋鋼瓶狀態</div>
-        <small>先選鋼瓶數量（1～18）；可勾選多支，再把指定來源列的 RT 或狀態一次套用。</small>
+        <small>先選鋼瓶數量（1～18）；可勾選多支，再把指定來源列的 RT 或狀態一次套用。RT只接受後台 RT list「散支RT」欄內的料號。</small>
       </div>
 
       <div class="iqc-pair-toolbar">
@@ -5839,6 +5947,15 @@ function bindFramePairTableEvents(){
       const isScannerPrefixInProgress = document.activeElement === input && /^(R|RT)$/i.test(value);
       if(value && !isScannerPrefixInProgress && !isValidIqcRtInputValue(value)){
         setIqcFieldValidation(input, "RT料號請輸入純數字，或直接掃描 RT123456 條碼。");
+        return;
+      }
+
+      const normalized = normalizeIqcRtNo(value);
+      if(normalized && /^\d+$/.test(normalized) && iqcRtMasterLoaded){
+        const type = input.classList.contains("iqc-bundle-rt") ? "集束" : "散支";
+        if(!isIqcRtAllowedForType(normalized, type)){
+          setIqcFieldValidation(input, getIqcRtWrongTypeMessage(normalized, type));
+        }
       }
     });
 
@@ -5893,6 +6010,16 @@ function bindFramePairTableEvents(){
         return false;
       }
 
+      if(iqcRtMasterLoadError){
+        showIqcError(index, `IQC RT主檔讀取失敗：${iqcRtMasterLoadError}`);
+        return false;
+      }
+
+      if(!iqcRtMasterLoaded){
+        showIqcError(index, "IQC RT主檔仍在讀取中，請稍候後再預覽。");
+        return false;
+      }
+
       if(!regionCode){
         showIqcError(index, `第${index + 1}筆 IQC 請選擇區域分布代號。`);
         return false;
@@ -5914,6 +6041,16 @@ function bindFramePairTableEvents(){
 
         if(!isValidIqcRtNo(rtNo)){
           showIqcError(index, `第${index + 1}筆集束 IQC 的 RT料號只能輸入數字。`);
+          return false;
+        }
+
+        if(!isIqcRtAllowedForType(rtNo, "集束")){
+          const selector = `.iqc-bundle-rt[data-iqc-card-index="${index}"]`;
+          const input = document.querySelector(selector);
+          const message = `第${index + 1}筆集束 IQC：${getIqcRtWrongTypeMessage(rtNo, "集束")}`;
+          setIqcFieldValidation(input, message);
+          showIqcError(index, message);
+          revealIqcDuplicateField({ cardIndex:index, selector:selector, ctn:rtNo, message:message });
           return false;
         }
 
@@ -5968,6 +6105,16 @@ function bindFramePairTableEvents(){
 
           if(!isValidIqcRtNo(rtNo)){
             showIqcError(index, `第${index + 1}筆 IQC 的第${pairIndex + 1}列 RT料號只能輸入數字。`);
+            return false;
+          }
+
+          if(!isIqcRtAllowedForType(rtNo, "散支")){
+            const selector = `.iqc-loose-rt[data-iqc-card-index="${index}"][data-iqc-pair-index="${pairIndex}"]`;
+            const input = document.querySelector(selector);
+            const message = `第${index + 1}筆 IQC 的第${pairIndex + 1}支鋼瓶：${getIqcRtWrongTypeMessage(rtNo, "散支")}`;
+            setIqcFieldValidation(input, message);
+            showIqcError(index, message);
+            revealIqcDuplicateField({ cardIndex:index, selector:selector, ctn:rtNo, message:message });
             return false;
           }
 
@@ -6811,10 +6958,14 @@ function bindFramePairTableEvents(){
     bindIqcEvents();
     loadPerson();
     loadDraft();
-    await Promise.all([
+    const startupTasks = [
       loadProjectOptions(),
       loadIqcRegions()
-    ]);
+    ];
+    if(String(formData.site || "").trim() === "IQC"){
+      startupTasks.push(loadIqcRtMaster(true));
+    }
+    await Promise.all(startupTasks);
 
     const projectSelect = document.getElementById("project_item");
     if(projectSelect && formData.project_item){
