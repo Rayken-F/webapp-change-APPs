@@ -1,7 +1,7 @@
 // Grinding WIP BETA v2.0.3｜待噴砂框原子交易＋中斷恢復＋畫面一致性
 const BETA_API_URL = "https://script.google.com/macros/s/AKfycbw3Xg0ev3zoTO-WFfe7sTIUlr6wF4P-qAgZEZUF3uUhioT63bQYT-9QRgZqLU0IhB6G/exec";
 const BETA_API_TOKEN = "-M-yiaurzifieaJyYS4838MCYiuDh4wB";
-const BETA_CLIENT_VERSION = "BETA_GRINDING_WIP_V2_0_3_ATOMIC_FRAME_EDIT_RECOVERY_20260803";
+const BETA_CLIENT_VERSION = "BETA_GRINDING_WIP_V2_0_4_STAGE3_RETIRED_20260804";
 
 function isBetaApiConfigured() {
   return /^https:\/\/script\.google\.com\/macros\/s\/.+\/exec$/.test(
@@ -139,15 +139,6 @@ async function submitBetaGrindingDisposition(payload) {
   return betaPostApi("grinding_disposition", payload);
 }
 
-async function fetchBetaCtnLookup(ctn) {
-  return betaGetApi("ctn_lookup", {
-    ctn: String(ctn || "").trim().toUpperCase()
-  });
-}
-
-async function submitBetaOperations(payload) {
-  return betaPostApi("submit_operations", payload);
-}
 
 
 async function fetchBetaWipFrameDetail(frameCtn) {
