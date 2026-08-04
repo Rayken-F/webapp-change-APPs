@@ -1222,6 +1222,68 @@ user-scalable=no">
     text-align:center;
   }
   .iqc-pair-count-select option{ color:#111827; }
+  .iqc-bulk-source-control{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    min-height:42px;
+    padding:7px 10px;
+    border-radius:14px;
+    background:rgba(255,255,255,0.06);
+    border:1px solid rgba(231,238,255,0.14);
+    color:rgba(241,245,255,0.90);
+    font-size:13px;
+    font-weight:800;
+  }
+  .iqc-bulk-source-control span{ white-space:nowrap; }
+  .iqc-bulk-source-select{
+    min-width:82px;
+    min-height:32px;
+    padding:5px 28px 5px 9px;
+    border:none;
+    outline:none;
+    border-radius:10px;
+    color:#ffffff;
+    background:rgba(255,255,255,0.13);
+    border:1px solid rgba(255,255,255,0.15);
+    font-size:14px;
+    font-weight:900;
+    text-align:center;
+  }
+  .iqc-bulk-source-select option{ color:#111827; }
+  .iqc-bulk-action{
+    background:linear-gradient(135deg, rgba(58,107,205,0.86), rgba(72,68,190,0.92));
+  }
+  .iqc-bulk-clear{
+    background:linear-gradient(135deg, rgba(62,76,145,0.74), rgba(45,54,117,0.90));
+  }
+  .iqc-bulk-selection-count{
+    display:inline-flex;
+    align-items:center;
+    min-height:42px;
+    padding:8px 11px;
+    border-radius:14px;
+    background:rgba(17,32,91,0.52);
+    border:1px solid rgba(151,128,255,0.32);
+    color:rgba(241,245,255,0.82);
+    font-size:12px;
+    font-weight:800;
+  }
+  .iqc-bulk-target-label{
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    gap:8px;
+  }
+  .iqc-bulk-target{
+    width:18px;
+    height:18px;
+    margin:0;
+    accent-color:#8c7bff;
+  }
+  .iqc-loose-status{
+    text-transform:none !important;
+  }
   .iqc-pair-sequence-cell{
     text-align:center;
     white-space:nowrap;
@@ -1377,13 +1439,19 @@ user-scalable=no">
       align-items:stretch;
     }
 
-    .iqc-pair-count-control{
+    .iqc-pair-count-control,
+    .iqc-bulk-source-control{
       flex:1 1 170px;
       justify-content:space-between;
     }
 
     .iqc-pair-toolbar button{
-      flex:1 1 120px;
+      flex:1 1 140px;
+    }
+
+    .iqc-bulk-selection-count{
+      flex:1 1 100%;
+      justify-content:center;
     }
 
     .iqc-pair-table td.iqc-pair-sequence-cell{
@@ -1401,6 +1469,10 @@ user-scalable=no">
 
     .iqc-pair-table td:nth-child(3)::before{
       content:"對應 RT料號";
+    }
+
+    .iqc-pair-table td:nth-child(4)::before{
+      content:"鋼瓶狀態";
     }
 
   }
@@ -3957,8 +4029,8 @@ function bindFramePairTableEvents(){
         const region = getIqcRegionLabel(card.regionCode);
         const loosePairs = (card.loosePairs || [])
           .map((pair, pairIndex) => ({ pair, pairIndex }))
-          .filter(item => item.pair && (item.pair.ctn || item.pair.rtNo))
-          .map(item => `第${item.pairIndex + 1}支：${escapeHtml(item.pair.ctn)} ｜ ${escapeHtml(item.pair.rtNo)}`)
+          .filter(item => item.pair && (item.pair.ctn || item.pair.rtNo || item.pair.cylinderStatus))
+          .map(item => `第${item.pairIndex + 1}支：CTN ${escapeHtml(item.pair.ctn)} ｜ RT ${escapeHtml(item.pair.rtNo)} ｜ 狀態 ${escapeHtml(item.pair.cylinderStatus || "未填")}`)
           .join("<br>");
 
         html += `
@@ -3971,7 +4043,7 @@ function bindFramePairTableEvents(){
               <div>集束框架編號：${escapeHtml(card.bundleFrameId)}</div>
             ` : `
               <div>運輸框架CTN：${escapeHtml(card.transportFrameCtn)}</div>
-              <div>散支CTN｜RT料號：<br>${loosePairs || "未填寫"}</div>
+              <div>散支 CTN｜RT料號｜鋼瓶狀態：<br>${loosePairs || "未填寫"}</div>
             `}
             <div>區域：${escapeHtml(card.regionCode ? `${card.regionCode}${region ? "｜" + region : ""}` : "未指定")}</div>
           </div>
@@ -4761,7 +4833,7 @@ function bindFramePairTableEvents(){
   }
 
   function createEmptyIqcPair(){
-    return { ctn:"", rtNo:"" };
+    return { ctn:"", rtNo:"", cylinderStatus:"" };
   }
 
   /**
@@ -4812,7 +4884,8 @@ function bindFramePairTableEvents(){
     const source = Array.isArray(pairs) ? pairs : [];
     const normalized = source.map(pair => ({
       ctn:normalizeCTN(pair && pair.ctn || ""),
-      rtNo:normalizeIqcRtNo(pair && pair.rtNo || "")
+      rtNo:normalizeIqcRtNo(pair && pair.rtNo || ""),
+      cylinderStatus:String(pair && pair.cylinderStatus || "").trim()
     }));
     return normalized.length ? normalized : [createEmptyIqcPair()];
   }
@@ -4825,6 +4898,15 @@ function bindFramePairTableEvents(){
       options.push(`<option value="${count}" ${count === selectedCount ? "selected" : ""}>${count} 支</option>`);
     }
 
+    return options.join("");
+  }
+
+  function renderIqcBulkSourceOptions(pairCount){
+    const count = normalizeIqcLoosePairCount(pairCount);
+    const options = [];
+    for(let index = 0; index < count; index++){
+      options.push(`<option value="${index}">第${index + 1}支</option>`);
+    }
     return options.join("");
   }
 
@@ -4948,9 +5030,15 @@ function bindFramePairTableEvents(){
     const pairs = normalizeIqcPairs(card.loosePairs);
     return pairs.map((pair, pairIndex) => `
       <tr>
-        <td class="iqc-pair-sequence-cell"><span class="iqc-pair-sequence-badge">第${pairIndex + 1}支鋼瓶</span></td>
+        <td class="iqc-pair-sequence-cell">
+          <label class="iqc-bulk-target-label">
+            <input type="checkbox" class="iqc-bulk-target" data-iqc-card-index="${index}" data-iqc-pair-index="${pairIndex}" aria-label="批次選取第${pairIndex + 1}支鋼瓶">
+            <span class="iqc-pair-sequence-badge">第${pairIndex + 1}支鋼瓶</span>
+          </label>
+        </td>
         <td><input type="text" class="pair-table-input iqc-loose-ctn" data-iqc-card-index="${index}" data-iqc-pair-index="${pairIndex}" value="${escapeAttribute(normalizeCTN(pair.ctn || ""))}" placeholder="散支 CTN" autocapitalize="characters" autocomplete="off"></td>
         <td><input type="text" class="pair-table-input iqc-loose-rt" data-iqc-card-index="${index}" data-iqc-pair-index="${pairIndex}" value="${escapeAttribute(normalizeIqcRtNo(pair.rtNo || ""))}" placeholder="可掃 RT123456，自動保留 123456" inputmode="text" autocapitalize="characters" autocomplete="off" spellcheck="false"></td>
+        <td><input type="text" class="pair-table-input iqc-loose-status" data-iqc-card-index="${index}" data-iqc-pair-index="${pairIndex}" value="${escapeAttribute(String(pair.cylinderStatus || "").trim())}" placeholder="輸入鋼瓶狀態" maxlength="50" autocomplete="off"></td>
       </tr>
     `).join("");
   }
@@ -4967,8 +5055,8 @@ function bindFramePairTableEvents(){
       </div>
 
       <div class="iqc-pair-heading">
-        <div>散支 CTN＋RT料號配對</div>
-        <small>先選鋼瓶數量（1～18）；需要臨時新增或刪除時，可使用右下角快捷鍵。</small>
+        <div>散支 CTN＋RT料號＋鋼瓶狀態</div>
+        <small>先選鋼瓶數量（1～18）；可勾選多支，再把指定來源列的 RT 或狀態一次套用。</small>
       </div>
 
       <div class="iqc-pair-toolbar">
@@ -4976,11 +5064,20 @@ function bindFramePairTableEvents(){
           <span>鋼瓶數量</span>
           <select class="iqc-pair-count-select iqc-loose-pair-count" data-iqc-card-index="${index}" aria-label="第${index + 1}筆 IQC 散支鋼瓶數量">${renderIqcLoosePairCountOptions(pairCount)}</select>
         </label>
+        <label class="iqc-bulk-source-control">
+          <span>複製來源</span>
+          <select class="iqc-bulk-source-select" data-iqc-card-index="${index}" aria-label="批次複製來源">${renderIqcBulkSourceOptions(pairCount)}</select>
+        </label>
+        <button type="button" class="iqc-bulk-action" onclick="applyIqcLooseBulkValue(${index}, 'rtNo')">套用 RT 至勾選</button>
+        <button type="button" class="iqc-bulk-action" onclick="applyIqcLooseBulkValue(${index}, 'cylinderStatus')">套用狀態至勾選</button>
+        <button type="button" class="iqc-bulk-clear" onclick="toggleIqcBulkTargets(${index}, true)">全選</button>
+        <button type="button" class="iqc-bulk-clear" onclick="toggleIqcBulkTargets(${index}, false)">清除勾選</button>
+        <span id="iqc-bulk-selection-count-${index}" class="iqc-bulk-selection-count">已選 0 支</span>
       </div>
 
       <div class="pair-table-wrap">
         <table class="pair-table iqc-pair-table">
-          <thead><tr><th style="width:22%;">序列</th><th style="width:39%;">CTN</th><th style="width:39%;">RT料號</th></tr></thead>
+          <thead><tr><th style="width:18%;">序列</th><th style="width:25%;">CTN</th><th style="width:24%;">RT料號</th><th style="width:33%;">鋼瓶狀態</th></tr></thead>
           <tbody>${renderIqcLoosePairRows(card, index)}</tbody>
         </table>
       </div>
@@ -5018,7 +5115,7 @@ function bindFramePairTableEvents(){
             <div class="bundle-radio-grid two-col">${renderIqcTypeOptions(`iqc_type_${index}`, type)}</div>
             <div class="iqc-type-tip">
               ${type
-                ? (type === "集束" ? "集束：填寫 RT料號、集束框架 CTN、集束框架編號與區域。" : "散支：填寫運輸框架 CTN、CTN 與 RT料號配對、區域。")
+                ? (type === "集束" ? "集束：填寫 RT料號、集束框架 CTN、集束框架編號與區域。" : "散支：填寫運輸框架 CTN、每支 CTN／RT料號／鋼瓶狀態與區域。")
                 : "請先選擇「集束」或「散支」，才會顯示對應欄位。"}
             </div>
           </div>
@@ -5047,9 +5144,11 @@ function bindFramePairTableEvents(){
       const loosePairs = Array.from(document.querySelectorAll(`.iqc-loose-ctn[data-iqc-card-index="${i}"]`)).map(ctnEl => {
         const pairIndex = ctnEl.dataset.iqcPairIndex || "0";
         const rtEl = document.querySelector(`.iqc-loose-rt[data-iqc-card-index="${i}"][data-iqc-pair-index="${pairIndex}"]`);
+        const statusEl = document.querySelector(`.iqc-loose-status[data-iqc-card-index="${i}"][data-iqc-pair-index="${pairIndex}"]`);
         return {
           ctn:normalizeCTN(ctnEl.value || ""),
-          rtNo:normalizeIqcRtNo(rtEl ? rtEl.value : "")
+          rtNo:normalizeIqcRtNo(rtEl ? rtEl.value : ""),
+          cylinderStatus:String(statusEl ? statusEl.value : "").trim()
         };
       });
 
@@ -5573,10 +5672,11 @@ function bindFramePairTableEvents(){
           const pair = pairs[pairIndex] || {};
           const ctn = normalizeCTN(pair.ctn || "");
           const rtNo = String(pair.rtNo || "").trim();
-          if(!ctn && !rtNo) continue;
+          const cylinderStatus = String(pair.cylinderStatus || "").trim();
+          if(!ctn && !rtNo && !cylinderStatus) continue;
 
-          if(!ctn || !rtNo){
-            showIqcError(index, `第${index + 1}筆 IQC 的第${pairIndex + 1}列散支配對，CTN 與 RT料號必須成對填寫。`);
+          if(!ctn || !rtNo || !cylinderStatus){
+            showIqcError(index, `第${index + 1}筆 IQC 的第${pairIndex + 1}支鋼瓶，CTN、RT料號與鋼瓶狀態都必須完整填寫。`);
             return false;
           }
 
@@ -5620,7 +5720,7 @@ function bindFramePairTableEvents(){
       const frameCtn = normalizeCTN(card && card.transportFrameCtn || "");
       if(!frameCtn) return;
       const count = (Array.isArray(card && card.loosePairs) ? card.loosePairs : [])
-        .filter(pair => normalizeCTN(pair && pair.ctn || "") && String(pair && pair.rtNo || "").trim())
+        .filter(pair => normalizeCTN(pair && pair.ctn || "") && String(pair && pair.rtNo || "").trim() && String(pair && pair.cylinderStatus || "").trim())
         .length;
       if(!pendingByFrame[frameCtn]){
         pendingByFrame[frameCtn] = { count:0, cardIndexes:[] };
@@ -5890,9 +5990,10 @@ function bindFramePairTableEvents(){
     list.innerHTML = pairs.map((pair, pairIndex) => {
       const ctn = normalizeCTN(pair && pair.ctn || "");
       const rtNo = normalizeIqcRtNo(pair && pair.rtNo || "");
-      const summary = ctn || rtNo
-        ? `CTN：${ctn || "未填"}｜RT：${rtNo || "未填"}`
-        : "尚未填寫 CTN／RT";
+      const cylinderStatus = String(pair && pair.cylinderStatus || "").trim();
+      const summary = ctn || rtNo || cylinderStatus
+        ? `CTN：${ctn || "未填"}｜RT：${rtNo || "未填"}｜狀態：${cylinderStatus || "未填"}`
+        : "尚未填寫 CTN／RT／鋼瓶狀態";
 
       return `
         <button type="button" class="iqc-delete-choice" onclick="chooseIqcLoosePairForDelete(${pairIndex})">
@@ -5935,17 +6036,132 @@ function bindFramePairTableEvents(){
 
     const ctn = normalizeCTN(target.ctn || "");
     const rtNo = normalizeIqcRtNo(target.rtNo || "");
-    const hasData = !!(ctn || rtNo);
+    const cylinderStatus = String(target.cylinderStatus || "").trim();
+    const hasData = !!(ctn || rtNo || cylinderStatus);
 
     if(hasData){
       const confirmed = window.confirm(
-        `確定刪除第${pairIndex + 1}支鋼瓶？\nCTN：${ctn || "未填"}\nRT：${rtNo || "未填"}`
+        `確定刪除第${pairIndex + 1}支鋼瓶？\nCTN：${ctn || "未填"}\nRT：${rtNo || "未填"}\n狀態：${cylinderStatus || "未填"}`
       );
       if(!confirmed) return;
     }
 
     closeIqcDeletePicker();
     removeIqcLoosePair(cardIndex, pairIndex);
+  }
+
+  function getIqcBulkTargetIndexes(cardIndex){
+    return Array.from(document.querySelectorAll(`.iqc-bulk-target[data-iqc-card-index="${cardIndex}"]:checked`))
+      .map(input => Number(input.dataset.iqcPairIndex || "-1"))
+      .filter(index => Number.isFinite(index) && index >= 0);
+  }
+
+  function updateIqcBulkSelectionCount(cardIndex){
+    const countEl = document.getElementById(`iqc-bulk-selection-count-${cardIndex}`);
+    if(!countEl) return;
+    const count = getIqcBulkTargetIndexes(cardIndex).length;
+    countEl.textContent = `已選 ${count} 支`;
+  }
+
+  function toggleIqcBulkTargets(cardIndex, checked){
+    document.querySelectorAll(`.iqc-bulk-target[data-iqc-card-index="${cardIndex}"]`).forEach(input => {
+      input.checked = checked === true;
+    });
+    updateIqcBulkSelectionCount(cardIndex);
+  }
+
+  function applyIqcLooseBulkValue(cardIndex, fieldName){
+    collectIqcCardsFromUI();
+    const card = formData.iqc_cards && formData.iqc_cards[cardIndex];
+    if(!card || String(card.type || "") !== "散支") return;
+
+    const sourceSelect = document.querySelector(`.iqc-bulk-source-select[data-iqc-card-index="${cardIndex}"]`);
+    const sourceIndex = Number(sourceSelect ? sourceSelect.value : 0);
+    const pairs = normalizeIqcPairs(card.loosePairs);
+    const sourcePair = pairs[sourceIndex];
+    const targetIndexes = getIqcBulkTargetIndexes(cardIndex);
+
+    if(!sourcePair){
+      window.alert("找不到批次複製來源，請重新選擇來源鋼瓶。");
+      return;
+    }
+
+    if(!targetIndexes.length){
+      window.alert("請先勾選要套用的鋼瓶。");
+      return;
+    }
+
+    const isRt = fieldName === "rtNo";
+    const sourceValue = isRt
+      ? normalizeIqcRtNo(sourcePair.rtNo || "")
+      : String(sourcePair.cylinderStatus || "").trim();
+    const label = isRt ? "RT料號" : "鋼瓶狀態";
+
+    if(!sourceValue){
+      window.alert(`來源第${sourceIndex + 1}支的${label}尚未填寫。`);
+      return;
+    }
+
+    const overwriteIndexes = targetIndexes.filter(targetIndex => {
+      const targetPair = pairs[targetIndex] || {};
+      const currentValue = isRt
+        ? normalizeIqcRtNo(targetPair.rtNo || "")
+        : String(targetPair.cylinderStatus || "").trim();
+      return currentValue && currentValue !== sourceValue;
+    });
+
+    if(overwriteIndexes.length){
+      const confirmed = window.confirm(
+        `已勾選的鋼瓶中，有 ${overwriteIndexes.length} 支已填寫不同${label}。確定以「${sourceValue}」覆蓋嗎？`
+      );
+      if(!confirmed) return;
+    }
+
+    targetIndexes.forEach(targetIndex => {
+      if(!pairs[targetIndex]) return;
+      pairs[targetIndex][fieldName] = sourceValue;
+    });
+
+    card.loosePairs = pairs;
+    iqcActiveCardIndex = clampIqcCardIndex(cardIndex);
+    renderIqcCards();
+    applyIqcLiveValidation();
+    persistDraft();
+  }
+
+  function focusIqcLooseField(cardIndex, pairIndex, fieldClass){
+    const selector = `.${fieldClass}[data-iqc-card-index="${cardIndex}"][data-iqc-pair-index="${pairIndex}"]`;
+    const input = document.querySelector(selector);
+    if(!input) return false;
+    try{
+      input.focus({ preventScroll:false });
+      if(typeof input.select === "function") input.select();
+    }catch(err){
+      input.focus();
+    }
+    return true;
+  }
+
+  function moveToNextIqcLooseField(target){
+    const cardIndex = Number(target && target.dataset ? target.dataset.iqcCardIndex : -1);
+    const pairIndex = Number(target && target.dataset ? target.dataset.iqcPairIndex : -1);
+    if(!Number.isFinite(cardIndex) || cardIndex < 0 || !Number.isFinite(pairIndex) || pairIndex < 0) return;
+
+    if(target.classList.contains("iqc-loose-ctn")){
+      focusIqcLooseField(cardIndex, pairIndex, "iqc-loose-rt");
+      return;
+    }
+
+    if(target.classList.contains("iqc-loose-rt")){
+      focusIqcLooseField(cardIndex, pairIndex, "iqc-loose-status");
+      return;
+    }
+
+    if(target.classList.contains("iqc-loose-status")){
+      if(focusIqcLooseField(cardIndex, pairIndex + 1, "iqc-loose-ctn")) return;
+      const region = document.querySelector(`.iqc-region-code[data-iqc-card-index="${cardIndex}"]`);
+      if(region) region.focus();
+    }
   }
 
   function setIqcLoosePairCount(cardIndex, value){
@@ -5963,12 +6179,12 @@ function bindFramePairTableEvents(){
     if(targetCount < currentCount){
       const removedPairs = pairs.slice(targetCount);
       const hasFilledRemovedPair = removedPairs.some(pair => {
-        return String(pair && pair.ctn || "").trim() || String(pair && pair.rtNo || "").trim();
+        return String(pair && pair.ctn || "").trim() || String(pair && pair.rtNo || "").trim() || String(pair && pair.cylinderStatus || "").trim();
       });
 
       if(hasFilledRemovedPair){
         const confirmed = window.confirm(
-          `散支配對數量將由 ${currentCount} 支調整為 ${targetCount} 支。第${targetCount + 1}支以後已填寫的 CTN／RT 資料會被移除，確定要調整嗎？`
+          `散支配對數量將由 ${currentCount} 支調整為 ${targetCount} 支。第${targetCount + 1}支以後已填寫的 CTN／RT／鋼瓶狀態資料會被移除，確定要調整嗎？`
         );
         if(!confirmed){
           renderIqcCards();
@@ -6083,6 +6299,13 @@ function bindFramePairTableEvents(){
         // input 階段不改寫 value，避免正在傳輸的字元被 DOM 重設吃掉。
       }
 
+      if(target.classList.contains("iqc-bulk-target")){
+        const cardIndex = Number(target.dataset.iqcCardIndex || "-1");
+        if(Number.isFinite(cardIndex) && cardIndex >= 0){
+          updateIqcBulkSelectionCount(cardIndex);
+        }
+      }
+
       if(target.classList.contains("iqc-bundle-ctn") || target.classList.contains("iqc-bundle-frame-id") || target.classList.contains("iqc-transport-frame-ctn") || target.classList.contains("iqc-loose-ctn")){
         const start = target.selectionStart;
         const end = target.selectionEnd;
@@ -6141,13 +6364,30 @@ function bindFramePairTableEvents(){
     container.addEventListener("keydown", function(e){
       const target = e.target;
       if(!target || e.key !== "Enter") return;
-      if(!(target.classList.contains("iqc-bundle-rt") || target.classList.contains("iqc-loose-rt"))) return;
 
-      // 多數 Barcoder 會在條碼末端送出 Enter；此時才安全地移除 RT 前綴。
+      const isLooseCtn = target.classList.contains("iqc-loose-ctn");
+      const isLooseRt = target.classList.contains("iqc-loose-rt");
+      const isLooseStatus = target.classList.contains("iqc-loose-status");
+      const isBundleRt = target.classList.contains("iqc-bundle-rt");
+
+      if(!(isLooseCtn || isLooseRt || isLooseStatus || isBundleRt)) return;
+
       e.preventDefault();
-      commitIqcRtInput(target);
+
+      // 多數 Barcoder 會在 RT 條碼末端送出 Enter；此時才安全地移除 RT 前綴。
+      if(isLooseRt || isBundleRt){
+        commitIqcRtInput(target);
+      }
+      if(isLooseCtn){
+        target.value = normalizeCTN(target.value || "");
+      }
+
       applyIqcLiveValidation();
       persistDraft();
+
+      if(isLooseCtn || isLooseRt || isLooseStatus){
+        moveToNextIqcLooseField(target);
+      }
     });
 
     if(!window.__iqcResponsiveLayoutBound){
