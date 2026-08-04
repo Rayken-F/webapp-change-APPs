@@ -1711,12 +1711,158 @@ user-scalable=no">
     background:linear-gradient(145deg, rgba(66,88,174,0.92), rgba(37,49,126,0.98));
   }
 
-  @media (max-width:520px){
-    .iqc-quick-bulk-panel{
-      width:min(300px, calc(100vw - 100px));
-      padding:12px;
+  .iqc-quick-bulk-backdrop{
+    position:fixed;
+    inset:0;
+    z-index:1690;
+    display:none;
+    background:rgba(3,8,34,0.68);
+    backdrop-filter:blur(4px);
+    -webkit-backdrop-filter:blur(4px);
+  }
+
+  @media (max-width:768px){
+    .iqc-quick-dock{
+      right:10px;
+      bottom:calc(env(safe-area-inset-bottom, 0px) + 84px);
+      padding:7px 7px 7px 5px;
+      border-radius:20px;
+      gap:6px;
     }
-    .iqc-quick-bulk-grid button{ font-size:13px; }
+
+    .iqc-quick-stack{
+      gap:9px;
+      max-width:46px;
+    }
+
+    .iqc-quick-action{
+      width:44px;
+      height:44px;
+      min-width:44px;
+      font-size:20px;
+    }
+
+    .iqc-quick-action.iqc-delete-action,
+    .iqc-quick-action.iqc-bulk-action-trigger{
+      font-size:15px;
+    }
+
+    .iqc-quick-toggle{
+      width:28px;
+      height:44px;
+      min-width:28px;
+      font-size:20px;
+    }
+
+    .iqc-quick-bulk-backdrop.show{ display:block; }
+
+    .iqc-quick-dock.bulk-open{
+      border-color:transparent;
+      background:transparent;
+      box-shadow:none;
+      backdrop-filter:none;
+      -webkit-backdrop-filter:none;
+    }
+
+    .iqc-quick-dock.bulk-open > .iqc-quick-toggle,
+    .iqc-quick-dock.bulk-open > .iqc-quick-stack{
+      visibility:hidden;
+      pointer-events:none;
+    }
+
+    .iqc-quick-bulk-panel{
+      position:fixed;
+      left:10px;
+      right:10px;
+      bottom:calc(env(safe-area-inset-bottom, 0px) + 10px);
+      width:auto;
+      max-height:min(64dvh, 560px);
+      overflow-y:auto;
+      overscroll-behavior:contain;
+      padding:10px 14px calc(env(safe-area-inset-bottom, 0px) + 14px);
+      border-radius:24px 24px 18px 18px;
+      z-index:1760;
+      gap:12px;
+      box-shadow:0 -18px 50px rgba(4,8,40,0.62), inset 0 0 0 1px rgba(255,255,255,0.08);
+      transform:translateY(26px);
+      opacity:0;
+    }
+
+    .iqc-quick-bulk-panel::before{
+      content:"";
+      width:42px;
+      height:5px;
+      flex:0 0 5px;
+      margin:0 auto 2px;
+      border-radius:999px;
+      background:rgba(220,229,255,0.46);
+    }
+
+    .iqc-quick-bulk-panel.show{
+      display:flex;
+      opacity:1;
+      transform:translateY(0);
+      animation:iqcBulkSheetUp .2s ease-out both;
+    }
+
+    @keyframes iqcBulkSheetUp{
+      from{ opacity:0; transform:translateY(28px); }
+      to{ opacity:1; transform:translateY(0); }
+    }
+
+    .iqc-quick-bulk-head{
+      position:sticky;
+      top:-10px;
+      z-index:2;
+      align-items:center;
+      margin:0 -4px;
+      padding:8px 4px 10px;
+      background:linear-gradient(180deg, rgba(34,45,126,0.99) 74%, rgba(34,45,126,0));
+    }
+
+    .iqc-quick-bulk-title{ font-size:17px; }
+    .iqc-quick-bulk-subtitle{ font-size:12px; }
+
+    .iqc-quick-bulk-close{
+      width:40px;
+      height:40px;
+      min-width:40px;
+      border-radius:14px;
+      font-size:24px;
+    }
+
+    .iqc-quick-bulk-source{
+      flex-direction:column;
+      align-items:stretch;
+      gap:8px;
+      padding:12px;
+      font-size:14px;
+    }
+
+    .iqc-quick-bulk-source select{
+      width:100%;
+      max-width:none;
+      min-height:48px;
+      padding:10px 14px;
+      font-size:16px;
+    }
+
+    .iqc-quick-bulk-count{
+      padding:2px 2px 0;
+      font-size:14px;
+    }
+
+    .iqc-quick-bulk-grid{
+      grid-template-columns:1fr 1fr;
+      gap:10px;
+    }
+
+    .iqc-quick-bulk-grid button{
+      min-height:50px;
+      padding:12px 8px;
+      font-size:15px;
+      border-radius:16px;
+    }
   }
 
   .iqc-delete-overlay{
@@ -2355,6 +2501,7 @@ user-scalable=no">
   </div>
 
 
+  <div id="iqcQuickBulkBackdrop" class="iqc-quick-bulk-backdrop" onclick="closeIqcQuickBulkPanel()" aria-hidden="true"></div>
   <div id="iqcQuickDock" class="iqc-quick-dock" aria-hidden="true">
     <div id="iqcQuickBulkPanel" class="iqc-quick-bulk-panel" aria-hidden="true">
       <div class="iqc-quick-bulk-head">
@@ -6078,17 +6225,38 @@ function bindFramePairTableEvents(){
   function openIqcQuickBulkPanel(){
     const panel = document.getElementById("iqcQuickBulkPanel");
     const dock = document.getElementById("iqcQuickDock");
+    const backdrop = document.getElementById("iqcQuickBulkBackdrop");
     if(!panel || !dock || dock.classList.contains("collapsed")) return;
     if(!renderIqcQuickBulkPanel()) return;
+
     panel.classList.add("show");
     panel.setAttribute("aria-hidden", "false");
+    dock.classList.add("bulk-open");
+
+    if(backdrop){
+      backdrop.classList.add("show");
+      backdrop.setAttribute("aria-hidden", "false");
+    }
+
+    if(window.matchMedia && window.matchMedia("(max-width: 768px)").matches){
+      document.body.style.overflow = "hidden";
+    }
   }
 
   function closeIqcQuickBulkPanel(){
     const panel = document.getElementById("iqcQuickBulkPanel");
-    if(!panel) return;
-    panel.classList.remove("show");
-    panel.setAttribute("aria-hidden", "true");
+    const dock = document.getElementById("iqcQuickDock");
+    const backdrop = document.getElementById("iqcQuickBulkBackdrop");
+    if(panel){
+      panel.classList.remove("show");
+      panel.setAttribute("aria-hidden", "true");
+    }
+    if(dock) dock.classList.remove("bulk-open");
+    if(backdrop){
+      backdrop.classList.remove("show");
+      backdrop.setAttribute("aria-hidden", "true");
+    }
+    document.body.style.overflow = "";
   }
 
   function toggleIqcQuickBulkPanel(){
