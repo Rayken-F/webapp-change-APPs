@@ -1865,6 +1865,95 @@ user-scalable=no">
     }
   }
 
+  /* IQC 手機快捷欄：來源／RT／狀態／全選／清除／新增／刪除全部直列，不再開啟批次面板。 */
+  .iqc-quick-source-control{
+    width:50px;
+    height:50px;
+    min-width:50px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    overflow:hidden;
+    border:1px solid rgba(216,225,255,0.42);
+    border-radius:999px;
+    background:linear-gradient(145deg, rgba(71,87,178,0.96), rgba(35,49,126,0.98));
+    box-shadow:0 10px 24px rgba(40,30,135,0.26), inset 0 2px 0 rgba(255,255,255,0.12);
+  }
+
+  .iqc-quick-source-control select{
+    width:100%;
+    height:100%;
+    padding:0 2px;
+    border:0;
+    outline:0;
+    border-radius:inherit;
+    color:#ffffff;
+    background:transparent;
+    text-align:center;
+    text-align-last:center;
+    font-size:11px;
+    font-weight:900;
+    line-height:1;
+    appearance:auto;
+    -webkit-appearance:menulist;
+    cursor:pointer;
+  }
+
+  .iqc-quick-source-control select option{ color:#111827; }
+
+  .iqc-quick-action.iqc-quick-rt{
+    font-size:15px;
+    background:linear-gradient(145deg, rgba(106,91,255,0.98), rgba(64,70,205,0.98));
+  }
+
+  .iqc-quick-action.iqc-quick-status{
+    font-size:17px;
+    background:linear-gradient(145deg, rgba(79,170,219,0.96), rgba(50,94,184,0.98));
+  }
+
+  .iqc-quick-action.iqc-quick-select,
+  .iqc-quick-action.iqc-quick-clear{
+    font-size:17px;
+    background:linear-gradient(145deg, rgba(71,91,179,0.96), rgba(39,52,132,0.98));
+  }
+
+  .iqc-quick-action.iqc-quick-add{
+    font-size:23px;
+  }
+
+  @media (max-width:768px){
+    .iqc-quick-dock{
+      bottom:calc(env(safe-area-inset-bottom, 0px) + 72px);
+      padding:6px 6px 6px 4px;
+      gap:5px;
+      max-height:calc(100dvh - 150px);
+    }
+
+    .iqc-quick-stack{
+      gap:6px;
+      max-width:46px;
+    }
+
+    .iqc-quick-source-control,
+    .iqc-quick-action{
+      width:42px;
+      height:42px;
+      min-width:42px;
+    }
+
+    .iqc-quick-source-control select{
+      font-size:10px;
+      padding:0;
+    }
+
+    .iqc-quick-action.iqc-quick-rt{ font-size:13px; }
+    .iqc-quick-action.iqc-quick-status,
+    .iqc-quick-action.iqc-quick-select,
+    .iqc-quick-action.iqc-quick-clear,
+    .iqc-quick-action.iqc-delete-action{ font-size:15px; }
+    .iqc-quick-action.iqc-quick-add{ font-size:21px; }
+  }
+
   .iqc-delete-overlay{
     position:fixed;
     inset:0;
@@ -2501,33 +2590,18 @@ user-scalable=no">
   </div>
 
 
-  <div id="iqcQuickBulkBackdrop" class="iqc-quick-bulk-backdrop" onclick="closeIqcQuickBulkPanel()" aria-hidden="true"></div>
   <div id="iqcQuickDock" class="iqc-quick-dock" aria-hidden="true">
-    <div id="iqcQuickBulkPanel" class="iqc-quick-bulk-panel" aria-hidden="true">
-      <div class="iqc-quick-bulk-head">
-        <div>
-          <div id="iqcQuickBulkTitle" class="iqc-quick-bulk-title">批次套用</div>
-          <div class="iqc-quick-bulk-subtitle">先勾選目標鋼瓶，再指定來源列套用 RT 或狀態。</div>
-        </div>
-        <button type="button" class="iqc-quick-bulk-close" onclick="closeIqcQuickBulkPanel()" aria-label="關閉批次套用">×</button>
-      </div>
-      <label class="iqc-quick-bulk-source">
-        <span>複製來源</span>
-        <select id="iqcQuickBulkSource" aria-label="批次複製來源"></select>
-      </label>
-      <div id="iqcQuickBulkCount" class="iqc-quick-bulk-count">已選 0 支</div>
-      <div class="iqc-quick-bulk-grid">
-        <button type="button" class="iqc-quick-bulk-secondary" onclick="toggleIqcBulkTargetsFromQuickDock(true)">全選</button>
-        <button type="button" class="iqc-quick-bulk-secondary" onclick="toggleIqcBulkTargetsFromQuickDock(false)">清除勾選</button>
-        <button type="button" class="iqc-quick-bulk-apply" onclick="applyIqcLooseBulkValueFromQuickDock('rtNo')">套用 RT</button>
-        <button type="button" class="iqc-quick-bulk-apply" onclick="applyIqcLooseBulkValueFromQuickDock('cylinderStatus')">套用狀態</button>
-      </div>
-    </div>
     <button type="button" id="iqcQuickToggle" class="iqc-quick-toggle" onclick="toggleIqcQuickDock()" aria-label="收合 IQC 快捷功能" aria-expanded="true">›</button>
     <div class="iqc-quick-stack">
-      <button type="button" id="iqcQuickAdd" class="iqc-quick-action" onclick="addIqcLoosePairFromQuickDock()" aria-label="增加 1 支散支鋼瓶" title="增加 1 支">＋</button>
+      <label class="iqc-quick-source-control" title="複製來源鋼瓶">
+        <select id="iqcQuickBulkSource" aria-label="複製來源鋼瓶"></select>
+      </label>
+      <button type="button" id="iqcQuickApplyRt" class="iqc-quick-action iqc-quick-rt" onclick="applyIqcLooseBulkValueFromQuickDock('rtNo')" aria-label="將來源鋼瓶 RT 套用至勾選鋼瓶" title="套用 RT">RT</button>
+      <button type="button" id="iqcQuickApplyStatus" class="iqc-quick-action iqc-quick-status" onclick="applyIqcLooseBulkValueFromQuickDock('cylinderStatus')" aria-label="將來源鋼瓶狀態套用至勾選鋼瓶" title="套用狀態">狀</button>
+      <button type="button" id="iqcQuickSelectAll" class="iqc-quick-action iqc-quick-select" onclick="toggleIqcBulkTargetsFromQuickDock(true)" aria-label="全選目前散支鋼瓶" title="全選">全</button>
+      <button type="button" id="iqcQuickClearAll" class="iqc-quick-action iqc-quick-clear" onclick="toggleIqcBulkTargetsFromQuickDock(false)" aria-label="清除全部勾選" title="清除勾選">清</button>
+      <button type="button" id="iqcQuickAdd" class="iqc-quick-action iqc-quick-add" onclick="addIqcLoosePairFromQuickDock()" aria-label="增加 1 支散支鋼瓶" title="增加 1 支">＋</button>
       <button type="button" id="iqcQuickDelete" class="iqc-quick-action iqc-delete-action" onclick="openIqcDeletePicker()" aria-label="選擇要刪除的散支鋼瓶" title="選擇刪除">刪</button>
-      <button type="button" id="iqcQuickBulk" class="iqc-quick-action iqc-bulk-action-trigger" onclick="toggleIqcQuickBulkPanel()" aria-label="批次套用 RT 或鋼瓶狀態" title="批次套用">批</button>
     </div>
   </div>
 
@@ -5301,7 +5375,7 @@ function bindFramePairTableEvents(){
     const count = normalizeIqcLoosePairCount(pairCount);
     const options = [];
     for(let index = 0; index < count; index++){
-      options.push(`<option value="${index}">第${index + 1}支</option>`);
+      options.push(`<option value="${index}">${index + 1}</option>`);
     }
     return options.join("");
   }
@@ -6356,64 +6430,29 @@ function bindFramePairTableEvents(){
     collectIqcCardsFromUI();
     const cardIndex = clampIqcCardIndex(iqcActiveCardIndex);
     const card = formData.iqc_cards && formData.iqc_cards[cardIndex];
-    const panel = document.getElementById("iqcQuickBulkPanel");
-    const title = document.getElementById("iqcQuickBulkTitle");
     const source = document.getElementById("iqcQuickBulkSource");
-    if(!panel || !source || !card || String(card.type || "") !== "散支") return false;
+    if(!source || !card || String(card.type || "") !== "散支") return false;
 
     const pairs = normalizeIqcPairs(card.loosePairs);
+    const previousIndex = Number(source.value || 0);
     source.innerHTML = renderIqcBulkSourceOptions(pairs.length);
     source.dataset.iqcCardIndex = String(cardIndex);
-    if(title) title.textContent = `批次套用｜第${cardIndex + 1}筆 IQC`;
+    source.value = String(Math.max(0, Math.min(previousIndex, pairs.length - 1)));
     updateIqcBulkSelectionCount(cardIndex);
     return true;
   }
 
+  // 批次功能已直接整合在右側快捷欄；保留空函式相容舊事件，不再開啟額外面板。
   function openIqcQuickBulkPanel(){
-    const panel = document.getElementById("iqcQuickBulkPanel");
-    const dock = document.getElementById("iqcQuickDock");
-    const backdrop = document.getElementById("iqcQuickBulkBackdrop");
-    if(!panel || !dock || dock.classList.contains("collapsed")) return;
-    if(!renderIqcQuickBulkPanel()) return;
-
-    panel.classList.add("show");
-    panel.setAttribute("aria-hidden", "false");
-    dock.classList.add("bulk-open");
-
-    if(backdrop){
-      backdrop.classList.add("show");
-      backdrop.setAttribute("aria-hidden", "false");
-    }
-
-    if(window.matchMedia && window.matchMedia("(max-width: 768px)").matches){
-      document.body.style.overflow = "hidden";
-    }
+    renderIqcQuickBulkPanel();
   }
 
   function closeIqcQuickBulkPanel(){
-    const panel = document.getElementById("iqcQuickBulkPanel");
-    const dock = document.getElementById("iqcQuickDock");
-    const backdrop = document.getElementById("iqcQuickBulkBackdrop");
-    if(panel){
-      panel.classList.remove("show");
-      panel.setAttribute("aria-hidden", "true");
-    }
-    if(dock) dock.classList.remove("bulk-open");
-    if(backdrop){
-      backdrop.classList.remove("show");
-      backdrop.setAttribute("aria-hidden", "true");
-    }
     document.body.style.overflow = "";
   }
 
   function toggleIqcQuickBulkPanel(){
-    const panel = document.getElementById("iqcQuickBulkPanel");
-    if(!panel) return;
-    if(panel.classList.contains("show")){
-      closeIqcQuickBulkPanel();
-    }else{
-      openIqcQuickBulkPanel();
-    }
+    renderIqcQuickBulkPanel();
   }
 
   function toggleIqcBulkTargetsFromQuickDock(checked){
@@ -6428,10 +6467,17 @@ function bindFramePairTableEvents(){
 
   function updateIqcQuickDock(){
     const dock = document.getElementById("iqcQuickDock");
+    const sourceSelect = document.getElementById("iqcQuickBulkSource");
+    const applyRtButton = document.getElementById("iqcQuickApplyRt");
+    const applyStatusButton = document.getElementById("iqcQuickApplyStatus");
+    const selectAllButton = document.getElementById("iqcQuickSelectAll");
+    const clearAllButton = document.getElementById("iqcQuickClearAll");
     const addButton = document.getElementById("iqcQuickAdd");
     const deleteButton = document.getElementById("iqcQuickDelete");
-    const bulkButton = document.getElementById("iqcQuickBulk");
-    if(!dock || !addButton || !deleteButton || !bulkButton) return;
+    if(
+      !dock || !sourceSelect || !applyRtButton || !applyStatusButton ||
+      !selectAllButton || !clearAllButton || !addButton || !deleteButton
+    ) return;
 
     const page = document.getElementById("pageIQC");
     const card = formData.iqc_cards && formData.iqc_cards[clampIqcCardIndex(iqcActiveCardIndex)];
@@ -6447,29 +6493,36 @@ function bindFramePairTableEvents(){
 
     if(!shouldShow){
       closeIqcDeletePicker();
-      closeIqcQuickBulkPanel();
       return;
     }
 
     const pairCount = normalizeIqcPairs(card.loosePairs).length;
+    renderIqcQuickBulkPanel();
+
+    const bulkDisabled = pairCount <= IQC_LOOSE_PAIR_MIN;
+    sourceSelect.disabled = bulkDisabled;
+    applyRtButton.disabled = bulkDisabled;
+    applyStatusButton.disabled = bulkDisabled;
+    selectAllButton.disabled = bulkDisabled;
+    clearAllButton.disabled = bulkDisabled;
+
+    const sourceLabel = sourceSelect.options[sourceSelect.selectedIndex]
+      ? sourceSelect.options[sourceSelect.selectedIndex].textContent
+      : "1";
+    sourceSelect.title = `複製來源：${sourceLabel}`;
+    applyRtButton.title = bulkDisabled ? "至少 2 支鋼瓶才可套用 RT" : `以${sourceLabel}套用 RT 至勾選鋼瓶`;
+    applyStatusButton.title = bulkDisabled ? "至少 2 支鋼瓶才可套用狀態" : `以${sourceLabel}套用狀態至勾選鋼瓶`;
+    selectAllButton.title = bulkDisabled ? "至少 2 支鋼瓶才可全選" : "全選目前散支鋼瓶";
+    clearAllButton.title = bulkDisabled ? "至少 2 支鋼瓶才可清除勾選" : "清除全部勾選";
+
     addButton.disabled = pairCount >= IQC_LOOSE_PAIR_MAX;
     addButton.title = pairCount >= IQC_LOOSE_PAIR_MAX
       ? `已達上限 ${IQC_LOOSE_PAIR_MAX} 支`
       : `第${iqcActiveCardIndex + 1}筆 IQC：增加 1 支`;
 
-    // 現場規則：只有多於 1 支時才顯示刪除功能。
     deleteButton.hidden = pairCount <= IQC_LOOSE_PAIR_MIN;
     deleteButton.disabled = pairCount <= IQC_LOOSE_PAIR_MIN;
     deleteButton.title = `第${iqcActiveCardIndex + 1}筆 IQC：選擇要刪除的鋼瓶`;
-
-    bulkButton.disabled = pairCount <= IQC_LOOSE_PAIR_MIN;
-    bulkButton.title = pairCount <= IQC_LOOSE_PAIR_MIN
-      ? "至少 2 支鋼瓶才可使用批次套用"
-      : `第${iqcActiveCardIndex + 1}筆 IQC：批次套用 RT／鋼瓶狀態`;
-    if(pairCount <= IQC_LOOSE_PAIR_MIN) closeIqcQuickBulkPanel();
-    if(document.getElementById("iqcQuickBulkPanel")?.classList.contains("show")){
-      renderIqcQuickBulkPanel();
-    }
 
     applyIqcQuickDockCollapsedState();
   }
@@ -6573,12 +6626,14 @@ function bindFramePairTableEvents(){
   function updateIqcBulkSelectionCount(cardIndex){
     const count = getIqcBulkTargetIndexes(cardIndex).length;
     const countEl = document.getElementById(`iqc-bulk-selection-count-${cardIndex}`);
-    if(countEl) countEl.textContent = `已選 ${count} 支｜批次功能請使用右側「批」`;
+    if(countEl) countEl.textContent = `已選 ${count} 支`;
 
-    const quickCount = document.getElementById("iqcQuickBulkCount");
     const quickSource = document.getElementById("iqcQuickBulkSource");
-    if(quickCount && quickSource && Number(quickSource.dataset.iqcCardIndex || -1) === Number(cardIndex)){
-      quickCount.textContent = `已選 ${count} 支`;
+    if(quickSource && Number(quickSource.dataset.iqcCardIndex || -1) === Number(cardIndex)){
+      const applyRtButton = document.getElementById("iqcQuickApplyRt");
+      const applyStatusButton = document.getElementById("iqcQuickApplyStatus");
+      if(applyRtButton) applyRtButton.setAttribute("aria-label", `套用 RT 至已勾選 ${count} 支鋼瓶`);
+      if(applyStatusButton) applyStatusButton.setAttribute("aria-label", `套用狀態至已勾選 ${count} 支鋼瓶`);
     }
   }
 
