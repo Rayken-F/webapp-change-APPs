@@ -164,7 +164,7 @@
     <div class="subtitle">研磨站批次入站・在製追蹤・入框待噴砂｜BETA</div>
 
     <section class="banner">
-      v2.0.2 支援待噴砂框退回 Grinding／轉 DCYL／轉 HT、低阻塞寫入與手機日期視窗修正；操作日期每次開啟自動更新為當天，所有寫入只進 BETA 隔離表。
+      v2.0.3 支援待噴砂框原子交易、處理中禁止關閉、APP中斷後冪等恢復及畫面一致性；操作日期每次開啟自動更新為當天，所有寫入只進 BETA 隔離表。
     </section>
 
     <section class="card">
@@ -315,7 +315,7 @@
           <div id="frameEditTitle" class="modal-title">待噴砂框</div>
           <div id="frameEditSummary" class="muted">讀取中…</div>
         </div>
-        <button class="btn ghost" style="min-height:36px;padding:7px 10px" onclick="closeFrameEditModal()">關閉</button>
+        <button id="frameEditCloseBtn" class="btn ghost" style="min-height:36px;padding:7px 10px" onclick="closeFrameEditModal()">關閉</button>
       </div>
       <div class="warning-box">框內內容一旦變更，原本「完成此框」確認會失效，必須重新完成此框後才能送往噴砂。</div>
       <div id="frameEditList" class="asset-list" style="max-height:48vh;overflow:auto"></div>
@@ -376,7 +376,7 @@
   <div id="toast" class="toast"></div>
   <div id="loadingMask" class="loading-mask"><div id="loadingText" class="loading-card">處理中…</div></div>
 
-  <script src="./api.js?v=BETA_GRINDING_WIP_V2_0_LOCALSTORAGE_SAFE_DRAFT_20260803"></script>
+  <script src="./api.js?v=BETA_GRINDING_WIP_V2_0_3_ATOMIC_FRAME_EDIT_RECOVERY_20260803"></script>
   <script>
     const CLIENT_VERSION = BETA_CLIENT_VERSION;
     const STORAGE_KEY = "ds_grinding_wip_beta_v2_local_draft";
@@ -392,11 +392,11 @@
     let state = {
       reportDate:"",operator:"",tab:"checkin",sources:[],activeSourceId:"",
       summary:null,wip:null,wipFilter:"ALL",selected:{},selectedQty:{},
-      pendingCheckIn:null,pendingDisposition:null,revision:0,lastServerTime:"",
+      pendingCheckIn:null,pendingDisposition:null,pendingFrameEdit:null,revision:0,lastServerTime:"",
       refreshing:false,dispositionBusy:false,clientWriteBlocked:false,
       requiredClientVersion:"",clientUpdateUrl:"",barcodeSelected:{},barcodeRecent:[],
       lastBootstrapAt:0,lastHealthCheckAt:0,
-      frameEditor:null,frameEditSelected:{},frameEditQty:{},
+      frameEditor:null,frameEditSelected:{},frameEditQty:{},frameEditBusy:false,
       historyDays:7,historyOffset:0,historyHasMore:false,historyItems:[]
     };
     let toastTimer = null;
@@ -445,7 +445,8 @@
           sources:state.sources,
           activeSourceId:state.activeSourceId,
           pendingCheckIn:state.pendingCheckIn,
-          pendingDisposition:state.pendingDisposition
+          pendingDisposition:state.pendingDisposition,
+          pendingFrameEdit:state.pendingFrameEdit
         }))
       }catch(err){console.warn("Grinding local draft save failed",err)}
     }
@@ -468,7 +469,7 @@
         const p=found.data;
         const savedAt=Number(p.savedAt||0);
         const ageMs=savedAt>0?Date.now()-savedAt:0;
-        const hasWork=(Array.isArray(p.sources)&&p.sources.length)||p.pendingCheckIn||p.pendingDisposition;
+        const hasWork=(Array.isArray(p.sources)&&p.sources.length)||p.pendingCheckIn||p.pendingDisposition||p.pendingFrameEdit;
         let restoreWork=true;
         if(hasWork&&savedAt>0&&ageMs>LOCAL_DRAFT_TTL_MS){
           restoreWork=confirm("發現超過24小時的未完成 Grinding 草稿。是否載入查看？載入後仍會重新向後台驗證，不會直接送出。");
@@ -494,12 +495,14 @@
           });
           state.activeSourceId=String(p.activeSourceId||"");
           state.pendingCheckIn=normalizePendingLocalRecord(p.pendingCheckIn);
-          state.pendingDisposition=normalizePendingLocalRecord(p.pendingDisposition)
+          state.pendingDisposition=normalizePendingLocalRecord(p.pendingDisposition);
+          state.pendingFrameEdit=normalizePendingLocalRecord(p.pendingFrameEdit)
         }else{
           state.sources=[];
           state.activeSourceId="";
           state.pendingCheckIn=null;
-          state.pendingDisposition=null
+          state.pendingDisposition=null;
+          state.pendingFrameEdit=null
         }
 
         if(found.key!==STORAGE_KEY){
@@ -679,13 +682,19 @@
         if(document.getElementById("frameEditModal").classList.contains("show"))closeFrameEditModal();
         else if(document.getElementById("historyModal").classList.contains("show"))closeHistoryModal()
       });
+      window.addEventListener("beforeunload",event=>{
+        if(!state.frameEditBusy)return;
+        event.preventDefault();
+        event.returnValue=""
+      });
 
       setupGrindingSync();
       switchTab(state.tab||"checkin");
       renderCheckIn();
-      checkHealth().then(ok=>{
+      checkHealth().then(async ok=>{
         if(ok){
-          refreshAll(false);
+          await refreshAll(false);
+          await recoverPendingFrameEdit_();
           revalidateRestoredDraftSources()
         }
       })
@@ -1012,8 +1021,12 @@
       return {kind:"bottle",source_ctn:s.ctn,lookup_snapshot:snapshot,expected_version:Number(s.record.betaStateVersion||0)}
     })}
     function getPendingSubmission(kind,signature){
-      const key=kind==="checkin"?"pendingCheckIn":"pendingDisposition";
-      const prefix=kind==="checkin"?"GRDIN":"GRDOP";
+      const key=kind==="checkin"
+        ?"pendingCheckIn"
+        :(kind==="frame_edit"?"pendingFrameEdit":"pendingDisposition");
+      const prefix=kind==="checkin"
+        ?"GRDIN"
+        :(kind==="frame_edit"?"GRDFRM":"GRDOP");
       if(!state[key]||state[key].hash!==signature){
         state[key]={
           hash:signature,
@@ -1028,7 +1041,9 @@
       return state[key].id
     }
     function markPendingSubmission(kind,payload,status){
-      const key=kind==="checkin"?"pendingCheckIn":"pendingDisposition";
+      const key=kind==="checkin"
+        ?"pendingCheckIn"
+        :(kind==="frame_edit"?"pendingFrameEdit":"pendingDisposition");
       if(!state[key])return;
       state[key].status=String(status||"prepared");
       state[key].updatedAt=Date.now();
@@ -1553,7 +1568,16 @@
         document.getElementById("frameEditList").innerHTML='<div class="error-box">'+escapeHtml(err.message||"讀取失敗")+'</div>'
       }
     }
-    function closeFrameEditModal(){document.getElementById("frameEditModal").classList.remove("show");document.body.classList.remove("modal-open");setFrameEditBusy(false,"")}
+    function closeFrameEditModal(force){
+      if(state.frameEditBusy&&!force){
+        showToast("待噴砂框交易仍在寫入，完成前不能關閉視窗。",true);
+        return false
+      }
+      document.getElementById("frameEditModal").classList.remove("show");
+      document.body.classList.remove("modal-open");
+      setFrameEditBusy(false,"");
+      return true
+    }
     function renderFrameEditor(){
       const data=state.frameEditor;if(!data)return;
       const f=data.frame||{};const assets=data.assets||[];
@@ -1569,8 +1593,12 @@
       document.getElementById("frameHtBtn").disabled=disabled
     }
     function setFrameEditBusy(busy,message){
-      ["frameReturnBtn","frameDcylBtn","frameHtBtn"].forEach(id=>{
+      state.frameEditBusy=!!busy;
+      ["frameReturnBtn","frameDcylBtn","frameHtBtn","frameEditCloseBtn"].forEach(id=>{
         const button=document.getElementById(id);if(button)button.disabled=!!busy
+      });
+      document.querySelectorAll("#frameEditList input").forEach(input=>{
+        input.disabled=!!busy
       });
       const status=document.getElementById("frameEditStatus");
       if(status){status.textContent=message||"";status.classList.toggle("show",!!busy)}
@@ -1589,11 +1617,95 @@
         expected_version:Number(a.stateVersion||0)
       }))
     }
+    function removeAssetKeys_(list,keyMap){
+      return (Array.isArray(list)?list:[]).filter(item=>!keyMap[item.assetKey])
+    }
+    function mergeAssetsByKey_(base,added){
+      const map={};
+      (Array.isArray(base)?base:[]).forEach(item=>{if(item&&item.assetKey)map[item.assetKey]=item});
+      (Array.isArray(added)?added:[]).forEach(item=>{if(item&&item.assetKey)map[item.assetKey]=item});
+      return Object.keys(map).map(key=>map[key])
+    }
+    function applyFrameEditResult_(action,frameCtn,result){
+      state.wip=state.wip||{grindingAssets:[],waitSandblastAssets:[],frames:[],dispositions:[]};
+      const remaining=Array.isArray(result.remaining_frame_assets)?result.remaining_frame_assets:[];
+      const moved=Array.isArray(result.moved_assets)
+        ?result.moved_assets
+        :(Array.isArray(result.affected_assets)?result.affected_assets:[]);
+      const movedKeys={};moved.forEach(item=>{if(item&&item.assetKey)movedKeys[item.assetKey]=true});
+
+      state.wip.waitSandblastAssets=(state.wip.waitSandblastAssets||[])
+        .filter(item=>normalizeCtn(item.currentFrameCtn||"")!==frameCtn);
+      state.wip.waitSandblastAssets=mergeAssetsByKey_(
+        state.wip.waitSandblastAssets,remaining
+      );
+
+      if(action==="FRAME_ITEM_RETURN_GRINDING"){
+        state.wip.grindingAssets=mergeAssetsByKey_(
+          removeAssetKeys_(state.wip.grindingAssets,movedKeys),moved
+        );
+        state.wip.dispositions=removeAssetKeys_(state.wip.dispositions,movedKeys)
+      }else{
+        state.wip.grindingAssets=removeAssetKeys_(state.wip.grindingAssets,movedKeys);
+        state.wip.dispositions=mergeAssetsByKey_(
+          removeAssetKeys_(state.wip.dispositions,movedKeys),moved
+        ).sort((a,b)=>String(b.updatedAt||"").localeCompare(String(a.updatedAt||"")))
+      }
+
+      const frames=Array.isArray(state.wip.frames)?state.wip.frames:[];
+      const frameResult=result.frame||{};
+      const target=frames.find(frame=>normalizeCtn(frame.frameCtn)===frameCtn);
+      if(Number(frameResult.actualQty||0)<=0){
+        state.wip.frames=frames.filter(frame=>normalizeCtn(frame.frameCtn)!==frameCtn)
+      }else if(target){
+        target.actualQty=Number(frameResult.actualQty||0);
+        target.status=String(frameResult.status||target.status||"");
+        target.stateVersion=Number(frameResult.stateVersion||target.stateVersion||0);
+        state.wip.frames=frames
+      }else{
+        state.wip.frames=frames.concat([{
+          frameCtn,
+          actualQty:Number(frameResult.actualQty||0),
+          capacity:Number(frameResult.capacity||18),
+          status:String(frameResult.status||"LOADING"),
+          stateVersion:Number(frameResult.stateVersion||0)
+        }])
+      }
+
+      if(result.current_summary||result.daily_summary){
+        state.summary={
+          current:result.current_summary||state.summary&&state.summary.current||{},
+          daily:result.daily_summary||state.summary&&state.summary.daily||{}
+        }
+      }
+      state.revision=Number(result.revision||state.revision||0);
+      state.selected={};state.selectedQty={};state.barcodeSelected={};
+      renderSummary();renderWip();renderBarcodeScanner();renderSticky();
+      saveState()
+    }
+    async function recoverPendingFrameEdit_(){
+      const pending=state.pendingFrameEdit;
+      if(!pending||!pending.payload||pending.status==="prepared")return;
+      showToast("正在確認上次未取得回應的待噴砂框交易…");
+      try{
+        const body=safeClone(pending.payload);
+        const result=await submitBetaGrindingFrameEdit(body);
+        applyFrameEditResult_(body.action,normalizeCtn(body.frame_ctn),result);
+        state.pendingFrameEdit=null;saveState();
+        broadcastRevision(state.revision);
+        showToast(result.duplicate?"上次交易已由後台完成，畫面已恢復。":"上次未完成回應的交易已安全續作完成。")
+      }catch(err){
+        markPendingSubmission("frame_edit",pending.payload,"failed_or_unknown");
+        showToast(err.message||"待噴砂框交易狀態仍無法確認，已保留原 submission_id。",true)
+      }
+    }
+
     async function submitFrameEdit(action){
-      if(!state.frameEditor||!ensureClientWriteAllowed())return;
+      if(state.frameEditBusy||!state.frameEditor||!ensureClientWriteAllowed())return;
       syncMetaFromInputs();
       if(!state.operator){showToast("請先輸入操作人員",true);return}
-      const items=selectedFrameEditItems();if(!items.length){showToast("請先選擇框內項目",true);return}
+      const items=selectedFrameEditItems();
+      if(!items.length){showToast("請先選擇框內項目",true);return}
       const qty=items.reduce((n,i)=>n+Number(i.qty||0),0);
       const labels={
         FRAME_ITEM_RETURN_GRINDING:"退回 Grinding",
@@ -1601,57 +1713,48 @@
         FRAME_ITEM_HT:"轉 HT"
       };
       const label=labels[action]||action;
-      if(!confirm(`確認將 ${qty} 支從 ${state.frameEditor.frame.frameCtn} 執行「${label}」？框架完成確認將失效。`))return;
+      const frameCtn=normalizeCtn(state.frameEditor.frame.frameCtn);
+      const frameVersion=Number(state.frameEditor.frame.stateVersion||0);
+      if(!confirm(`確認將 ${qty} 支從 ${frameCtn} 執行「${label}」？框架完成確認將失效。`))return;
 
       const body={
-        submission_id:makeSubmissionId("GRDFRM"),report_date:state.reportDate,
-        operator:state.operator,client_version:CLIENT_VERSION,
+        report_date:state.reportDate,
+        operator:state.operator,
+        client_version:CLIENT_VERSION,
         base_revision:Number(state.revision||0),
-        expected_frame_version:Number(state.frameEditor.frame.stateVersion||0),
-        frame_ctn:state.frameEditor.frame.frameCtn,
-        action,items,note:label
+        expected_frame_version:frameVersion,
+        frame_ctn:frameCtn,
+        action,
+        items:safeClone(items),
+        note:label
       };
+      const signature=simpleHash(body);
+      body.submission_id=getPendingSubmission("frame_edit",signature);
+      markPendingSubmission("frame_edit",body,"sending");
+
       const startedAt=performance.now();
-      setFrameEditBusy(true,`${label}寫入中，畫面不會被鎖住…`);
-
+      setFrameEditBusy(true,`${label}交易寫入中，完成前不可關閉此視窗…`);
+      let completed=false;
       try{
-        const r=await submitBetaGrindingFrameEdit(body);
-        state.revision=Number(r.revision||state.revision||0);
-        if(r.current_summary||r.daily_summary){
-          state.summary={
-            current:r.current_summary||state.summary.current||{},
-            daily:r.daily_summary||state.summary.daily||{}
-          };
-          renderSummary()
-        }
-
-        const frameCtn=state.frameEditor.frame.frameCtn;
-        const frames=state.wip&&Array.isArray(state.wip.frames)?state.wip.frames:[];
-        const target=frames.find(frame=>frame.frameCtn===frameCtn);
-        if(target&&r.frame){
-          target.actualQty=Number(r.frame.actualQty||0);
-          target.status=String(r.frame.status||target.status||"");
-          target.stateVersion=Number(r.frame.stateVersion||target.stateVersion||0)
-        }
-        if(r.frame&&Number(r.frame.actualQty||0)<=0){
-          state.wip.frames=frames.filter(frame=>frame.frameCtn!==frameCtn)
-        }
-
-        closeFrameEditModal();
-        renderFrames();
+        const result=await submitBetaGrindingFrameEdit(body);
+        applyFrameEditResult_(action,frameCtn,result);
+        state.pendingFrameEdit=null;saveState();
+        completed=true;
+        setFrameEditBusy(false,"");
+        closeFrameEditModal(true);
         broadcastRevision(state.revision);
-        console.info("Grinding frame edit timing",r.timing||{});
+        console.info("Grinding frame edit timing",result.timing||{});
         const seconds=(performance.now()-startedAt)/1000;
-        const serverSeconds=Number(r.server_elapsed_ms||0)/1000;
+        const serverSeconds=Number(result.server_elapsed_ms||0)/1000;
         const timing=serverSeconds>0
           ?`｜${seconds.toFixed(1)}秒（後端${serverSeconds.toFixed(1)}秒）`
           :`｜${seconds.toFixed(1)}秒`;
-        showToast((r.message||"框內回修完成")+timing);
-
-        setTimeout(()=>refreshAll(false),250)
+        showToast((result.message||"框內回修完成")+timing)
       }catch(err){
-        setFrameEditBusy(false,"");
-        showToast(err.message||"框內回修失敗",true)
+        markPendingSubmission("frame_edit",body,"failed_or_unknown");
+        showToast(err.message||"框內回修回應中斷；已保留相同 submission_id，重新開啟APP會自動確認。",true)
+      }finally{
+        if(!completed)setFrameEditBusy(false,"")
       }
     }
 
