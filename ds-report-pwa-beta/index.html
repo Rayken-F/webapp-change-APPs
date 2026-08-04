@@ -107,6 +107,16 @@
     .filter-btn{flex:0 0 auto;padding:8px 11px;border-radius:999px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.11);font-size:12px}
     .filter-btn.active{background:rgba(117,103,255,.45);border-color:rgba(189,180,255,.55)}
     .asset-list,.frame-list,.history-list{display:grid;gap:9px;margin-top:10px}
+    .history-period-list{display:grid;gap:9px;margin-top:10px}
+    .history-period{margin:0;border:1px solid rgba(255,255,255,.12);border-radius:15px;background:rgba(255,255,255,.035);overflow:hidden}
+    .history-period summary{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:11px 13px;list-style:none;cursor:pointer}
+    .history-period summary::-webkit-details-marker{display:none}
+    .history-period-title{font-weight:900}
+    .history-period-count{flex:0 0 auto;color:var(--sub);font-size:11px;font-weight:800}
+    .history-period-body{display:grid;gap:8px;max-height:320px;overflow:auto;padding:0 10px 10px;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
+    .history-period[open] summary{border-bottom:1px solid rgba(255,255,255,.08);margin-bottom:9px}
+    .history-period .history-item{margin:0}
+    @media(max-width:620px){.history-period-body{max-height:42vh}.history-period summary{padding:12px}}
     .asset-item{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:10px;align-items:center}
     .asset-item.selected{border-color:rgba(67,198,232,.75);background:rgba(67,198,232,.1)}
     .qty-input{width:72px;min-height:38px;padding:7px 8px;text-align:center;border-radius:11px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.08);color:#fff;font-weight:900}
@@ -1328,8 +1338,63 @@
         return `<article class="frame-item" role="button" tabindex="0" onclick="openFrameDetail('${frame}')" onkeydown="if(event.key==='Enter')openFrameDetail('${frame}')"><div class="frame-head"><div><div class="asset-name">${frame}</div><div class="asset-sub">${ready?"待噴砂完成":"入框中"}｜${Number(f.actualQty||0)}／${Number(f.capacity||18)} 支｜點擊查看框內 CTN／RT</div></div>${actionButton}</div><div class="frame-progress"><span style="width:${pct}%"></span></div></article>`
       }).join(""):'<div class="empty">目前沒有入框中或待噴砂框。</div>'
     }
+    function parseDispositionDate(value){
+      const text=String(value||"").trim();
+      if(!text)return null;
+      const ymd=text.match(/^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{2}):(\d{2})(?::(\d{2}))?)?/);
+      if(ymd){
+        const date=new Date(Number(ymd[1]),Number(ymd[2])-1,Number(ymd[3]),Number(ymd[4]||0),Number(ymd[5]||0),Number(ymd[6]||0));
+        return Number.isNaN(date.getTime())?null:date
+      }
+      const parsed=new Date(text);
+      return Number.isNaN(parsed.getTime())?null:parsed
+    }
+    function formatDispositionTime(value){
+      const parsed=parseDispositionDate(value);
+      if(!parsed)return String(value||"");
+      const parts=new Intl.DateTimeFormat("zh-TW",{timeZone:"Asia/Taipei",year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit",second:"2-digit",hour12:false}).formatToParts(parsed);
+      const map={};parts.forEach(part=>map[part.type]=part.value);
+      return `${map.year}-${map.month}-${map.day} ${map.hour}:${map.minute}:${map.second}`
+    }
+    function dispositionPeriodKey(value){
+      const parsed=parseDispositionDate(value);
+      if(!parsed)return "older";
+      const today=new Date();today.setHours(0,0,0,0);
+      const day=new Date(parsed);day.setHours(0,0,0,0);
+      const diff=Math.round((today.getTime()-day.getTime())/86400000);
+      if(diff<=0)return "today";
+      if(diff===1)return "yesterday";
+      if(diff<=7)return "week";
+      return "older"
+    }
     function renderHistory(){
-      const list=state.wip&&state.wip.dispositions||[];document.getElementById("historyList").innerHTML=list.length?list.slice(0,30).map(a=>`<article class="history-item"><div class="asset-name">${escapeHtml(a.assetCtn||`集束來源 ${a.sourceCtn}`)}</div><div class="asset-sub">${escapeHtml(statusLabel(a.lifecycleStatus))}｜${Number(a.qty||0)} 支｜RT ${escapeHtml(a.rt||"-")}｜${escapeHtml(a.updatedAt||"")}</div></article>`).join(""):'<div class="empty">尚無 DCYL 或轉 HT 紀錄。</div>'
+      const target=document.getElementById("historyList");
+      const list=(state.wip&&state.wip.dispositions||[]).slice().sort((a,b)=>{
+        const at=parseDispositionDate(a.updatedAt);
+        const bt=parseDispositionDate(b.updatedAt);
+        return Number(bt&&bt.getTime()||0)-Number(at&&at.getTime()||0)
+      });
+      if(!list.length){
+        target.innerHTML='<div class="empty">尚無 DCYL 或轉 HT 紀錄。</div>';
+        return
+      }
+      const groups={today:[],yesterday:[],week:[],older:[]};
+      list.forEach(item=>groups[dispositionPeriodKey(item.updatedAt)].push(item));
+      const definitions=[
+        {key:"today",label:"今天",open:true},
+        {key:"yesterday",label:"昨天",open:false},
+        {key:"week",label:"近 7 天",open:false},
+        {key:"older",label:"更早",open:false}
+      ];
+      const firstAvailable=(definitions.find(def=>groups[def.key].length)||{}).key;
+      target.className="history-period-list";
+      target.innerHTML=definitions.filter(def=>groups[def.key].length).map(def=>{
+        const rows=groups[def.key];
+        const qty=rows.reduce((sum,item)=>sum+Number(item.qty||0),0);
+        const open=def.key==="today"||(!groups.today.length&&def.key===firstAvailable);
+        const body=rows.map(item=>`<article class="history-item"><div class="asset-name">${escapeHtml(item.assetCtn||`集束來源 ${item.sourceCtn}`)}</div><div class="asset-sub">${escapeHtml(statusLabel(item.lifecycleStatus))}｜${Number(item.qty||0)} 支｜RT ${escapeHtml(item.rt||"-")}｜${escapeHtml(formatDispositionTime(item.updatedAt))}</div></article>`).join("");
+        return `<details class="history-period"${open?" open":""}><summary><span class="history-period-title">${def.label}</span><span class="history-period-count">${rows.length} 筆／${qty} 支</span></summary><div class="history-period-body">${body}</div></details>`
+      }).join("")
     }
     function applyOptimisticDisposition(action,items,extra){
       if(!state.wip)return;
