@@ -138,6 +138,32 @@ async function fetchIqcRegions() {
 
   return Array.isArray(result.regions) ? result.regions : [];
 }
+
+/**
+ * IQC RT主檔：集束與散支分欄回傳。
+ * 前端載入後做即時提示；正式寫入仍由 IqcLog 後端再次核對 RT list。
+ */
+async function fetchIqcRtMaster() {
+  const res = await fetch(`${API_URL}?api=iqc_rt_master`, {
+    method: "GET",
+    cache: "no-store"
+  });
+
+  const result = await parseApiJsonResponse(res);
+
+  if (!result.ok) {
+    throw new Error(result.message || "IQC RT主檔讀取失敗");
+  }
+
+  return {
+    bundle: Array.isArray(result.bundle) ? result.bundle : [],
+    loose: Array.isArray(result.loose) ? result.loose : [],
+    bundleCount: Number(result.bundleCount || 0),
+    looseCount: Number(result.looseCount || 0),
+    generatedAt: String(result.generatedAt || "")
+  };
+}
+
 /**
  * IQC「CTN」欄永久唯一＋運輸框容量檢查。
  *
@@ -186,7 +212,6 @@ async function validateIqcCtnsAPI(reportDate, ctnEntries, transportLoads) {
       date: reportDate || "",
       entries: entries,
       transportLoads: loads,
-      // 舊後端相容欄位；只放鋼瓶 CTN。
       ctnList: entries.map(item => item.ctn)
     })
   });
