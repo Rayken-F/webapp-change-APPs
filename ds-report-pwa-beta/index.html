@@ -174,7 +174,7 @@
     <div class="subtitle">研磨站批次入站・在製追蹤・入框待噴砂｜BETA</div>
 
     <section class="banner">
-      v2.0.3 支援待噴砂框原子交易、處理中禁止關閉、APP中斷後冪等恢復及畫面一致性；操作日期每次開啟自動更新為當天，所有寫入只進 BETA 隔離表。
+      v2.0.5 修正入站明細取消勾選後清單收合、辨識狀態卡住與來源批次上限提示；操作日期每次開啟自動更新為當天，所有寫入只進 BETA 隔離表。
     </section>
 
     <section class="card">
@@ -386,7 +386,7 @@
   <div id="toast" class="toast"></div>
   <div id="loadingMask" class="loading-mask"><div id="loadingText" class="loading-card">處理中…</div></div>
 
-  <script src="./api.js?v=BETA_GRINDING_WIP_V2_0_4_STAGE3_RETIRED_20260804"></script>
+  <script src="./api.js?v=BETA_GRINDING_WIP_V2_0_5_CHECKIN_UI_LOOKUP_SELF_HEAL_20260805"></script>
   <script>
     const CLIENT_VERSION = BETA_CLIENT_VERSION;
     const STORAGE_KEY = "ds_grinding_wip_beta_v2_local_draft";
@@ -413,6 +413,11 @@
     let lookupQueue = [];
     let lookupQueueTimer = 0;
     let lookupQueueRunning = false;
+    let lookupInFlightSourceIds = new Set();
+    let lookupWatchdogTimer = 0;
+    const LOOKUP_CLIENT_BATCH_SIZE = 18;
+    const LOOKUP_STUCK_MS = 30000;
+    const MAX_CHECKIN_SOURCES = 30;
     let revisionTimer = 0;
     let versionTimer = 0;
     let revisionCheckRunning = false;
@@ -498,9 +503,13 @@
             next.restoredSelectedMap=selectedMap;
             next.kind="pending";
             next.lookupStatus="loading";
+            next.lookupAttempts=0;
+            next.lookupStartedAt=0;
+            next.lookupCompletedAt=0;
             next.record=null;
             next.lookupSnapshot=null;
             next.error="";
+            next.detailOpen=!!next.detailOpen;
             return next
           });
           state.activeSourceId=String(p.activeSourceId||"");
@@ -521,16 +530,66 @@
         }
       }catch(err){console.warn("Grinding local draft load failed",err)}
     }
+    function isSourceQueuedOrInFlight_(sourceId){
+      return lookupQueue.some(item=>item.sourceId===sourceId)||
+        lookupInFlightSourceIds.has(sourceId)
+    }
+    function queueSourceLookup_(source,delay){
+      if(!source||!source.id||!source.ctn)return;
+      if(isSourceQueuedOrInFlight_(source.id))return;
+      source.lookupStatus="loading";
+      source.lookupStartedAt=Date.now();
+      source.lookupAttempts=Number(source.lookupAttempts||0)+1;
+      lookupQueue.push({sourceId:source.id,ctn:normalizeCtn(source.ctn)});
+      clearTimeout(lookupQueueTimer);
+      lookupQueueTimer=setTimeout(flushLookupQueue,Math.max(0,Number(delay||0)))
+    }
     function revalidateRestoredDraftSources(){
       const restored=state.sources.filter(source=>source&&source.lookupStatus==="loading"&&source.ctn);
       if(!restored.length)return;
-      restored.forEach(source=>{
-        lookupQueue.push({sourceId:source.id,ctn:normalizeCtn(source.ctn)})
-      });
+      restored.forEach(source=>queueSourceLookup_(source,0));
       renderCheckIn();
-      showToast(`已恢復 ${restored.length} 個來源草稿，正在重新核對後台狀態`);
-      clearTimeout(lookupQueueTimer);
-      lookupQueueTimer=setTimeout(flushLookupQueue,0)
+      showToast(`已恢復 ${restored.length} 個來源草稿，正在重新核對後台狀態`)
+    }
+    function reconcileLookupStates_(){
+      let changed=false;
+      state.sources.forEach(source=>{
+        if(!source)return;
+        if(source.lookupStatus==="loading"&&source.record&&
+           ["transport","bundle","bottle"].includes(source.kind)){
+          source.lookupStatus="ready";
+          source.lookupCompletedAt=Date.now();
+          changed=true
+        }
+      });
+      if(changed)saveState()
+    }
+    function recoverStuckLookups_(){
+      const now=Date.now();
+      let changed=false;
+      state.sources.forEach(source=>{
+        if(!source||source.lookupStatus!=="loading"||!source.ctn)return;
+        if(isSourceQueuedOrInFlight_(source.id))return;
+        const started=Number(source.lookupStartedAt||0);
+        if(started&&now-started<LOOKUP_STUCK_MS)return;
+        if(Number(source.lookupAttempts||0)>=2){
+          source.kind="error";
+          source.lookupStatus="error";
+          source.error="辨識逾時，請按「重新辨識」後再試一次。";
+          changed=true;
+          return
+        }
+        queueSourceLookup_(source,0);
+        changed=true
+      });
+      if(changed){
+        saveState();
+        renderCheckIn()
+      }
+    }
+    function startLookupWatchdog_(){
+      clearInterval(lookupWatchdogTimer);
+      lookupWatchdogTimer=setInterval(recoverStuckLookups_,5000)
     }
     function showToast(message,bad){
       const el=document.getElementById("toast");el.textContent=message;el.classList.toggle("bad",!!bad);el.classList.add("show");
@@ -699,6 +758,7 @@
       });
 
       setupGrindingSync();
+      startLookupWatchdog_();
       switchTab(state.tab||"checkin");
       renderCheckIn();
       checkHealth().then(async ok=>{
@@ -893,12 +953,13 @@
       return 1
     }
     function renderCheckIn(){
+      reconcileLookupStates_();
       const unresolved=state.sources.filter(s=>s.lookupStatus==="loading"||s.lookupStatus==="error").length;
       document.getElementById("sourceCountText").textContent=`${state.sources.length} 個來源${unresolved?`｜${unresolved} 個待確認`:""}`;
       document.getElementById("sourceStrip").innerHTML=state.sources.map((s,i)=>`
         <button class="source-chip ${s.id===state.activeSourceId?"active":""}" onclick="selectSource('${escapeHtml(s.id)}')">
           <div class="top">${i+1}. ${sourceTypeLabel(s.kind)}｜${escapeHtml(s.ctn)}</div>
-          <div class="bottom">${s.lookupStatus==="loading"?"辨識中…":s.lookupStatus==="error"?"讀取失敗":`${sourceQty(s)} 支`}</div>
+          <div id="sourceChipQty_${escapeHtml(s.id)}" class="bottom">${s.lookupStatus==="loading"?"辨識中…":s.lookupStatus==="error"?"讀取失敗":`${sourceQty(s)} 支`}</div>
         </button>`).join("");
       renderSourceDetail();renderBatchSummary();
       document.getElementById("checkInSubmitBtn").disabled=!state.sources.length||unresolved>0
@@ -911,7 +972,7 @@
         return
       }
       if(source.lookupStatus==="error"){
-        host.innerHTML=`<div class="detail-head"><div><div class="detail-title-row"><div class="section-title">辨識失敗｜${escapeHtml(source.ctn)}</div><button class="source-remove-btn" onclick="removeSource('${escapeHtml(source.id)}')">移除此來源</button></div><div class="muted">${escapeHtml(source.error||"CTN 讀取失敗")}</div></div><span class="type-pill">異常</span></div>`;
+        host.innerHTML=`<div class="detail-head"><div><div class="detail-title-row"><div class="section-title">辨識失敗｜${escapeHtml(source.ctn)}</div><button class="source-remove-btn" onclick="retrySourceLookup('${escapeHtml(source.id)}')">重新辨識</button><button class="source-remove-btn" onclick="removeSource('${escapeHtml(source.id)}')">移除此來源</button></div><div class="muted">${escapeHtml(source.error||"CTN 讀取失敗")}</div></div><span class="type-pill">異常</span></div>`;
         return
       }
       const r=source.record||{};const warnings=(source.warnings||[]).map(w=>`<div class="warning-box">${escapeHtml(w)}</div>`).join("");
@@ -921,11 +982,11 @@
         host.innerHTML=head+`
           <div class="data-grid">
             <div class="data-box"><div class="k">運輸框 CTN</div><div class="v">${escapeHtml(r.transportFrameCtn||source.ctn)}</div></div>
-            <div class="data-box"><div class="k">本次進站</div><div class="v">${selected}／${(source.selectedBottles||[]).length} 支</div></div>
+            <div class="data-box"><div class="k">本次進站</div><div id="activeSourceSelectedQty" class="v">${selected}／${(source.selectedBottles||[]).length} 支</div></div>
             <div class="data-box"><div class="k">來源區域</div><div class="v">${escapeHtml([r.regionCode,r.regionName].filter(Boolean).join("｜")||"-")}</div></div>
             <div class="data-box"><div class="k">準備進入</div><div class="v">Grinding</div></div>
           </div>${warnings}
-          <details><summary>查看／調整 ${(source.selectedBottles||[]).length} 支鋼瓶明細</summary><div class="bottle-list">
+          <details ${source.detailOpen?"open":""} ontoggle="setSourceDetailOpen('${escapeHtml(source.id)}',this.open)"><summary>查看／調整 ${(source.selectedBottles||[]).length} 支鋼瓶明細</summary><div class="bottle-list">
             ${(source.selectedBottles||[]).map((b,i)=>`<label class="bottle-item"><input type="checkbox" ${b.selected!==false?"checked":""} onchange="toggleSourceBottle('${escapeHtml(source.id)}',${i},this.checked)"><div><div class="bottle-ctn">${escapeHtml(b.ctn)}</div><div class="bottle-sub">RT：${escapeHtml(b.rt||"-")}｜目前綁定 ${escapeHtml(source.ctn)}</div></div></label>`).join("")}
           </div></details>`;
       }else if(source.kind==="bundle"){
@@ -957,27 +1018,33 @@
       syncMetaFromInputs();const input=document.getElementById("scanInput");const ctn=normalizeCtn(input.value);
       if(!CTN_RE.test(ctn)){showToast("CTN 格式錯誤",true);input.focus();return}
       if(state.sources.some(s=>s.ctn===ctn)){showToast("此來源已在本次批次中",true);input.value="";input.focus();return}
+      if(state.sources.length>=MAX_CHECKIN_SOURCES){
+        showToast(`單次最多 ${MAX_CHECKIN_SOURCES} 個來源；這是來源數，不是鋼瓶支數。請先送出目前批次。`,true);
+        input.focus();
+        return
+      }
 
       const source={
         id:`SRC_${Date.now()}_${Math.random().toString(36).slice(2,6)}`,
         ctn:ctn,
         kind:"pending",
         lookupStatus:"loading",
+        lookupAttempts:0,
+        lookupStartedAt:Date.now(),
         record:null,
-        warnings:[]
+        warnings:[],
+        detailOpen:false
       };
       state.sources.push(source);state.activeSourceId=source.id;state.pendingCheckIn=null;
-      lookupQueue.push({sourceId:source.id,ctn:ctn});
+      queueSourceLookup_(source,220);
       input.value="";saveState();renderCheckIn();input.focus();
-
-      clearTimeout(lookupQueueTimer);
-      lookupQueueTimer=setTimeout(flushLookupQueue,220);
     }
 
     async function flushLookupQueue(){
       if(lookupQueueRunning||!lookupQueue.length)return;
       lookupQueueRunning=true;
-      const batch=lookupQueue.splice(0,18);
+      const batch=lookupQueue.splice(0,LOOKUP_CLIENT_BATCH_SIZE);
+      batch.forEach(item=>lookupInFlightSourceIds.add(item.sourceId));
       try{
         const response=await fetchBetaWipLookupBatch(batch.map(item=>item.ctn));
         const resultMap={};(response.results||[]).forEach(item=>{resultMap[normalizeCtn(item.ctn)]=item.result||{}});
@@ -989,7 +1056,7 @@
           if(!result.ok||!result.found||!result.record||result.actionable!==true){
             source.kind="error";source.lookupStatus="error";source.error=result.message||"此 CTN 目前不可入站";return
           }
-          const record=result.record;source.kind=record.kind;source.lookupStatus="ready";source.record=safeClone(record);source.lookupSnapshot=result.lookup_snapshot?safeClone(result.lookup_snapshot):null;source.warnings=result.warnings||[];
+          const record=result.record;source.kind=record.kind;source.lookupStatus="ready";source.lookupCompletedAt=Date.now();source.error="";source.record=safeClone(record);source.lookupSnapshot=result.lookup_snapshot?safeClone(result.lookup_snapshot):null;source.warnings=result.warnings||[];
           if(record.kind==="transport"){
             const restoredMap=source.restoredSelectedMap&&typeof source.restoredSelectedMap==="object"?source.restoredSelectedMap:{};
             source.selectedBottles=(record.bottles||[]).map(b=>{
@@ -1009,17 +1076,52 @@
         batch.forEach(item=>{const source=state.sources.find(s=>s.id===item.sourceId);if(source){source.kind="error";source.lookupStatus="error";source.error=err.message||"批次辨識失敗"}});
         saveState();renderCheckIn();showToast(err.message||"CTN 批次辨識失敗",true)
       }finally{
+        batch.forEach(item=>lookupInFlightSourceIds.delete(item.sourceId));
         lookupQueueRunning=false;
         if(lookupQueue.length)setTimeout(flushLookupQueue,0);
         document.getElementById("scanInput").focus()
       }
     }
     function selectSource(id){state.activeSourceId=id;saveState();renderCheckIn()}
+    function setSourceDetailOpen(id,open){
+      const source=state.sources.find(item=>item.id===id);
+      if(!source)return;
+      source.detailOpen=!!open;
+      saveState()
+    }
+    function retrySourceLookup(id){
+      const source=state.sources.find(item=>item.id===id);
+      if(!source)return;
+      source.kind="pending";
+      source.lookupStatus="loading";
+      source.lookupAttempts=0;
+      source.lookupStartedAt=Date.now();
+      source.lookupCompletedAt=0;
+      source.record=null;
+      source.lookupSnapshot=null;
+      source.error="";
+      queueSourceLookup_(source,0);
+      saveState();
+      renderCheckIn()
+    }
     function removeSource(id){
+      lookupQueue=lookupQueue.filter(item=>item.sourceId!==id);
+      lookupInFlightSourceIds.delete(id);
       state.sources=state.sources.filter(s=>s.id!==id);if(state.activeSourceId===id)state.activeSourceId=state.sources[0]&&state.sources[0].id||"";state.pendingCheckIn=null;saveState();renderCheckIn()
     }
     function toggleSourceBottle(id,index,checked){
-      const s=state.sources.find(x=>x.id===id);if(!s||!s.selectedBottles[index])return;s.selectedBottles[index].selected=!!checked;state.pendingCheckIn=null;saveState();renderCheckIn()
+      const s=state.sources.find(x=>x.id===id);if(!s||!s.selectedBottles[index])return;
+      s.selectedBottles[index].selected=!!checked;
+      state.pendingCheckIn=null;
+      saveState();
+      const selected=sourceQty(s);
+      const chip=document.getElementById(`sourceChipQty_${s.id}`);
+      if(chip)chip.textContent=`${selected} 支`;
+      if(state.activeSourceId===id){
+        const activeQty=document.getElementById("activeSourceSelectedQty");
+        if(activeQty)activeQty.textContent=`${selected}／${s.selectedBottles.length} 支`
+      }
+      renderBatchSummary()
     }
     function clearCheckInDraft(){
       if(state.sources.length&&!confirm("確定清除本次 Grinding 入站草稿？"))return;state.sources=[];state.activeSourceId="";state.pendingCheckIn=null;saveState();renderCheckIn()
