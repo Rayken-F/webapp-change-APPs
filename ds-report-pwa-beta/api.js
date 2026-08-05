@@ -1,7 +1,7 @@
 // Grinding WIP BETA v2.0.3｜待噴砂框原子交易＋中斷恢復＋畫面一致性
 const BETA_API_URL = "https://script.google.com/macros/s/AKfycbw3Xg0ev3zoTO-WFfe7sTIUlr6wF4P-qAgZEZUF3uUhioT63bQYT-9QRgZqLU0IhB6G/exec";
 const BETA_API_TOKEN = "-M-yiaurzifieaJyYS4838MCYiuDh4wB";
-const BETA_CLIENT_VERSION = "BETA_GRINDING_WIP_V2_0_4_STAGE3_RETIRED_20260804";
+const BETA_CLIENT_VERSION = "BETA_GRINDING_WIP_V2_0_5_CHECKIN_UI_LOOKUP_SELF_HEAL_20260805";
 
 function isBetaApiConfigured() {
   return /^https:\/\/script\.google\.com\/macros\/s\/.+\/exec$/.test(
@@ -58,7 +58,30 @@ async function parseBetaApiJsonResponse(response) {
   return data;
 }
 
-async function betaGetApi(api, params) {
+async function betaFetchWithTimeout(url, options, timeoutMs) {
+  const timeout = Math.max(1000, Number(timeoutMs || 30000));
+  const controller = typeof AbortController === "function"
+    ? new AbortController()
+    : null;
+  const timer = controller
+    ? setTimeout(() => controller.abort(), timeout)
+    : 0;
+
+  try {
+    return await fetch(url, Object.assign({}, options || {}, {
+      signal: controller ? controller.signal : undefined
+    }));
+  } catch (err) {
+    if (err && err.name === "AbortError") {
+      throw new Error("BETA API 連線逾時，請重新辨識或重試。");
+    }
+    throw err;
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
+async function betaGetApi(api, params, timeoutMs) {
   if (!isBetaApiConfigured()) throw new Error("尚未設定 BETA_API_URL");
   const query = new URLSearchParams(Object.assign({}, params || {}, {
     api: api,
@@ -66,26 +89,34 @@ async function betaGetApi(api, params) {
     client_version: BETA_CLIENT_VERSION,
     request_nonce: String(Date.now())
   }));
-  const response = await fetch(`${BETA_API_URL}?${query.toString()}`, {
-    method: "GET",
-    cache: "no-store"
-  });
+  const response = await betaFetchWithTimeout(
+    `${BETA_API_URL}?${query.toString()}`,
+    {
+      method: "GET",
+      cache: "no-store"
+    },
+    timeoutMs || 30000
+  );
   return parseBetaApiJsonResponse(response);
 }
 
-async function betaPostApi(api, payload) {
+async function betaPostApi(api, payload, timeoutMs) {
   if (!isBetaApiConfigured()) throw new Error("尚未設定 BETA_API_URL");
   const requestBody = Object.assign({}, payload || {}, {
     api: api,
     token: BETA_API_TOKEN,
     client_version: BETA_CLIENT_VERSION
   });
-  const response = await fetch(BETA_API_URL, {
-    method: "POST",
-    cache: "no-store",
-    headers: { "Content-Type": "text/plain;charset=utf-8" },
-    body: JSON.stringify(requestBody)
-  });
+  const response = await betaFetchWithTimeout(
+    BETA_API_URL,
+    {
+      method: "POST",
+      cache: "no-store",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify(requestBody)
+    },
+    timeoutMs || 60000
+  );
   return parseBetaApiJsonResponse(response);
 }
 
@@ -104,7 +135,7 @@ async function fetchBetaWipLookupBatch(ctns) {
     ctns: (Array.isArray(ctns) ? ctns : [])
       .map(value => String(value || "").trim().toUpperCase())
       .filter(Boolean)
-  });
+  }, 30000);
 }
 
 async function fetchBetaGrindingSummary(reportDate) {
