@@ -1,20 +1,20 @@
 /**
- * DS 日報系統｜IQC 異常處理台 v0.1
+ * DS 日報系統｜IQC 異常處理台 v0.2
  * GitHub Pages 前端 API 設定
  */
 (function(global){
   "use strict";
 
-  const CLIENT_VERSION = "IQC_CORRECTION_V0_1_20260806";
+  const CLIENT_VERSION = "IQC_CORRECTION_V0_2_20260807";
 
   // 部署 Apps Script 後，將下方網址替換成固定 /exec URL。
   const API_URL = "https://script.google.com/macros/s/AKfycbzgOpdC9aStQBaqMjR9MORMFcmWi-DTbP3f_RLtb5lq_U48e1kv_7vu9z_9IHtJqQDs/exec";
 
-  const TOKEN_KEY = "ds_iqcc_session_v1";
+  const TOKEN_KEY = "ds_iqcc_session_v2";
 
   function assertConfigured(){
     if(!API_URL || API_URL.indexOf("PASTE_YOUR") === 0){
-      throw new Error("尚未在 api_IQC_Correction_v01_20260806.txt 設定 Apps Script /exec URL。");
+      throw new Error("尚未在 api_IQC_Correction_v02_20260807.txt 設定 Apps Script /exec URL。");
     }
   }
 
