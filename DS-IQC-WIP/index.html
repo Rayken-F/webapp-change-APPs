@@ -141,18 +141,18 @@
     <div class="login-card">
       <div class="logo">IQC</div>
       <h1>IQC 異常處理台</h1>
-      <p class="panel-note">查詢、提報、核准與稽核。正式 IQC_Log 在此版本維持唯讀。</p>
+      <p class="panel-note">帳號與權限由人事後台 System_Access_Master 管理；正式 IQC_Log 維持唯讀。</p>
       <form id="loginForm">
         <div class="field">
           <label for="loginUser">帳號</label>
           <input id="loginUser" autocomplete="username" maxlength="40" required>
         </div>
         <div class="field">
-          <label for="loginPin">PIN</label>
-          <input id="loginPin" type="password" inputmode="numeric" autocomplete="current-password" maxlength="12" required>
+          <label for="loginPassword">密碼</label>
+          <input id="loginPassword" type="password" autocomplete="current-password" maxlength="64" required>
         </div>
         <label class="check"><input id="rememberLogin" type="checkbox">記住此裝置登入</label>
-        <div class="actions"><button class="btn" type="submit">安全登入</button></div>
+        <div class="actions"><button class="btn" type="submit">登入異常處理台</button></div>
       </form>
     </div>
   </section>
@@ -270,7 +270,7 @@
   </main>
 
   <div id="toast" class="toast hidden"></div>
-  <script src="./api_IQC_Correction_v01_20260806.js"></script>
+  <script src="./api_IQC_Correction_v02_20260807.js"></script>
   <script>
     "use strict";
     const Api = window.IqcCorrectionApi;
@@ -297,8 +297,8 @@
       }[ch]));
     }
 
-    async function login(userId,pin,remember){
-      const result=await Api.post("login",{user_id:userId,pin});
+    async function login(userId,password,remember){
+      const result=await Api.post("login",{user_id:userId,password});
       Api.saveToken(result.sessionToken,remember);
       state.user=result.user;
       await bootstrap();
@@ -535,7 +535,7 @@
       try{
         await login(
           $("loginUser").value.trim(),
-          $("loginPin").value.trim(),
+          $("loginPassword").value,
           $("rememberLogin").checked
         );
       }catch(err){toast(err.message,true)}
