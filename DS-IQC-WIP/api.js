@@ -1,73 +1,89 @@
-// 43版：日報輸入端專用 deployment
-const API_URL = "https://script.google.com/macros/s/AKfycbwYjPR-mHy_UCRAAsvU84-3T_MMQcfKHX9PSR8Da7E2gQq3xVEcK0Fnz0JvrHaIHpem/exec";
+/**
+ * DS 日報系統｜IQC 異常處理台 v0.1
+ * GitHub Pages 前端 API 設定
+ */
+(function(global){
+  "use strict";
 
-async function parseApiJsonResponse(res) {
-  const text = await res.text();
-  let data = null;
-  try {
-    data = JSON.parse(text);
-  } catch (err) {
-    throw new Error("API 回傳格式錯誤");
+  const CLIENT_VERSION = "IQC_CORRECTION_V0_1_20260806";
+
+  // 部署 Apps Script 後，將下方網址替換成固定 /exec URL。
+  const API_URL = "PASTE_YOUR_APPS_SCRIPT_EXEC_URL_HERE";
+
+  const TOKEN_KEY = "ds_iqcc_session_v1";
+
+  function assertConfigured(){
+    if(!API_URL || API_URL.indexOf("PASTE_YOUR") === 0){
+      throw new Error("尚未在 api_IQC_Correction_v01_20260806.txt 設定 Apps Script /exec URL。");
+    }
   }
 
-  if (!res.ok) {
-    throw new Error(data && data.message ? data.message : "API 請求失敗");
+  async function post(api, payload){
+    assertConfigured();
+
+    const body = Object.assign({}, payload || {}, {
+      api,
+      client_version: CLIENT_VERSION
+    });
+
+    const token = sessionStorage.getItem(TOKEN_KEY) || localStorage.getItem(TOKEN_KEY) || "";
+    if(token && api !== "login") body.session_token = token;
+
+    const response = await fetch(API_URL, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify(body),
+      redirect: "follow",
+      cache: "no-store"
+    });
+
+    const text = await response.text();
+    let data;
+    try{
+      data = JSON.parse(text);
+    }catch(err){
+      throw new Error("API 回傳不是 JSON：" + text.slice(0, 160));
+    }
+
+    if(!data.ok){
+      if(data.code === "CLIENT_UPDATE_REQUIRED"){
+        localStorage.removeItem(TOKEN_KEY);
+        sessionStorage.removeItem(TOKEN_KEY);
+      }
+      throw new Error(data.message || "API 執行失敗");
+    }
+    return data;
   }
 
-  return data;
-}
-
-async function submitDailyReportAPI(payload) {
-  const res = await fetch(API_URL, {
-    method: "POST",
-    headers: {
-      "Content-Type": "text/plain;charset=utf-8"
-    },
-    body: JSON.stringify(payload)
-  });
-
-  const result = await parseApiJsonResponse(res);
-
-  if (!result.ok) {
-    throw new Error(result.message || "送出失敗");
+  function saveToken(token, remember){
+    sessionStorage.removeItem(TOKEN_KEY);
+    localStorage.removeItem(TOKEN_KEY);
+    (remember ? localStorage : sessionStorage).setItem(TOKEN_KEY, token);
   }
 
-  return result;
-}
-
-async function fetchProjectOptions() {
-  const res = await fetch(`${API_URL}?api=projects`, {
-    method: "GET"
-  });
-
-  const result = await parseApiJsonResponse(res);
-
-  if (!result.ok) {
-    throw new Error(result.message || "專案清單讀取失敗");
+  function clearToken(){
+    sessionStorage.removeItem(TOKEN_KEY);
+    localStorage.removeItem(TOKEN_KEY);
   }
 
-  return Array.isArray(result.projects) ? result.projects : [];
-}
-
-async function validateSandblastPairsAPI(reportDate, ctnList) {
-  const res = await fetch(`${API_URL}?api=ctn_check`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "text/plain;charset=utf-8"
-    },
-    body: JSON.stringify({
-      date: reportDate || "",
-      ctnList: Array.isArray(ctnList) ? ctnList : []
-    })
-  });
-
-  const result = await parseApiJsonResponse(res);
-
-  if (!result.ok) {
-    throw new Error(result.message || "CTN 重複驗證失敗");
+  function hasToken(){
+    return !!(sessionStorage.getItem(TOKEN_KEY) || localStorage.getItem(TOKEN_KEY));
   }
 
-  return {
-    duplicates: Array.isArray(result.duplicates) ? result.duplicates : []
+  function makeIdempotencyKey(prefix){
+    const random = (global.crypto && global.crypto.randomUUID)
+      ? global.crypto.randomUUID().replace(/-/g, "")
+      : Math.random().toString(36).slice(2) + Date.now().toString(36);
+    return String(prefix || "IQCC").toUpperCase() + "_" + random.toUpperCase();
+  }
+
+  global.IqcCorrectionApi = {
+    CLIENT_VERSION,
+    API_URL,
+    post,
+    saveToken,
+    clearToken,
+    hasToken,
+    makeIdempotencyKey
   };
-}
+})(window);
