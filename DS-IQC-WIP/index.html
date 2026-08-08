@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#0f2538">
   <title>DS｜IQC 異常處理台</title>
-  <!-- Frontend hotfix: 2026-08-08 SINGLE-FILE -->
+  <!-- Frontend hotfix: 2026-08-08 SINGLE-FILE LOGIN-FAST v1 -->
   <style>
     :root{
       color-scheme:dark;
@@ -122,6 +122,23 @@
     .section{margin-top:18px}
     .danger-box{border:1px solid rgba(255,125,125,.42);background:rgba(110,31,45,.24);border-radius:14px;padding:12px;color:#ffd5db}
     .empty{color:var(--muted);padding:18px;text-align:center;border:1px dashed var(--line);border-radius:14px}
+    .loading-overlay{
+      position:fixed;inset:0;z-index:9999;display:grid;place-items:center;
+      background:rgba(3,13,22,.72);backdrop-filter:blur(7px);
+    }
+    .loading-card{
+      width:min(390px,calc(100vw - 32px));padding:24px;border-radius:20px;
+      border:1px solid var(--line);background:#0e2030;box-shadow:var(--shadow);
+      text-align:center;
+    }
+    .spinner{
+      width:44px;height:44px;margin:0 auto 14px;border-radius:50%;
+      border:4px solid rgba(255,255,255,.12);border-top-color:var(--accent);
+      animation:iqcc-spin .8s linear infinite;
+    }
+    @keyframes iqcc-spin{to{transform:rotate(360deg)}}
+    .loading-title{font-weight:900;font-size:1rem}
+    .loading-text{margin-top:8px;color:var(--muted);font-size:.86rem;line-height:1.55}
     @media(max-width:860px){
       .grid{grid-template-columns:1fr}
       .topbar{position:static;align-items:flex-start}
@@ -154,7 +171,7 @@
         </div>
         <label class="check"><input id="rememberLogin" type="checkbox">記住此裝置登入</label>
         <div class="actions">
-          <button class="btn" type="submit">登入異常處理台</button>
+          <button id="loginSubmitBtn" class="btn" type="submit">登入異常處理台</button>
           <button id="apiSetupBtn" class="btn secondary" type="button">後端連線設定</button>
         </div>
       </form>
@@ -272,6 +289,14 @@
       </article>
     </section>
   </main>
+
+  <div id="loadingOverlay" class="loading-overlay hidden" aria-live="polite" aria-busy="true">
+    <div class="loading-card">
+      <div class="spinner"></div>
+      <div id="loadingTitle" class="loading-title">正在處理</div>
+      <div id="loadingText" class="loading-text">請稍候…</div>
+    </div>
+  </div>
 
   <div id="toast" class="toast hidden"></div>
   <script>
@@ -408,7 +433,50 @@
     }
     const state = { user:null, bootstrap:null, lookup:null };
 
+    const REQUEST_TYPES = [
+      {code:"MISSING_TRANSPORT_FRAME",label:"補建漏掉的運輸框"},
+      {code:"ADD_MISSING_BOTTLE",label:"新增漏建鋼瓶"},
+      {code:"CORRECT_BOTTLE_CTN",label:"修正鋼瓶 CTN"},
+      {code:"CORRECT_RT",label:"修正 RT 料號"},
+      {code:"TRANSFER_BOTTLE_FRAME",label:"鋼瓶轉移運輸框"},
+      {code:"VOID_INCORRECT_RECORD",label:"作廢錯誤紀錄"},
+      {code:"OTHER",label:"其他 IQC 異常"}
+    ];
+
     const $ = id => document.getElementById(id);
+
+    let loadingTimers=[];
+
+    function showLoading(title,text){
+      loadingTimers.forEach(clearTimeout);
+      loadingTimers=[];
+      $("loadingTitle").textContent=title||"正在處理";
+      $("loadingText").textContent=text||"請稍候…";
+      $("loadingOverlay").classList.remove("hidden");
+
+      loadingTimers.push(setTimeout(()=>{
+        if(!$("loadingOverlay").classList.contains("hidden")){
+          $("loadingText").textContent="Apps Script 首次喚醒可能需要幾秒，系統仍在驗證中…";
+        }
+      },3500));
+
+      loadingTimers.push(setTimeout(()=>{
+        if(!$("loadingOverlay").classList.contains("hidden")){
+          $("loadingText").textContent="仍在等待後端回應，請不要重複點擊登入按鈕。";
+        }
+      },8000));
+    }
+
+    function updateLoading(title,text){
+      if(title) $("loadingTitle").textContent=title;
+      if(text) $("loadingText").textContent=text;
+    }
+
+    function hideLoading(){
+      loadingTimers.forEach(clearTimeout);
+      loadingTimers=[];
+      $("loadingOverlay").classList.add("hidden");
+    }
 
     function toast(message,error){
       const el=$("toast");
@@ -429,12 +497,45 @@
       }[ch]));
     }
 
-    async function login(userId,password,remember){
-      const result=await Api.post("login",{user_id:userId,password});
-      Api.saveToken(result.sessionToken,remember);
+    function hydrateUiFromLogin(result){
       state.user=result.user;
-      await bootstrap();
+      state.bootstrap={
+        version:result.version,
+        user:result.user,
+        requestTypes:REQUEST_TYPES,
+        permissions:{
+          canReview:Array.isArray(result.user.allowedActions) &&
+            result.user.allowedActions.includes("REVIEW"),
+          canClose:Array.isArray(result.user.allowedActions) &&
+            result.user.allowedActions.includes("CLOSE"),
+          iqcLogWritable:false
+        }
+      };
+
+      $("versionPill").textContent=result.version||Api.CLIENT_VERSION;
+      $("userPill").textContent=`${result.user.displayName}｜${result.user.role}`;
+      $("reviewTabBtn").classList.toggle(
+        "hidden",
+        !state.bootstrap.permissions.canReview
+      );
+      $("requestType").innerHTML=REQUEST_TYPES.map(item=>
+        `<option value="${escapeHtml(item.code)}">${escapeHtml(item.label)}</option>`
+      ).join("");
+    }
+
+    async function login(userId,password,remember){
+      showLoading("正在登入","正在驗證帳號、密碼與系統權限…");
+      const result=await Api.post("login",{user_id:userId,password});
+
+      updateLoading("登入成功","正在開啟 IQC 異常處理台…");
+      Api.saveToken(result.sessionToken,remember);
+      hydrateUiFromLogin(result);
+
+      // Fresh login 不再等待第二次 bootstrap API。
+      // 權限已由 login 回應帶回，正式操作時後端仍會逐次重新驗證 Sheet 權限。
       showApp();
+      hideLoading();
+      toast(`登入成功，${result.user.displayName}`);
     }
 
     async function bootstrap(){
@@ -461,12 +562,15 @@
 
     async function tryRestore(){
       if(!Api.hasToken()) return;
+      showLoading("恢復登入","正在確認此裝置的登入狀態與最新權限…");
       try{
         await bootstrap();
         showApp();
       }catch(err){
         Api.clearToken();
         showLogin();
+      }finally{
+        hideLoading();
       }
     }
 
@@ -676,13 +780,22 @@
 
     $("loginForm").addEventListener("submit",async event=>{
       event.preventDefault();
+      const btn=$("loginSubmitBtn");
+      btn.disabled=true;
+      btn.textContent="登入中…";
       try{
         await login(
           $("loginUser").value.trim(),
           $("loginPassword").value,
           $("rememberLogin").checked
         );
-      }catch(err){toast(err.message,true)}
+      }catch(err){
+        hideLoading();
+        toast(err.message,true);
+      }finally{
+        btn.disabled=false;
+        btn.textContent="登入異常處理台";
+      }
     });
     $("logoutBtn").addEventListener("click",()=>{
       Api.clearToken();state.user=null;showLogin()
