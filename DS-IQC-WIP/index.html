@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#0f2538">
   <title>DS｜IQC 異常處理台</title>
-  <!-- Frontend hotfix: 2026-08-08 CLEAN-LOGIN + LOGIN-FAST + PASSWORD-UX v3 -->
+  <!-- Frontend production: 2026-08-08 FIXED-API + CLEAN-LOGIN + LOGIN-FAST + PASSWORD-UX v4 -->
   <style>
     :root{
       color-scheme:dark;
@@ -362,40 +362,12 @@
   const CLIENT_VERSION = "IQC_CORRECTION_V0_2_20260807";
 
   // 部署 Apps Script 後，將下方網址替換成固定 /exec URL。
-  const STATIC_API_URL = "PASTE_YOUR_APPS_SCRIPT_EXEC_URL_HERE";
-  const API_URL_STORAGE_KEY = "ds_iqcc_api_url_v02";
-
-  function getApiUrl(){
-    const staticUrl = String(STATIC_API_URL || "").trim();
-    if(staticUrl && staticUrl.indexOf("PASTE_YOUR") !== 0) return staticUrl;
-    return String(localStorage.getItem(API_URL_STORAGE_KEY) || "").trim();
-  }
-
-  function setApiUrl(url){
-    const value = String(url || "").trim();
-    if(!/^https:\/\/script\.google\.com\/macros\/s\/.+\/exec(?:\?.*)?$/i.test(value)){
-      throw new Error("Apps Script 網址格式不正確，必須是 https://script.google.com/macros/s/.../exec");
-    }
-    localStorage.setItem(API_URL_STORAGE_KEY, value);
-    return value;
-  }
-
-  function ensureApiUrl(){
-    let url = getApiUrl();
-    if(url) return url;
-
-    const entered = global.prompt(
-      "尚未設定 IQC 異常處理台後端。\n\n請貼上 Apps Script Web App 的 /exec 網址："
-    );
-    if(!entered) throw new Error("尚未設定 Apps Script /exec URL。");
-    url = setApiUrl(entered);
-    return url;
-  }
+  const API_URL = "https://script.google.com/macros/s/AKfycbzgOpdC9aStQBaqMjR9MORMFcmWi-DTbP3f_RLtb5lq_U48e1kv_7vu9z_9IHtJqQDs/exec";
 
   const TOKEN_KEY = "ds_iqcc_session_v2";
 
   function assertConfigured(){
-    return ensureApiUrl();
+    return API_URL;
   }
 
   async function post(api, payload){
@@ -459,9 +431,7 @@
 
   global.IqcCorrectionApi = {
     CLIENT_VERSION,
-    get API_URL(){ return getApiUrl(); },
-    getApiUrl,
-    setApiUrl,
+    API_URL,
     post,
     saveToken,
     clearToken,
