@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#0f2538">
   <title>DS｜IQC 異常處理台</title>
+  <!-- Frontend hotfix: 2026-08-08 SINGLE-FILE -->
   <style>
     :root{
       color-scheme:dark;
@@ -152,7 +153,10 @@
           <input id="loginPassword" type="password" autocomplete="current-password" maxlength="64" required>
         </div>
         <label class="check"><input id="rememberLogin" type="checkbox">記住此裝置登入</label>
-        <div class="actions"><button class="btn" type="submit">登入異常處理台</button></div>
+        <div class="actions">
+          <button class="btn" type="submit">登入異常處理台</button>
+          <button id="apiSetupBtn" class="btn secondary" type="button">後端連線設定</button>
+        </div>
       </form>
     </div>
   </section>
@@ -270,10 +274,138 @@
   </main>
 
   <div id="toast" class="toast hidden"></div>
-  <script src="./api_IQC_Correction_v02_20260807.js"></script>
+  <script>
+/**
+ * DS 日報系統｜IQC 異常處理台 v0.2
+ * GitHub Pages 前端 API 設定
+ */
+(function(global){
+  "use strict";
+
+  const CLIENT_VERSION = "IQC_CORRECTION_V0_2_20260807";
+
+  // 部署 Apps Script 後，將下方網址替換成固定 /exec URL。
+  const STATIC_API_URL = "PASTE_YOUR_APPS_SCRIPT_EXEC_URL_HERE";
+  const API_URL_STORAGE_KEY = "ds_iqcc_api_url_v02";
+
+  function getApiUrl(){
+    const staticUrl = String(STATIC_API_URL || "").trim();
+    if(staticUrl && staticUrl.indexOf("PASTE_YOUR") !== 0) return staticUrl;
+    return String(localStorage.getItem(API_URL_STORAGE_KEY) || "").trim();
+  }
+
+  function setApiUrl(url){
+    const value = String(url || "").trim();
+    if(!/^https:\/\/script\.google\.com\/macros\/s\/.+\/exec(?:\?.*)?$/i.test(value)){
+      throw new Error("Apps Script 網址格式不正確，必須是 https://script.google.com/macros/s/.../exec");
+    }
+    localStorage.setItem(API_URL_STORAGE_KEY, value);
+    return value;
+  }
+
+  function ensureApiUrl(){
+    let url = getApiUrl();
+    if(url) return url;
+
+    const entered = global.prompt(
+      "尚未設定 IQC 異常處理台後端。\n\n請貼上 Apps Script Web App 的 /exec 網址："
+    );
+    if(!entered) throw new Error("尚未設定 Apps Script /exec URL。");
+    url = setApiUrl(entered);
+    return url;
+  }
+
+  const TOKEN_KEY = "ds_iqcc_session_v2";
+
+  function assertConfigured(){
+    return ensureApiUrl();
+  }
+
+  async function post(api, payload){
+    const apiUrl = assertConfigured();
+
+    const body = Object.assign({}, payload || {}, {
+      api,
+      client_version: CLIENT_VERSION
+    });
+
+    const token = sessionStorage.getItem(TOKEN_KEY) || localStorage.getItem(TOKEN_KEY) || "";
+    if(token && api !== "login") body.session_token = token;
+
+    const response = await fetch(apiUrl, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify(body),
+      redirect: "follow",
+      cache: "no-store"
+    });
+
+    const text = await response.text();
+    let data;
+    try{
+      data = JSON.parse(text);
+    }catch(err){
+      throw new Error("API 回傳不是 JSON：" + text.slice(0, 160));
+    }
+
+    if(!data.ok){
+      if(data.code === "CLIENT_UPDATE_REQUIRED"){
+        localStorage.removeItem(TOKEN_KEY);
+        sessionStorage.removeItem(TOKEN_KEY);
+      }
+      throw new Error(data.message || "API 執行失敗");
+    }
+    return data;
+  }
+
+  function saveToken(token, remember){
+    sessionStorage.removeItem(TOKEN_KEY);
+    localStorage.removeItem(TOKEN_KEY);
+    (remember ? localStorage : sessionStorage).setItem(TOKEN_KEY, token);
+  }
+
+  function clearToken(){
+    sessionStorage.removeItem(TOKEN_KEY);
+    localStorage.removeItem(TOKEN_KEY);
+  }
+
+  function hasToken(){
+    return !!(sessionStorage.getItem(TOKEN_KEY) || localStorage.getItem(TOKEN_KEY));
+  }
+
+  function makeIdempotencyKey(prefix){
+    const random = (global.crypto && global.crypto.randomUUID)
+      ? global.crypto.randomUUID().replace(/-/g, "")
+      : Math.random().toString(36).slice(2) + Date.now().toString(36);
+    return String(prefix || "IQCC").toUpperCase() + "_" + random.toUpperCase();
+  }
+
+  global.IqcCorrectionApi = {
+    CLIENT_VERSION,
+    get API_URL(){ return getApiUrl(); },
+    getApiUrl,
+    setApiUrl,
+    post,
+    saveToken,
+    clearToken,
+    hasToken,
+    makeIdempotencyKey
+  };
+})(window);
+</script>
   <script>
     "use strict";
     const Api = window.IqcCorrectionApi;
+    if(!Api || typeof Api.post !== "function"){
+      document.addEventListener("DOMContentLoaded",()=>{
+        const toast=document.getElementById("toast");
+        if(toast){
+          toast.textContent="前端 API 模組初始化失敗，請重新上傳單檔版 index.html。";
+          toast.className="toast error";
+        }
+      });
+      throw new Error("IQC Correction API module failed to initialize.");
+    }
     const state = { user:null, bootstrap:null, lookup:null };
 
     const $ = id => document.getElementById(id);
@@ -529,6 +661,18 @@
       if(tab==="requests") loadMyRequests();
       if(tab==="review") loadReview();
     }
+
+    $("apiSetupBtn").addEventListener("click",()=>{
+      const current=Api.getApiUrl()||"";
+      const entered=prompt("請貼上 Apps Script Web App /exec 網址：",current);
+      if(!entered) return;
+      try{
+        Api.setApiUrl(entered);
+        toast("後端網址已儲存在此瀏覽器，可開始測試登入");
+      }catch(err){
+        toast(err.message,true);
+      }
+    });
 
     $("loginForm").addEventListener("submit",async event=>{
       event.preventDefault();
