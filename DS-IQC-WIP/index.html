@@ -1089,3 +1089,2185 @@
   </script>
 </body>
 </html>
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#0f2538">
+  <title>DS｜IQC 異常處理台</title>
+  <!-- Frontend production: 2026-08-08 LOOKUP-CARDS + FIXED-API + CLEAN-LOGIN v5 -->
+  <style>
+    :root{
+      color-scheme:dark;
+      --bg:#07121d;
+      --panel:#0e2030;
+      --panel2:#132b3e;
+      --line:#27445a;
+      --text:#eff7fb;
+      --muted:#9eb4c3;
+      --accent:#5bd4c7;
+      --accent2:#73a9ff;
+      --danger:#ff7d7d;
+      --warn:#ffd166;
+      --ok:#75df9b;
+      --shadow:0 18px 48px rgba(0,0,0,.28);
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      min-height:100vh;
+      background:
+        radial-gradient(circle at top right,rgba(91,212,199,.12),transparent 32rem),
+        linear-gradient(180deg,#081725,#06101a);
+      color:var(--text);
+      font-family:Inter,"Noto Sans TC","Microsoft JhengHei",system-ui,sans-serif;
+    }
+    button,input,select,textarea{font:inherit}
+    button{cursor:pointer}
+    .hidden{display:none!important}
+    .shell{width:min(1180px,100%);margin:auto;padding:18px}
+    .topbar{
+      display:flex;justify-content:space-between;gap:16px;align-items:center;
+      padding:18px 20px;border:1px solid var(--line);border-radius:22px;
+      background:rgba(14,32,48,.88);backdrop-filter:blur(18px);box-shadow:var(--shadow);
+      position:sticky;top:10px;z-index:20;
+    }
+    .brand{display:flex;gap:12px;align-items:center}
+    .logo{
+      width:46px;height:46px;border-radius:15px;display:grid;place-items:center;
+      background:linear-gradient(135deg,var(--accent),var(--accent2));color:#06202a;
+      font-weight:900;letter-spacing:.04em;
+    }
+    h1{font-size:1.2rem;margin:0}
+    .subtitle{color:var(--muted);font-size:.86rem;margin-top:3px}
+    .userbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:flex-end}
+    .pill{
+      display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);
+      border-radius:999px;padding:7px 11px;color:var(--muted);font-size:.82rem;
+      background:rgba(255,255,255,.03)
+    }
+    .pill.ok{color:var(--ok);border-color:rgba(117,223,155,.35)}
+    .pill.warn{color:var(--warn);border-color:rgba(255,209,102,.35)}
+    .pill.danger{color:var(--danger);border-color:rgba(255,125,125,.35)}
+    .grid{display:grid;grid-template-columns:1.05fr .95fr;gap:18px;margin-top:18px}
+    .panel{
+      border:1px solid var(--line);border-radius:22px;padding:20px;
+      background:linear-gradient(180deg,rgba(19,43,62,.92),rgba(11,27,40,.92));
+      box-shadow:var(--shadow);
+    }
+    .panel h2{margin:0 0 8px;font-size:1.05rem}
+    .panel-note{margin:0 0 16px;color:var(--muted);font-size:.88rem;line-height:1.6}
+    .field{margin-top:13px}
+    label{display:block;font-size:.84rem;color:#c9d9e3;margin-bottom:6px;font-weight:700}
+    input,select,textarea{
+      width:100%;border:1px solid var(--line);border-radius:13px;
+      background:#071825;color:var(--text);padding:12px 13px;outline:none;
+    }
+    textarea{min-height:94px;resize:vertical}
+    input:focus,select:focus,textarea:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(91,212,199,.12)}
+    .password-wrap{position:relative}
+    .password-wrap input{padding-right:52px}
+    .password-toggle{
+      position:absolute;right:7px;top:50%;transform:translateY(-50%);
+      width:40px;height:40px;padding:0;border:0;border-radius:10px;
+      display:grid;place-items:center;background:transparent;color:#b9cbd7;
+    }
+    .password-toggle:hover{background:rgba(255,255,255,.06);color:var(--text)}
+    .password-toggle:focus-visible{
+      outline:2px solid var(--accent);outline-offset:1px;
+    }
+    .password-toggle svg{width:22px;height:22px;display:block}
+    .password-hint{
+      display:flex;align-items:center;gap:7px;min-height:22px;
+      margin-top:7px;font-size:.8rem;color:var(--muted);
+    }
+    .caps-warning{
+      color:var(--warn);font-weight:800;
+    }
+    .caps-dot{
+      width:7px;height:7px;border-radius:50%;background:currentColor;display:inline-block;
+      box-shadow:0 0 0 3px rgba(255,209,102,.10);
+    }
+    .row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+    .actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px}
+    .btn{
+      border:0;border-radius:13px;padding:11px 15px;font-weight:800;
+      background:linear-gradient(135deg,var(--accent),#42b9d0);color:#06202a;
+    }
+    .btn.secondary{background:#19364b;color:var(--text);border:1px solid var(--line)}
+    .btn.danger{background:#5b2530;color:#ffdfe4;border:1px solid #8b3f4e}
+    .btn:disabled{opacity:.45;cursor:not-allowed}
+    .login-wrap{min-height:100vh;display:grid;place-items:center;padding:18px}
+    .login-card{
+      width:min(440px,100%);padding:26px;border-radius:24px;border:1px solid var(--line);
+      background:linear-gradient(180deg,#112a3d,#091925);box-shadow:var(--shadow)
+    }
+    .login-card .logo{width:58px;height:58px;margin-bottom:18px}
+    .login-card h1{font-size:1.45rem}
+    .check{display:flex;align-items:center;gap:8px;margin-top:13px;color:var(--muted);font-size:.86rem}
+    .check input{width:auto}
+    .toast{
+      position:fixed;left:50%;bottom:24px;transform:translateX(-50%);
+      padding:12px 16px;border-radius:14px;background:#173349;border:1px solid var(--line);
+      box-shadow:var(--shadow);z-index:100;max-width:min(560px,90vw);text-align:center
+    }
+    .toast.error{background:#4a2028;border-color:#8e3d4c}
+    .result{
+      margin-top:16px;border:1px solid var(--line);border-radius:16px;padding:14px;
+      background:rgba(5,18,29,.72)
+    }
+    .result-head{display:flex;justify-content:space-between;gap:10px;align-items:center}
+    .metric-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:12px}
+    .metric{padding:12px;border:1px solid var(--line);border-radius:14px;background:rgba(255,255,255,.025)}
+    .metric .k{font-size:.76rem;color:var(--muted)}
+    .metric .v{font-size:1.15rem;font-weight:900;margin-top:4px}
+    details{border-top:1px solid var(--line);padding-top:10px;margin-top:12px}
+    summary{cursor:pointer;font-weight:800}
+    pre{white-space:pre-wrap;word-break:break-word;color:#cfe1ec;font-size:.78rem;line-height:1.55}
+    .request-list{display:grid;gap:10px;margin-top:14px}
+    .request-card{border:1px solid var(--line);border-radius:15px;padding:14px;background:rgba(4,18,29,.62)}
+    .request-top{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}
+    .request-id{font-weight:900;word-break:break-all}
+    .request-meta{color:var(--muted);font-size:.8rem;margin-top:5px;line-height:1.55}
+    .tabs{display:flex;gap:8px;flex-wrap:wrap;margin-top:18px}
+    .tab{border:1px solid var(--line);background:#10283a;color:var(--muted);padding:9px 12px;border-radius:999px}
+    .tab.active{color:#06202a;background:var(--accent);border-color:transparent;font-weight:900}
+    .section{margin-top:18px}
+    .danger-box{border:1px solid rgba(255,125,125,.42);background:rgba(110,31,45,.24);border-radius:14px;padding:12px;color:#ffd5db}
+    .empty{color:var(--muted);padding:18px;text-align:center;border:1px dashed var(--line);border-radius:14px}
+    .lookup-sections{display:grid;gap:12px;margin-top:14px}
+    .lookup-section{
+      border:1px solid var(--line);border-radius:15px;padding:13px;
+      background:rgba(255,255,255,.025)
+    }
+    .lookup-section-title{
+      display:flex;align-items:center;justify-content:space-between;gap:10px;
+      margin-bottom:10px;font-weight:900
+    }
+    .lookup-section-title small{color:var(--muted);font-weight:600}
+    .lookup-info-grid{
+      display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px
+    }
+    .lookup-info{
+      min-width:0;padding:9px 10px;border-radius:11px;
+      background:rgba(4,18,29,.62);border:1px solid rgba(39,68,90,.72)
+    }
+    .lookup-info .label{font-size:.73rem;color:var(--muted);margin-bottom:3px}
+    .lookup-info .value{
+      font-size:.88rem;font-weight:800;word-break:break-word;line-height:1.45
+    }
+    .bottle-list{display:grid;gap:7px;margin-top:10px}
+    .bottle-row{
+      display:grid;grid-template-columns:42px minmax(0,1.2fr) minmax(0,.9fr);
+      gap:8px;align-items:center;padding:9px 10px;border-radius:11px;
+      background:#081a28;border:1px solid rgba(39,68,90,.72)
+    }
+    .bottle-no{
+      width:30px;height:30px;border-radius:9px;display:grid;place-items:center;
+      background:#15344a;color:var(--accent);font-weight:900;font-size:.78rem
+    }
+    .bottle-main{min-width:0}
+    .bottle-ctn{font-weight:900;word-break:break-all}
+    .bottle-sub{font-size:.75rem;color:var(--muted);margin-top:2px}
+    .bottle-rt{text-align:right;font-weight:800;font-size:.84rem;word-break:break-all}
+    .lookup-empty{
+      padding:12px;border:1px dashed var(--line);border-radius:12px;
+      color:var(--muted);text-align:center;font-size:.82rem
+    }
+    .state-badge{
+      display:inline-flex;align-items:center;border-radius:999px;padding:5px 8px;
+      background:#173349;border:1px solid var(--line);font-size:.75rem;font-weight:800
+    }
+    @media(max-width:560px){
+      .lookup-info-grid{grid-template-columns:1fr}
+      .bottle-row{grid-template-columns:36px minmax(0,1fr)}
+      .bottle-rt{grid-column:2;text-align:left;color:var(--muted);font-size:.78rem}
+    }
+    .loading-overlay{
+      position:fixed;inset:0;z-index:9999;display:grid;place-items:center;
+      background:rgba(3,13,22,.72);backdrop-filter:blur(7px);
+    }
+    .loading-card{
+      width:min(390px,calc(100vw - 32px));padding:24px;border-radius:20px;
+      border:1px solid var(--line);background:#0e2030;box-shadow:var(--shadow);
+      text-align:center;
+    }
+    .spinner{
+      width:44px;height:44px;margin:0 auto 14px;border-radius:50%;
+      border:4px solid rgba(255,255,255,.12);border-top-color:var(--accent);
+      animation:iqcc-spin .8s linear infinite;
+    }
+    @keyframes iqcc-spin{to{transform:rotate(360deg)}}
+    .loading-title{font-weight:900;font-size:1rem}
+    .loading-text{margin-top:8px;color:var(--muted);font-size:.86rem;line-height:1.55}
+    @media(max-width:860px){
+      .grid{grid-template-columns:1fr}
+      .topbar{position:static;align-items:flex-start}
+      .userbar{justify-content:flex-start}
+    }
+    @media(max-width:560px){
+      .shell{padding:10px}
+      .topbar,.panel{border-radius:17px;padding:15px}
+      .topbar{display:block}
+      .userbar{margin-top:12px}
+      .row,.metric-grid{grid-template-columns:1fr}
+      .btn{width:100%}
+    }
+  </style>
+</head>
+<body>
+  <section id="loginView" class="login-wrap">
+    <div class="login-card">
+      <div class="logo">IQC</div>
+      <h1>IQC 異常處理台</h1>
+      <p class="panel-note">帳號與權限由人事後台 System_Access_Master 管理；正式 IQC_Log 維持唯讀。</p>
+      <form id="loginForm">
+        <div class="field">
+          <label for="loginUser">帳號</label>
+          <input id="loginUser" autocomplete="username" maxlength="40" required>
+        </div>
+        <div class="field">
+          <label for="loginPassword">密碼</label>
+          <div class="password-wrap">
+            <input id="loginPassword" type="password" autocomplete="current-password" maxlength="64" required>
+            <button
+              id="passwordToggleBtn"
+              class="password-toggle"
+              type="button"
+              aria-label="顯示密碼"
+              aria-pressed="false"
+              title="顯示密碼"
+            >
+              <svg id="eyeOpenIcon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path d="M2.5 12s3.4-6 9.5-6 9.5 6 9.5 6-3.4 6-9.5 6-9.5-6-9.5-6Z"
+                  stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                <circle cx="12" cy="12" r="2.8"
+                  stroke="currentColor" stroke-width="1.8"/>
+              </svg>
+              <svg id="eyeClosedIcon" class="hidden" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path d="M3 3l18 18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                <path d="M10.6 6.1A10.7 10.7 0 0 1 12 6c6.1 0 9.5 6 9.5 6a16 16 0 0 1-2.5 3.2M6.2 7.2C3.8 9 2.5 12 2.5 12s3.4 6 9.5 6c1.7 0 3.2-.5 4.5-1.2"
+                  stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                <path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"
+                  stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+              </svg>
+            </button>
+          </div>
+          <div id="passwordHint" class="password-hint">
+            <span id="capsLockWarning" class="caps-warning hidden">
+              <span class="caps-dot"></span>
+              Caps Lock 大寫鎖定已開啟
+            </span>
+          </div>
+        </div>
+        <label class="check"><input id="rememberLogin" type="checkbox">記住此裝置登入</label>
+        <div class="actions">
+          <button id="loginSubmitBtn" class="btn" type="submit">登入異常處理台</button>
+        </div>
+      </form>
+    </div>
+  </section>
+
+  <main id="appView" class="shell hidden">
+    <header class="topbar">
+      <div class="brand">
+        <div class="logo">IQC</div>
+        <div>
+          <h1>DS｜IQC 異常處理台</h1>
+          <div class="subtitle">原始帳本唯讀・修正提報有跡可循</div>
+        </div>
+      </div>
+      <div class="userbar">
+        <span id="versionPill" class="pill"></span>
+        <span id="userPill" class="pill ok"></span>
+        <button id="logoutBtn" class="btn secondary" type="button">登出</button>
+      </div>
+    </header>
+
+    <div class="tabs">
+      <button class="tab active" data-tab="workbench">查詢與提報</button>
+      <button class="tab" data-tab="requests">異常單</button>
+      <button id="reviewTabBtn" class="tab hidden" data-tab="review">主管審核</button>
+    </div>
+
+    <section id="tab-workbench" class="section">
+      <div class="grid">
+        <article class="panel">
+          <h2>資料查詢</h2>
+          <p class="panel-note">可查 CTN、submission_id 或異常單號；同時比對 IQC_Log、CTN Current State 與 Grinding WIP。</p>
+          <div class="field">
+            <label for="lookupQuery">查詢關鍵字</label>
+            <input id="lookupQuery" placeholder="掃描 CTN 或輸入 submission_id">
+          </div>
+          <div class="actions">
+            <button id="lookupBtn" class="btn" type="button">查詢目前狀態</button>
+            <button id="clearLookupBtn" class="btn secondary" type="button">清除</button>
+          </div>
+          <div id="lookupResult"></div>
+        </article>
+
+        <article class="panel">
+          <h2>提出異常修正</h2>
+          <p class="panel-note">送出後建立永久異常單；不會直接改動正式 IQC_Log。</p>
+          <div class="field">
+            <label for="requestType">異常類型</label>
+            <select id="requestType"></select>
+          </div>
+          <div class="field">
+            <label for="targetCtn">主要 CTN</label>
+            <input id="targetCtn" maxlength="7" placeholder="鋼瓶、集束或運輸框 CTN">
+          </div>
+          <div class="row">
+            <div class="field">
+              <label for="sourceFrameCtn">原運輸框</label>
+              <input id="sourceFrameCtn" maxlength="7">
+            </div>
+            <div class="field">
+              <label for="destinationFrameCtn">新運輸框</label>
+              <input id="destinationFrameCtn" maxlength="7">
+            </div>
+          </div>
+          <div class="row">
+            <div class="field">
+              <label for="oldValue">修改前資料</label>
+              <input id="oldValue" placeholder="例：RT123456 或錯誤 CTN">
+            </div>
+            <div class="field">
+              <label for="newValue">建議正確資料</label>
+              <input id="newValue" placeholder="例：123456 或正確 CTN">
+            </div>
+          </div>
+          <div class="field">
+            <label for="requestReason">異常原因</label>
+            <textarea id="requestReason" placeholder="請說明現場發生什麼、要修正什麼"></textarea>
+          </div>
+          <div class="field">
+            <label for="evidenceUrl">佐證連結（選填）</label>
+            <input id="evidenceUrl" type="url" placeholder="照片或文件連結">
+          </div>
+          <div class="actions">
+            <button id="submitRequestBtn" class="btn" type="button">建立異常單</button>
+          </div>
+          <div id="requestReceipt"></div>
+        </article>
+      </div>
+    </section>
+
+    <section id="tab-requests" class="section hidden">
+      <article class="panel">
+        <div class="result-head">
+          <div>
+            <h2>我的異常單</h2>
+            <p class="panel-note">可追蹤待審核、核准、駁回與結案狀態。</p>
+          </div>
+          <button id="refreshRequestsBtn" class="btn secondary" type="button">更新</button>
+        </div>
+        <div id="myRequestList" class="request-list"></div>
+      </article>
+    </section>
+
+    <section id="tab-review" class="section hidden">
+      <article class="panel">
+        <div class="result-head">
+          <div>
+            <h2>主管審核佇列</h2>
+            <p class="panel-note">高風險資料需先確認 Grinding／DCYL／HT 狀態；核准仍不會自動改 IQC_Log。</p>
+          </div>
+          <button id="refreshReviewBtn" class="btn secondary" type="button">更新</button>
+        </div>
+        <div id="reviewList" class="request-list"></div>
+      </article>
+    </section>
+  </main>
+
+  <div id="loadingOverlay" class="loading-overlay hidden" aria-live="polite" aria-busy="true">
+    <div class="loading-card">
+      <div class="spinner"></div>
+      <div id="loadingTitle" class="loading-title">正在處理</div>
+      <div id="loadingText" class="loading-text">請稍候…</div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast hidden"></div>
+  <script>
+/**
+ * DS 日報系統｜IQC 異常處理台 v0.2
+ * GitHub Pages 前端 API 設定
+ */
+(function(global){
+  "use strict";
+
+  const CLIENT_VERSION = "IQC_CORRECTION_V0_2_20260807";
+
+  // 部署 Apps Script 後，將下方網址替換成固定 /exec URL。
+  const API_URL = "https://script.google.com/macros/s/AKfycbzgOpdC9aStQBaqMjR9MORMFcmWi-DTbP3f_RLtb5lq_U48e1kv_7vu9z_9IHtJqQDs/exec";
+
+  const TOKEN_KEY = "ds_iqcc_session_v2";
+
+  function assertConfigured(){
+    return API_URL;
+  }
+
+  async function post(api, payload){
+    const apiUrl = assertConfigured();
+
+    const body = Object.assign({}, payload || {}, {
+      api,
+      client_version: CLIENT_VERSION
+    });
+
+    const token = sessionStorage.getItem(TOKEN_KEY) || localStorage.getItem(TOKEN_KEY) || "";
+    if(token && api !== "login") body.session_token = token;
+
+    const response = await fetch(apiUrl, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify(body),
+      redirect: "follow",
+      cache: "no-store"
+    });
+
+    const text = await response.text();
+    let data;
+    try{
+      data = JSON.parse(text);
+    }catch(err){
+      throw new Error("API 回傳不是 JSON：" + text.slice(0, 160));
+    }
+
+    if(!data.ok){
+      if(data.code === "CLIENT_UPDATE_REQUIRED"){
+        localStorage.removeItem(TOKEN_KEY);
+        sessionStorage.removeItem(TOKEN_KEY);
+      }
+      throw new Error(data.message || "API 執行失敗");
+    }
+    return data;
+  }
+
+  function saveToken(token, remember){
+    sessionStorage.removeItem(TOKEN_KEY);
+    localStorage.removeItem(TOKEN_KEY);
+    (remember ? localStorage : sessionStorage).setItem(TOKEN_KEY, token);
+  }
+
+  function clearToken(){
+    sessionStorage.removeItem(TOKEN_KEY);
+    localStorage.removeItem(TOKEN_KEY);
+  }
+
+  function hasToken(){
+    return !!(sessionStorage.getItem(TOKEN_KEY) || localStorage.getItem(TOKEN_KEY));
+  }
+
+  function makeIdempotencyKey(prefix){
+    const random = (global.crypto && global.crypto.randomUUID)
+      ? global.crypto.randomUUID().replace(/-/g, "")
+      : Math.random().toString(36).slice(2) + Date.now().toString(36);
+    return String(prefix || "IQCC").toUpperCase() + "_" + random.toUpperCase();
+  }
+
+  global.IqcCorrectionApi = {
+    CLIENT_VERSION,
+    API_URL,
+    post,
+    saveToken,
+    clearToken,
+    hasToken,
+    makeIdempotencyKey
+  };
+})(window);
+</script>
+  <script>
+    "use strict";
+    const Api = window.IqcCorrectionApi;
+    if(!Api || typeof Api.post !== "function"){
+      document.addEventListener("DOMContentLoaded",()=>{
+        const toast=document.getElementById("toast");
+        if(toast){
+          toast.textContent="前端 API 模組初始化失敗，請重新上傳單檔版 index.html。";
+          toast.className="toast error";
+        }
+      });
+      throw new Error("IQC Correction API module failed to initialize.");
+    }
+    const state = { user:null, bootstrap:null, lookup:null };
+
+    const REQUEST_TYPES = [
+      {code:"MISSING_TRANSPORT_FRAME",label:"補建漏掉的運輸框"},
+      {code:"ADD_MISSING_BOTTLE",label:"新增漏建鋼瓶"},
+      {code:"CORRECT_BOTTLE_CTN",label:"修正鋼瓶 CTN"},
+      {code:"CORRECT_RT",label:"修正 RT 料號"},
+      {code:"TRANSFER_BOTTLE_FRAME",label:"鋼瓶轉移運輸框"},
+      {code:"VOID_INCORRECT_RECORD",label:"作廢錯誤紀錄"},
+      {code:"OTHER",label:"其他 IQC 異常"}
+    ];
+
+    const $ = id => document.getElementById(id);
+
+    let loadingTimers=[];
+
+    function showLoading(title,text){
+      loadingTimers.forEach(clearTimeout);
+      loadingTimers=[];
+      $("loadingTitle").textContent=title||"正在處理";
+      $("loadingText").textContent=text||"請稍候…";
+      $("loadingOverlay").classList.remove("hidden");
+
+      loadingTimers.push(setTimeout(()=>{
+        if(!$("loadingOverlay").classList.contains("hidden")){
+          $("loadingText").textContent="Apps Script 首次喚醒可能需要幾秒，系統仍在驗證中…";
+        }
+      },3500));
+
+      loadingTimers.push(setTimeout(()=>{
+        if(!$("loadingOverlay").classList.contains("hidden")){
+          $("loadingText").textContent="仍在等待後端回應，請不要重複點擊登入按鈕。";
+        }
+      },8000));
+    }
+
+    function updateLoading(title,text){
+      if(title) $("loadingTitle").textContent=title;
+      if(text) $("loadingText").textContent=text;
+    }
+
+    function hideLoading(){
+      loadingTimers.forEach(clearTimeout);
+      loadingTimers=[];
+      $("loadingOverlay").classList.add("hidden");
+    }
+
+    function toast(message,error){
+      const el=$("toast");
+      el.textContent=message;
+      el.className="toast"+(error?" error":"");
+      el.classList.remove("hidden");
+      clearTimeout(toast.timer);
+      toast.timer=setTimeout(()=>el.classList.add("hidden"),3600);
+    }
+
+    function normalizeCtn(value){
+      return String(value||"").trim().toUpperCase().replace(/\s+/g,"");
+    }
+
+    function escapeHtml(value){
+      return String(value??"").replace(/[&<>"']/g,ch=>({
+        "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
+      }[ch]));
+    }
+
+    function hydrateUiFromLogin(result){
+      state.user=result.user;
+      state.bootstrap={
+        version:result.version,
+        user:result.user,
+        requestTypes:REQUEST_TYPES,
+        permissions:{
+          canReview:Array.isArray(result.user.allowedActions) &&
+            result.user.allowedActions.includes("REVIEW"),
+          canClose:Array.isArray(result.user.allowedActions) &&
+            result.user.allowedActions.includes("CLOSE"),
+          iqcLogWritable:false
+        }
+      };
+
+      $("versionPill").textContent=result.version||Api.CLIENT_VERSION;
+      $("userPill").textContent=`${result.user.displayName}｜${result.user.role}`;
+      $("reviewTabBtn").classList.toggle(
+        "hidden",
+        !state.bootstrap.permissions.canReview
+      );
+      $("requestType").innerHTML=REQUEST_TYPES.map(item=>
+        `<option value="${escapeHtml(item.code)}">${escapeHtml(item.label)}</option>`
+      ).join("");
+    }
+
+    async function login(userId,password,remember){
+      showLoading("正在登入","正在驗證帳號、密碼與系統權限…");
+      const result=await Api.post("login",{user_id:userId,password});
+
+      updateLoading("登入成功","正在開啟 IQC 異常處理台…");
+      Api.saveToken(result.sessionToken,remember);
+      hydrateUiFromLogin(result);
+
+      // Fresh login 不再等待第二次 bootstrap API。
+      // 權限已由 login 回應帶回，正式操作時後端仍會逐次重新驗證 Sheet 權限。
+      showApp();
+      hideLoading();
+      toast(`登入成功，${result.user.displayName}`);
+    }
+
+    async function bootstrap(){
+      const result=await Api.post("bootstrap",{});
+      state.bootstrap=result;
+      state.user=result.user;
+      $("versionPill").textContent=result.version;
+      $("userPill").textContent=`${result.user.displayName}｜${result.user.role}`;
+      $("reviewTabBtn").classList.toggle("hidden",!result.permissions.canReview);
+      $("requestType").innerHTML=result.requestTypes.map(item=>
+        `<option value="${escapeHtml(item.code)}">${escapeHtml(item.label)}</option>`
+      ).join("");
+    }
+
+    function showApp(){
+      $("loginView").classList.add("hidden");
+      $("appView").classList.remove("hidden");
+    }
+
+    function showLogin(){
+      $("appView").classList.add("hidden");
+      $("loginView").classList.remove("hidden");
+    }
+
+    async function tryRestore(){
+      if(!Api.hasToken()) return;
+      showLoading("恢復登入","正在確認此裝置的登入狀態與最新權限…");
+      try{
+        await bootstrap();
+        showApp();
+      }catch(err){
+        Api.clearToken();
+        showLogin();
+      }finally{
+        hideLoading();
+      }
+    }
+
+    async function lookup(){
+      const query=$("lookupQuery").value.trim();
+      if(!query) return toast("請輸入查詢關鍵字",true);
+      $("lookupBtn").disabled=true;
+      try{
+        const response=await Api.post("lookup",{query});
+        state.lookup=response.result;
+        renderLookup(response.result);
+        if(response.result.queryType==="CTN") $("targetCtn").value=response.result.normalizedQuery;
+      }catch(err){
+        toast(err.message,true);
+      }finally{
+        $("lookupBtn").disabled=false;
+      }
+    }
+
+    function displayValue(value,fallback="-"){
+      const text=String(value??"").trim();
+      return text||fallback;
+    }
+
+    function infoCell(label,value){
+      return `
+        <div class="lookup-info">
+          <div class="label">${escapeHtml(label)}</div>
+          <div class="value">${escapeHtml(displayValue(value))}</div>
+        </div>`;
+    }
+
+    function renderBottleRows(rows){
+      if(!Array.isArray(rows)||!rows.length){
+        return '<div class="lookup-empty">沒有鋼瓶明細</div>';
+      }
+      return `<div class="bottle-list">${
+        rows.map((row,index)=>`
+          <div class="bottle-row">
+            <div class="bottle-no">${escapeHtml(row.pairNo||String(index+1))}</div>
+            <div class="bottle-main">
+              <div class="bottle-ctn">${escapeHtml(displayValue(row.ctn))}</div>
+              <div class="bottle-sub">鋼瓶 CTN</div>
+            </div>
+            <div class="bottle-rt">RT：${escapeHtml(displayValue(row.rt))}</div>
+          </div>`
+        ).join("")
+      }</div>`;
+    }
+
+    function renderTransportCard(card){
+      return `
+        <div class="lookup-section">
+          <div class="lookup-section-title">
+            <span>運輸框 ${escapeHtml(displayValue(card.transportFrameCtn))}</span>
+            <span class="state-badge">${escapeHtml(displayValue(card.type))}</span>
+          </div>
+          <div class="lookup-info-grid">
+            ${infoCell("IQC 日期",card.date)}
+            ${infoCell("建立時間",card.createdAt)}
+            ${infoCell("區域",`${displayValue(card.regionCode,"")} ${displayValue(card.regionName,"")}`.trim())}
+            ${infoCell("鋼瓶數量",`${Number(card.bottleCount||0)} 支`)}
+          </div>
+          ${renderBottleRows(card.rows)}
+        </div>`;
+    }
+
+    function renderBundleCard(card){
+      return `
+        <div class="lookup-section">
+          <div class="lookup-section-title">
+            <span>集束 ${escapeHtml(displayValue(card.rows?.[0]?.ctn||card.transportFrameCtn))}</span>
+            <span class="state-badge">集束</span>
+          </div>
+          <div class="lookup-info-grid">
+            ${infoCell("IQC 日期",card.date)}
+            ${infoCell("建立時間",card.createdAt)}
+            ${infoCell("區域",`${displayValue(card.regionCode,"")} ${displayValue(card.regionName,"")}`.trim())}
+            ${infoCell("RT",card.rows?.[0]?.rt)}
+          </div>
+        </div>`;
+    }
+
+    function renderGrindingRows(rows){
+      if(!Array.isArray(rows)||!rows.length){
+        return '<div class="lookup-empty">目前沒有 Grinding WIP 紀錄</div>';
+      }
+      return rows.map(row=>`
+        <div class="lookup-section">
+          <div class="lookup-section-title">
+            <span>${escapeHtml(displayValue(row.asset_ctn||row.source_ctn))}</span>
+            <span class="state-badge">${escapeHtml(displayValue(row.lifecycle_status||row.station_status))}</span>
+          </div>
+          <div class="lookup-info-grid">
+            ${infoCell("目前站別",row.current_station)}
+            ${infoCell("站別狀態",row.station_status)}
+            ${infoCell("來源運輸框",row.source_frame_ctn)}
+            ${infoCell("目前運輸框",row.current_frame_ctn)}
+            ${infoCell("RT",row.rt)}
+            ${infoCell("最後更新",row.updated_at||row.status_changed_at)}
+          </div>
+        </div>`).join("");
+    }
+
+    function renderCtnStateRows(rows){
+      if(!Array.isArray(rows)||!rows.length) return "";
+      return `
+        <div class="lookup-section">
+          <div class="lookup-section-title">
+            <span>CTN Current State</span>
+            <small>${rows.length} 筆</small>
+          </div>
+          ${rows.map(row=>`
+            <div class="lookup-info-grid" style="margin-top:8px">
+              ${infoCell("CTN",row.ctn)}
+              ${infoCell("狀態",row.status)}
+              ${infoCell("目前站別",row.current_station_code)}
+              ${infoCell("站別狀態",row.current_station_status)}
+              ${infoCell("目前框架",row.current_frame_ctn)}
+              ${infoCell("最後更新",row.updated_at)}
+            </div>`).join("")}
+        </div>`;
+    }
+
+    function renderRelatedRequests(rows){
+      if(!Array.isArray(rows)||!rows.length){
+        return '<div class="lookup-empty">沒有相關異常單</div>';
+      }
+      return rows.map(row=>`
+        <div class="lookup-section">
+          <div class="lookup-section-title">
+            <span>${escapeHtml(displayValue(row.requestId))}</span>
+            <span class="state-badge">${escapeHtml(displayValue(row.status))}</span>
+          </div>
+          <div class="lookup-info-grid">
+            ${infoCell("異常類型",row.requestTypeLabel)}
+            ${infoCell("風險",row.riskLevel)}
+            ${infoCell("提出人",row.requesterName)}
+            ${infoCell("建立時間",row.createdAt)}
+          </div>
+        </div>`).join("");
+    }
+
+    function renderLookup(result){
+      const iqcCount=
+        result.iqc.bundleCards.length+
+        result.iqc.transportCards.length+
+        result.iqc.bottleRows.length+
+        result.iqc.submissionRows.length;
+
+      const riskClass=result.risk.level==="HIGH"?"danger":"ok";
+      const riskText=result.risk.downstreamLocked
+        ?"已進後續製程｜主管審核"
+        :(result.risk.reasons.length?"需人工確認":"一般審核");
+
+      const reasons=result.risk.reasons.length
+        ? `<div class="danger-box" style="margin-top:12px">${result.risk.reasons.map(escapeHtml).join("<br>")}</div>`
+        :"";
+
+      const transportHtml=(result.iqc.transportCards||[]).map(renderTransportCard).join("");
+      const bundleHtml=(result.iqc.bundleCards||[]).map(renderBundleCard).join("");
+
+      const directBottleHtml=(result.iqc.bottleRows||[]).length
+        ? `<div class="lookup-section">
+             <div class="lookup-section-title"><span>鋼瓶 IQC 資料</span><small>${result.iqc.bottleRows.length} 筆</small></div>
+             ${renderBottleRows(result.iqc.bottleRows)}
+           </div>`
+        :"";
+
+      const submissionHtml=(result.iqc.submissionRows||[]).length
+        ? `<div class="lookup-section">
+             <div class="lookup-section-title"><span>Submission 明細</span><small>${result.iqc.submissionRows.length} 筆</small></div>
+             ${renderBottleRows(result.iqc.submissionRows)}
+           </div>`
+        :"";
+
+      const iqcHtml=transportHtml+bundleHtml+directBottleHtml+submissionHtml ||
+        '<div class="lookup-empty">IQC_Log 沒有找到對應資料</div>';
+
+      $("lookupResult").innerHTML=`
+        <div class="result">
+          <div class="result-head">
+            <strong>${escapeHtml(result.normalizedQuery)}</strong>
+            <span class="pill ${riskClass}">${escapeHtml(riskText)}</span>
+          </div>
+
+          <div class="metric-grid">
+            <div class="metric"><div class="k">IQC 來源</div><div class="v">${iqcCount}</div></div>
+            <div class="metric"><div class="k">Grinding 狀態</div><div class="v">${result.grinding.length}</div></div>
+            <div class="metric"><div class="k">相關異常單</div><div class="v">${result.relatedRequests.length}</div></div>
+          </div>
+
+          ${reasons}
+
+          <div class="lookup-sections">
+            <div>
+              <div class="lookup-section-title">
+                <span>IQC 資料</span>
+                <small>原始來源</small>
+              </div>
+              ${iqcHtml}
+            </div>
+
+            <div>
+              <div class="lookup-section-title">
+                <span>Grinding WIP</span>
+                <small>目前製程狀態</small>
+              </div>
+              ${renderGrindingRows(result.grinding)}
+            </div>
+
+            ${renderCtnStateRows(result.ctnCurrentState)}
+
+            <div>
+              <div class="lookup-section-title">
+                <span>相關異常單</span>
+                <small>修正追蹤</small>
+              </div>
+              ${renderRelatedRequests(result.relatedRequests)}
+            </div>
+          </div>
+        </div>`;
+    }
+
+    async function createRequest(){
+      const requestType=$("requestType").value;
+      const targetCtn=normalizeCtn($("targetCtn").value);
+      const sourceFrameCtn=normalizeCtn($("sourceFrameCtn").value);
+      const destinationFrameCtn=normalizeCtn($("destinationFrameCtn").value);
+      const reason=$("requestReason").value.trim();
+      if(!reason) return toast("請填寫異常原因",true);
+
+      $("submitRequestBtn").disabled=true;
+      try{
+        const response=await Api.post("create_request",{
+          idempotency_key:Api.makeIdempotencyKey("IQCR"),
+          request_type:requestType,
+          target_ctn:targetCtn,
+          source_frame_ctn:sourceFrameCtn,
+          destination_frame_ctn:destinationFrameCtn,
+          old_value:{value:$("oldValue").value.trim()},
+          proposed_value:{value:$("newValue").value.trim()},
+          reason,
+          evidence_url:$("evidenceUrl").value.trim()
+        });
+        const request=response.request;
+        $("requestReceipt").innerHTML=`
+          <div class="result">
+            <div class="result-head">
+              <strong>${escapeHtml(request.requestId)}</strong>
+              <span class="pill warn">${escapeHtml(request.status)}</span>
+            </div>
+            <p class="panel-note">${escapeHtml(response.message)}</p>
+            <div class="metric-grid">
+              <div class="metric"><div class="k">類型</div><div class="v" style="font-size:.94rem">${escapeHtml(request.requestTypeLabel)}</div></div>
+              <div class="metric"><div class="k">風險</div><div class="v">${escapeHtml(request.riskLevel)}</div></div>
+              <div class="metric"><div class="k">建立時間</div><div class="v" style="font-size:.82rem">${escapeHtml(request.createdAt)}</div></div>
+            </div>
+          </div>`;
+        toast("異常單建立成功");
+        await loadMyRequests();
+      }catch(err){
+        toast(err.message,true);
+      }finally{
+        $("submitRequestBtn").disabled=false;
+      }
+    }
+
+    function requestCard(request,reviewMode){
+      const statusClass=request.status==="PENDING_REVIEW"?"warn":
+        request.status==="REJECTED"?"danger":"ok";
+      const riskClass=request.riskLevel==="HIGH"?"danger":"warn";
+      let buttons="";
+      if(reviewMode&&request.status==="PENDING_REVIEW"){
+        buttons=`<div class="actions">
+          <button class="btn" onclick="reviewRequest('${escapeHtml(request.requestId)}','APPROVE')">核准</button>
+          <button class="btn danger" onclick="reviewRequest('${escapeHtml(request.requestId)}','REJECT')">駁回</button>
+        </div>`;
+      }else if(reviewMode&&["APPROVED","REJECTED"].includes(request.status)){
+        buttons=`<div class="actions">
+          <button class="btn secondary" onclick="closeRequest('${escapeHtml(request.requestId)}')">完成結案</button>
+        </div>`;
+      }
+      return `
+        <article class="request-card">
+          <div class="request-top">
+            <div>
+              <div class="request-id">${escapeHtml(request.requestId)}</div>
+              <div class="request-meta">
+                ${escapeHtml(request.requestTypeLabel)}｜${escapeHtml(request.requesterName)}｜${escapeHtml(request.createdAt)}
+              </div>
+            </div>
+            <div>
+              <span class="pill ${statusClass}">${escapeHtml(request.status)}</span>
+              <span class="pill ${riskClass}">${escapeHtml(request.riskLevel)}</span>
+            </div>
+          </div>
+          <div class="request-meta">
+            主要 CTN：${escapeHtml(request.targetCtn||"-")}｜
+            原框：${escapeHtml(request.sourceFrameCtn||"-")}｜
+            新框：${escapeHtml(request.destinationFrameCtn||"-")}<br>
+            原因：${escapeHtml(request.reason)}
+          </div>
+          ${request.reviewNote?`<div class="request-meta">審核：${escapeHtml(request.reviewNote)}</div>`:""}
+          ${buttons}
+          <details><summary>查看資料快照</summary><pre>${escapeHtml(JSON.stringify(request.sourceSnapshot,null,2))}</pre></details>
+        </article>`;
+    }
+
+    async function loadMyRequests(){
+      try{
+        const response=await Api.post("list_requests",{limit:100});
+        $("myRequestList").innerHTML=response.requests.length
+          ?response.requests.map(r=>requestCard(r,false)).join("")
+          :'<div class="empty">目前沒有異常單。</div>';
+      }catch(err){toast(err.message,true)}
+    }
+
+    async function loadReview(){
+      try{
+        const response=await Api.post("list_requests",{limit:200});
+        $("reviewList").innerHTML=response.requests.length
+          ?response.requests.map(r=>requestCard(r,true)).join("")
+          :'<div class="empty">目前沒有異常單。</div>';
+      }catch(err){toast(err.message,true)}
+    }
+
+    window.reviewRequest=async function(requestId,decision){
+      const verb=decision==="APPROVE"?"核准":"駁回";
+      const note=prompt(`請輸入${verb}說明：`);
+      if(!note) return;
+      try{
+        const response=await Api.post("review_request",{
+          request_id:requestId,decision,review_note:note
+        });
+        toast(response.message);
+        await loadReview();
+        await loadMyRequests();
+      }catch(err){toast(err.message,true)}
+    };
+
+    window.closeRequest=async function(requestId){
+      const note=prompt("請輸入結案說明（例如：已由管理者完成資料校正／確認無需修改）：");
+      if(!note) return;
+      try{
+        const response=await Api.post("close_request",{
+          request_id:requestId,
+          close_note:note
+        });
+        toast(response.message);
+        await loadReview();
+        await loadMyRequests();
+      }catch(err){toast(err.message,true)}
+    };
+
+    function switchTab(tab){
+      document.querySelectorAll(".tab").forEach(btn=>
+        btn.classList.toggle("active",btn.dataset.tab===tab)
+      );
+      ["workbench","requests","review"].forEach(name=>
+        $("tab-"+name).classList.toggle("hidden",name!==tab)
+      );
+      if(tab==="requests") loadMyRequests();
+      if(tab==="review") loadReview();
+    }
+
+    // 密碼顯示 / 隱藏
+    $("passwordToggleBtn").addEventListener("click",()=>{
+      const input=$("loginPassword");
+      const show=input.type==="password";
+      input.type=show?"text":"password";
+      $("eyeOpenIcon").classList.toggle("hidden",show);
+      $("eyeClosedIcon").classList.toggle("hidden",!show);
+      $("passwordToggleBtn").setAttribute("aria-pressed",String(show));
+      $("passwordToggleBtn").setAttribute("aria-label",show?"隱藏密碼":"顯示密碼");
+      $("passwordToggleBtn").title=show?"隱藏密碼":"顯示密碼";
+      input.focus({preventScroll:true});
+      try{
+        const len=input.value.length;
+        input.setSelectionRange(len,len);
+      }catch(err){}
+    });
+
+    // Caps Lock 大小寫鎖定提示
+    function updateCapsLockState(event){
+      if(!event || typeof event.getModifierState!=="function") return;
+      const isOn=event.getModifierState("CapsLock");
+      $("capsLockWarning").classList.toggle("hidden",!isOn);
+    }
+
+    ["keydown","keyup"].forEach(type=>{
+      $("loginPassword").addEventListener(type,updateCapsLockState);
+    });
+
+    $("loginPassword").addEventListener("blur",()=>{
+      $("capsLockWarning").classList.add("hidden");
+    });
+
+    $("loginPassword").addEventListener("focus",event=>{
+      updateCapsLockState(event);
+    });
+
+    $("loginForm").addEventListener("submit",async event=>{
+      event.preventDefault();
+      const btn=$("loginSubmitBtn");
+      btn.disabled=true;
+      btn.textContent="登入中…";
+      try{
+        await login(
+          $("loginUser").value.trim(),
+          $("loginPassword").value,
+          $("rememberLogin").checked
+        );
+      }catch(err){
+        hideLoading();
+        toast(err.message,true);
+      }finally{
+        btn.disabled=false;
+        btn.textContent="登入異常處理台";
+      }
+    });
+    $("logoutBtn").addEventListener("click",()=>{
+      Api.clearToken();state.user=null;showLogin()
+    });
+    $("lookupBtn").addEventListener("click",lookup);
+    $("clearLookupBtn").addEventListener("click",()=>{
+      $("lookupQuery").value="";$("lookupResult").innerHTML="";state.lookup=null
+    });
+    $("lookupQuery").addEventListener("input",event=>{
+      event.target.value=event.target.value.toUpperCase()
+    });
+    $("lookupQuery").addEventListener("keydown",event=>{
+      if(event.key==="Enter"){event.preventDefault();lookup()}
+    });
+    ["targetCtn","sourceFrameCtn","destinationFrameCtn"].forEach(id=>{
+      $(id).addEventListener("input",event=>event.target.value=normalizeCtn(event.target.value))
+    });
+    $("submitRequestBtn").addEventListener("click",createRequest);
+    $("refreshRequestsBtn").addEventListener("click",loadMyRequests);
+    $("refreshReviewBtn").addEventListener("click",loadReview);
+    document.querySelectorAll(".tab").forEach(btn=>
+      btn.addEventListener("click",()=>switchTab(btn.dataset.tab))
+    );
+
+    tryRestore();
+  </script>
+</body>
+</html>
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#0f2538">
+  <title>DS｜IQC 異常處理台</title>
+  <!-- Frontend production: 2026-08-08 LOOKUP-CARDS + FIXED-API + CLEAN-LOGIN v5 -->
+  <style>
+    :root{
+      color-scheme:dark;
+      --bg:#07121d;
+      --panel:#0e2030;
+      --panel2:#132b3e;
+      --line:#27445a;
+      --text:#eff7fb;
+      --muted:#9eb4c3;
+      --accent:#5bd4c7;
+      --accent2:#73a9ff;
+      --danger:#ff7d7d;
+      --warn:#ffd166;
+      --ok:#75df9b;
+      --shadow:0 18px 48px rgba(0,0,0,.28);
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      min-height:100vh;
+      background:
+        radial-gradient(circle at top right,rgba(91,212,199,.12),transparent 32rem),
+        linear-gradient(180deg,#081725,#06101a);
+      color:var(--text);
+      font-family:Inter,"Noto Sans TC","Microsoft JhengHei",system-ui,sans-serif;
+    }
+    button,input,select,textarea{font:inherit}
+    button{cursor:pointer}
+    .hidden{display:none!important}
+    .shell{width:min(1180px,100%);margin:auto;padding:18px}
+    .topbar{
+      display:flex;justify-content:space-between;gap:16px;align-items:center;
+      padding:18px 20px;border:1px solid var(--line);border-radius:22px;
+      background:rgba(14,32,48,.88);backdrop-filter:blur(18px);box-shadow:var(--shadow);
+      position:sticky;top:10px;z-index:20;
+    }
+    .brand{display:flex;gap:12px;align-items:center}
+    .logo{
+      width:46px;height:46px;border-radius:15px;display:grid;place-items:center;
+      background:linear-gradient(135deg,var(--accent),var(--accent2));color:#06202a;
+      font-weight:900;letter-spacing:.04em;
+    }
+    h1{font-size:1.2rem;margin:0}
+    .subtitle{color:var(--muted);font-size:.86rem;margin-top:3px}
+    .userbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:flex-end}
+    .pill{
+      display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);
+      border-radius:999px;padding:7px 11px;color:var(--muted);font-size:.82rem;
+      background:rgba(255,255,255,.03)
+    }
+    .pill.ok{color:var(--ok);border-color:rgba(117,223,155,.35)}
+    .pill.warn{color:var(--warn);border-color:rgba(255,209,102,.35)}
+    .pill.danger{color:var(--danger);border-color:rgba(255,125,125,.35)}
+    .grid{display:grid;grid-template-columns:1.05fr .95fr;gap:18px;margin-top:18px}
+    .panel{
+      border:1px solid var(--line);border-radius:22px;padding:20px;
+      background:linear-gradient(180deg,rgba(19,43,62,.92),rgba(11,27,40,.92));
+      box-shadow:var(--shadow);
+    }
+    .panel h2{margin:0 0 8px;font-size:1.05rem}
+    .panel-note{margin:0 0 16px;color:var(--muted);font-size:.88rem;line-height:1.6}
+    .field{margin-top:13px}
+    label{display:block;font-size:.84rem;color:#c9d9e3;margin-bottom:6px;font-weight:700}
+    input,select,textarea{
+      width:100%;border:1px solid var(--line);border-radius:13px;
+      background:#071825;color:var(--text);padding:12px 13px;outline:none;
+    }
+    textarea{min-height:94px;resize:vertical}
+    input:focus,select:focus,textarea:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(91,212,199,.12)}
+    .password-wrap{position:relative}
+    .password-wrap input{padding-right:52px}
+    .password-toggle{
+      position:absolute;right:7px;top:50%;transform:translateY(-50%);
+      width:40px;height:40px;padding:0;border:0;border-radius:10px;
+      display:grid;place-items:center;background:transparent;color:#b9cbd7;
+    }
+    .password-toggle:hover{background:rgba(255,255,255,.06);color:var(--text)}
+    .password-toggle:focus-visible{
+      outline:2px solid var(--accent);outline-offset:1px;
+    }
+    .password-toggle svg{width:22px;height:22px;display:block}
+    .password-hint{
+      display:flex;align-items:center;gap:7px;min-height:22px;
+      margin-top:7px;font-size:.8rem;color:var(--muted);
+    }
+    .caps-warning{
+      color:var(--warn);font-weight:800;
+    }
+    .caps-dot{
+      width:7px;height:7px;border-radius:50%;background:currentColor;display:inline-block;
+      box-shadow:0 0 0 3px rgba(255,209,102,.10);
+    }
+    .row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+    .actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px}
+    .btn{
+      border:0;border-radius:13px;padding:11px 15px;font-weight:800;
+      background:linear-gradient(135deg,var(--accent),#42b9d0);color:#06202a;
+    }
+    .btn.secondary{background:#19364b;color:var(--text);border:1px solid var(--line)}
+    .btn.danger{background:#5b2530;color:#ffdfe4;border:1px solid #8b3f4e}
+    .btn:disabled{opacity:.45;cursor:not-allowed}
+    .login-wrap{min-height:100vh;display:grid;place-items:center;padding:18px}
+    .login-card{
+      width:min(440px,100%);padding:26px;border-radius:24px;border:1px solid var(--line);
+      background:linear-gradient(180deg,#112a3d,#091925);box-shadow:var(--shadow)
+    }
+    .login-card .logo{width:58px;height:58px;margin-bottom:18px}
+    .login-card h1{font-size:1.45rem}
+    .check{display:flex;align-items:center;gap:8px;margin-top:13px;color:var(--muted);font-size:.86rem}
+    .check input{width:auto}
+    .toast{
+      position:fixed;left:50%;bottom:24px;transform:translateX(-50%);
+      padding:12px 16px;border-radius:14px;background:#173349;border:1px solid var(--line);
+      box-shadow:var(--shadow);z-index:100;max-width:min(560px,90vw);text-align:center
+    }
+    .toast.error{background:#4a2028;border-color:#8e3d4c}
+    .result{
+      margin-top:16px;border:1px solid var(--line);border-radius:16px;padding:14px;
+      background:rgba(5,18,29,.72)
+    }
+    .result-head{display:flex;justify-content:space-between;gap:10px;align-items:center}
+    .metric-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:12px}
+    .metric{padding:12px;border:1px solid var(--line);border-radius:14px;background:rgba(255,255,255,.025)}
+    .metric .k{font-size:.76rem;color:var(--muted)}
+    .metric .v{font-size:1.15rem;font-weight:900;margin-top:4px}
+    details{border-top:1px solid var(--line);padding-top:10px;margin-top:12px}
+    summary{cursor:pointer;font-weight:800}
+    pre{white-space:pre-wrap;word-break:break-word;color:#cfe1ec;font-size:.78rem;line-height:1.55}
+    .request-list{display:grid;gap:10px;margin-top:14px}
+    .request-card{border:1px solid var(--line);border-radius:15px;padding:14px;background:rgba(4,18,29,.62)}
+    .request-top{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}
+    .request-id{font-weight:900;word-break:break-all}
+    .request-meta{color:var(--muted);font-size:.8rem;margin-top:5px;line-height:1.55}
+    .tabs{display:flex;gap:8px;flex-wrap:wrap;margin-top:18px}
+    .tab{border:1px solid var(--line);background:#10283a;color:var(--muted);padding:9px 12px;border-radius:999px}
+    .tab.active{color:#06202a;background:var(--accent);border-color:transparent;font-weight:900}
+    .section{margin-top:18px}
+    .danger-box{border:1px solid rgba(255,125,125,.42);background:rgba(110,31,45,.24);border-radius:14px;padding:12px;color:#ffd5db}
+    .empty{color:var(--muted);padding:18px;text-align:center;border:1px dashed var(--line);border-radius:14px}
+    .lookup-sections{display:grid;gap:12px;margin-top:14px}
+    .lookup-section{
+      border:1px solid var(--line);border-radius:15px;padding:13px;
+      background:rgba(255,255,255,.025)
+    }
+    .lookup-section-title{
+      display:flex;align-items:center;justify-content:space-between;gap:10px;
+      margin-bottom:10px;font-weight:900
+    }
+    .lookup-section-title small{color:var(--muted);font-weight:600}
+    .lookup-info-grid{
+      display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px
+    }
+    .lookup-info{
+      min-width:0;padding:9px 10px;border-radius:11px;
+      background:rgba(4,18,29,.62);border:1px solid rgba(39,68,90,.72)
+    }
+    .lookup-info .label{font-size:.73rem;color:var(--muted);margin-bottom:3px}
+    .lookup-info .value{
+      font-size:.88rem;font-weight:800;word-break:break-word;line-height:1.45
+    }
+    .bottle-list{display:grid;gap:7px;margin-top:10px}
+    .bottle-row{
+      display:grid;grid-template-columns:42px minmax(0,1.2fr) minmax(0,.9fr);
+      gap:8px;align-items:center;padding:9px 10px;border-radius:11px;
+      background:#081a28;border:1px solid rgba(39,68,90,.72)
+    }
+    .bottle-no{
+      width:30px;height:30px;border-radius:9px;display:grid;place-items:center;
+      background:#15344a;color:var(--accent);font-weight:900;font-size:.78rem
+    }
+    .bottle-main{min-width:0}
+    .bottle-ctn{font-weight:900;word-break:break-all}
+    .bottle-sub{font-size:.75rem;color:var(--muted);margin-top:2px}
+    .bottle-rt{text-align:right;font-weight:800;font-size:.84rem;word-break:break-all}
+    .lookup-empty{
+      padding:12px;border:1px dashed var(--line);border-radius:12px;
+      color:var(--muted);text-align:center;font-size:.82rem
+    }
+    .state-badge{
+      display:inline-flex;align-items:center;border-radius:999px;padding:5px 8px;
+      background:#173349;border:1px solid var(--line);font-size:.75rem;font-weight:800
+    }
+    @media(max-width:560px){
+      .lookup-info-grid{grid-template-columns:1fr}
+      .bottle-row{grid-template-columns:36px minmax(0,1fr)}
+      .bottle-rt{grid-column:2;text-align:left;color:var(--muted);font-size:.78rem}
+    }
+    .loading-overlay{
+      position:fixed;inset:0;z-index:9999;display:grid;place-items:center;
+      background:rgba(3,13,22,.72);backdrop-filter:blur(7px);
+    }
+    .loading-card{
+      width:min(390px,calc(100vw - 32px));padding:24px;border-radius:20px;
+      border:1px solid var(--line);background:#0e2030;box-shadow:var(--shadow);
+      text-align:center;
+    }
+    .spinner{
+      width:44px;height:44px;margin:0 auto 14px;border-radius:50%;
+      border:4px solid rgba(255,255,255,.12);border-top-color:var(--accent);
+      animation:iqcc-spin .8s linear infinite;
+    }
+    @keyframes iqcc-spin{to{transform:rotate(360deg)}}
+    .loading-title{font-weight:900;font-size:1rem}
+    .loading-text{margin-top:8px;color:var(--muted);font-size:.86rem;line-height:1.55}
+    @media(max-width:860px){
+      .grid{grid-template-columns:1fr}
+      .topbar{position:static;align-items:flex-start}
+      .userbar{justify-content:flex-start}
+    }
+    @media(max-width:560px){
+      .shell{padding:10px}
+      .topbar,.panel{border-radius:17px;padding:15px}
+      .topbar{display:block}
+      .userbar{margin-top:12px}
+      .row,.metric-grid{grid-template-columns:1fr}
+      .btn{width:100%}
+    }
+  </style>
+</head>
+<body>
+  <section id="loginView" class="login-wrap">
+    <div class="login-card">
+      <div class="logo">IQC</div>
+      <h1>IQC 異常處理台</h1>
+      <p class="panel-note">帳號與權限由人事後台 System_Access_Master 管理；正式 IQC_Log 維持唯讀。</p>
+      <form id="loginForm">
+        <div class="field">
+          <label for="loginUser">帳號</label>
+          <input id="loginUser" autocomplete="username" maxlength="40" required>
+        </div>
+        <div class="field">
+          <label for="loginPassword">密碼</label>
+          <div class="password-wrap">
+            <input id="loginPassword" type="password" autocomplete="current-password" maxlength="64" required>
+            <button
+              id="passwordToggleBtn"
+              class="password-toggle"
+              type="button"
+              aria-label="顯示密碼"
+              aria-pressed="false"
+              title="顯示密碼"
+            >
+              <svg id="eyeOpenIcon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path d="M2.5 12s3.4-6 9.5-6 9.5 6 9.5 6-3.4 6-9.5 6-9.5-6-9.5-6Z"
+                  stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                <circle cx="12" cy="12" r="2.8"
+                  stroke="currentColor" stroke-width="1.8"/>
+              </svg>
+              <svg id="eyeClosedIcon" class="hidden" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path d="M3 3l18 18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                <path d="M10.6 6.1A10.7 10.7 0 0 1 12 6c6.1 0 9.5 6 9.5 6a16 16 0 0 1-2.5 3.2M6.2 7.2C3.8 9 2.5 12 2.5 12s3.4 6 9.5 6c1.7 0 3.2-.5 4.5-1.2"
+                  stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                <path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"
+                  stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+              </svg>
+            </button>
+          </div>
+          <div id="passwordHint" class="password-hint">
+            <span id="capsLockWarning" class="caps-warning hidden">
+              <span class="caps-dot"></span>
+              Caps Lock 大寫鎖定已開啟
+            </span>
+          </div>
+        </div>
+        <label class="check"><input id="rememberLogin" type="checkbox">記住此裝置登入</label>
+        <div class="actions">
+          <button id="loginSubmitBtn" class="btn" type="submit">登入異常處理台</button>
+        </div>
+      </form>
+    </div>
+  </section>
+
+  <main id="appView" class="shell hidden">
+    <header class="topbar">
+      <div class="brand">
+        <div class="logo">IQC</div>
+        <div>
+          <h1>DS｜IQC 異常處理台</h1>
+          <div class="subtitle">原始帳本唯讀・修正提報有跡可循</div>
+        </div>
+      </div>
+      <div class="userbar">
+        <span id="versionPill" class="pill"></span>
+        <span id="userPill" class="pill ok"></span>
+        <button id="logoutBtn" class="btn secondary" type="button">登出</button>
+      </div>
+    </header>
+
+    <div class="tabs">
+      <button class="tab active" data-tab="workbench">查詢與提報</button>
+      <button class="tab" data-tab="requests">異常單</button>
+      <button id="reviewTabBtn" class="tab hidden" data-tab="review">主管審核</button>
+    </div>
+
+    <section id="tab-workbench" class="section">
+      <div class="grid">
+        <article class="panel">
+          <h2>資料查詢</h2>
+          <p class="panel-note">可查 CTN、submission_id 或異常單號；同時比對 IQC_Log、CTN Current State 與 Grinding WIP。</p>
+          <div class="field">
+            <label for="lookupQuery">查詢關鍵字</label>
+            <input id="lookupQuery" placeholder="掃描 CTN 或輸入 submission_id">
+          </div>
+          <div class="actions">
+            <button id="lookupBtn" class="btn" type="button">查詢目前狀態</button>
+            <button id="clearLookupBtn" class="btn secondary" type="button">清除</button>
+          </div>
+          <div id="lookupResult"></div>
+        </article>
+
+        <article class="panel">
+          <h2>提出異常修正</h2>
+          <p class="panel-note">送出後建立永久異常單；不會直接改動正式 IQC_Log。</p>
+          <div class="field">
+            <label for="requestType">異常類型</label>
+            <select id="requestType"></select>
+          </div>
+          <div class="field">
+            <label for="targetCtn">主要 CTN</label>
+            <input id="targetCtn" maxlength="7" placeholder="鋼瓶、集束或運輸框 CTN">
+          </div>
+          <div class="row">
+            <div class="field">
+              <label for="sourceFrameCtn">原運輸框</label>
+              <input id="sourceFrameCtn" maxlength="7">
+            </div>
+            <div class="field">
+              <label for="destinationFrameCtn">新運輸框</label>
+              <input id="destinationFrameCtn" maxlength="7">
+            </div>
+          </div>
+          <div class="row">
+            <div class="field">
+              <label for="oldValue">修改前資料</label>
+              <input id="oldValue" placeholder="例：RT123456 或錯誤 CTN">
+            </div>
+            <div class="field">
+              <label for="newValue">建議正確資料</label>
+              <input id="newValue" placeholder="例：123456 或正確 CTN">
+            </div>
+          </div>
+          <div class="field">
+            <label for="requestReason">異常原因</label>
+            <textarea id="requestReason" placeholder="請說明現場發生什麼、要修正什麼"></textarea>
+          </div>
+          <div class="field">
+            <label for="evidenceUrl">佐證連結（選填）</label>
+            <input id="evidenceUrl" type="url" placeholder="照片或文件連結">
+          </div>
+          <div class="actions">
+            <button id="submitRequestBtn" class="btn" type="button">建立異常單</button>
+          </div>
+          <div id="requestReceipt"></div>
+        </article>
+      </div>
+    </section>
+
+    <section id="tab-requests" class="section hidden">
+      <article class="panel">
+        <div class="result-head">
+          <div>
+            <h2>我的異常單</h2>
+            <p class="panel-note">可追蹤待審核、核准、駁回與結案狀態。</p>
+          </div>
+          <button id="refreshRequestsBtn" class="btn secondary" type="button">更新</button>
+        </div>
+        <div id="myRequestList" class="request-list"></div>
+      </article>
+    </section>
+
+    <section id="tab-review" class="section hidden">
+      <article class="panel">
+        <div class="result-head">
+          <div>
+            <h2>主管審核佇列</h2>
+            <p class="panel-note">高風險資料需先確認 Grinding／DCYL／HT 狀態；核准仍不會自動改 IQC_Log。</p>
+          </div>
+          <button id="refreshReviewBtn" class="btn secondary" type="button">更新</button>
+        </div>
+        <div id="reviewList" class="request-list"></div>
+      </article>
+    </section>
+  </main>
+
+  <div id="loadingOverlay" class="loading-overlay hidden" aria-live="polite" aria-busy="true">
+    <div class="loading-card">
+      <div class="spinner"></div>
+      <div id="loadingTitle" class="loading-title">正在處理</div>
+      <div id="loadingText" class="loading-text">請稍候…</div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast hidden"></div>
+  <script>
+/**
+ * DS 日報系統｜IQC 異常處理台 v0.2
+ * GitHub Pages 前端 API 設定
+ */
+(function(global){
+  "use strict";
+
+  const CLIENT_VERSION = "IQC_CORRECTION_V0_2_20260807";
+
+  // 部署 Apps Script 後，將下方網址替換成固定 /exec URL。
+  const API_URL = "https://script.google.com/macros/s/AKfycbzgOpdC9aStQBaqMjR9MORMFcmWi-DTbP3f_RLtb5lq_U48e1kv_7vu9z_9IHtJqQDs/exec";
+
+  const TOKEN_KEY = "ds_iqcc_session_v2";
+
+  function assertConfigured(){
+    return API_URL;
+  }
+
+  async function post(api, payload){
+    const apiUrl = assertConfigured();
+
+    const body = Object.assign({}, payload || {}, {
+      api,
+      client_version: CLIENT_VERSION
+    });
+
+    const token = sessionStorage.getItem(TOKEN_KEY) || localStorage.getItem(TOKEN_KEY) || "";
+    if(token && api !== "login") body.session_token = token;
+
+    const response = await fetch(apiUrl, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify(body),
+      redirect: "follow",
+      cache: "no-store"
+    });
+
+    const text = await response.text();
+    let data;
+    try{
+      data = JSON.parse(text);
+    }catch(err){
+      throw new Error("API 回傳不是 JSON：" + text.slice(0, 160));
+    }
+
+    if(!data.ok){
+      if(data.code === "CLIENT_UPDATE_REQUIRED"){
+        localStorage.removeItem(TOKEN_KEY);
+        sessionStorage.removeItem(TOKEN_KEY);
+      }
+      throw new Error(data.message || "API 執行失敗");
+    }
+    return data;
+  }
+
+  function saveToken(token, remember){
+    sessionStorage.removeItem(TOKEN_KEY);
+    localStorage.removeItem(TOKEN_KEY);
+    (remember ? localStorage : sessionStorage).setItem(TOKEN_KEY, token);
+  }
+
+  function clearToken(){
+    sessionStorage.removeItem(TOKEN_KEY);
+    localStorage.removeItem(TOKEN_KEY);
+  }
+
+  function hasToken(){
+    return !!(sessionStorage.getItem(TOKEN_KEY) || localStorage.getItem(TOKEN_KEY));
+  }
+
+  function makeIdempotencyKey(prefix){
+    const random = (global.crypto && global.crypto.randomUUID)
+      ? global.crypto.randomUUID().replace(/-/g, "")
+      : Math.random().toString(36).slice(2) + Date.now().toString(36);
+    return String(prefix || "IQCC").toUpperCase() + "_" + random.toUpperCase();
+  }
+
+  global.IqcCorrectionApi = {
+    CLIENT_VERSION,
+    API_URL,
+    post,
+    saveToken,
+    clearToken,
+    hasToken,
+    makeIdempotencyKey
+  };
+})(window);
+</script>
+  <script>
+    "use strict";
+    const Api = window.IqcCorrectionApi;
+    if(!Api || typeof Api.post !== "function"){
+      document.addEventListener("DOMContentLoaded",()=>{
+        const toast=document.getElementById("toast");
+        if(toast){
+          toast.textContent="前端 API 模組初始化失敗，請重新上傳單檔版 index.html。";
+          toast.className="toast error";
+        }
+      });
+      throw new Error("IQC Correction API module failed to initialize.");
+    }
+    const state = { user:null, bootstrap:null, lookup:null };
+
+    const REQUEST_TYPES = [
+      {code:"MISSING_TRANSPORT_FRAME",label:"補建漏掉的運輸框"},
+      {code:"ADD_MISSING_BOTTLE",label:"新增漏建鋼瓶"},
+      {code:"CORRECT_BOTTLE_CTN",label:"修正鋼瓶 CTN"},
+      {code:"CORRECT_RT",label:"修正 RT 料號"},
+      {code:"TRANSFER_BOTTLE_FRAME",label:"鋼瓶轉移運輸框"},
+      {code:"VOID_INCORRECT_RECORD",label:"作廢錯誤紀錄"},
+      {code:"OTHER",label:"其他 IQC 異常"}
+    ];
+
+    const $ = id => document.getElementById(id);
+
+    let loadingTimers=[];
+
+    function showLoading(title,text){
+      loadingTimers.forEach(clearTimeout);
+      loadingTimers=[];
+      $("loadingTitle").textContent=title||"正在處理";
+      $("loadingText").textContent=text||"請稍候…";
+      $("loadingOverlay").classList.remove("hidden");
+
+      loadingTimers.push(setTimeout(()=>{
+        if(!$("loadingOverlay").classList.contains("hidden")){
+          $("loadingText").textContent="Apps Script 首次喚醒可能需要幾秒，系統仍在驗證中…";
+        }
+      },3500));
+
+      loadingTimers.push(setTimeout(()=>{
+        if(!$("loadingOverlay").classList.contains("hidden")){
+          $("loadingText").textContent="仍在等待後端回應，請不要重複點擊登入按鈕。";
+        }
+      },8000));
+    }
+
+    function updateLoading(title,text){
+      if(title) $("loadingTitle").textContent=title;
+      if(text) $("loadingText").textContent=text;
+    }
+
+    function hideLoading(){
+      loadingTimers.forEach(clearTimeout);
+      loadingTimers=[];
+      $("loadingOverlay").classList.add("hidden");
+    }
+
+    function toast(message,error){
+      const el=$("toast");
+      el.textContent=message;
+      el.className="toast"+(error?" error":"");
+      el.classList.remove("hidden");
+      clearTimeout(toast.timer);
+      toast.timer=setTimeout(()=>el.classList.add("hidden"),3600);
+    }
+
+    function normalizeCtn(value){
+      return String(value||"").trim().toUpperCase().replace(/\s+/g,"");
+    }
+
+    function escapeHtml(value){
+      return String(value??"").replace(/[&<>"']/g,ch=>({
+        "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
+      }[ch]));
+    }
+
+    function hydrateUiFromLogin(result){
+      state.user=result.user;
+      state.bootstrap={
+        version:result.version,
+        user:result.user,
+        requestTypes:REQUEST_TYPES,
+        permissions:{
+          canReview:Array.isArray(result.user.allowedActions) &&
+            result.user.allowedActions.includes("REVIEW"),
+          canClose:Array.isArray(result.user.allowedActions) &&
+            result.user.allowedActions.includes("CLOSE"),
+          iqcLogWritable:false
+        }
+      };
+
+      $("versionPill").textContent=result.version||Api.CLIENT_VERSION;
+      $("userPill").textContent=`${result.user.displayName}｜${result.user.role}`;
+      $("reviewTabBtn").classList.toggle(
+        "hidden",
+        !state.bootstrap.permissions.canReview
+      );
+      $("requestType").innerHTML=REQUEST_TYPES.map(item=>
+        `<option value="${escapeHtml(item.code)}">${escapeHtml(item.label)}</option>`
+      ).join("");
+    }
+
+    async function login(userId,password,remember){
+      showLoading("正在登入","正在驗證帳號、密碼與系統權限…");
+      const result=await Api.post("login",{user_id:userId,password});
+
+      updateLoading("登入成功","正在開啟 IQC 異常處理台…");
+      Api.saveToken(result.sessionToken,remember);
+      hydrateUiFromLogin(result);
+
+      // Fresh login 不再等待第二次 bootstrap API。
+      // 權限已由 login 回應帶回，正式操作時後端仍會逐次重新驗證 Sheet 權限。
+      showApp();
+      hideLoading();
+      toast(`登入成功，${result.user.displayName}`);
+    }
+
+    async function bootstrap(){
+      const result=await Api.post("bootstrap",{});
+      state.bootstrap=result;
+      state.user=result.user;
+      $("versionPill").textContent=result.version;
+      $("userPill").textContent=`${result.user.displayName}｜${result.user.role}`;
+      $("reviewTabBtn").classList.toggle("hidden",!result.permissions.canReview);
+      $("requestType").innerHTML=result.requestTypes.map(item=>
+        `<option value="${escapeHtml(item.code)}">${escapeHtml(item.label)}</option>`
+      ).join("");
+    }
+
+    function showApp(){
+      $("loginView").classList.add("hidden");
+      $("appView").classList.remove("hidden");
+    }
+
+    function showLogin(){
+      $("appView").classList.add("hidden");
+      $("loginView").classList.remove("hidden");
+    }
+
+    async function tryRestore(){
+      if(!Api.hasToken()) return;
+      showLoading("恢復登入","正在確認此裝置的登入狀態與最新權限…");
+      try{
+        await bootstrap();
+        showApp();
+      }catch(err){
+        Api.clearToken();
+        showLogin();
+      }finally{
+        hideLoading();
+      }
+    }
+
+    async function lookup(){
+      const query=$("lookupQuery").value.trim();
+      if(!query) return toast("請輸入查詢關鍵字",true);
+      $("lookupBtn").disabled=true;
+      try{
+        const response=await Api.post("lookup",{query});
+        state.lookup=response.result;
+        renderLookup(response.result);
+        if(response.result.queryType==="CTN") $("targetCtn").value=response.result.normalizedQuery;
+      }catch(err){
+        toast(err.message,true);
+      }finally{
+        $("lookupBtn").disabled=false;
+      }
+    }
+
+    function displayValue(value,fallback="-"){
+      const text=String(value??"").trim();
+      return text||fallback;
+    }
+
+    function infoCell(label,value){
+      return `
+        <div class="lookup-info">
+          <div class="label">${escapeHtml(label)}</div>
+          <div class="value">${escapeHtml(displayValue(value))}</div>
+        </div>`;
+    }
+
+    function renderBottleRows(rows){
+      if(!Array.isArray(rows)||!rows.length){
+        return '<div class="lookup-empty">沒有鋼瓶明細</div>';
+      }
+      return `<div class="bottle-list">${
+        rows.map((row,index)=>`
+          <div class="bottle-row">
+            <div class="bottle-no">${escapeHtml(row.pairNo||String(index+1))}</div>
+            <div class="bottle-main">
+              <div class="bottle-ctn">${escapeHtml(displayValue(row.ctn))}</div>
+              <div class="bottle-sub">鋼瓶 CTN</div>
+            </div>
+            <div class="bottle-rt">RT：${escapeHtml(displayValue(row.rt))}</div>
+          </div>`
+        ).join("")
+      }</div>`;
+    }
+
+    function renderTransportCard(card){
+      return `
+        <div class="lookup-section">
+          <div class="lookup-section-title">
+            <span>運輸框 ${escapeHtml(displayValue(card.transportFrameCtn))}</span>
+            <span class="state-badge">${escapeHtml(displayValue(card.type))}</span>
+          </div>
+          <div class="lookup-info-grid">
+            ${infoCell("IQC 日期",card.date)}
+            ${infoCell("建立時間",card.createdAt)}
+            ${infoCell("區域",`${displayValue(card.regionCode,"")} ${displayValue(card.regionName,"")}`.trim())}
+            ${infoCell("鋼瓶數量",`${Number(card.bottleCount||0)} 支`)}
+          </div>
+          ${renderBottleRows(card.rows)}
+        </div>`;
+    }
+
+    function renderBundleCard(card){
+      return `
+        <div class="lookup-section">
+          <div class="lookup-section-title">
+            <span>集束 ${escapeHtml(displayValue(card.rows?.[0]?.ctn||card.transportFrameCtn))}</span>
+            <span class="state-badge">集束</span>
+          </div>
+          <div class="lookup-info-grid">
+            ${infoCell("IQC 日期",card.date)}
+            ${infoCell("建立時間",card.createdAt)}
+            ${infoCell("區域",`${displayValue(card.regionCode,"")} ${displayValue(card.regionName,"")}`.trim())}
+            ${infoCell("RT",card.rows?.[0]?.rt)}
+          </div>
+        </div>`;
+    }
+
+    function renderGrindingRows(rows){
+      if(!Array.isArray(rows)||!rows.length){
+        return '<div class="lookup-empty">目前沒有 Grinding WIP 紀錄</div>';
+      }
+      return rows.map(row=>`
+        <div class="lookup-section">
+          <div class="lookup-section-title">
+            <span>${escapeHtml(displayValue(row.asset_ctn||row.source_ctn))}</span>
+            <span class="state-badge">${escapeHtml(displayValue(row.lifecycle_status||row.station_status))}</span>
+          </div>
+          <div class="lookup-info-grid">
+            ${infoCell("目前站別",row.current_station)}
+            ${infoCell("站別狀態",row.station_status)}
+            ${infoCell("來源運輸框",row.source_frame_ctn)}
+            ${infoCell("目前運輸框",row.current_frame_ctn)}
+            ${infoCell("RT",row.rt)}
+            ${infoCell("最後更新",row.updated_at||row.status_changed_at)}
+          </div>
+        </div>`).join("");
+    }
+
+    function renderCtnStateRows(rows){
+      if(!Array.isArray(rows)||!rows.length) return "";
+      return `
+        <div class="lookup-section">
+          <div class="lookup-section-title">
+            <span>CTN Current State</span>
+            <small>${rows.length} 筆</small>
+          </div>
+          ${rows.map(row=>`
+            <div class="lookup-info-grid" style="margin-top:8px">
+              ${infoCell("CTN",row.ctn)}
+              ${infoCell("狀態",row.status)}
+              ${infoCell("目前站別",row.current_station_code)}
+              ${infoCell("站別狀態",row.current_station_status)}
+              ${infoCell("目前框架",row.current_frame_ctn)}
+              ${infoCell("最後更新",row.updated_at)}
+            </div>`).join("")}
+        </div>`;
+    }
+
+    function renderRelatedRequests(rows){
+      if(!Array.isArray(rows)||!rows.length){
+        return '<div class="lookup-empty">沒有相關異常單</div>';
+      }
+      return rows.map(row=>`
+        <div class="lookup-section">
+          <div class="lookup-section-title">
+            <span>${escapeHtml(displayValue(row.requestId))}</span>
+            <span class="state-badge">${escapeHtml(displayValue(row.status))}</span>
+          </div>
+          <div class="lookup-info-grid">
+            ${infoCell("異常類型",row.requestTypeLabel)}
+            ${infoCell("風險",row.riskLevel)}
+            ${infoCell("提出人",row.requesterName)}
+            ${infoCell("建立時間",row.createdAt)}
+          </div>
+        </div>`).join("");
+    }
+
+    function renderLookup(result){
+      const iqcCount=
+        result.iqc.bundleCards.length+
+        result.iqc.transportCards.length+
+        result.iqc.bottleRows.length+
+        result.iqc.submissionRows.length;
+
+      const riskClass=result.risk.level==="HIGH"?"danger":"ok";
+      const riskText=result.risk.downstreamLocked
+        ?"已進後續製程｜主管審核"
+        :(result.risk.reasons.length?"需人工確認":"一般審核");
+
+      const reasons=result.risk.reasons.length
+        ? `<div class="danger-box" style="margin-top:12px">${result.risk.reasons.map(escapeHtml).join("<br>")}</div>`
+        :"";
+
+      const transportHtml=(result.iqc.transportCards||[]).map(renderTransportCard).join("");
+      const bundleHtml=(result.iqc.bundleCards||[]).map(renderBundleCard).join("");
+
+      const directBottleHtml=(result.iqc.bottleRows||[]).length
+        ? `<div class="lookup-section">
+             <div class="lookup-section-title"><span>鋼瓶 IQC 資料</span><small>${result.iqc.bottleRows.length} 筆</small></div>
+             ${renderBottleRows(result.iqc.bottleRows)}
+           </div>`
+        :"";
+
+      const submissionHtml=(result.iqc.submissionRows||[]).length
+        ? `<div class="lookup-section">
+             <div class="lookup-section-title"><span>Submission 明細</span><small>${result.iqc.submissionRows.length} 筆</small></div>
+             ${renderBottleRows(result.iqc.submissionRows)}
+           </div>`
+        :"";
+
+      const iqcHtml=transportHtml+bundleHtml+directBottleHtml+submissionHtml ||
+        '<div class="lookup-empty">IQC_Log 沒有找到對應資料</div>';
+
+      $("lookupResult").innerHTML=`
+        <div class="result">
+          <div class="result-head">
+            <strong>${escapeHtml(result.normalizedQuery)}</strong>
+            <span class="pill ${riskClass}">${escapeHtml(riskText)}</span>
+          </div>
+
+          <div class="metric-grid">
+            <div class="metric"><div class="k">IQC 來源</div><div class="v">${iqcCount}</div></div>
+            <div class="metric"><div class="k">Grinding 狀態</div><div class="v">${result.grinding.length}</div></div>
+            <div class="metric"><div class="k">相關異常單</div><div class="v">${result.relatedRequests.length}</div></div>
+          </div>
+
+          ${reasons}
+
+          <div class="lookup-sections">
+            <div>
+              <div class="lookup-section-title">
+                <span>IQC 資料</span>
+                <small>原始來源</small>
+              </div>
+              ${iqcHtml}
+            </div>
+
+            <div>
+              <div class="lookup-section-title">
+                <span>Grinding WIP</span>
+                <small>目前製程狀態</small>
+              </div>
+              ${renderGrindingRows(result.grinding)}
+            </div>
+
+            ${renderCtnStateRows(result.ctnCurrentState)}
+
+            <div>
+              <div class="lookup-section-title">
+                <span>相關異常單</span>
+                <small>修正追蹤</small>
+              </div>
+              ${renderRelatedRequests(result.relatedRequests)}
+            </div>
+          </div>
+        </div>`;
+    }
+
+    async function createRequest(){
+      const requestType=$("requestType").value;
+      const targetCtn=normalizeCtn($("targetCtn").value);
+      const sourceFrameCtn=normalizeCtn($("sourceFrameCtn").value);
+      const destinationFrameCtn=normalizeCtn($("destinationFrameCtn").value);
+      const reason=$("requestReason").value.trim();
+      if(!reason) return toast("請填寫異常原因",true);
+
+      $("submitRequestBtn").disabled=true;
+      try{
+        const response=await Api.post("create_request",{
+          idempotency_key:Api.makeIdempotencyKey("IQCR"),
+          request_type:requestType,
+          target_ctn:targetCtn,
+          source_frame_ctn:sourceFrameCtn,
+          destination_frame_ctn:destinationFrameCtn,
+          old_value:{value:$("oldValue").value.trim()},
+          proposed_value:{value:$("newValue").value.trim()},
+          reason,
+          evidence_url:$("evidenceUrl").value.trim()
+        });
+        const request=response.request;
+        $("requestReceipt").innerHTML=`
+          <div class="result">
+            <div class="result-head">
+              <strong>${escapeHtml(request.requestId)}</strong>
+              <span class="pill warn">${escapeHtml(request.status)}</span>
+            </div>
+            <p class="panel-note">${escapeHtml(response.message)}</p>
+            <div class="metric-grid">
+              <div class="metric"><div class="k">類型</div><div class="v" style="font-size:.94rem">${escapeHtml(request.requestTypeLabel)}</div></div>
+              <div class="metric"><div class="k">風險</div><div class="v">${escapeHtml(request.riskLevel)}</div></div>
+              <div class="metric"><div class="k">建立時間</div><div class="v" style="font-size:.82rem">${escapeHtml(request.createdAt)}</div></div>
+            </div>
+          </div>`;
+        toast("異常單建立成功");
+        await loadMyRequests();
+      }catch(err){
+        toast(err.message,true);
+      }finally{
+        $("submitRequestBtn").disabled=false;
+      }
+    }
+
+    function requestCard(request,reviewMode){
+      const statusClass=request.status==="PENDING_REVIEW"?"warn":
+        request.status==="REJECTED"?"danger":"ok";
+      const riskClass=request.riskLevel==="HIGH"?"danger":"warn";
+      let buttons="";
+      if(reviewMode&&request.status==="PENDING_REVIEW"){
+        buttons=`<div class="actions">
+          <button class="btn" onclick="reviewRequest('${escapeHtml(request.requestId)}','APPROVE')">核准</button>
+          <button class="btn danger" onclick="reviewRequest('${escapeHtml(request.requestId)}','REJECT')">駁回</button>
+        </div>`;
+      }else if(reviewMode&&["APPROVED","REJECTED"].includes(request.status)){
+        buttons=`<div class="actions">
+          <button class="btn secondary" onclick="closeRequest('${escapeHtml(request.requestId)}')">完成結案</button>
+        </div>`;
+      }
+      return `
+        <article class="request-card">
+          <div class="request-top">
+            <div>
+              <div class="request-id">${escapeHtml(request.requestId)}</div>
+              <div class="request-meta">
+                ${escapeHtml(request.requestTypeLabel)}｜${escapeHtml(request.requesterName)}｜${escapeHtml(request.createdAt)}
+              </div>
+            </div>
+            <div>
+              <span class="pill ${statusClass}">${escapeHtml(request.status)}</span>
+              <span class="pill ${riskClass}">${escapeHtml(request.riskLevel)}</span>
+            </div>
+          </div>
+          <div class="request-meta">
+            主要 CTN：${escapeHtml(request.targetCtn||"-")}｜
+            原框：${escapeHtml(request.sourceFrameCtn||"-")}｜
+            新框：${escapeHtml(request.destinationFrameCtn||"-")}<br>
+            原因：${escapeHtml(request.reason)}
+          </div>
+          ${request.reviewNote?`<div class="request-meta">審核：${escapeHtml(request.reviewNote)}</div>`:""}
+          ${buttons}
+          <details><summary>查看資料快照</summary><pre>${escapeHtml(JSON.stringify(request.sourceSnapshot,null,2))}</pre></details>
+        </article>`;
+    }
+
+    async function loadMyRequests(){
+      try{
+        const response=await Api.post("list_requests",{limit:100});
+        $("myRequestList").innerHTML=response.requests.length
+          ?response.requests.map(r=>requestCard(r,false)).join("")
+          :'<div class="empty">目前沒有異常單。</div>';
+      }catch(err){toast(err.message,true)}
+    }
+
+    async function loadReview(){
+      try{
+        const response=await Api.post("list_requests",{limit:200});
+        $("reviewList").innerHTML=response.requests.length
+          ?response.requests.map(r=>requestCard(r,true)).join("")
+          :'<div class="empty">目前沒有異常單。</div>';
+      }catch(err){toast(err.message,true)}
+    }
+
+    window.reviewRequest=async function(requestId,decision){
+      const verb=decision==="APPROVE"?"核准":"駁回";
+      const note=prompt(`請輸入${verb}說明：`);
+      if(!note) return;
+      try{
+        const response=await Api.post("review_request",{
+          request_id:requestId,decision,review_note:note
+        });
+        toast(response.message);
+        await loadReview();
+        await loadMyRequests();
+      }catch(err){toast(err.message,true)}
+    };
+
+    window.closeRequest=async function(requestId){
+      const note=prompt("請輸入結案說明（例如：已由管理者完成資料校正／確認無需修改）：");
+      if(!note) return;
+      try{
+        const response=await Api.post("close_request",{
+          request_id:requestId,
+          close_note:note
+        });
+        toast(response.message);
+        await loadReview();
+        await loadMyRequests();
+      }catch(err){toast(err.message,true)}
+    };
+
+    function switchTab(tab){
+      document.querySelectorAll(".tab").forEach(btn=>
+        btn.classList.toggle("active",btn.dataset.tab===tab)
+      );
+      ["workbench","requests","review"].forEach(name=>
+        $("tab-"+name).classList.toggle("hidden",name!==tab)
+      );
+      if(tab==="requests") loadMyRequests();
+      if(tab==="review") loadReview();
+    }
+
+    // 密碼顯示 / 隱藏
+    $("passwordToggleBtn").addEventListener("click",()=>{
+      const input=$("loginPassword");
+      const show=input.type==="password";
+      input.type=show?"text":"password";
+      $("eyeOpenIcon").classList.toggle("hidden",show);
+      $("eyeClosedIcon").classList.toggle("hidden",!show);
+      $("passwordToggleBtn").setAttribute("aria-pressed",String(show));
+      $("passwordToggleBtn").setAttribute("aria-label",show?"隱藏密碼":"顯示密碼");
+      $("passwordToggleBtn").title=show?"隱藏密碼":"顯示密碼";
+      input.focus({preventScroll:true});
+      try{
+        const len=input.value.length;
+        input.setSelectionRange(len,len);
+      }catch(err){}
+    });
+
+    // Caps Lock 大小寫鎖定提示
+    function updateCapsLockState(event){
+      if(!event || typeof event.getModifierState!=="function") return;
+      const isOn=event.getModifierState("CapsLock");
+      $("capsLockWarning").classList.toggle("hidden",!isOn);
+    }
+
+    ["keydown","keyup"].forEach(type=>{
+      $("loginPassword").addEventListener(type,updateCapsLockState);
+    });
+
+    $("loginPassword").addEventListener("blur",()=>{
+      $("capsLockWarning").classList.add("hidden");
+    });
+
+    $("loginPassword").addEventListener("focus",event=>{
+      updateCapsLockState(event);
+    });
+
+    $("loginForm").addEventListener("submit",async event=>{
+      event.preventDefault();
+      const btn=$("loginSubmitBtn");
+      btn.disabled=true;
+      btn.textContent="登入中…";
+      try{
+        await login(
+          $("loginUser").value.trim(),
+          $("loginPassword").value,
+          $("rememberLogin").checked
+        );
+      }catch(err){
+        hideLoading();
+        toast(err.message,true);
+      }finally{
+        btn.disabled=false;
+        btn.textContent="登入異常處理台";
+      }
+    });
+    $("logoutBtn").addEventListener("click",()=>{
+      Api.clearToken();state.user=null;showLogin()
+    });
+    $("lookupBtn").addEventListener("click",lookup);
+    $("clearLookupBtn").addEventListener("click",()=>{
+      $("lookupQuery").value="";$("lookupResult").innerHTML="";state.lookup=null
+    });
+    $("lookupQuery").addEventListener("input",event=>{
+      event.target.value=event.target.value.toUpperCase()
+    });
+    $("lookupQuery").addEventListener("keydown",event=>{
+      if(event.key==="Enter"){event.preventDefault();lookup()}
+    });
+    ["targetCtn","sourceFrameCtn","destinationFrameCtn"].forEach(id=>{
+      $(id).addEventListener("input",event=>event.target.value=normalizeCtn(event.target.value))
+    });
+    $("submitRequestBtn").addEventListener("click",createRequest);
+    $("refreshRequestsBtn").addEventListener("click",loadMyRequests);
+    $("refreshReviewBtn").addEventListener("click",loadReview);
+    document.querySelectorAll(".tab").forEach(btn=>
+      btn.addEventListener("click",()=>switchTab(btn.dataset.tab))
+    );
+
+    tryRestore();
+  </script>
+</body>
+</html>
