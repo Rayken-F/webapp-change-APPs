@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#0f2538">
   <title>DS｜IQC 異常處理台</title>
-  <!-- Frontend production: 2026-08-08 FIXED-API + CLEAN-LOGIN + LOGIN-FAST + PASSWORD-UX v4 -->
+  <!-- Frontend production: 2026-08-08 LOOKUP-CARDS + FIXED-API + CLEAN-LOGIN v5 -->
   <style>
     :root{
       color-scheme:dark;
@@ -145,6 +145,54 @@
     .section{margin-top:18px}
     .danger-box{border:1px solid rgba(255,125,125,.42);background:rgba(110,31,45,.24);border-radius:14px;padding:12px;color:#ffd5db}
     .empty{color:var(--muted);padding:18px;text-align:center;border:1px dashed var(--line);border-radius:14px}
+    .lookup-sections{display:grid;gap:12px;margin-top:14px}
+    .lookup-section{
+      border:1px solid var(--line);border-radius:15px;padding:13px;
+      background:rgba(255,255,255,.025)
+    }
+    .lookup-section-title{
+      display:flex;align-items:center;justify-content:space-between;gap:10px;
+      margin-bottom:10px;font-weight:900
+    }
+    .lookup-section-title small{color:var(--muted);font-weight:600}
+    .lookup-info-grid{
+      display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px
+    }
+    .lookup-info{
+      min-width:0;padding:9px 10px;border-radius:11px;
+      background:rgba(4,18,29,.62);border:1px solid rgba(39,68,90,.72)
+    }
+    .lookup-info .label{font-size:.73rem;color:var(--muted);margin-bottom:3px}
+    .lookup-info .value{
+      font-size:.88rem;font-weight:800;word-break:break-word;line-height:1.45
+    }
+    .bottle-list{display:grid;gap:7px;margin-top:10px}
+    .bottle-row{
+      display:grid;grid-template-columns:42px minmax(0,1.2fr) minmax(0,.9fr);
+      gap:8px;align-items:center;padding:9px 10px;border-radius:11px;
+      background:#081a28;border:1px solid rgba(39,68,90,.72)
+    }
+    .bottle-no{
+      width:30px;height:30px;border-radius:9px;display:grid;place-items:center;
+      background:#15344a;color:var(--accent);font-weight:900;font-size:.78rem
+    }
+    .bottle-main{min-width:0}
+    .bottle-ctn{font-weight:900;word-break:break-all}
+    .bottle-sub{font-size:.75rem;color:var(--muted);margin-top:2px}
+    .bottle-rt{text-align:right;font-weight:800;font-size:.84rem;word-break:break-all}
+    .lookup-empty{
+      padding:12px;border:1px dashed var(--line);border-radius:12px;
+      color:var(--muted);text-align:center;font-size:.82rem
+    }
+    .state-badge{
+      display:inline-flex;align-items:center;border-radius:999px;padding:5px 8px;
+      background:#173349;border:1px solid var(--line);font-size:.75rem;font-weight:800
+    }
+    @media(max-width:560px){
+      .lookup-info-grid{grid-template-columns:1fr}
+      .bottle-row{grid-template-columns:36px minmax(0,1fr)}
+      .bottle-rt{grid-column:2;text-align:left;color:var(--muted);font-size:.78rem}
+    }
     .loading-overlay{
       position:fixed;inset:0;z-index:9999;display:grid;place-items:center;
       background:rgba(3,13,22,.72);backdrop-filter:blur(7px);
@@ -612,20 +660,165 @@
       }
     }
 
+    function displayValue(value,fallback="-"){
+      const text=String(value??"").trim();
+      return text||fallback;
+    }
+
+    function infoCell(label,value){
+      return `
+        <div class="lookup-info">
+          <div class="label">${escapeHtml(label)}</div>
+          <div class="value">${escapeHtml(displayValue(value))}</div>
+        </div>`;
+    }
+
+    function renderBottleRows(rows){
+      if(!Array.isArray(rows)||!rows.length){
+        return '<div class="lookup-empty">沒有鋼瓶明細</div>';
+      }
+      return `<div class="bottle-list">${
+        rows.map((row,index)=>`
+          <div class="bottle-row">
+            <div class="bottle-no">${escapeHtml(row.pairNo||String(index+1))}</div>
+            <div class="bottle-main">
+              <div class="bottle-ctn">${escapeHtml(displayValue(row.ctn))}</div>
+              <div class="bottle-sub">鋼瓶 CTN</div>
+            </div>
+            <div class="bottle-rt">RT：${escapeHtml(displayValue(row.rt))}</div>
+          </div>`
+        ).join("")
+      }</div>`;
+    }
+
+    function renderTransportCard(card){
+      return `
+        <div class="lookup-section">
+          <div class="lookup-section-title">
+            <span>運輸框 ${escapeHtml(displayValue(card.transportFrameCtn))}</span>
+            <span class="state-badge">${escapeHtml(displayValue(card.type))}</span>
+          </div>
+          <div class="lookup-info-grid">
+            ${infoCell("IQC 日期",card.date)}
+            ${infoCell("建立時間",card.createdAt)}
+            ${infoCell("區域",`${displayValue(card.regionCode,"")} ${displayValue(card.regionName,"")}`.trim())}
+            ${infoCell("鋼瓶數量",`${Number(card.bottleCount||0)} 支`)}
+          </div>
+          ${renderBottleRows(card.rows)}
+        </div>`;
+    }
+
+    function renderBundleCard(card){
+      return `
+        <div class="lookup-section">
+          <div class="lookup-section-title">
+            <span>集束 ${escapeHtml(displayValue(card.rows?.[0]?.ctn||card.transportFrameCtn))}</span>
+            <span class="state-badge">集束</span>
+          </div>
+          <div class="lookup-info-grid">
+            ${infoCell("IQC 日期",card.date)}
+            ${infoCell("建立時間",card.createdAt)}
+            ${infoCell("區域",`${displayValue(card.regionCode,"")} ${displayValue(card.regionName,"")}`.trim())}
+            ${infoCell("RT",card.rows?.[0]?.rt)}
+          </div>
+        </div>`;
+    }
+
+    function renderGrindingRows(rows){
+      if(!Array.isArray(rows)||!rows.length){
+        return '<div class="lookup-empty">目前沒有 Grinding WIP 紀錄</div>';
+      }
+      return rows.map(row=>`
+        <div class="lookup-section">
+          <div class="lookup-section-title">
+            <span>${escapeHtml(displayValue(row.asset_ctn||row.source_ctn))}</span>
+            <span class="state-badge">${escapeHtml(displayValue(row.lifecycle_status||row.station_status))}</span>
+          </div>
+          <div class="lookup-info-grid">
+            ${infoCell("目前站別",row.current_station)}
+            ${infoCell("站別狀態",row.station_status)}
+            ${infoCell("來源運輸框",row.source_frame_ctn)}
+            ${infoCell("目前運輸框",row.current_frame_ctn)}
+            ${infoCell("RT",row.rt)}
+            ${infoCell("最後更新",row.updated_at||row.status_changed_at)}
+          </div>
+        </div>`).join("");
+    }
+
+    function renderCtnStateRows(rows){
+      if(!Array.isArray(rows)||!rows.length) return "";
+      return `
+        <div class="lookup-section">
+          <div class="lookup-section-title">
+            <span>CTN Current State</span>
+            <small>${rows.length} 筆</small>
+          </div>
+          ${rows.map(row=>`
+            <div class="lookup-info-grid" style="margin-top:8px">
+              ${infoCell("CTN",row.ctn)}
+              ${infoCell("狀態",row.status)}
+              ${infoCell("目前站別",row.current_station_code)}
+              ${infoCell("站別狀態",row.current_station_status)}
+              ${infoCell("目前框架",row.current_frame_ctn)}
+              ${infoCell("最後更新",row.updated_at)}
+            </div>`).join("")}
+        </div>`;
+    }
+
+    function renderRelatedRequests(rows){
+      if(!Array.isArray(rows)||!rows.length){
+        return '<div class="lookup-empty">沒有相關異常單</div>';
+      }
+      return rows.map(row=>`
+        <div class="lookup-section">
+          <div class="lookup-section-title">
+            <span>${escapeHtml(displayValue(row.requestId))}</span>
+            <span class="state-badge">${escapeHtml(displayValue(row.status))}</span>
+          </div>
+          <div class="lookup-info-grid">
+            ${infoCell("異常類型",row.requestTypeLabel)}
+            ${infoCell("風險",row.riskLevel)}
+            ${infoCell("提出人",row.requesterName)}
+            ${infoCell("建立時間",row.createdAt)}
+          </div>
+        </div>`).join("");
+    }
+
     function renderLookup(result){
       const iqcCount=
         result.iqc.bundleCards.length+
         result.iqc.transportCards.length+
         result.iqc.bottleRows.length+
         result.iqc.submissionRows.length;
+
       const riskClass=result.risk.level==="HIGH"?"danger":"ok";
       const riskText=result.risk.downstreamLocked
         ?"已進後續製程｜主管審核"
         :(result.risk.reasons.length?"需人工確認":"一般審核");
 
       const reasons=result.risk.reasons.length
-        ? `<div class="danger-box">${result.risk.reasons.map(escapeHtml).join("<br>")}</div>`
+        ? `<div class="danger-box" style="margin-top:12px">${result.risk.reasons.map(escapeHtml).join("<br>")}</div>`
         :"";
+
+      const transportHtml=(result.iqc.transportCards||[]).map(renderTransportCard).join("");
+      const bundleHtml=(result.iqc.bundleCards||[]).map(renderBundleCard).join("");
+
+      const directBottleHtml=(result.iqc.bottleRows||[]).length
+        ? `<div class="lookup-section">
+             <div class="lookup-section-title"><span>鋼瓶 IQC 資料</span><small>${result.iqc.bottleRows.length} 筆</small></div>
+             ${renderBottleRows(result.iqc.bottleRows)}
+           </div>`
+        :"";
+
+      const submissionHtml=(result.iqc.submissionRows||[]).length
+        ? `<div class="lookup-section">
+             <div class="lookup-section-title"><span>Submission 明細</span><small>${result.iqc.submissionRows.length} 筆</small></div>
+             ${renderBottleRows(result.iqc.submissionRows)}
+           </div>`
+        :"";
+
+      const iqcHtml=transportHtml+bundleHtml+directBottleHtml+submissionHtml ||
+        '<div class="lookup-empty">IQC_Log 沒有找到對應資料</div>';
 
       $("lookupResult").innerHTML=`
         <div class="result">
@@ -633,16 +826,42 @@
             <strong>${escapeHtml(result.normalizedQuery)}</strong>
             <span class="pill ${riskClass}">${escapeHtml(riskText)}</span>
           </div>
+
           <div class="metric-grid">
             <div class="metric"><div class="k">IQC 來源</div><div class="v">${iqcCount}</div></div>
             <div class="metric"><div class="k">Grinding 狀態</div><div class="v">${result.grinding.length}</div></div>
             <div class="metric"><div class="k">相關異常單</div><div class="v">${result.relatedRequests.length}</div></div>
           </div>
+
           ${reasons}
-          <details>
-            <summary>查看完整查詢快照</summary>
-            <pre>${escapeHtml(JSON.stringify(result,null,2))}</pre>
-          </details>
+
+          <div class="lookup-sections">
+            <div>
+              <div class="lookup-section-title">
+                <span>IQC 資料</span>
+                <small>原始來源</small>
+              </div>
+              ${iqcHtml}
+            </div>
+
+            <div>
+              <div class="lookup-section-title">
+                <span>Grinding WIP</span>
+                <small>目前製程狀態</small>
+              </div>
+              ${renderGrindingRows(result.grinding)}
+            </div>
+
+            ${renderCtnStateRows(result.ctnCurrentState)}
+
+            <div>
+              <div class="lookup-section-title">
+                <span>相關異常單</span>
+                <small>修正追蹤</small>
+              </div>
+              ${renderRelatedRequests(result.relatedRequests)}
+            </div>
+          </div>
         </div>`;
     }
 
