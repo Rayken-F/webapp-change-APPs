@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#0f2538">
   <title>DS｜IQC 異常處理台</title>
-  <!-- Frontend hotfix: 2026-08-08 SINGLE-FILE LOGIN-FAST + PASSWORD-UX v2 -->
+  <!-- Frontend hotfix: 2026-08-08 CLEAN-LOGIN + LOGIN-FAST + PASSWORD-UX v3 -->
   <style>
     :root{
       color-scheme:dark;
@@ -225,7 +225,6 @@
         <label class="check"><input id="rememberLogin" type="checkbox">記住此裝置登入</label>
         <div class="actions">
           <button id="loginSubmitBtn" class="btn" type="submit">登入異常處理台</button>
-          <button id="apiSetupBtn" class="btn secondary" type="button">後端連線設定</button>
         </div>
       </form>
     </div>
@@ -853,18 +852,6 @@
 
     $("loginPassword").addEventListener("focus",event=>{
       updateCapsLockState(event);
-    });
-
-    $("apiSetupBtn").addEventListener("click",()=>{
-      const current=Api.getApiUrl()||"";
-      const entered=prompt("請貼上 Apps Script Web App /exec 網址：",current);
-      if(!entered) return;
-      try{
-        Api.setApiUrl(entered);
-        toast("後端網址已儲存在此瀏覽器，可開始測試登入");
-      }catch(err){
-        toast(err.message,true);
-      }
     });
 
     $("loginForm").addEventListener("submit",async event=>{
