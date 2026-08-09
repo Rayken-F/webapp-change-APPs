@@ -8,7 +8,7 @@
   <link rel="manifest" href="./manifest.json">
   <title>DS｜IQC 異常處理台</title>
   <!-- Frontend production: 2026-08-08 MODULAR v7 -->
-  <link rel="stylesheet" href="./style.css?v=20260810-097">
+  <link rel="stylesheet" href="./style.css?v=20260810-0971">
 </head>
 <body class="view-login">
   <section id="loginView" class="login-wrap">
@@ -107,6 +107,7 @@
             <h2>提出異常修正</h2>
             <button id="mobileRequestClose" class="mobile-request-close" type="button" aria-label="收合異常單" title="收合異常單">×</button>
           </div>
+          <div id="requestPanelToast" class="drawer-toast hidden" role="alert" aria-live="assertive"></div>
           <p class="panel-note">送出後先建立永久異常單；核准後由系統受控更新 IQC_Log，若已進 Grinding 則同步更新對應 WIP，並保留完整修正軌跡。</p>
           <div class="field">
             <label for="requestType">異常類型</label>
@@ -173,7 +174,7 @@
   </div>
 
   <div id="toast" class="toast hidden"></div>
-  <script src="./api.js?v=20260810-097"></script>
-  <script src="./app.js?v=20260810-097"></script>
+  <script src="./api.js?v=20260810-0971"></script>
+  <script src="./app.js?v=20260810-0971"></script>
 </body>
 </html>
