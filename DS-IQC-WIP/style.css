@@ -367,3 +367,53 @@
 
       #requestPanel .actions .btn{width:100%}
     }
+
+
+    /* v0.9.5｜未讀、通知、輸入驗證 */
+    .tab{position:relative}
+    .tab-badge{
+      display:inline-grid;
+      place-items:center;
+      min-width:20px;height:20px;
+      margin-left:5px;
+      padding:0 6px;
+      border-radius:999px;
+      background:#ff5f69;
+      color:#fff;
+      font-size:.72rem;
+      font-weight:1000;
+      line-height:1
+    }
+    .tab-badge.hidden{display:none!important}
+    .notify-btn{
+      white-space:nowrap;
+      min-width:78px
+    }
+    .notify-btn.enabled{
+      border-color:rgba(117,223,155,.55);
+      color:var(--ok)
+    }
+    .notify-btn.denied{
+      border-color:rgba(255,119,125,.45);
+      color:var(--danger)
+    }
+    input.input-invalid{
+      border-color:var(--danger)!important;
+      box-shadow:0 0 0 3px rgba(255,119,125,.10)!important
+    }
+    input.input-valid{
+      border-color:rgba(117,223,155,.55)!important
+    }
+    .validation-message{
+      margin-top:6px;
+      font-size:.76rem;
+      color:var(--danger);
+      line-height:1.4
+    }
+    @media(max-width:680px){
+      .notify-btn{
+        min-width:48px;
+        padding-left:9px;
+        padding-right:9px
+      }
+    }
