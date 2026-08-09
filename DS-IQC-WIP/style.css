@@ -259,3 +259,111 @@
       display:inline-flex;align-items:center;gap:6px;padding:4px 8px;border-radius:999px;
       background:#15344a;color:var(--accent);font-size:.74rem;font-weight:800
     }
+
+
+    /* v0.9.3｜異常單欄位語意 + 手機側邊抽屜 */
+    .request-panel-head{
+      display:flex;align-items:center;justify-content:space-between;gap:10px
+    }
+    .request-panel-head h2{margin:0 0 8px}
+    .mobile-request-close,
+    .mobile-request-toggle,
+    .mobile-request-backdrop{
+      display:none
+    }
+
+    @media(max-width:680px){
+      body.mobile-request-open{overflow:hidden}
+
+      #tab-workbench .grid{
+        display:block;
+      }
+
+      #requestPanel{
+        position:fixed;
+        z-index:9200;
+        top:max(10px, env(safe-area-inset-top));
+        right:10px;
+        bottom:max(10px, env(safe-area-inset-bottom));
+        width:min(92vw,420px);
+        max-height:calc(100dvh - 20px);
+        overflow:auto;
+        overscroll-behavior:contain;
+        transform:translateX(calc(100% + 28px));
+        opacity:0;
+        pointer-events:none;
+        transition:transform .22s ease,opacity .18s ease;
+        box-shadow:0 24px 70px rgba(0,0,0,.48);
+        border-color:rgba(91,212,199,.28);
+      }
+
+      body.mobile-request-open #requestPanel{
+        transform:translateX(0);
+        opacity:1;
+        pointer-events:auto;
+      }
+
+      .mobile-request-toggle{
+        position:fixed;
+        z-index:9100;
+        right:0;
+        top:58%;
+        transform:translateY(-50%);
+        display:flex;
+        flex-direction:column;
+        align-items:center;
+        gap:4px;
+        min-width:46px;
+        padding:10px 7px 10px 8px;
+        border:1px solid rgba(91,212,199,.55);
+        border-right:0;
+        border-radius:15px 0 0 15px;
+        background:#12344a;
+        color:var(--text);
+        box-shadow:0 12px 30px rgba(0,0,0,.32);
+        font-weight:900;
+      }
+
+      .mobile-request-toggle-icon{
+        width:25px;height:25px;border-radius:999px;
+        display:grid;place-items:center;
+        background:var(--accent);color:#062331;
+        font-size:.9rem;font-weight:1000
+      }
+      .mobile-request-toggle-text{
+        font-size:.72rem;
+        writing-mode:vertical-rl;
+        letter-spacing:.08em
+      }
+
+      body.mobile-request-open .mobile-request-toggle{
+        opacity:0;
+        pointer-events:none;
+      }
+
+      .mobile-request-backdrop{
+        position:fixed;
+        z-index:9150;
+        inset:0;
+        display:block;
+        background:rgba(2,10,17,.58);
+        backdrop-filter:blur(2px);
+      }
+      .mobile-request-backdrop.hidden{display:none!important}
+
+      .mobile-request-close{
+        display:grid;
+        place-items:center;
+        flex:0 0 38px;
+        width:38px;height:38px;
+        border:1px solid var(--line);
+        border-radius:12px;
+        background:#17364b;
+        color:var(--text);
+        font-size:1.45rem;
+        line-height:1;
+        padding:0;
+      }
+
+      #requestPanel .actions .btn{width:100%}
+    }
