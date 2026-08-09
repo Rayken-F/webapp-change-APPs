@@ -205,30 +205,9 @@ function deriveSelectionFromResult(result){
 
 function setSelection(selection){
   state.selection=selection || null;
-  const targetValue = selection?.targetCtn || "";
-  $("targetCtn").value = targetValue;
-  const display = $("targetCtnDisplay");
-  const hint = $("targetCtnHint");
-
-  if(targetValue){
-    display.textContent = targetValue;
-    display.classList.remove("muted");
-    if(selection?.targetKind==="bottle"){
-      hint.textContent = `已選取鋼瓶 CTN；來源運輸框：${selection.sourceFrameCtn||"-"}${selection.rt?`｜RT：${selection.rt}`:""}`;
-    }else if(selection?.targetKind==="frame"){
-      hint.textContent = "已選取運輸框 CTN；可用於新增漏建鋼瓶或修改運輸框 CTN。";
-    }else{
-      hint.textContent = "主要 CTN 已帶入；可依異常類型補充必要欄位。";
-    }
-  }else{
-    display.textContent = "請先在左側查詢資料；也可點選鋼瓶帶入主要 CTN。";
-    display.classList.add("muted");
-    hint.textContent = "主要 CTN 會跟隨查詢結果或鋼瓶點選帶入，不需手動輸入。";
-  }
   renderRequestDynamicFields();
   applySelectionStyles();
 }
-
 function applySelectionStyles(){
   document.querySelectorAll(".bottle-row.selectable").forEach(el=>{
     const ctn = normalizeCtn(el.dataset.ctn || "");
@@ -245,6 +224,7 @@ function bindLookupInteractions(){
         sourceFrameCtn: normalizeCtn(btn.dataset.ctn),
         rt: ""
       });
+      if(isMobileRequestDrawer()) openMobileRequestPanel();
     });
   });
 
@@ -256,6 +236,7 @@ function bindLookupInteractions(){
         sourceFrameCtn: normalizeCtn(el.dataset.frame || ""),
         rt: el.dataset.rt || ""
       });
+      if(isMobileRequestDrawer()) openMobileRequestPanel();
     });
   });
 }
@@ -497,69 +478,153 @@ async function lookup(){
   }
 }
 
-function renderRequestDynamicFields(){
-  const wrap = $("requestDynamicFields");
-  if(!wrap) return;
-  const type = $("requestType").value || REQUEST_TYPES[0].code;
+function requestTargetContext(type){
   const selection = state.selection || {};
-  const sourceFrame = selection.sourceFrameCtn || (selection.targetKind==="frame" ? selection.targetCtn : "");
+  const selectedCtn = normalizeCtn(selection.targetCtn || "");
+  const sourceFrame = normalizeCtn(
+    selection.sourceFrameCtn ||
+    (selection.targetKind==="frame" ? selection.targetCtn : "")
+  );
 
-  const needBottleHint = ['CORRECT_BOTTLE_CTN','CORRECT_RT','TRANSFER_BOTTLE_FRAME'].includes(type) && selection.targetKind!=="bottle";
-  let hint = needBottleHint
-    ? '<div class="field-hint">請先在左側查詢結果中點選鋼瓶，讓主要 CTN 帶入要處理的鋼瓶。</div>'
+  if(type==="ADD_MISSING_BOTTLE"){
+    return {
+      targetCtn: sourceFrame || (selection.targetKind==="frame" ? selectedCtn : ""),
+      kind:"frame",
+      label:"當前運輸框 CTN"
+    };
+  }
+
+  if(type==="MISSING_TRANSPORT_FRAME"){
+    return {
+      targetCtn: sourceFrame || (selection.targetKind==="frame" ? selectedCtn : ""),
+      kind:"frame",
+      label:"原運輸框 CTN"
+    };
+  }
+
+  return {
+    targetCtn:selectedCtn,
+    kind:selection.targetKind || "generic",
+    label:"主要 CTN"
+  };
+}
+
+function renderRequestTargetField(type){
+  const genericField=$("genericTargetField");
+  const hiddenTarget=$("targetCtn");
+  const display=$("targetCtnDisplay");
+  const hint=$("targetCtnHint");
+  const label=$("targetCtnLabel");
+  const ctx=requestTargetContext(type);
+
+  hiddenTarget.value=ctx.targetCtn || "";
+
+  // 新增漏建鋼瓶、修改運輸框 CTN 不再顯示泛用「主要 CTN」區塊。
+  if(type==="ADD_MISSING_BOTTLE" || type==="MISSING_TRANSPORT_FRAME"){
+    genericField.classList.add("hidden");
+    return ctx;
+  }
+
+  genericField.classList.remove("hidden");
+  label.textContent="主要 CTN";
+
+  if(ctx.targetCtn){
+    display.textContent=ctx.targetCtn;
+    display.classList.remove("muted");
+    const selection=state.selection || {};
+    if(selection.targetKind==="bottle"){
+      hint.textContent=`已選取鋼瓶 CTN；來源運輸框：${selection.sourceFrameCtn||"-"}${selection.rt?`｜RT：${selection.rt}`:""}`;
+    }else if(selection.targetKind==="frame"){
+      hint.textContent="已選取運輸框 CTN。";
+    }else{
+      hint.textContent="主要 CTN 已由查詢結果帶入。";
+    }
+  }else{
+    display.textContent="請先在左側查詢資料；需要處理鋼瓶時可直接點選鋼瓶。";
+    display.classList.add("muted");
+    hint.textContent="主要 CTN 會跟隨查詢結果或鋼瓶點選帶入，不需手動輸入。";
+  }
+  return ctx;
+}
+
+function renderRequestDynamicFields(){
+  const wrap=$("requestDynamicFields");
+  if(!wrap) return;
+
+  const type=$("requestType").value || REQUEST_TYPES[0].code;
+  const selection=state.selection || {};
+  const targetCtx=renderRequestTargetField(type);
+  const sourceFrame=targetCtx.targetCtn || "";
+
+  const needBottleHint=
+    ['CORRECT_BOTTLE_CTN','CORRECT_RT','TRANSFER_BOTTLE_FRAME'].includes(type) &&
+    selection.targetKind!=="bottle";
+
+  const hint=needBottleHint
+    ? '<div class="field-hint">請先在左側鋼瓶清單點選要處理的鋼瓶。</div>'
     : '';
 
-  let html = "";
+  let html="";
   switch(type){
     case "ADD_MISSING_BOTTLE":
-      html = `
+      html=`
+        <div class="field">
+          <label>當前運輸框 CTN</label>
+          <div class="static-display ${sourceFrame?"":"muted"}">${escapeHtml(sourceFrame || "請先查詢或選用運輸框")}</div>
+          <div class="field-hint">新增鋼瓶會補入此運輸框；不再使用「主要 CTN」欄位。</div>
+        </div>
         <div class="field">
           <label for="requestAddBottleCtn">待新增鋼瓶 CTN</label>
           <input id="requestAddBottleCtn" maxlength="7" placeholder="請輸入待新增鋼瓶 CTN">
         </div>`;
       break;
+
     case "CORRECT_BOTTLE_CTN":
-      html = `
+      html=`
         ${hint}
         <div class="field">
           <label for="requestNewBottleCtn">待修改鋼瓶 CTN</label>
           <input id="requestNewBottleCtn" maxlength="7" placeholder="請輸入正確鋼瓶 CTN">
         </div>`;
       break;
+
     case "CORRECT_RT":
-      html = `
+      html=`
         ${hint}
         <div class="field">
           <label for="requestNewBottleRt">待修改鋼瓶 RT</label>
           <input id="requestNewBottleRt" placeholder="請輸入正確 RT 料號">
         </div>`;
       break;
+
     case "MISSING_TRANSPORT_FRAME":
-      html = `
+      html=`
         <div class="field">
           <label>原運輸框 CTN</label>
-          <div class="static-display ${sourceFrame ? "" : "muted"}">${escapeHtml(sourceFrame || "請先查詢運輸框資料")}</div>
+          <div class="static-display ${sourceFrame?"":"muted"}">${escapeHtml(sourceFrame || "請先查詢或選用運輸框")}</div>
+          <div class="field-hint">此類型直接以原運輸框為修正目標，不顯示「主要 CTN」。</div>
         </div>
         <div class="field">
           <label for="requestNewFrameCtn">待修改運輸框 CTN</label>
           <input id="requestNewFrameCtn" maxlength="7" placeholder="請輸入正確運輸框 CTN">
         </div>`;
       break;
+
     case "TRANSFER_BOTTLE_FRAME":
-      html = `
+      html=`
         ${hint}
         <div class="field">
           <label for="requestMoveFrameCtn">待轉移運輸框 CTN</label>
           <input id="requestMoveFrameCtn" maxlength="7" placeholder="請輸入待轉移運輸框 CTN">
         </div>`;
       break;
+
     case "VOID_INCORRECT_RECORD":
-      html = '';
+      html='';
       break;
-    default:
-      html = '';
   }
-  wrap.innerHTML = html;
+
+  wrap.innerHTML=html;
 
   [
     "requestAddBottleCtn",
@@ -578,12 +643,15 @@ function renderRequestDynamicFields(){
 
 function collectRequestPayload(){
   const requestType=$("requestType").value;
-  const targetCtn=normalizeCtn($("targetCtn").value);
-  const selection = state.selection || {};
-  const sourceFrameCtn = normalizeCtn(selection.sourceFrameCtn || (selection.targetKind==="frame" ? selection.targetCtn : ""));
+  const selection=state.selection || {};
+  const targetCtx=requestTargetContext(requestType);
+  const targetCtn=normalizeCtn(targetCtx.targetCtn);
+  const sourceFrameCtn=normalizeCtn(
+    selection.sourceFrameCtn ||
+    (selection.targetKind==="frame" ? selection.targetCtn : "")
+  );
   const reason=$("requestReason").value.trim();
 
-  if(!targetCtn) throw new Error("請先在左側查詢資料，或點選鋼瓶帶入主要 CTN。");
   if(!reason) throw new Error("請填寫異常原因");
 
   let destinationFrameCtn="";
@@ -591,27 +659,35 @@ function collectRequestPayload(){
   let newValue="";
 
   if(requestType==="ADD_MISSING_BOTTLE"){
-    newValue = normalizeCtn($("requestAddBottleCtn")?.value);
+    if(!targetCtn) throw new Error("請先查詢或選用當前運輸框 CTN");
+    newValue=normalizeCtn($("requestAddBottleCtn")?.value);
     if(!newValue) throw new Error("請填寫待新增鋼瓶 CTN");
+
   }else if(requestType==="CORRECT_BOTTLE_CTN"){
     if(selection.targetKind!=="bottle") throw new Error("請先在左側點選要修改的鋼瓶");
-    oldValue = targetCtn;
-    newValue = normalizeCtn($("requestNewBottleCtn")?.value);
+    oldValue=targetCtn;
+    newValue=normalizeCtn($("requestNewBottleCtn")?.value);
     if(!newValue) throw new Error("請填寫待修改鋼瓶 CTN");
+
   }else if(requestType==="CORRECT_RT"){
     if(selection.targetKind!=="bottle") throw new Error("請先在左側點選要修改 RT 的鋼瓶");
-    oldValue = String(selection.rt || "").trim();
-    newValue = normalizeRt($("requestNewBottleRt")?.value);
+    oldValue=String(selection.rt || "").trim();
+    newValue=normalizeRt($("requestNewBottleRt")?.value);
     if(!newValue) throw new Error("請填寫待修改鋼瓶 RT");
+
   }else if(requestType==="MISSING_TRANSPORT_FRAME"){
-    oldValue = sourceFrameCtn || targetCtn;
-    if(!oldValue) throw new Error("請先查詢原運輸框 CTN");
-    newValue = normalizeCtn($("requestNewFrameCtn")?.value);
+    if(!targetCtn) throw new Error("請先查詢或選用原運輸框 CTN");
+    oldValue=targetCtn;
+    newValue=normalizeCtn($("requestNewFrameCtn")?.value);
     if(!newValue) throw new Error("請填寫待修改運輸框 CTN");
+
   }else if(requestType==="TRANSFER_BOTTLE_FRAME"){
     if(selection.targetKind!=="bottle") throw new Error("請先在左側點選要轉移的鋼瓶");
-    destinationFrameCtn = normalizeCtn($("requestMoveFrameCtn")?.value);
+    destinationFrameCtn=normalizeCtn($("requestMoveFrameCtn")?.value);
     if(!destinationFrameCtn) throw new Error("請填寫待轉移運輸框 CTN");
+
+  }else if(requestType==="VOID_INCORRECT_RECORD"){
+    if(!targetCtn) throw new Error("請先查詢或點選要作廢的 CTN");
   }
 
   return {
@@ -625,7 +701,6 @@ function collectRequestPayload(){
     evidence_url:""
   };
 }
-
 async function createRequest(){
   $("submitRequestBtn").disabled=true;
   try{
@@ -649,6 +724,7 @@ async function createRequest(){
         </div>
       </div>`;
     toast("異常單建立成功");
+    if(isMobileRequestDrawer()) closeMobileRequestPanel();
     $("requestReason").value="";
     renderRequestDynamicFields();
     await loadMyRequests();
@@ -810,6 +886,36 @@ $("loginPassword").addEventListener("blur",()=>{
 });
 $("loginPassword").addEventListener("focus",event=>{
   updateCapsLockState(event);
+});
+
+
+function isMobileRequestDrawer(){
+  return window.matchMedia("(max-width:680px)").matches;
+}
+
+function openMobileRequestPanel(){
+  if(!isMobileRequestDrawer()) return;
+  document.body.classList.add("mobile-request-open");
+  $("mobileRequestBackdrop").classList.remove("hidden");
+  $("mobileRequestToggle").setAttribute("aria-expanded","true");
+}
+
+function closeMobileRequestPanel(){
+  document.body.classList.remove("mobile-request-open");
+  $("mobileRequestBackdrop").classList.add("hidden");
+  $("mobileRequestToggle").setAttribute("aria-expanded","false");
+}
+
+$("mobileRequestToggle").addEventListener("click",openMobileRequestPanel);
+$("mobileRequestClose").addEventListener("click",closeMobileRequestPanel);
+$("mobileRequestBackdrop").addEventListener("click",closeMobileRequestPanel);
+
+window.addEventListener("resize",()=>{
+  if(!isMobileRequestDrawer()) closeMobileRequestPanel();
+});
+
+document.addEventListener("keydown",event=>{
+  if(event.key==="Escape") closeMobileRequestPanel();
 });
 
 $("loginForm").addEventListener("submit",async event=>{
