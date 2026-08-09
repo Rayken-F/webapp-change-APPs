@@ -76,12 +76,38 @@ function hideLoading(){
 }
 
 function toast(message,error){
-  const el=$("toast");
-  el.textContent=message;
-  el.className="toast"+(error?" error":"");
-  el.classList.remove("hidden");
+  const drawerOpen=
+    document.body.classList.contains("mobile-request-open") &&
+    isMobileRequestDrawer();
+
+  const drawerEl=$("requestPanelToast");
+  const globalEl=$("toast");
+
+  if(drawerOpen && drawerEl){
+    drawerEl.textContent=message;
+    drawerEl.className="drawer-toast"+(error?" error":"");
+    drawerEl.classList.remove("hidden");
+
+    if(globalEl) globalEl.classList.add("hidden");
+
+    clearTimeout(toast.drawerTimer);
+    toast.drawerTimer=setTimeout(()=>{
+      drawerEl.classList.add("hidden");
+    },4200);
+    return;
+  }
+
+  if(!globalEl) return;
+  globalEl.textContent=message;
+  globalEl.className="toast"+(error?" error":"");
+  globalEl.classList.remove("hidden");
+
+  if(drawerEl) drawerEl.classList.add("hidden");
+
   clearTimeout(toast.timer);
-  toast.timer=setTimeout(()=>el.classList.add("hidden"),3600);
+  toast.timer=setTimeout(()=>{
+    globalEl.classList.add("hidden");
+  },3600);
 }
 
 function normalizeCtn(value){
@@ -180,8 +206,16 @@ function hydrateUiFromLogin(result){
     `<option value="${escapeHtml(item.code)}">${escapeHtml(item.label)}</option>`
   ).join("");
   renderRequestDynamicFields();
+}
+
+
+function activateAuthenticatedSession(){
+  showApp();
   updateNotificationButton();
+
+  // 立即抓一次，不等 45 秒；手機 PWA 自動恢復登入也會走這裡。
   startNotificationPolling();
+  refreshNotificationSummary(true);
 }
 
 async function login(userId,password,remember){
@@ -191,9 +225,7 @@ async function login(userId,password,remember){
   updateLoading("登入成功","正在開啟 IQC 異常處理台…");
   Api.saveToken(result.sessionToken,remember);
   hydrateUiFromLogin(result);
-  showApp();
-  updateNotificationButton();
-  startNotificationPolling();
+  activateAuthenticatedSession();
   hideLoading();
   toast(`登入成功，${result.user.displayName}`);
 }
@@ -234,7 +266,7 @@ async function tryRestore(){
   showLoading("恢復登入","正在確認此裝置的登入狀態與最新權限…");
   try{
     await bootstrap();
-    showApp();
+    activateAuthenticatedSession();
   }catch(err){
     Api.clearToken();
     showLogin();
@@ -1691,6 +1723,7 @@ function isMobileRequestDrawer(){
 
 function openMobileRequestPanel(){
   if(!isMobileRequestDrawer()) return;
+  $("requestPanelToast")?.classList.add("hidden");
   document.body.classList.add("mobile-request-open");
   $("mobileRequestBackdrop").classList.remove("hidden");
   $("mobileRequestToggle").setAttribute("aria-expanded","true");
@@ -1700,6 +1733,7 @@ function closeMobileRequestPanel(){
   document.body.classList.remove("mobile-request-open");
   $("mobileRequestBackdrop").classList.add("hidden");
   $("mobileRequestToggle").setAttribute("aria-expanded","false");
+  $("requestPanelToast")?.classList.add("hidden");
 }
 
 $("mobileRequestToggle").addEventListener("click",openMobileRequestPanel);
@@ -1799,8 +1833,25 @@ showLogin();
 window.addEventListener("pageshow",()=>{
   if(state.user){
     showApp();
+    refreshNotificationSummary(true);
   }else if(!Api.hasToken()){
     showLogin();
+  }
+});
+
+document.addEventListener("visibilitychange",()=>{
+  if(
+    document.visibilityState==="visible" &&
+    state.user &&
+    Api.hasToken()
+  ){
+    refreshNotificationSummary(true);
+  }
+});
+
+window.addEventListener("focus",()=>{
+  if(state.user && Api.hasToken()){
+    refreshNotificationSummary(true);
   }
 });
 
