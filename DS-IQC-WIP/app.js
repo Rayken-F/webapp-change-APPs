@@ -16,6 +16,10 @@ const state = {
   lookup:null,
   selection:null,
   unread:{own:0,review:0},
+  unreadIds:{
+    own:new Set(),
+    review:new Set()
+  },
   notificationTimer:null
 };
 
@@ -869,9 +873,9 @@ async function createRequest(){
       </div>`;
 
     toast("異常單建立成功");
-    locallyIncrementUnread("OWN",1);
+    locallyAddUnread("OWN",request.requestId);
     if(state.bootstrap?.permissions?.canReview){
-      locallyIncrementUnread("REVIEW",1);
+      locallyAddUnread("REVIEW",request.requestId);
     }
     if(isMobileRequestDrawer()) closeMobileRequestPanel();
     $("requestReason").value="";
@@ -884,7 +888,7 @@ async function createRequest(){
   }
 }
 
-function requestCard(request,reviewMode){
+function requestCard(request,reviewMode,isUnread=false){
   const statusClass=request.status==="PENDING_REVIEW"?"warn":
     request.status==="REJECTED"?"danger":"ok";
   const riskClass=request.riskLevel==="HIGH"?"danger":"warn";
@@ -944,8 +948,16 @@ function requestCard(request,reviewMode){
       <button class="btn secondary" onclick="closeRequest('${escapeHtml(request.requestId)}')">完成結案</button>
     </div>`;
   }
+  const scope=reviewMode?"REVIEW":"OWN";
+  const unreadHtml=isUnread
+    ? `<span class="request-unread-pill"><span class="request-unread-dot"></span>未讀</span>`
+    : "";
+
   return `
-    <article class="request-card">
+    <article class="request-card${isUnread?" unread-card":""}"
+             data-request-id="${escapeHtml(request.requestId)}"
+             data-notification-scope="${scope}"
+             onclick="handleRequestCardView(event,this)">
       <div class="request-top">
         <div>
           <div class="request-id">${escapeHtml(request.requestId)}</div>
@@ -953,7 +965,8 @@ function requestCard(request,reviewMode){
             ${escapeHtml(typeLabel)}｜${escapeHtml(request.requesterName)}｜${escapeHtml(request.createdAt)}
           </div>
         </div>
-        <div>
+        <div style="display:flex;gap:6px;align-items:center;justify-content:flex-end;flex-wrap:wrap">
+          ${unreadHtml}
           <span class="pill ${statusClass}">${escapeHtml(request.status)}</span>
           <span class="pill ${riskClass}">${escapeHtml(request.riskLevel)}</span>
         </div>
@@ -975,16 +988,60 @@ function setBadge(id,count){
 
 function updateUnreadBadges(summary){
   if(summary){
-    state.unread.own=Number(summary.ownUnread||0);
-    state.unread.review=Number(summary.reviewUnread||0);
+    const ownIds=Array.isArray(summary.ownUnreadRequestIds)
+      ? summary.ownUnreadRequestIds.map(id=>String(id||"").toUpperCase())
+      : [];
+    const reviewIds=Array.isArray(summary.reviewUnreadRequestIds)
+      ? summary.reviewUnreadRequestIds.map(id=>String(id||"").toUpperCase())
+      : [];
+
+    state.unreadIds.own=new Set(ownIds);
+    state.unreadIds.review=new Set(reviewIds);
+    state.unread.own=Number(summary.ownUnread ?? ownIds.length);
+    state.unread.review=Number(summary.reviewUnread ?? reviewIds.length);
+  }else{
+    state.unread.own=state.unreadIds.own.size;
+    state.unread.review=state.unreadIds.review.size;
   }
+
   setBadge("requestUnreadBadge",state.unread.own);
   setBadge("reviewUnreadBadge",state.unread.review);
+  applyUnreadCardStates();
 }
 
-function locallyIncrementUnread(scope,amount=1){
-  if(scope==="OWN") state.unread.own+=amount;
-  if(scope==="REVIEW") state.unread.review+=amount;
+function applyUnreadCardStates(){
+  document.querySelectorAll(".request-card[data-request-id]").forEach(card=>{
+    const requestId=String(card.dataset.requestId||"").toUpperCase();
+    const scope=String(card.dataset.notificationScope||"OWN").toUpperCase();
+    const set=scope==="REVIEW" ? state.unreadIds.review : state.unreadIds.own;
+    const unread=set.has(requestId);
+
+    card.classList.toggle("unread-card",unread);
+
+    let pill=card.querySelector(".request-unread-pill");
+    if(unread && !pill){
+      const statusWrap=card.querySelector(".request-top > div:last-child");
+      if(statusWrap){
+        pill=document.createElement("span");
+        pill.className="request-unread-pill";
+        pill.innerHTML='<span class="request-unread-dot"></span>未讀';
+        statusWrap.prepend(pill);
+      }
+    }else if(!unread && pill){
+      pill.remove();
+    }
+  });
+}
+
+function locallyAddUnread(scope,requestId){
+  const id=String(requestId||"").toUpperCase();
+  if(!id) return;
+
+  if(scope==="OWN"){
+    state.unreadIds.own.add(id);
+  }else if(scope==="REVIEW"){
+    state.unreadIds.review.add(id);
+  }
   updateUnreadBadges();
 }
 
@@ -1129,22 +1186,56 @@ async function refreshNotificationSummary(showSystem=false){
   }
 }
 
-async function markNotificationScopeViewed(scope){
-  if(!Api.hasToken() || !state.user) return;
-  if(scope==="OWN"){
-    state.unread.own=0;
-  }else if(scope==="REVIEW"){
-    state.unread.review=0;
-  }
+async function markSingleRequestViewed(scope,requestId,cardEl){
+  const normalizedScope=String(scope||"OWN").toUpperCase();
+  const id=String(requestId||"").toUpperCase();
+  if(!Api.hasToken() || !state.user || !id) return;
+
+  const set=normalizedScope==="REVIEW"
+    ? state.unreadIds.review
+    : state.unreadIds.own;
+
+  if(!set.has(id)) return;
+
+  // Optimistic UI：只清這一張；失敗時 polling 會補回。
+  set.delete(id);
   updateUnreadBadges();
 
+  if(cardEl){
+    cardEl.classList.remove("unread-card");
+    const pill=cardEl.querySelector(".request-unread-pill");
+    if(pill) pill.remove();
+  }
+
   try{
-    await Api.post("mark_notifications_viewed",{scope});
+    await Api.post("mark_notifications_viewed",{
+      scope:normalizedScope,
+      request_id:id
+    });
   }catch(err){
     console.warn("mark_notifications_viewed failed",err);
-    // 後端失敗時下一輪 polling 會把 badge 補回來。
+    set.add(id);
+    updateUnreadBadges();
+    toast("未讀狀態更新失敗，系統稍後會重試",true);
   }
 }
+
+async function handleRequestCardView(event,cardEl){
+  if(!cardEl) return;
+
+  const requestId=String(cardEl.dataset.requestId||"").toUpperCase();
+  const scope=String(cardEl.dataset.notificationScope||"OWN").toUpperCase();
+  const set=scope==="REVIEW"
+    ? state.unreadIds.review
+    : state.unreadIds.own;
+
+  if(!set.has(requestId)) return;
+
+  // 使用者真的點到這張卡才算 VIEW。
+  await markSingleRequestViewed(scope,requestId,cardEl);
+}
+window.handleRequestCardView=handleRequestCardView;
+
 
 function startNotificationPolling(){
   if(state.notificationTimer){
@@ -1168,7 +1259,11 @@ async function loadMyRequests(){
   try{
     const response=await Api.post("list_requests",{limit:100});
     $("myRequestList").innerHTML=response.requests.length
-      ? `<div class="request-list">${response.requests.map(item=>requestCard(item,false)).join("")}</div>`
+      ? `<div class="request-list">${response.requests.map(item=>requestCard(
+          item,
+          false,
+          state.unreadIds.own.has(String(item.requestId||"").toUpperCase())
+        )).join("")}</div>`
       : `<div class="empty">目前沒有異常單。</div>`;
   }catch(err){
     toast(err.message,true);
@@ -1179,7 +1274,11 @@ async function loadReview(){
   try{
     const response=await Api.post("list_requests",{limit:200});
     $("reviewList").innerHTML=response.requests.length
-      ? `<div class="request-list">${response.requests.map(item=>requestCard(item,true)).join("")}</div>`
+      ? `<div class="request-list">${response.requests.map(item=>requestCard(
+          item,
+          true,
+          state.unreadIds.review.has(String(item.requestId||"").toUpperCase())
+        )).join("")}</div>`
       : `<div class="empty">目前沒有待審核異常單。</div>`;
   }catch(err){
     toast(err.message,true);
@@ -1193,14 +1292,10 @@ function switchTab(tab){
   ["workbench","requests","review"].forEach(name=>{
     $(`tab-${name}`).classList.toggle("hidden",name!==tab);
   });
-  if(tab==="requests"){
-    loadMyRequests();
-    markNotificationScopeViewed("OWN");
-  }
-  if(tab==="review"){
-    loadReview();
-    markNotificationScopeViewed("REVIEW");
-  }
+
+  // v0.9.6：切換頁籤不代表 VIEW。
+  if(tab==="requests") loadMyRequests();
+  if(tab==="review") loadReview();
 }
 
 async function reviewRequest(requestId,action){
@@ -1328,6 +1423,10 @@ $("logoutBtn").addEventListener("click",()=>{
   Api.clearToken();
   state.user=null;
   state.unread={own:0,review:0};
+  state.unreadIds={
+    own:new Set(),
+    review:new Set()
+  };
   updateUnreadBadges();
   showLogin();
 });
