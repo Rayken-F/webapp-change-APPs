@@ -20,6 +20,10 @@ const state = {
     own:new Set(),
     review:new Set()
   },
+  transferSelection:{
+    sourceFrameCtn:"",
+    bottles:[]
+  },
   notificationTimer:null
 };
 
@@ -280,10 +284,192 @@ function setSelection(selection){
   renderRequestDynamicFields();
   applySelectionStyles();
 }
+function isTransferMode(){
+  return $("requestType")?.value==="TRANSFER_BOTTLE_FRAME";
+}
+
+function transferBottleMap(){
+  const map=new Map();
+  (state.transferSelection?.bottles||[]).forEach(item=>{
+    map.set(normalizeCtn(item.ctn),item);
+  });
+  return map;
+}
+
+function clearTransferSelection(render=true){
+  state.transferSelection={
+    sourceFrameCtn:"",
+    bottles:[]
+  };
+  if(render){
+    renderRequestDynamicFields();
+    applySelectionStyles();
+  }
+}
+
+function toggleTransferBottle(data){
+  const ctn=normalizeCtn(data?.ctn||"");
+  const frame=normalizeCtn(data?.frameCtn||"");
+  const rt=normalizeRt(data?.rt||"");
+
+  if(!ctn || !frame) return;
+
+  const current=state.transferSelection || {
+    sourceFrameCtn:"",
+    bottles:[]
+  };
+  const existingMap=transferBottleMap();
+
+  if(existingMap.has(ctn)){
+    current.bottles=current.bottles.filter(item=>
+      normalizeCtn(item.ctn)!==ctn
+    );
+    if(!current.bottles.length){
+      current.sourceFrameCtn="";
+    }
+    state.transferSelection=current;
+    renderRequestDynamicFields();
+    applySelectionStyles();
+    return;
+  }
+
+  if(current.sourceFrameCtn &&
+      normalizeCtn(current.sourceFrameCtn)!==frame){
+    toast(
+      `同一張轉框異常單只能選同一來源運輸框；目前已選 ${current.sourceFrameCtn}`,
+      true
+    );
+    return;
+  }
+
+  if(current.bottles.length>=18){
+    toast("單次最多只能選擇 18 支鋼瓶",true);
+    return;
+  }
+
+  current.sourceFrameCtn=frame;
+  current.bottles.push({ctn,rt,frameCtn:frame});
+  state.transferSelection=current;
+
+  // 兼容既有 target 顯示 / lookup 行為：第一支作為 representative target。
+  if(current.bottles.length){
+    const first=current.bottles[0];
+    state.selection={
+      targetCtn:first.ctn,
+      targetKind:"bottle",
+      sourceFrameCtn:current.sourceFrameCtn,
+      rt:first.rt
+    };
+  }
+
+  renderRequestDynamicFields();
+  applySelectionStyles();
+}
+
+function selectAllTransferBottlesFromCurrentFrame(){
+  const rows=[...document.querySelectorAll(".bottle-row.selectable")];
+  if(!rows.length){
+    toast("目前畫面沒有可選鋼瓶",true);
+    return;
+  }
+
+  const preferred=normalizeCtn(
+    state.transferSelection.sourceFrameCtn ||
+    state.selection?.sourceFrameCtn ||
+    rows[0].dataset.frame ||
+    ""
+  );
+
+  const candidates=rows.filter(row=>
+    normalizeCtn(row.dataset.frame||"")===preferred
+  );
+
+  if(candidates.length>18){
+    toast(
+      `此框目前畫面有 ${candidates.length} 支，已超過 18 支上限，請先修正資料`,
+      true
+    );
+    return;
+  }
+
+  state.transferSelection={
+    sourceFrameCtn:preferred,
+    bottles:candidates.map(row=>({
+      ctn:normalizeCtn(row.dataset.ctn||""),
+      rt:normalizeRt(row.dataset.rt||""),
+      frameCtn:preferred
+    })).filter(item=>item.ctn)
+  };
+
+  if(state.transferSelection.bottles.length){
+    const first=state.transferSelection.bottles[0];
+    state.selection={
+      targetCtn:first.ctn,
+      targetKind:"bottle",
+      sourceFrameCtn:preferred,
+      rt:first.rt
+    };
+  }
+
+  renderRequestDynamicFields();
+  applySelectionStyles();
+}
+
+async function refreshTransferCapacityPreview(){
+  const box=$("transferCapacityPreview");
+  const input=$("requestMoveFrameCtn");
+  if(!box || !input) return;
+
+  const frame=normalizeCtn(input.value);
+  const bottles=(state.transferSelection?.bottles||[])
+    .map(item=>normalizeCtn(item.ctn))
+    .filter(Boolean);
+
+  if(!frame || !isValidCtn(frame) || !bottles.length){
+    box.innerHTML="輸入有效的目標運輸框 CTN 後，可即時驗證 18 支容量上限。";
+    box.classList.remove("capacity-ok","capacity-bad");
+    return;
+  }
+
+  box.textContent="容量驗證中…";
+  box.classList.remove("capacity-ok","capacity-bad");
+
+  try{
+    const response=await Api.post("frame_capacity",{
+      frame_ctn:frame,
+      incoming_ctns:bottles
+    });
+    const cap=response.capacity||{};
+    box.innerHTML=
+      `目標框目前 <strong>${cap.currentQty??0}/18</strong> 支；`+
+      `本次轉入 <strong>${cap.incomingQty??bottles.length}</strong> 支；`+
+      `完成後 <strong>${cap.projectedQty??"-"}/18</strong> 支；`+
+      `剩餘 <strong>${cap.remainingAfter??"-"}</strong> 格。`;
+
+    box.classList.toggle("capacity-bad",!!cap.overCapacity);
+    box.classList.toggle("capacity-ok",!cap.overCapacity);
+  }catch(err){
+    box.textContent=err.message;
+    box.classList.add("capacity-bad");
+    box.classList.remove("capacity-ok");
+  }
+}
+
 function applySelectionStyles(){
+  const transferMap=transferBottleMap();
+
   document.querySelectorAll(".bottle-row.selectable").forEach(el=>{
-    const ctn = normalizeCtn(el.dataset.ctn || "");
-    el.classList.toggle("selected", !!state.selection && ctn === normalizeCtn(state.selection.targetCtn));
+    const ctn=normalizeCtn(el.dataset.ctn||"");
+    const selected=isTransferMode()
+      ? transferMap.has(ctn)
+      : (!!state.selection &&
+         ctn===normalizeCtn(state.selection.targetCtn));
+
+    el.classList.toggle("selected",selected);
+    el.classList.toggle(
+      "multi-selectable",
+      isTransferMode()
+    );
   });
 }
 
@@ -302,12 +488,21 @@ function bindLookupInteractions(){
 
   document.querySelectorAll(".bottle-row.selectable").forEach(el=>{
     el.addEventListener("click",()=>{
-      setSelection({
-        targetCtn: normalizeCtn(el.dataset.ctn),
-        targetKind: "bottle",
-        sourceFrameCtn: normalizeCtn(el.dataset.frame || ""),
-        rt: el.dataset.rt || ""
-      });
+      if(isTransferMode()){
+        toggleTransferBottle({
+          ctn:el.dataset.ctn,
+          frameCtn:el.dataset.frame,
+          rt:el.dataset.rt
+        });
+      }else{
+        setSelection({
+          targetCtn: normalizeCtn(el.dataset.ctn),
+          targetKind: "bottle",
+          sourceFrameCtn: normalizeCtn(el.dataset.frame || ""),
+          rt: el.dataset.rt || ""
+        });
+      }
+
       if(isMobileRequestDrawer()) openMobileRequestPanel();
     });
   });
@@ -334,7 +529,7 @@ function renderBottleRows(rows, frameCtn){
     <details class="fold-card">
       <summary>
         <span>鋼瓶清單（${rows.length} 支）</span>
-        <span class="fold-summary-note">點選鋼瓶可帶入右側主要 CTN</span>
+        <span class="fold-summary-note">一般異常可單選；鋼瓶轉移可複選多支</span>
       </summary>
       <div class="bottle-list" style="padding:10px">${
         rows.map((row,index)=>`
@@ -541,6 +736,7 @@ async function lookup(){
   try{
     const response=await Api.post("lookup",{query});
     state.lookup=response.result;
+    clearTransferSelection(false);
     renderLookup(response.result);
     setSelection(deriveSelectionFromResult(response.result));
   }catch(err){
@@ -591,7 +787,11 @@ function renderRequestTargetField(type){
 
   hiddenTarget.value=ctx.targetCtn || "";
 
-  if(type==="ADD_MISSING_BOTTLE" || type==="MISSING_TRANSPORT_FRAME"){
+  if(
+    type==="ADD_MISSING_BOTTLE" ||
+    type==="MISSING_TRANSPORT_FRAME" ||
+    type==="TRANSFER_BOTTLE_FRAME"
+  ){
     genericField.classList.add("hidden");
     return ctx;
   }
@@ -636,13 +836,27 @@ function renderRequestDynamicFields(){
   renderRequestTargetField(type);
 
   const sourceFrame=normalizeCtn(
-    selection.sourceFrameCtn ||
-    (selection.targetKind==="frame" ? selection.targetCtn : "")
+    type==="TRANSFER_BOTTLE_FRAME"
+      ? (
+          state.transferSelection?.sourceFrameCtn ||
+          selection.sourceFrameCtn ||
+          (selection.targetKind==="frame" ? selection.targetCtn : "")
+        )
+      : (
+          selection.sourceFrameCtn ||
+          (selection.targetKind==="frame" ? selection.targetCtn : "")
+        )
   );
 
   const needBottleHint=
-    ['CORRECT_BOTTLE_CTN_RT','TRANSFER_BOTTLE_FRAME'].includes(type) &&
-    selection.targetKind!=="bottle";
+    (
+      type==="CORRECT_BOTTLE_CTN_RT" &&
+      selection.targetKind!=="bottle"
+    ) ||
+    (
+      type==="TRANSFER_BOTTLE_FRAME" &&
+      !(state.transferSelection?.bottles||[]).length
+    );
 
   const hint=needBottleHint
     ? '<div class="field-hint">請先在左側鋼瓶清單點選要處理的鋼瓶。</div>'
@@ -700,18 +914,46 @@ function renderRequestDynamicFields(){
         </div>`;
       break;
 
-    case "TRANSFER_BOTTLE_FRAME":
+    case "TRANSFER_BOTTLE_FRAME":{
+      const transferItems=state.transferSelection?.bottles||[];
+      const transferFrame=normalizeCtn(
+        state.transferSelection?.sourceFrameCtn||sourceFrame
+      );
+      const selectedHtml=transferItems.length
+        ? `<div class="transfer-chip-list">${
+            transferItems.map(item=>
+              `<span class="transfer-chip">${escapeHtml(item.ctn)}</span>`
+            ).join("")
+          }</div>`
+        : `<div class="static-display muted">請在左側鋼瓶清單點選，可一次複選多支</div>`;
+
       html=`
-        ${hint}
+        <div class="field">
+          <div class="field-title-row">
+            <label>待轉移鋼瓶 CTN（已選 ${transferItems.length} 支）</label>
+            <div class="mini-action-row">
+              <button id="selectAllTransferBtn" class="mini-btn" type="button">全選此框</button>
+              <button id="clearTransferBtn" class="mini-btn" type="button">清除選擇</button>
+            </div>
+          </div>
+          ${selectedHtml}
+          <div class="field-hint">同一張異常單只能選同一個來源運輸框；單次最多 18 支。</div>
+        </div>
+
         <div class="field">
           <label>原運輸框架 CTN</label>
-          <div class="static-display ${sourceFrame?"":"muted"}">${escapeHtml(sourceFrame || "請先點選鋼瓶")}</div>
+          <div class="static-display ${transferFrame?"":"muted"}">${escapeHtml(transferFrame || "尚未選擇鋼瓶")}</div>
         </div>
+
         <div class="field">
           <label for="requestMoveFrameCtn">待轉移運輸框 CTN</label>
           <input id="requestMoveFrameCtn" maxlength="7" placeholder="請輸入待轉移運輸框 CTN">
+          <div id="transferCapacityPreview" class="capacity-preview">
+            輸入有效的目標運輸框 CTN 後，可即時驗證 18 支容量上限。
+          </div>
         </div>`;
       break;
+    }
 
     case "VOID_INCORRECT_RECORD":
       html='';
@@ -749,6 +991,25 @@ function renderRequestDynamicFields(){
   attachFieldValidation($("requestNewBottleRt"),"RT","待修改鋼瓶 RT",true);
   attachFieldValidation($("requestNewFrameCtn"),"CTN","待修改運輸框 CTN",false);
   attachFieldValidation($("requestMoveFrameCtn"),"CTN","待轉移運輸框 CTN",false);
+
+  $("selectAllTransferBtn")?.addEventListener(
+    "click",
+    selectAllTransferBottlesFromCurrentFrame
+  );
+  $("clearTransferBtn")?.addEventListener(
+    "click",
+    ()=>clearTransferSelection(true)
+  );
+
+  const moveInput=$("requestMoveFrameCtn");
+  if(moveInput){
+    let timer=null;
+    moveInput.addEventListener("input",()=>{
+      clearTimeout(timer);
+      timer=setTimeout(refreshTransferCapacityPreview,450);
+    });
+    moveInput.addEventListener("blur",refreshTransferCapacityPreview);
+  }
 }
 
 function collectRequestPayload(){
@@ -756,7 +1017,7 @@ function collectRequestPayload(){
   const selection=state.selection || {};
   const targetCtx=requestTargetContext(requestType);
   const targetCtn=normalizeCtn(targetCtx.targetCtn);
-  const sourceFrameCtn=normalizeCtn(
+  let sourceFrameCtn=normalizeCtn(
     selection.sourceFrameCtn ||
     (selection.targetKind==="frame" ? selection.targetCtn : "")
   );
@@ -817,16 +1078,54 @@ function collectRequestPayload(){
     proposedValue={value:newFrame,ctn:newFrame};
 
   }else if(requestType==="TRANSFER_BOTTLE_FRAME"){
-    if(selection.targetKind!=="bottle") {
-      throw new Error("請先在左側點選待轉移鋼瓶");
+    const selected=(state.transferSelection?.bottles||[])
+      .map(item=>({
+        ctn:assertValidCtn(item.ctn,"待轉移鋼瓶 CTN"),
+        rt:normalizeRt(item.rt||""),
+        source_frame_ctn:assertValidCtn(
+          item.frameCtn||state.transferSelection.sourceFrameCtn,
+          "原運輸框架 CTN"
+        )
+      }));
+
+    if(!selected.length){
+      throw new Error("請先在左側至少選擇 1 支待轉移鋼瓶");
     }
+    if(selected.length>18){
+      throw new Error("單次最多只能轉移 18 支鋼瓶");
+    }
+
+    const sourceFrames=new Set(
+      selected.map(item=>item.source_frame_ctn)
+    );
+    if(sourceFrames.size!==1){
+      throw new Error("同一張異常單只能轉移同一個來源運輸框的鋼瓶");
+    }
+
+    const batchSourceFrame=[...sourceFrames][0];
     destinationFrameCtn=assertValidCtn(
       $("requestMoveFrameCtn")?.value,
       "待轉移運輸框 CTN"
     );
 
-    oldValue={ctn:targetCtn,source_frame_ctn:sourceFrameCtn};
-    proposedValue={destination_frame_ctn:destinationFrameCtn};
+    if(batchSourceFrame===destinationFrameCtn){
+      throw new Error("原運輸框與待轉移運輸框不可相同");
+    }
+
+    oldValue={
+      ctn:selected[0].ctn,
+      bottle_ctns:selected.map(item=>item.ctn),
+      bottle_items:selected,
+      source_frame_ctn:batchSourceFrame,
+      qty:selected.length
+    };
+    proposedValue={
+      destination_frame_ctn:destinationFrameCtn,
+      qty:selected.length
+    };
+
+    // representative target 保留第一支，真正批次名單放 old_value_json。
+    sourceFrameCtn=batchSourceFrame;
 
   }else if(requestType==="VOID_INCORRECT_RECORD"){
     if(!targetCtn) throw new Error("請先查詢或點選要作廢的 CTN");
@@ -834,7 +1133,16 @@ function collectRequestPayload(){
 
   return {
     request_type:requestType,
-    target_ctn:requestType==="ADD_MISSING_BOTTLE" ? sourceFrameCtn : targetCtn,
+    target_ctn:
+      requestType==="ADD_MISSING_BOTTLE"
+        ? sourceFrameCtn
+        : (
+            requestType==="TRANSFER_BOTTLE_FRAME"
+              ? normalizeCtn(
+                  state.transferSelection?.bottles?.[0]?.ctn||""
+                )
+              : targetCtn
+          ),
     source_frame_ctn:sourceFrameCtn,
     destination_frame_ctn:destinationFrameCtn,
     old_value:oldValue,
@@ -879,7 +1187,11 @@ async function createRequest(){
     }
     if(isMobileRequestDrawer()) closeMobileRequestPanel();
     $("requestReason").value="";
+    if(payload.request_type==="TRANSFER_BOTTLE_FRAME"){
+      clearTransferSelection(false);
+    }
     renderRequestDynamicFields();
+    applySelectionStyles();
   }catch(err){
     toast(err.message,true);
   }finally{
@@ -914,8 +1226,13 @@ function requestCard(request,reviewMode,isUnread=false){
       `<br>${detailLine}`;
 
   }else if(typeLabel==="鋼瓶轉移運輸框"){
+    const bottles=Array.isArray(oldData.bottle_ctns)
+      ? oldData.bottle_ctns
+      : [request.targetCtn].filter(Boolean);
+
     detailLine =
-      `待轉移鋼瓶 CTN：${escapeHtml(request.targetCtn||"-")}` +
+      `待轉移鋼瓶：<strong>${bottles.length} 支</strong>` +
+      `<br>${escapeHtml(bottles.join("、")||"-")}` +
       `<br>原運輸框架 CTN：${escapeHtml(request.sourceFrameCtn||oldData.source_frame_ctn||"-")}` +
       `｜待轉移運輸框 CTN：${escapeHtml(request.destinationFrameCtn||newData.destination_frame_ctn||"-")}` +
       `<br>${detailLine}`;
@@ -1427,6 +1744,10 @@ $("logoutBtn").addEventListener("click",()=>{
     own:new Set(),
     review:new Set()
   };
+  state.transferSelection={
+    sourceFrameCtn:"",
+    bottles:[]
+  };
   updateUnreadBadges();
   showLogin();
 });
@@ -1435,6 +1756,7 @@ $("clearLookupBtn").addEventListener("click",()=>{
   $("lookupQuery").value="";
   $("lookupResult").innerHTML="";
   state.lookup=null;
+  clearTransferSelection(false);
   setSelection(null);
 });
 $("lookupQuery").addEventListener("input",event=>{
@@ -1443,7 +1765,25 @@ $("lookupQuery").addEventListener("input",event=>{
 $("lookupQuery").addEventListener("keydown",event=>{
   if(event.key==="Enter"){event.preventDefault();lookup()}
 });
-$("requestType").addEventListener("change",renderRequestDynamicFields);
+$("requestType").addEventListener("change",()=>{
+  if(isTransferMode()){
+    if(
+      !(state.transferSelection?.bottles||[]).length &&
+      state.selection?.targetKind==="bottle"
+    ){
+      toggleTransferBottle({
+        ctn:state.selection.targetCtn,
+        frameCtn:state.selection.sourceFrameCtn,
+        rt:state.selection.rt
+      });
+      return;
+    }
+  }else{
+    clearTransferSelection(false);
+  }
+  renderRequestDynamicFields();
+  applySelectionStyles();
+});
 $("submitRequestBtn").addEventListener("click",createRequest);
 $("refreshRequestsBtn").addEventListener("click",loadMyRequests);
 $("refreshReviewBtn").addEventListener("click",loadReview);
