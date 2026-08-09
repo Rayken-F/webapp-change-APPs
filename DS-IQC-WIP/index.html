@@ -8,7 +8,7 @@
   <link rel="manifest" href="./manifest.json">
   <title>DS｜IQC 異常處理台</title>
   <!-- Frontend production: 2026-08-08 MODULAR v7 -->
-  <link rel="stylesheet" href="./style.css?v=20260809-09">
+  <link rel="stylesheet" href="./style.css?v=20260809-093">
 </head>
 <body class="view-login">
   <section id="loginView" class="login-wrap">
@@ -87,7 +87,7 @@
 
     <section id="tab-workbench" class="section">
       <div class="grid">
-        <article class="panel">
+        <article id="lookupPanel" class="panel">
           <h2>資料查詢</h2>
           <p class="panel-note">可查 CTN、submission_id 或異常單號；同時比對 IQC_Log、CTN Current State 與 Grinding WIP。</p>
           <div class="field">
@@ -101,19 +101,22 @@
           <div id="lookupResult"></div>
         </article>
 
-        <article class="panel">
-          <h2>提出異常修正</h2>
+        <article id="requestPanel" class="panel request-panel">
+          <div class="request-panel-head">
+            <h2>提出異常修正</h2>
+            <button id="mobileRequestClose" class="mobile-request-close" type="button" aria-label="收合異常單" title="收合異常單">×</button>
+          </div>
           <p class="panel-note">送出後先建立永久異常單；核准後由系統受控更新 IQC_Log，若已進 Grinding 則同步更新對應 WIP，並保留完整修正軌跡。</p>
           <div class="field">
             <label for="requestType">異常類型</label>
             <select id="requestType"></select>
           </div>
-          <div class="field">
-            <label>主要 CTN</label>
+          <div id="genericTargetField" class="field">
+            <label id="targetCtnLabel">主要 CTN</label>
             <div id="targetCtnDisplay" class="static-display">請先在左側查詢資料；也可點選鋼瓶帶入主要 CTN。</div>
             <div id="targetCtnHint" class="field-hint">主要 CTN 會跟隨查詢結果或鋼瓶點選帶入，不需手動輸入。</div>
-            <input id="targetCtn" type="hidden">
           </div>
+          <input id="targetCtn" type="hidden">
           <div id="requestDynamicFields"></div>
           <div class="field">
             <label for="requestReason">異常原因</label>
@@ -125,6 +128,12 @@
           <div id="requestReceipt"></div>
         </article>
       </div>
+
+      <button id="mobileRequestToggle" class="mobile-request-toggle" type="button" aria-controls="requestPanel" aria-expanded="false">
+        <span class="mobile-request-toggle-icon">!</span>
+        <span class="mobile-request-toggle-text">異常</span>
+      </button>
+      <div id="mobileRequestBackdrop" class="mobile-request-backdrop hidden"></div>
     </section>
 
     <section id="tab-requests" class="section hidden">
@@ -163,7 +172,7 @@
   </div>
 
   <div id="toast" class="toast hidden"></div>
-  <script src="./api.js?v=20260809-09"></script>
-  <script src="./app.js?v=20260809-09"></script>
+  <script src="./api.js?v=20260809-093"></script>
+  <script src="./app.js?v=20260809-093"></script>
 </body>
 </html>
