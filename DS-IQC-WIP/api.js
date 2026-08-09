@@ -1,7 +1,7 @@
 /**
  * DS 日報系統｜IQC 異常處理台 v0.2
  * GitHub Pages 前端 API 設定
- **/
+ */
 (function(global){
   "use strict";
 
