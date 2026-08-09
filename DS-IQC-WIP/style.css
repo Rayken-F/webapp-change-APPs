@@ -417,3 +417,75 @@
         padding-right:9px
       }
     }
+
+
+    /* v0.9.6｜單張異常單 VIEW */
+    .request-card{
+      position:relative;
+      transition:
+        border-color .18s ease,
+        box-shadow .18s ease,
+        background .18s ease,
+        transform .12s ease;
+    }
+
+    .request-card.unread-card{
+      border-color:rgba(91,212,199,.82);
+      background:
+        linear-gradient(90deg,rgba(91,212,199,.10),rgba(91,212,199,.025) 42%,rgba(7,24,37,.96));
+      box-shadow:
+        0 0 0 1px rgba(91,212,199,.12),
+        0 9px 30px rgba(26,161,163,.10);
+      cursor:pointer;
+    }
+
+    .request-card.unread-card::before{
+      content:"";
+      position:absolute;
+      top:12px;
+      left:-1px;
+      bottom:12px;
+      width:4px;
+      border-radius:0 5px 5px 0;
+      background:var(--accent);
+      box-shadow:0 0 14px rgba(91,212,199,.45);
+    }
+
+    .request-card.unread-card:hover{
+      transform:translateY(-1px);
+      border-color:var(--accent);
+    }
+
+    .request-unread-pill{
+      display:inline-flex;
+      align-items:center;
+      gap:5px;
+      padding:5px 9px;
+      border-radius:999px;
+      background:rgba(91,212,199,.15);
+      border:1px solid rgba(91,212,199,.48);
+      color:var(--accent);
+      font-size:.72rem;
+      font-weight:1000;
+      letter-spacing:.04em;
+      white-space:nowrap;
+    }
+
+    .request-unread-dot{
+      width:7px;
+      height:7px;
+      border-radius:999px;
+      background:var(--accent);
+      box-shadow:0 0 9px rgba(91,212,199,.75);
+    }
+
+    .request-card.viewing{
+      opacity:.78;
+      pointer-events:none;
+    }
+
+    @media(max-width:680px){
+      .request-card.unread-card{
+        box-shadow:0 0 0 1px rgba(91,212,199,.13);
+      }
+    }
