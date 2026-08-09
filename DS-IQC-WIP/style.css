@@ -489,3 +489,93 @@
         box-shadow:0 0 0 1px rgba(91,212,199,.13);
       }
     }
+
+
+    /* v0.9.7｜多支鋼瓶轉框 + 18支容量 */
+    .bottle-row.multi-selectable{
+      cursor:pointer;
+    }
+    .bottle-row.multi-selectable::after{
+      content:"選";
+      flex:0 0 auto;
+      min-width:28px;
+      height:28px;
+      display:grid;
+      place-items:center;
+      border:1px solid var(--line);
+      border-radius:9px;
+      color:var(--muted);
+      font-size:.72rem;
+      font-weight:900;
+      background:rgba(255,255,255,.025);
+    }
+    .bottle-row.multi-selectable.selected::after{
+      content:"✓";
+      border-color:rgba(91,212,199,.7);
+      background:rgba(91,212,199,.16);
+      color:var(--accent);
+    }
+    .transfer-chip-list{
+      display:flex;
+      flex-wrap:wrap;
+      gap:7px;
+      padding:10px 0 2px;
+    }
+    .transfer-chip{
+      display:inline-flex;
+      align-items:center;
+      min-height:31px;
+      padding:5px 10px;
+      border-radius:999px;
+      border:1px solid rgba(91,212,199,.38);
+      background:rgba(91,212,199,.09);
+      color:var(--text);
+      font-size:.82rem;
+      font-weight:850;
+    }
+    .field-title-row{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:10px;
+      flex-wrap:wrap;
+    }
+    .mini-action-row{
+      display:flex;
+      gap:6px;
+      flex-wrap:wrap;
+    }
+    .capacity-preview{
+      margin-top:8px;
+      padding:9px 11px;
+      border:1px solid var(--line);
+      border-radius:10px;
+      background:rgba(0,0,0,.10);
+      color:var(--muted);
+      font-size:.78rem;
+      line-height:1.5;
+    }
+    .capacity-preview.capacity-ok{
+      border-color:rgba(117,223,155,.40);
+      color:var(--ok);
+      background:rgba(117,223,155,.055);
+    }
+    .capacity-preview.capacity-bad{
+      border-color:rgba(255,119,125,.50);
+      color:var(--danger);
+      background:rgba(255,119,125,.055);
+    }
+    @media(max-width:680px){
+      .field-title-row{
+        align-items:flex-start;
+      }
+      .mini-action-row{
+        width:100%;
+      }
+      .mini-action-row .mini-btn{
+        flex:1 1 0;
+      }
+      .transfer-chip{
+        font-size:.78rem;
+      }
+    }
