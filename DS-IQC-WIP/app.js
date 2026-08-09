@@ -10,7 +10,19 @@ if(!Api || typeof Api.post !== "function"){
   });
   throw new Error("IQC Correction API module failed to initialize.");
 }
-const state = { user:null, bootstrap:null, lookup:null, selection:null };
+const state = {
+  user:null,
+  bootstrap:null,
+  lookup:null,
+  selection:null,
+  unread:{own:0,review:0},
+  notificationTimer:null
+};
+
+const CTN_PATTERN=/^[A-Z]{2}\d{2}[A-Z]{2}[A-Z0-9]$/;
+const RT_PATTERN=/^\d+$/;
+const NOTIFICATION_POLL_MS=45000;
+const SYSTEM_NOTIFIED_KEY="ds_iqcc_system_notified_v095";
 
 const REQUEST_TYPES = [
   {code:"ADD_MISSING_BOTTLE",label:"新增漏建鋼瓶"},
@@ -72,6 +84,59 @@ function normalizeRt(value){
   return String(value||"").trim().toUpperCase().replace(/^RT/i,"").replace(/\s+/g,"");
 }
 
+function isValidCtn(value){
+  return CTN_PATTERN.test(normalizeCtn(value));
+}
+
+function isValidRt(value){
+  return RT_PATTERN.test(normalizeRt(value));
+}
+
+function assertValidCtn(value,label,allowBlank=false){
+  const raw=String(value||"").trim();
+  if(!raw && allowBlank) return "";
+  const ctn=normalizeCtn(raw);
+  if(!isValidCtn(ctn)){
+    throw new Error(`${label||"CTN"}格式錯誤：需為7碼，前2英文、3–4數字、5–6英文、第7碼英數`);
+  }
+  return ctn;
+}
+
+function assertValidRt(value,label,allowBlank=false){
+  const raw=String(value||"").trim();
+  if(!raw && allowBlank) return "";
+  const rt=normalizeRt(raw);
+  if(!isValidRt(rt)){
+    throw new Error(`${label||"RT"}格式錯誤：只允許數字`);
+  }
+  return rt;
+}
+
+function attachFieldValidation(el,kind,label,allowBlank=false){
+  if(!el) return;
+  const validate=()=>{
+    const raw=String(el.value||"").trim();
+    if(!raw && allowBlank){
+      el.classList.remove("input-invalid","input-valid");
+      el.setCustomValidity("");
+      return true;
+    }
+    const ok=kind==="CTN" ? isValidCtn(raw) : isValidRt(raw);
+    el.classList.toggle("input-invalid",!ok);
+    el.classList.toggle("input-valid",ok);
+    const message=ok ? "" :
+      (kind==="CTN"
+        ? `${label}需為7碼：前2英文、3–4數字、5–6英文、第7碼英數`
+        : `${label}只允許數字`);
+    el.setCustomValidity(message);
+    return ok;
+  };
+  el.addEventListener("input",validate);
+  el.addEventListener("blur",validate);
+  validate();
+}
+
+
 function escapeHtml(value){
   return String(value??"").replace(/[&<>"']/g,ch=>({
     "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
@@ -107,6 +172,8 @@ function hydrateUiFromLogin(result){
     `<option value="${escapeHtml(item.code)}">${escapeHtml(item.label)}</option>`
   ).join("");
   renderRequestDynamicFields();
+  updateNotificationButton();
+  startNotificationPolling();
 }
 
 async function login(userId,password,remember){
@@ -117,6 +184,8 @@ async function login(userId,password,remember){
   Api.saveToken(result.sessionToken,remember);
   hydrateUiFromLogin(result);
   showApp();
+  updateNotificationButton();
+  startNotificationPolling();
   hideLoading();
   toast(`登入成功，${result.user.displayName}`);
 }
@@ -669,6 +738,13 @@ function renderRequestDynamicFields(){
       });
     }
   });
+
+  attachFieldValidation($("requestAddBottleCtn"),"CTN","待新增鋼瓶 CTN",false);
+  attachFieldValidation($("requestAddBottleRt"),"RT","待新增鋼瓶 RT",false);
+  attachFieldValidation($("requestNewBottleCtn"),"CTN","待修改鋼瓶 CTN",true);
+  attachFieldValidation($("requestNewBottleRt"),"RT","待修改鋼瓶 RT",true);
+  attachFieldValidation($("requestNewFrameCtn"),"CTN","待修改運輸框 CTN",false);
+  attachFieldValidation($("requestMoveFrameCtn"),"CTN","待轉移運輸框 CTN",false);
 }
 
 function collectRequestPayload(){
@@ -690,10 +766,14 @@ function collectRequestPayload(){
 
   if(requestType==="ADD_MISSING_BOTTLE"){
     if(!sourceFrameCtn) throw new Error("請先查詢或選用當前運輸框 CTN");
-    const newCtn=normalizeCtn($("requestAddBottleCtn")?.value);
-    const newRt=normalizeRt($("requestAddBottleRt")?.value);
-    if(!newCtn) throw new Error("請填寫待新增鋼瓶 CTN");
-    if(!newRt) throw new Error("請填寫待新增鋼瓶 RT");
+    const newCtn=assertValidCtn(
+      $("requestAddBottleCtn")?.value,
+      "待新增鋼瓶 CTN"
+    );
+    const newRt=assertValidRt(
+      $("requestAddBottleRt")?.value,
+      "待新增鋼瓶 RT"
+    );
 
     proposedValue={value:newCtn,ctn:newCtn,rt:newRt};
 
@@ -702,10 +782,21 @@ function collectRequestPayload(){
       throw new Error("請先在左側點選要修改的鋼瓶");
     }
 
-    const newCtn=normalizeCtn($("requestNewBottleCtn")?.value);
-    const newRt=normalizeRt($("requestNewBottleRt")?.value);
+    const newCtn=assertValidCtn(
+      $("requestNewBottleCtn")?.value,
+      "待修改鋼瓶 CTN",
+      true
+    );
+    const newRt=assertValidRt(
+      $("requestNewBottleRt")?.value,
+      "待修改鋼瓶 RT",
+      true
+    );
     if(!newCtn && !newRt) {
       throw new Error("待修改鋼瓶 CTN / RT 至少填寫其中一項");
+    }
+    if(!newRt && !isValidRt(selection.rt||"")){
+      throw new Error("原鋼瓶 RT 不符合規格，請填入正確的待修改鋼瓶 RT");
     }
 
     oldValue={ctn:targetCtn,rt:String(selection.rt || "").trim()};
@@ -713,8 +804,10 @@ function collectRequestPayload(){
 
   }else if(requestType==="MISSING_TRANSPORT_FRAME"){
     if(!sourceFrameCtn) throw new Error("請先查詢或選用原運輸框 CTN");
-    const newFrame=normalizeCtn($("requestNewFrameCtn")?.value);
-    if(!newFrame) throw new Error("請填寫待修改運輸框 CTN");
+    const newFrame=assertValidCtn(
+      $("requestNewFrameCtn")?.value,
+      "待修改運輸框 CTN"
+    );
 
     oldValue={value:sourceFrameCtn,ctn:sourceFrameCtn};
     proposedValue={value:newFrame,ctn:newFrame};
@@ -723,8 +816,10 @@ function collectRequestPayload(){
     if(selection.targetKind!=="bottle") {
       throw new Error("請先在左側點選待轉移鋼瓶");
     }
-    destinationFrameCtn=normalizeCtn($("requestMoveFrameCtn")?.value);
-    if(!destinationFrameCtn) throw new Error("請填寫待轉移運輸框 CTN");
+    destinationFrameCtn=assertValidCtn(
+      $("requestMoveFrameCtn")?.value,
+      "待轉移運輸框 CTN"
+    );
 
     oldValue={ctn:targetCtn,source_frame_ctn:sourceFrameCtn};
     proposedValue={destination_frame_ctn:destinationFrameCtn};
@@ -774,6 +869,10 @@ async function createRequest(){
       </div>`;
 
     toast("異常單建立成功");
+    locallyIncrementUnread("OWN",1);
+    if(state.bootstrap?.permissions?.canReview){
+      locallyIncrementUnread("REVIEW",1);
+    }
     if(isMobileRequestDrawer()) closeMobileRequestPanel();
     $("requestReason").value="";
     renderRequestDynamicFields();
@@ -865,6 +964,206 @@ function requestCard(request,reviewMode){
     </article>`;
 }
 
+
+function setBadge(id,count){
+  const el=$(id);
+  if(!el) return;
+  const value=Math.max(0,Number(count||0));
+  el.textContent=value>99?"99+":String(value);
+  el.classList.toggle("hidden",value<=0);
+}
+
+function updateUnreadBadges(summary){
+  if(summary){
+    state.unread.own=Number(summary.ownUnread||0);
+    state.unread.review=Number(summary.reviewUnread||0);
+  }
+  setBadge("requestUnreadBadge",state.unread.own);
+  setBadge("reviewUnreadBadge",state.unread.review);
+}
+
+function locallyIncrementUnread(scope,amount=1){
+  if(scope==="OWN") state.unread.own+=amount;
+  if(scope==="REVIEW") state.unread.review+=amount;
+  updateUnreadBadges();
+}
+
+function notificationSupported(){
+  return "Notification" in window;
+}
+
+function updateNotificationButton(){
+  const btn=$("notifyBtn");
+  if(!btn) return;
+  btn.classList.remove("enabled","denied");
+
+  if(!notificationSupported()){
+    btn.textContent="通知不支援";
+    btn.disabled=true;
+    return;
+  }
+
+  if(Notification.permission==="granted"){
+    btn.textContent="🔔 已開啟";
+    btn.classList.add("enabled");
+    btn.disabled=false;
+  }else if(Notification.permission==="denied"){
+    btn.textContent="🔕 已封鎖";
+    btn.classList.add("denied");
+    btn.disabled=false;
+  }else{
+    btn.textContent="🔔 開啟通知";
+    btn.disabled=false;
+  }
+}
+
+async function ensureServiceWorker(){
+  if(!("serviceWorker" in navigator)) return null;
+  try{
+    const existing=await navigator.serviceWorker.getRegistration("./");
+    if(existing) return existing;
+    return await navigator.serviceWorker.register("./sw.js");
+  }catch(err){
+    console.warn("Service Worker registration failed",err);
+    return null;
+  }
+}
+
+async function enableSystemNotifications(){
+  if(!notificationSupported()){
+    toast("此瀏覽器不支援系統通知",true);
+    return;
+  }
+
+  if(Notification.permission==="denied"){
+    toast("瀏覽器已封鎖通知，請到網站/APP權限設定重新開啟",true);
+    updateNotificationButton();
+    return;
+  }
+
+  try{
+    const permission=await Notification.requestPermission();
+    updateNotificationButton();
+    if(permission==="granted"){
+      await ensureServiceWorker();
+      toast("系統通知已開啟");
+      await refreshNotificationSummary(true);
+    }else{
+      toast("尚未允許系統通知",true);
+    }
+  }catch(err){
+    toast("無法開啟系統通知："+err.message,true);
+  }
+}
+
+function loadSystemNotifiedIds(){
+  try{
+    const data=JSON.parse(localStorage.getItem(SYSTEM_NOTIFIED_KEY)||"[]");
+    return Array.isArray(data)?data:[];
+  }catch(err){
+    return [];
+  }
+}
+
+function saveSystemNotifiedIds(ids){
+  try{
+    localStorage.setItem(
+      SYSTEM_NOTIFIED_KEY,
+      JSON.stringify(Array.from(new Set(ids)).slice(-120))
+    );
+  }catch(err){}
+}
+
+async function showSystemNotification(item){
+  if(!item || Notification.permission!=="granted") return;
+  const options={
+    body:item.message||"",
+    tag:item.notificationId||item.requestId||undefined,
+    renotify:true,
+    data:{requestId:item.requestId||"",scope:item.scope||""}
+  };
+
+  try{
+    const reg=await ensureServiceWorker();
+    if(reg && typeof reg.showNotification==="function"){
+      await reg.showNotification(item.title||"IQC 異常處理台",options);
+      return;
+    }
+  }catch(err){
+    console.warn("SW notification failed",err);
+  }
+
+  try{
+    new Notification(item.title||"IQC 異常處理台",options);
+  }catch(err){
+    console.warn("Notification fallback failed",err);
+  }
+}
+
+async function notifyNewUnreadItems(items){
+  if(Notification.permission!=="granted" || !Array.isArray(items)) return;
+  const notified=loadSystemNotifiedIds();
+  const known=new Set(notified);
+  const fresh=items
+    .slice()
+    .reverse()
+    .filter(item=>item.notificationId && !known.has(item.notificationId));
+
+  for(const item of fresh){
+    await showSystemNotification(item);
+    known.add(item.notificationId);
+  }
+  saveSystemNotifiedIds(Array.from(known));
+}
+
+async function refreshNotificationSummary(showSystem=false){
+  if(!Api.hasToken() || !state.user) return;
+  try{
+    const response=await Api.post("notification_summary",{});
+    updateUnreadBadges(response);
+    if(showSystem){
+      await notifyNewUnreadItems(response.notifications||[]);
+    }
+  }catch(err){
+    console.warn("notification_summary failed",err);
+  }
+}
+
+async function markNotificationScopeViewed(scope){
+  if(!Api.hasToken() || !state.user) return;
+  if(scope==="OWN"){
+    state.unread.own=0;
+  }else if(scope==="REVIEW"){
+    state.unread.review=0;
+  }
+  updateUnreadBadges();
+
+  try{
+    await Api.post("mark_notifications_viewed",{scope});
+  }catch(err){
+    console.warn("mark_notifications_viewed failed",err);
+    // 後端失敗時下一輪 polling 會把 badge 補回來。
+  }
+}
+
+function startNotificationPolling(){
+  if(state.notificationTimer){
+    clearInterval(state.notificationTimer);
+    state.notificationTimer=null;
+  }
+  refreshNotificationSummary(true);
+  state.notificationTimer=setInterval(()=>{
+    refreshNotificationSummary(true);
+  },NOTIFICATION_POLL_MS);
+}
+
+function stopNotificationPolling(){
+  if(state.notificationTimer){
+    clearInterval(state.notificationTimer);
+    state.notificationTimer=null;
+  }
+}
+
 async function loadMyRequests(){
   try{
     const response=await Api.post("list_requests",{limit:100});
@@ -894,8 +1193,14 @@ function switchTab(tab){
   ["workbench","requests","review"].forEach(name=>{
     $(`tab-${name}`).classList.toggle("hidden",name!==tab);
   });
-  if(tab==="requests") loadMyRequests();
-  if(tab==="review") loadReview();
+  if(tab==="requests"){
+    loadMyRequests();
+    markNotificationScopeViewed("OWN");
+  }
+  if(tab==="review"){
+    loadReview();
+    markNotificationScopeViewed("REVIEW");
+  }
 }
 
 async function reviewRequest(requestId,action){
@@ -997,6 +1302,8 @@ document.addEventListener("keydown",event=>{
   if(event.key==="Escape") closeMobileRequestPanel();
 });
 
+$("notifyBtn").addEventListener("click",enableSystemNotifications);
+
 $("loginForm").addEventListener("submit",async event=>{
   event.preventDefault();
   const btn=$("loginSubmitBtn");
@@ -1017,7 +1324,12 @@ $("loginForm").addEventListener("submit",async event=>{
   }
 });
 $("logoutBtn").addEventListener("click",()=>{
-  Api.clearToken();state.user=null;showLogin()
+  stopNotificationPolling();
+  Api.clearToken();
+  state.user=null;
+  state.unread={own:0,review:0};
+  updateUnreadBadges();
+  showLogin();
 });
 $("lookupBtn").addEventListener("click",lookup);
 $("clearLookupBtn").addEventListener("click",()=>{
@@ -1041,6 +1353,8 @@ document.querySelectorAll(".tab").forEach(btn=>
 );
 
 // 先強制回到單一畫面，避免部分 Android / PWA 從快照恢復時同時看到登入與主畫面
+updateNotificationButton();
+ensureServiceWorker();
 showLogin();
 
 window.addEventListener("pageshow",()=>{
