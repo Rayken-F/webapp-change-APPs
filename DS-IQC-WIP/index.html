@@ -8,7 +8,7 @@
   <link rel="manifest" href="./manifest.json">
   <title>DS｜IQC 異常處理台</title>
   <!-- Frontend production: 2026-08-08 MODULAR v7 -->
-  <link rel="stylesheet" href="./style.css?v=20260809-094">
+  <link rel="stylesheet" href="./style.css?v=20260809-095">
 </head>
 <body class="view-login">
   <section id="loginView" class="login-wrap">
@@ -69,20 +69,21 @@
         <div class="logo">IQC</div>
         <div>
           <h1>DS｜IQC 異常處理台</h1>
-          <div class="subtitle">原始帳本唯讀・修正提報有跡可循</div>
+          <div class="subtitle">受控修正・審核留痕・異常即時通知</div>
         </div>
       </div>
       <div class="userbar">
         <span id="versionPill" class="pill"></span>
         <span id="userPill" class="pill ok"></span>
+        <button id="notifyBtn" class="btn secondary notify-btn" type="button" title="開啟系統通知">🔔 通知</button>
         <button id="logoutBtn" class="btn secondary" type="button">登出</button>
       </div>
     </header>
 
     <div class="tabs">
       <button class="tab active" data-tab="workbench">查詢與提報</button>
-      <button class="tab" data-tab="requests">異常單</button>
-      <button id="reviewTabBtn" class="tab hidden" data-tab="review">主管審核</button>
+      <button id="requestsTabBtn" class="tab" data-tab="requests">異常單 <span id="requestUnreadBadge" class="tab-badge hidden">0</span></button>
+      <button id="reviewTabBtn" class="tab hidden" data-tab="review">主管審核 <span id="reviewUnreadBadge" class="tab-badge hidden">0</span></button>
     </div>
 
     <section id="tab-workbench" class="section">
@@ -172,7 +173,7 @@
   </div>
 
   <div id="toast" class="toast hidden"></div>
-  <script src="./api.js?v=20260809-094"></script>
-  <script src="./app.js?v=20260809-094"></script>
+  <script src="./api.js?v=20260809-095"></script>
+  <script src="./app.js?v=20260809-095"></script>
 </body>
 </html>
