@@ -343,6 +343,7 @@ function toggleTransferBottle(data){
   const ctn=normalizeCtn(data?.ctn||"");
   const frame=normalizeCtn(data?.frameCtn||"");
   const rt=normalizeRt(data?.rt||"");
+  const bottleStatus=String(data?.bottleStatus||"").trim();
 
   if(!ctn || !frame) return;
 
@@ -380,7 +381,7 @@ function toggleTransferBottle(data){
   }
 
   current.sourceFrameCtn=frame;
-  current.bottles.push({ctn,rt,frameCtn:frame});
+  current.bottles.push({ctn,rt,frameCtn:frame,bottleStatus});
   state.transferSelection=current;
 
   // 兼容既有 target 顯示 / lookup 行為：第一支作為 representative target。
@@ -390,7 +391,8 @@ function toggleTransferBottle(data){
       targetCtn:first.ctn,
       targetKind:"bottle",
       sourceFrameCtn:current.sourceFrameCtn,
-      rt:first.rt
+      rt:first.rt,
+      bottleStatus:first.bottleStatus || ""
     };
   }
 
@@ -429,6 +431,7 @@ function selectAllTransferBottlesFromCurrentFrame(){
     bottles:candidates.map(row=>({
       ctn:normalizeCtn(row.dataset.ctn||""),
       rt:normalizeRt(row.dataset.rt||""),
+      bottleStatus:String(row.dataset.status||"").trim(),
       frameCtn:preferred
     })).filter(item=>item.ctn)
   };
@@ -439,7 +442,8 @@ function selectAllTransferBottlesFromCurrentFrame(){
       targetCtn:first.ctn,
       targetKind:"bottle",
       sourceFrameCtn:preferred,
-      rt:first.rt
+      rt:first.rt,
+      bottleStatus:first.bottleStatus || ""
     };
   }
 
@@ -524,14 +528,16 @@ function bindLookupInteractions(){
         toggleTransferBottle({
           ctn:el.dataset.ctn,
           frameCtn:el.dataset.frame,
-          rt:el.dataset.rt
+          rt:el.dataset.rt,
+          bottleStatus:el.dataset.status || ""
         });
       }else{
         setSelection({
           targetCtn: normalizeCtn(el.dataset.ctn),
           targetKind: "bottle",
           sourceFrameCtn: normalizeCtn(el.dataset.frame || ""),
-          rt: el.dataset.rt || ""
+          rt: el.dataset.rt || "",
+          bottleStatus: el.dataset.status || ""
         });
       }
 
@@ -568,13 +574,17 @@ function renderBottleRows(rows, frameCtn){
           <div class="bottle-row selectable js-select-ctn"
                data-ctn="${escapeHtml(displayValue(row.ctn,''))}"
                data-rt="${escapeHtml(displayValue(row.rt,''))}"
+               data-status="${escapeHtml(displayValue(row.bottleStatus,''))}"
                data-frame="${escapeHtml(displayValue(frameCtn||row.transportFrameCtn,''))}">
             <div class="bottle-no">${escapeHtml(row.pairNo||String(index+1))}</div>
             <div class="bottle-main">
               <div class="bottle-ctn">${escapeHtml(displayValue(row.ctn))}</div>
               <div class="bottle-sub">鋼瓶 CTN</div>
             </div>
-            <div class="bottle-rt">RT：${escapeHtml(displayValue(row.rt))}</div>
+            <div class="bottle-rt">
+              <div>RT：${escapeHtml(displayValue(row.rt))}</div>
+              <div class="bottle-status-text">狀態：${escapeHtml(displayValue(row.bottleStatus))}</div>
+            </div>
           </div>`
         ).join("")
       }</div>
@@ -911,6 +921,14 @@ function renderRequestDynamicFields(){
             <label for="requestAddBottleRt">待新增鋼瓶 RT</label>
             <input id="requestAddBottleRt" inputmode="numeric" placeholder="請輸入 RT 料號">
           </div>
+        </div>
+        <div class="field">
+          <label for="requestAddBottleStatus">待新增鋼瓶狀態</label>
+          <input id="requestAddBottleStatus"
+                 maxlength="50"
+                 autocomplete="off"
+                 placeholder="請輸入鋼瓶狀態（必填，最多 50 字）">
+          <div class="field-hint">沿用正式 IQC 規則：鋼瓶狀態必填，最多 50 字。</div>
         </div>`;
       break;
 
@@ -1024,6 +1042,21 @@ function renderRequestDynamicFields(){
   attachFieldValidation($("requestNewFrameCtn"),"CTN","待修改運輸框 CTN",false);
   attachFieldValidation($("requestMoveFrameCtn"),"CTN","待轉移運輸框 CTN",false);
 
+  const addBottleStatus=$("requestAddBottleStatus");
+  if(addBottleStatus){
+    addBottleStatus.addEventListener("input",event=>{
+      const start=event.target.selectionStart;
+      const end=event.target.selectionEnd;
+      event.target.value=String(event.target.value||"").toUpperCase();
+      try{
+        event.target.setSelectionRange(start,end);
+      }catch(ignore){}
+    });
+    addBottleStatus.addEventListener("blur",event=>{
+      event.target.value=normalizeBottleStatus(event.target.value);
+    });
+  }
+
   $("selectAllTransferBtn")?.addEventListener(
     "click",
     selectAllTransferBottlesFromCurrentFrame
@@ -1042,6 +1075,25 @@ function renderRequestDynamicFields(){
     });
     moveInput.addEventListener("blur",refreshTransferCapacityPreview);
   }
+}
+
+
+function normalizeBottleStatus(value){
+  return String(value||"").trim().toUpperCase();
+}
+
+function assertValidBottleStatus(value,label="鋼瓶狀態"){
+  const status=normalizeBottleStatus(value);
+  if(!status){
+    throw new Error(`${label}為必填`);
+  }
+  if(status.length>50){
+    throw new Error(`${label}最多 50 字`);
+  }
+  if(/[\r\n]/.test(status)){
+    throw new Error(`${label}請使用單行文字`);
+  }
+  return status;
 }
 
 function collectRequestPayload(){
@@ -1071,8 +1123,17 @@ function collectRequestPayload(){
       $("requestAddBottleRt")?.value,
       "待新增鋼瓶 RT"
     );
+    const newStatus=assertValidBottleStatus(
+      $("requestAddBottleStatus")?.value,
+      "待新增鋼瓶狀態"
+    );
 
-    proposedValue={value:newCtn,ctn:newCtn,rt:newRt};
+    proposedValue={
+      value:newCtn,
+      ctn:newCtn,
+      rt:newRt,
+      bottle_status:newStatus
+    };
 
   }else if(requestType==="CORRECT_BOTTLE_CTN_RT"){
     if(selection.targetKind!=="bottle") {
@@ -1247,6 +1308,7 @@ function requestCard(request,reviewMode,isUnread=false){
       `當前運輸框 CTN：${escapeHtml(request.targetCtn||request.sourceFrameCtn||"-")}` +
       `<br>待新增鋼瓶 CTN：${escapeHtml(newData.ctn||newData.value||"-")}` +
       `｜RT：${escapeHtml(newData.rt||"-")}` +
+      `<br>鋼瓶狀態：${escapeHtml(newData.bottle_status||"-")}` +
       `<br>${detailLine}`;
 
   }else if(typeLabel==="修改鋼瓶CTN/RT"){
