@@ -2140,6 +2140,7 @@ user-scalable=no">
           <label><input type="radio" name="site" value="鋼印鎖瓶站">🔩 鋼印鎖瓶站</label>
           <label><input type="radio" name="site" value="集束中心">📦 集束中心</label>
           <label><input type="radio" name="site" value="IQC">📥 IQC</label>
+          <label><input type="radio" name="site" value="Grinding">🛠️ Grinding 研磨站</label>
           <label><input type="radio" name="site" value="專案">🚀 專案</label>
         </div>
         <div id="error-site" class="error-text"></div>
@@ -2635,10 +2636,11 @@ user-scalable=no">
   ">
     <div class="loading-text">送出中...</div>
   </div>
-<script src="./api.js"></script>
+<script src="./api.js?v=GRINDING_WIP_V2_1_1_PRODUCTION_MERGE_20260806"></script>
 <script>
   // 2026-07-19：IQC 散支改用右下快捷新增／選擇刪除；側滑卡片依目前框別動態調整高度並自動定位。
-  // 2026-07-13：IQC 集束新增「集束框架編號」，寫入 IQC_Log 供自動噴砂 BETA 唯讀反查。
+  // 2026-08-10：IQC 集束新增「集束狀態」，與集束框架編號一併寫入 IQC_Log，供正式 Grinding／後續庫存追蹤。
+  // v2.1.3：散支「鋼瓶狀態」與集束「集束狀態」前端輸入、草稿、批次套用與送出一律強制大寫。
   // 2026-06-29 正式版：保留既有 Response 欄位；新增「下一步指定結案」僅寫入 Project_Event_Log。
   const STORAGE_KEY = "ds_report_draft_v2";
   const VISIBLE_ERROR_ATTR = "data-has-visible-error";
@@ -4507,6 +4509,7 @@ function bindFramePairTableEvents(){
               <div>RT料號：${escapeHtml(card.bundleRtNo)}</div>
               <div>集束框架 CTN：${escapeHtml(card.bundleCtn)}</div>
               <div>集束框架編號：${escapeHtml(card.bundleFrameId)}</div>
+              <div>集束狀態：${escapeHtml(card.bundleStatus || "未填")}</div>
             ` : `
               <div>運輸框架CTN：${escapeHtml(card.transportFrameCtn)}</div>
               <div>散支 CTN｜RT料號｜鋼瓶狀態：<br>${loosePairs || "未填寫"}</div>
@@ -5124,6 +5127,17 @@ function bindFramePairTableEvents(){
       targetPage = "pageIQC";
       loadIqcRtMaster(false);
     }
+    else if(siteValue === "Grinding"){
+      // Grinding 使用正式站點頁，沿用本頁的日期與填表人員。
+      // 不建立 Response 假日報列；所有交易由正式 WIP API 與核心狀態表管理。
+      persistDraft();
+      const grindingUrl = new URL("./grinding.html", window.location.href);
+      grindingUrl.searchParams.set("date", date);
+      grindingUrl.searchParams.set("operator", person);
+      grindingUrl.searchParams.set("return", "./index.html");
+      window.location.href = grindingUrl.toString();
+      return;
+    }
     else if(siteValue === "專案"){
       targetPage = "pageProject";
     }
@@ -5168,6 +5182,7 @@ function bindFramePairTableEvents(){
       "鋼印鎖瓶站":"🔩",
       "集束中心":"📦",
       "IQC":"📥",
+      "Grinding":"🛠️",
       "專案":"🚀"
     };
 
@@ -5350,12 +5365,16 @@ function bindFramePairTableEvents(){
     return Math.min(IQC_LOOSE_PAIR_MAX, n);
   }
 
+  function normalizeIqcStatusText(value){
+    return toUpperSafe(value).trim();
+  }
+
   function normalizeIqcPairs(pairs){
     const source = Array.isArray(pairs) ? pairs : [];
     const normalized = source.map(pair => ({
       ctn:normalizeCTN(pair && pair.ctn || ""),
       rtNo:normalizeIqcRtNo(pair && pair.rtNo || ""),
-      cylinderStatus:String(pair && pair.cylinderStatus || "").trim()
+      cylinderStatus:normalizeIqcStatusText(pair && pair.cylinderStatus || "")
     }));
     return normalized.length ? normalized : [createEmptyIqcPair()];
   }
@@ -5387,6 +5406,7 @@ function bindFramePairTableEvents(){
       bundleRtNo:"",
       bundleCtn:"",
       bundleFrameId:"",
+      bundleStatus:"",
       transportFrameCtn:"",
       loosePairs:[createEmptyIqcPair()],
       regionCode:""
@@ -5412,6 +5432,7 @@ function bindFramePairTableEvents(){
       bundleRtNo:normalizeIqcRtNo(card && card.bundleRtNo || ""),
       bundleCtn:normalizeCTN(card && card.bundleCtn || ""),
       bundleFrameId:toUpperSafe(card && card.bundleFrameId || ""),
+      bundleStatus:normalizeIqcStatusText(card && card.bundleStatus || ""),
       transportFrameCtn:normalizeCTN(card && card.transportFrameCtn || ""),
       loosePairs:normalizeIqcPairs(card && card.loosePairs),
       regionCode:String(card && card.regionCode || "").trim().toUpperCase()
@@ -5487,10 +5508,15 @@ function bindFramePairTableEvents(){
           <label class="iqc-field-label">集束框架 CTN <span class="required">*</span></label>
           <input type="text" class="form-input iqc-bundle-ctn" data-iqc-card-index="${index}" value="${escapeAttribute(normalizeCTN(card.bundleCtn || ""))}" placeholder="例：AB12CD3" autocapitalize="characters" autocomplete="off">
         </div>
-        <div class="iqc-field full">
+        <div class="iqc-field">
           <label class="iqc-field-label">集束框架編號 <span class="required">*</span></label>
           <input type="text" class="form-input iqc-bundle-frame-id" data-iqc-card-index="${index}" value="${escapeAttribute(toUpperSafe(card.bundleFrameId || ""))}" placeholder="請輸入或掃描框架編號" autocapitalize="characters" autocomplete="off">
-          <div class="iqc-region-help">框架編號會自動轉為大寫，並寫入 IQC_Log 供自動噴砂 BETA 反查。</div>
+          <div class="iqc-region-help">框架編號會自動轉為大寫，並寫入 IQC_Log 供 Grinding 反查。</div>
+        </div>
+        <div class="iqc-field">
+          <label class="iqc-field-label">集束狀態 <span class="required">*</span></label>
+          <input type="text" class="form-input iqc-bundle-status" data-iqc-card-index="${index}" value="${escapeAttribute(toUpperSafe(card.bundleStatus || "").trim())}" placeholder="輸入集束狀態" maxlength="50" autocapitalize="characters" autocomplete="off" spellcheck="false">
+          <div class="iqc-region-help">集束狀態會自動轉為大寫並寫入 IQC_Log，供後續 Grinding／庫存追蹤使用。</div>
         </div>
         ${renderIqcRegionField(card, index)}
       </div>
@@ -5509,7 +5535,7 @@ function bindFramePairTableEvents(){
         </td>
         <td><input type="text" class="pair-table-input iqc-loose-ctn" data-iqc-card-index="${index}" data-iqc-pair-index="${pairIndex}" value="${escapeAttribute(normalizeCTN(pair.ctn || ""))}" placeholder="散支 CTN" autocapitalize="characters" autocomplete="off"></td>
         <td><input type="text" class="pair-table-input iqc-loose-rt" data-iqc-card-index="${index}" data-iqc-pair-index="${pairIndex}" value="${escapeAttribute(normalizeIqcRtNo(pair.rtNo || ""))}" placeholder="可掃 RT123456，自動保留 123456" inputmode="text" autocapitalize="characters" autocomplete="off" spellcheck="false"></td>
-        <td><input type="text" class="pair-table-input iqc-loose-status" data-iqc-card-index="${index}" data-iqc-pair-index="${pairIndex}" value="${escapeAttribute(String(pair.cylinderStatus || "").trim())}" placeholder="輸入鋼瓶狀態" maxlength="50" autocomplete="off"></td>
+        <td><input type="text" class="pair-table-input iqc-loose-status" data-iqc-card-index="${index}" data-iqc-pair-index="${pairIndex}" value="${escapeAttribute(toUpperSafe(pair.cylinderStatus || "").trim())}" placeholder="輸入鋼瓶狀態" maxlength="50" autocapitalize="characters" autocomplete="off" spellcheck="false"></td>
       </tr>
     `).join("");
   }
@@ -5578,7 +5604,7 @@ function bindFramePairTableEvents(){
             <div class="bundle-radio-grid two-col">${renderIqcTypeOptions(`iqc_type_${index}`, type)}</div>
             <div class="iqc-type-tip">
               ${type
-                ? (type === "集束" ? "集束：填寫 RT料號、集束框架 CTN、集束框架編號與區域。" : "散支：填寫運輸框架 CTN、每支 CTN／RT料號／鋼瓶狀態與區域。")
+                ? (type === "集束" ? "集束：填寫 RT料號、集束框架 CTN、集束框架編號、集束狀態與區域。" : "散支：填寫運輸框架 CTN、每支 CTN／RT料號／鋼瓶狀態與區域。")
                 : "請先選擇「集束」或「散支」，才會顯示對應欄位。"}
             </div>
           </div>
@@ -5601,6 +5627,7 @@ function bindFramePairTableEvents(){
       const bundleRtEl = document.querySelector(`.iqc-bundle-rt[data-iqc-card-index="${i}"]`);
       const bundleCtnEl = document.querySelector(`.iqc-bundle-ctn[data-iqc-card-index="${i}"]`);
       const bundleFrameIdEl = document.querySelector(`.iqc-bundle-frame-id[data-iqc-card-index="${i}"]`);
+      const bundleStatusEl = document.querySelector(`.iqc-bundle-status[data-iqc-card-index="${i}"]`);
       const transportFrameCtnEl = document.querySelector(`.iqc-transport-frame-ctn[data-iqc-card-index="${i}"]`);
       const regionEl = document.querySelector(`.iqc-region-code[data-iqc-card-index="${i}"]`);
 
@@ -5611,7 +5638,7 @@ function bindFramePairTableEvents(){
         return {
           ctn:normalizeCTN(ctnEl.value || ""),
           rtNo:normalizeIqcRtNo(rtEl ? rtEl.value : ""),
-          cylinderStatus:String(statusEl ? statusEl.value : "").trim()
+          cylinderStatus:normalizeIqcStatusText(statusEl ? statusEl.value : "")
         };
       });
 
@@ -5621,6 +5648,7 @@ function bindFramePairTableEvents(){
         bundleRtNo:normalizeIqcRtNo(bundleRtEl ? bundleRtEl.value : ""),
         bundleCtn:normalizeCTN(bundleCtnEl ? bundleCtnEl.value : ""),
         bundleFrameId:toUpperSafe(bundleFrameIdEl ? bundleFrameIdEl.value : ""),
+        bundleStatus:normalizeIqcStatusText(bundleStatusEl ? bundleStatusEl.value : ""),
         transportFrameCtn:normalizeCTN(transportFrameCtnEl ? transportFrameCtnEl.value : ""),
         loosePairs:loosePairs.length ? loosePairs : normalizeIqcPairs(formData.iqc_cards[i] && formData.iqc_cards[i].loosePairs),
         regionCode:String(regionEl ? regionEl.value : (formData.iqc_cards[i] && formData.iqc_cards[i].regionCode) || "").trim().toUpperCase()
@@ -6141,6 +6169,17 @@ function bindFramePairTableEvents(){
         const frameId = toUpperSafe(card.bundleFrameId || "").trim();
         if(!frameId){
           showIqcError(index, `第${index + 1}筆集束 IQC 請填寫集束框架編號。`);
+          return false;
+        }
+
+        const bundleStatus = String(card.bundleStatus || "").trim();
+        if(!bundleStatus){
+          showIqcError(index, `第${index + 1}筆集束 IQC 請填寫集束狀態。`);
+          return false;
+        }
+
+        if(bundleStatus.length > 50){
+          showIqcError(index, `第${index + 1}筆集束 IQC 的集束狀態不可超過 50 個字。`);
           return false;
         }
       }
@@ -6887,6 +6926,14 @@ function bindFramePairTableEvents(){
         const start = target.selectionStart;
         const end = target.selectionEnd;
         target.value = normalizeCTN(target.value);
+        if(typeof start === "number" && typeof end === "number") target.setSelectionRange(start, end);
+      }
+
+      // IQC 狀態欄位強制大寫；中文／數字不受影響，英文小寫會立即轉為大寫。
+      if(target.classList.contains("iqc-bundle-status") || target.classList.contains("iqc-loose-status")){
+        const start = target.selectionStart;
+        const end = target.selectionEnd;
+        target.value = toUpperSafe(target.value);
         if(typeof start === "number" && typeof end === "number") target.setSelectionRange(start, end);
       }
 
