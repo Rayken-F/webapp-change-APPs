@@ -386,7 +386,7 @@
   <div id="toast" class="toast"></div>
   <div id="loadingMask" class="loading-mask"><div id="loadingText" class="loading-card">處理中…</div></div>
 
-  <script src="./api.js?v=BETA_GRINDING_WIP_V2_0_5_CHECKIN_UI_LOOKUP_SELF_HEAL_20260805"></script>
+  <script src="./api.js?v=BETA_GRINDING_WIP_V2_0_6_CYLINDER_STATUS_DISPLAY_20260811"></script>
   <script>
     const CLIENT_VERSION = BETA_CLIENT_VERSION;
     const STORAGE_KEY = "ds_grinding_wip_beta_v2_local_draft";
@@ -987,7 +987,7 @@
             <div class="data-box"><div class="k">準備進入</div><div class="v">Grinding</div></div>
           </div>${warnings}
           <details ${source.detailOpen?"open":""} ontoggle="setSourceDetailOpen('${escapeHtml(source.id)}',this.open)"><summary>查看／調整 ${(source.selectedBottles||[]).length} 支鋼瓶明細</summary><div class="bottle-list">
-            ${(source.selectedBottles||[]).map((b,i)=>`<label class="bottle-item"><input type="checkbox" ${b.selected!==false?"checked":""} onchange="toggleSourceBottle('${escapeHtml(source.id)}',${i},this.checked)"><div><div class="bottle-ctn">${escapeHtml(b.ctn)}</div><div class="bottle-sub">RT：${escapeHtml(b.rt||"-")}｜目前綁定 ${escapeHtml(source.ctn)}</div></div></label>`).join("")}
+            ${(source.selectedBottles||[]).map((b,i)=>`<label class="bottle-item"><input type="checkbox" ${b.selected!==false?"checked":""} onchange="toggleSourceBottle('${escapeHtml(source.id)}',${i},this.checked)"><div><div class="bottle-ctn">${escapeHtml(b.ctn)}</div><div class="bottle-sub">RT：${escapeHtml(b.rt||"-")}｜鋼瓶狀態：${escapeHtml((b.cylinderStatus||"").trim()||"無狀態")}｜目前綁定 ${escapeHtml(source.ctn)}</div></div></label>`).join("")}
           </div></details>`;
       }else if(source.kind==="bundle"){
         host.innerHTML=head+`
@@ -1064,6 +1064,7 @@
               return {
                 ctn:bottleCtn,
                 rt:String(b.rt||""),
+                cylinderStatus:String(b.cylinderStatus||"").trim().toUpperCase(),
                 expectedVersion:Number(b.betaStateVersion||0),
                 selected:Object.prototype.hasOwnProperty.call(restoredMap,bottleCtn)?restoredMap[bottleCtn]:true
               }
