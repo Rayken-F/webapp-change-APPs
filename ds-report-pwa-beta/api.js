@@ -1,7 +1,7 @@
 // Grinding WIP BETA v2.0.3｜待噴砂框原子交易＋中斷恢復＋畫面一致性
 const BETA_API_URL = "https://script.google.com/macros/s/AKfycbw3Xg0ev3zoTO-WFfe7sTIUlr6wF4P-qAgZEZUF3uUhioT63bQYT-9QRgZqLU0IhB6G/exec";
 const BETA_API_TOKEN = "-M-yiaurzifieaJyYS4838MCYiuDh4wB";
-const BETA_CLIENT_VERSION = "BETA_GRINDING_WIP_V2_0_5_CHECKIN_UI_LOOKUP_SELF_HEAL_20260805";
+const BETA_CLIENT_VERSION = "BETA_GRINDING_WIP_V2_0_6_CYLINDER_STATUS_DISPLAY_20260811";
 
 function isBetaApiConfigured() {
   return /^https:\/\/script\.google\.com\/macros\/s\/.+\/exec$/.test(
