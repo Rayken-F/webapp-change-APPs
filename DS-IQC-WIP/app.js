@@ -584,6 +584,7 @@ function renderBottleRows(rows, frameCtn){
             <div class="bottle-rt">
               <div>RT：${escapeHtml(displayValue(row.rt))}</div>
               <div class="bottle-status-text">狀態：${escapeHtml(displayValue(row.bottleStatus))}</div>
+              <div class="bottle-status-text">隸屬運輸框：${escapeHtml(displayValue(row.transportFrameCtn || frameCtn,"無運輸框"))}</div>
             </div>
           </div>`
         ).join("")
@@ -706,10 +707,44 @@ function renderLookup(result){
   const transportHtml=(result.iqc.transportCards||[]).map(renderTransportCard).join("");
   const bundleHtml=(result.iqc.bundleCards||[]).map(renderBundleCard).join("");
 
-  const directBottleHtml=(result.iqc.bottleRows||[]).length
+  const directBottleRows=result.iqc.bottleRows||[];
+
+  const directBottleFrames=Array.from(new Set(
+    directBottleRows
+      .map(row=>normalizeCtn(row.transportFrameCtn||""))
+      .filter(Boolean)
+  ));
+
+  const directBottleOwnershipHtml=directBottleRows.length
+    ? (
+        directBottleFrames.length===1
+          ? `<div class="lookup-info-grid" style="margin:10px 0 12px">
+               ${infoCell("目前隸屬運輸框 CTN",directBottleFrames[0])}
+               ${infoCell("鋼瓶 CTN",directBottleRows[0]?.ctn)}
+             </div>`
+          : (
+              directBottleFrames.length>1
+                ? `<div class="danger-box" style="margin:10px 0 12px">
+                     同一鋼瓶 CTN 查到多個隸屬運輸框：
+                     <strong>${escapeHtml(directBottleFrames.join("、"))}</strong><br>
+                     請先確認 IQC_Log 重複／歷史資料，系統不自動判定哪一框有效。
+                   </div>`
+                : `<div class="lookup-info-grid" style="margin:10px 0 12px">
+                     ${infoCell("目前隸屬運輸框 CTN","無運輸框")}
+                     ${infoCell("鋼瓶 CTN",directBottleRows[0]?.ctn)}
+                   </div>`
+            )
+      )
+    :"";
+
+  const directBottleHtml=directBottleRows.length
     ? `<div class="lookup-section">
-         <div class="lookup-section-title"><span>鋼瓶 IQC 資料</span><small>${result.iqc.bottleRows.length} 筆</small></div>
-         ${renderBottleRows(result.iqc.bottleRows, "")}
+         <div class="lookup-section-title">
+           <span>鋼瓶 IQC 資料</span>
+           <small>${directBottleRows.length} 筆</small>
+         </div>
+         ${directBottleOwnershipHtml}
+         ${renderBottleRows(directBottleRows, "")}
        </div>`
     :"";
 
