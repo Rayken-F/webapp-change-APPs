@@ -2636,11 +2636,12 @@ user-scalable=no">
   ">
     <div class="loading-text">送出中...</div>
   </div>
-<script src="./api.js?v=GRINDING_WIP_V2_1_1_PRODUCTION_MERGE_20260806"></script>
+<script src="./api.js?v=DS_WEAK_NETWORK_P0_V2_1_5_20260813"></script>
 <script>
   // 2026-07-19：IQC 散支改用右下快捷新增／選擇刪除；側滑卡片依目前框別動態調整高度並自動定位。
   // 2026-08-10：IQC 集束新增「集束狀態」，與集束框架編號一併寫入 IQC_Log，供正式 Grinding／後續庫存追蹤。
   // v2.1.3：散支「鋼瓶狀態」與集束「集束狀態」前端輸入、草稿、批次套用與送出一律強制大寫。
+  // v2.1.5 P0：弱網 Last-Known-Good、Outbox、submission_id 收據確認、同 ID 安全續傳。
   // 2026-06-29 正式版：保留既有 Response 欄位；新增「下一步指定結案」僅寫入 Project_Event_Log。
   const STORAGE_KEY = "ds_report_draft_v2";
   const VISIBLE_ERROR_ATTR = "data-has-visible-error";
@@ -2750,7 +2751,47 @@ user-scalable=no">
   let projectEventTargetRequestSeq = 0;
   let dailySubmissionStatusTimer = null;
   let activeDailySubmissionId = "";
-  let waitingForExistingDailySubmission = false; 
+  let waitingForExistingDailySubmission = false;
+
+  // P0 弱網可靠層：主檔 Last-Known-Good + 日報送出 Outbox。
+  const DS_IQC_REGION_LKG_KEY = "ds_iqc_region_lkg_v1";
+  const DS_IQC_RT_LKG_KEY = "ds_iqc_rt_lkg_v1";
+  const DS_DAILY_OUTBOX_KEY = "ds_daily_submission_outbox_v1";
+  const DS_MASTER_CACHE_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
+  let iqcRegionSource = "none"; // live / cache / none
+  let iqcRtMasterSource = "none"; // live / cache / none
+  let dailyOutboxRecoveryRunning = false;
+
+  function readLocalJson(key){
+    try{
+      const raw = localStorage.getItem(key);
+      if(!raw) return null;
+      const value = JSON.parse(raw);
+      return value && typeof value === "object" ? value : null;
+    }catch(err){
+      console.warn("localStorage JSON 讀取失敗", key, err);
+      return null;
+    }
+  }
+
+  function writeLocalJson(key, value){
+    try{
+      localStorage.setItem(key, JSON.stringify(value));
+      return true;
+    }catch(err){
+      console.warn("localStorage JSON 寫入失敗", key, err);
+      return false;
+    }
+  }
+
+  function removeLocalJson(key){
+    try{ localStorage.removeItem(key); }catch(err){}
+  }
+
+  function isLocalCacheFresh(record){
+    const savedAt = Number(record && record.savedAt || 0);
+    return savedAt > 0 && (Date.now() - savedAt) <= DS_MASTER_CACHE_MAX_AGE_MS;
+  }
 
   function getValue(id){
     const el = document.getElementById(id);
@@ -2806,8 +2847,30 @@ user-scalable=no">
       collectIqcCardsFromUI();
     }
 
-    iqcRegionsLoaded = false;
-    iqcRegionLoadError = "";
+    // 弱網先讀最近一次成功主檔，畫面不必等網路才可操作。
+    const cached = readLocalJson(DS_IQC_REGION_LKG_KEY);
+    const cachedRegions = cached && Array.isArray(cached.regions)
+      ? cached.regions.map(normalizeIqcRegionOption).filter(Boolean)
+      : [];
+
+    if(cachedRegions.length && isLocalCacheFresh(cached)){
+      const codeSet = new Set();
+      iqcRegionOptions = cachedRegions
+        .sort((a, b) => a.sort !== b.sort ? a.sort - b.sort : a.code.localeCompare(b.code, "en"))
+        .filter(item => {
+          if(codeSet.has(item.code)) return false;
+          codeSet.add(item.code);
+          return true;
+        });
+      iqcRegionsLoaded = true;
+      iqcRegionSource = "cache";
+      iqcRegionLoadError = "";
+    }else{
+      iqcRegionOptions = [];
+      iqcRegionsLoaded = false;
+      iqcRegionSource = "none";
+      iqcRegionLoadError = "";
+    }
     renderIqcCards();
 
     try{
@@ -2828,14 +2891,33 @@ user-scalable=no">
         codeSet.add(item.code);
         return true;
       });
+
+      if(!iqcRegionOptions.length){
+        throw new Error("IQC 區域主檔目前沒有可用區域");
+      }
+
       iqcRegionsLoaded = true;
+      iqcRegionSource = "live";
+      iqcRegionLoadError = "";
+      writeLocalJson(DS_IQC_REGION_LKG_KEY, {
+        savedAt: Date.now(),
+        regions: iqcRegionOptions
+      });
     }
     catch(err){
       if(requestSeq !== iqcRegionRequestSeq) return;
       console.error("IQC 區域主檔讀取失敗", err);
-      iqcRegionOptions = [];
-      iqcRegionsLoaded = false;
-      iqcRegionLoadError = String(err && err.message || "IQC 區域主檔讀取失敗");
+
+      // 有 Last-Known-Good 就保留可操作狀態；沒有快取才真正阻擋。
+      if(iqcRegionsLoaded && iqcRegionOptions.length){
+        iqcRegionSource = "cache";
+        iqcRegionLoadError = "";
+      }else{
+        iqcRegionOptions = [];
+        iqcRegionsLoaded = false;
+        iqcRegionSource = "none";
+        iqcRegionLoadError = String(err && err.message || "IQC 區域主檔讀取失敗");
+      }
     }
 
     renderIqcCards();
@@ -2864,16 +2946,42 @@ user-scalable=no">
   }
 
   async function loadIqcRtMaster(forceReload = false){
-    if(iqcRtMasterLoaded && !forceReload) return iqcRtMaster;
+    if(iqcRtMasterLoaded && iqcRtMasterSource === "live" && !forceReload) return iqcRtMaster;
     if(typeof fetchIqcRtMaster !== "function"){
       iqcRtMasterLoaded = false;
+      iqcRtMasterSource = "none";
       iqcRtMasterLoadError = "IQC RT主檔 API 尚未載入，請更新 api.js 並重新整理。";
       return iqcRtMaster;
     }
 
     const requestSeq = ++iqcRtMasterRequestSeq;
-    iqcRtMasterLoaded = false;
-    iqcRtMasterLoadError = "";
+
+    const cached = readLocalJson(DS_IQC_RT_LKG_KEY);
+    if(cached && isLocalCacheFresh(cached)){
+      const cachedBundle = (Array.isArray(cached.bundle) ? cached.bundle : [])
+        .map(normalizeIqcRtMasterEntry).filter(Boolean);
+      const cachedLoose = (Array.isArray(cached.loose) ? cached.loose : [])
+        .map(normalizeIqcRtMasterEntry).filter(Boolean);
+      if(cachedBundle.length && cachedLoose.length){
+        iqcRtMaster = { bundle:cachedBundle, loose:cachedLoose };
+        iqcRtMasterMaps = {
+          bundle:buildIqcRtMasterMap(cachedBundle),
+          loose:buildIqcRtMasterMap(cachedLoose)
+        };
+        iqcRtMasterLoaded = true;
+        iqcRtMasterSource = "cache";
+        iqcRtMasterLoadError = "";
+        iqcRtMasterLoadedAt = Number(cached.savedAt || 0);
+      }
+    }
+
+    if(!iqcRtMasterLoaded){
+      iqcRtMaster = { bundle:[], loose:[] };
+      iqcRtMasterMaps = { bundle:new Map(), loose:new Map() };
+      iqcRtMasterSource = "none";
+      iqcRtMasterLoadError = "";
+    }
+    applyIqcLiveValidation();
 
     try{
       const result = await fetchIqcRtMaster();
@@ -2896,15 +3004,28 @@ user-scalable=no">
         loose:buildIqcRtMasterMap(loose)
       };
       iqcRtMasterLoaded = true;
+      iqcRtMasterSource = "live";
+      iqcRtMasterLoadError = "";
       iqcRtMasterLoadedAt = Date.now();
+      writeLocalJson(DS_IQC_RT_LKG_KEY, {
+        savedAt: iqcRtMasterLoadedAt,
+        bundle: bundle,
+        loose: loose
+      });
     }
     catch(err){
       if(requestSeq !== iqcRtMasterRequestSeq) return iqcRtMaster;
       console.error("IQC RT主檔讀取失敗", err);
-      iqcRtMaster = { bundle:[], loose:[] };
-      iqcRtMasterMaps = { bundle:new Map(), loose:new Map() };
-      iqcRtMasterLoaded = false;
-      iqcRtMasterLoadError = String(err && err.message || "IQC RT主檔讀取失敗");
+      if(iqcRtMasterLoaded && iqcRtMaster.bundle.length && iqcRtMaster.loose.length){
+        iqcRtMasterSource = "cache";
+        iqcRtMasterLoadError = "";
+      }else{
+        iqcRtMaster = { bundle:[], loose:[] };
+        iqcRtMasterMaps = { bundle:new Map(), loose:new Map() };
+        iqcRtMasterLoaded = false;
+        iqcRtMasterSource = "none";
+        iqcRtMasterLoadError = String(err && err.message || "IQC RT主檔讀取失敗");
+      }
     }
 
     applyIqcLiveValidation();
@@ -4650,6 +4771,139 @@ function bindFramePairTableEvents(){
     return "dr_" + Date.now() + "_" + Math.random().toString(36).slice(2, 14);
   }
 
+  function saveDailyOutbox(payload){
+    if(!payload || typeof payload !== "object") return false;
+    const submissionId = String(payload._submission_id || payload.submission_id || "").trim();
+    if(!submissionId) return false;
+    return writeLocalJson(DS_DAILY_OUTBOX_KEY, {
+      submissionId: submissionId,
+      payload: payload,
+      savedAt: Date.now(),
+      status: "pending"
+    });
+  }
+
+  function getDailyOutbox(){
+    const record = readLocalJson(DS_DAILY_OUTBOX_KEY);
+    if(!record || !record.submissionId || !record.payload) return null;
+    return record;
+  }
+
+  function clearDailyOutbox(){
+    removeLocalJson(DS_DAILY_OUTBOX_KEY);
+  }
+
+  function resetDailySubmissionIdForRetry(){
+    formData.daily_submission_id = "";
+    persistDraft();
+  }
+
+  function isWeakNetworkAmbiguousError(err){
+    if(typeof isAmbiguousApiError === "function") return isAmbiguousApiError(err);
+    return !!(err && err.ambiguous === true);
+  }
+
+  function waitMs(ms){
+    return new Promise(resolve => setTimeout(resolve, Math.max(0, Number(ms || 0))));
+  }
+
+  async function queryDailySubmissionTerminalState(submissionId, attempts = 4){
+    const id = String(submissionId || "").trim();
+    if(!id || typeof fetchDailySubmissionStatus !== "function") return { state:"unknown", status:null };
+
+    for(let index = 0; index < Math.max(1, Number(attempts || 1)); index++){
+      try{
+        const status = await fetchDailySubmissionStatus(id);
+        if(status && status.state === "success") return { state:"success", status:status };
+        if(status && status.state === "failed") return { state:"failed", status:status };
+        if(status && status.state){
+          renderDailySubmissionStatus(status);
+        }
+      }catch(err){
+        console.warn("弱網收據確認失敗", err);
+      }
+      if(index < attempts - 1) await waitMs(2200);
+    }
+    return { state:"unknown", status:null };
+  }
+
+  async function recoverDailySubmissionAfterAmbiguousError(payload, originalError){
+    const submissionId = String(payload && payload._submission_id || "").trim();
+    if(!submissionId) return { state:"unknown", error:originalError };
+
+    showLoadingMessage('📡 網路回應中斷，正在確認後台收據...<br><span style="font-size:14px;color:rgba(255,255,255,.78);">請勿重複送出，系統會沿用同一個 submission_id。</span>');
+
+    let terminal = await queryDailySubmissionTerminalState(submissionId, 4);
+    if(terminal.state !== "unknown") return terminal;
+
+    // 查不到收據時才用「相同 submission_id」安全續傳一次；後端冪等會阻止重複寫入。
+    if(typeof navigator === "undefined" || navigator.onLine !== false){
+      try{
+        const result = await submitDailyReportAPI(payload, 55000);
+        if(result && result.pending){
+          terminal = await queryDailySubmissionTerminalState(submissionId, 5);
+          if(terminal.state !== "unknown") return terminal;
+          return { state:"processing", result:result };
+        }
+        return { state:"success", result:result };
+      }catch(retryErr){
+        if(retryErr && retryErr.definitive){
+          return { state:"failed", error:retryErr };
+        }
+      }
+    }
+
+    return { state:"unknown", error:originalError };
+  }
+
+  function showRecoveredDailySuccess(resultOrStatus, recoveredMessage){
+    const source = resultOrStatus || {};
+    const receipt = source.receipt || (source.status && source.status.receipt) || null;
+    clearDailyOutbox();
+    waitingForExistingDailySubmission = false;
+    stopDailySubmissionStatusPolling();
+    clearDraft(false, { requireConfirm:false });
+    const receiptText = receipt
+      ? `<br><span style="font-size:13px;color:rgba(255,255,255,.78);">收據 ${escapeHtml(receipt.receiptId || "—")}｜已寫入 ${escapeHtml(receipt.sheetName || "Response")} 第 ${escapeHtml(receipt.startRow)}${receipt.endRow !== receipt.startRow ? "～" + escapeHtml(receipt.endRow) : ""} 列</span>`
+      : "";
+    showLoadingMessage('✅ 送出成功' + receiptText + `<br><span style="font-size:13px;color:rgba(255,255,255,.78);">${escapeHtml(recoveredMessage || "弱網期間已由 submission_id 確認後台成功，未重複寫入。")}</span>`);
+    setTimeout(()=>location.reload(), 2400);
+  }
+
+  async function recoverDailyOutboxOnStartup(){
+    if(dailyOutboxRecoveryRunning) return;
+    const outbox = getDailyOutbox();
+    if(!outbox) return;
+    dailyOutboxRecoveryRunning = true;
+    try{
+      const terminal = await queryDailySubmissionTerminalState(outbox.submissionId, 2);
+      if(terminal.state === "success"){
+        showRecoveredDailySuccess(terminal.status, "已確認上次弱網送出的資料其實已成功寫入。" );
+        return;
+      }
+      if(terminal.state === "failed"){
+        clearDailyOutbox();
+        resetDailySubmissionIdForRetry();
+        showDraftBanner(`上次送出已由後端確認失敗：${escapeHtml(terminal.status && terminal.status.message || "未知錯誤")}。草稿已保留，修正後可重新送出。`, {
+          autoHide:false
+        });
+        return;
+      }
+      if(typeof navigator === "undefined" || navigator.onLine !== false){
+        const recovered = await recoverDailySubmissionAfterAmbiguousError(outbox.payload, null);
+        if(recovered.state === "success"){
+          showRecoveredDailySuccess(recovered.result || recovered.status, "已安全續傳並確認成功。" );
+        }else if(recovered.state === "failed"){
+          clearDailyOutbox();
+          resetDailySubmissionIdForRetry();
+          showDraftBanner(`上次送出已確認失敗：${escapeHtml(recovered.error && recovered.error.message || recovered.status && recovered.status.message || "未知錯誤")}。草稿仍保留。`, { autoHide:false });
+        }
+      }
+    }finally{
+      dailyOutboxRecoveryRunning = false;
+    }
+  }
+
   function stopDailySubmissionStatusPolling(){
     if(dailySubmissionStatusTimer){
       clearInterval(dailySubmissionStatusTimer);
@@ -4672,6 +4926,7 @@ function bindFramePairTableEvents(){
 
       waitingForExistingDailySubmission = false;
       stopDailySubmissionStatusPolling();
+      clearDailyOutbox();
       clearDraft(false, { requireConfirm:false });
       showLoadingMessage('✅ 送出成功' + receiptText);
 
@@ -4684,7 +4939,9 @@ function bindFramePairTableEvents(){
     if(state === "failed" && waitingForExistingDailySubmission){
       waitingForExistingDailySubmission = false;
       stopDailySubmissionStatusPolling();
+      clearDailyOutbox();
       sending = false;
+      resetDailySubmissionIdForRetry();
       showLoadingMessage(`❌ 送出失敗：${escapeHtml(message || "未知錯誤")}`);
 
       setTimeout(()=>{
@@ -4758,7 +5015,7 @@ function bindFramePairTableEvents(){
 
     // 先讓 POST 請求開始，後端建立 submission status 後才輪詢。
     setTimeout(poll, 500);
-    dailySubmissionStatusTimer = setInterval(poll, 900);
+    dailySubmissionStatusTimer = setInterval(poll, 2200);
   }
 
   function showLoadingMessage(message){
@@ -4946,8 +5203,16 @@ function bindFramePairTableEvents(){
           return;
         }
 
-        const serverCheck = await validateSandblastPairsBeforeSubmit(formData.date, scanState.sb_frame_pairs);
-        if(serverCheck.duplicates.length > 0){
+        let serverCheck = null;
+        try{
+          serverCheck = await validateSandblastPairsBeforeSubmit(formData.date, scanState.sb_frame_pairs);
+        }catch(precheckErr){
+          if(!isWeakNetworkAmbiguousError(precheckErr)) throw precheckErr;
+          console.warn("自動噴砂 CTN 預檢因弱網略過，正式 POST 後端仍會驗證。", precheckErr);
+          showLoadingMessage('📡 網路較慢，已略過前端 CTN 預檢<br><span style="font-size:14px;color:rgba(255,255,255,.78);">正式送出時後端仍會做完整驗證。</span>');
+          await waitForPaint();
+        }
+        if(serverCheck && serverCheck.duplicates.length > 0){
           const duplicateText = (serverCheck.duplicateDetails && serverCheck.duplicateDetails.length)
             ? serverCheck.duplicateDetails.slice(0,3).map(item => `${item.ctn}（${item.date || "既有資料"}）`).join("、")
             : serverCheck.duplicates.slice(0,3).join("、");
@@ -4960,9 +5225,17 @@ function bindFramePairTableEvents(){
       }
 
       if(formData.site === "IQC"){
-        const serverCheck = await validateIqcCtnsBeforeSubmit(formData.date);
+        let serverCheck = null;
+        try{
+          serverCheck = await validateIqcCtnsBeforeSubmit(formData.date);
+        }catch(precheckErr){
+          if(!isWeakNetworkAmbiguousError(precheckErr)) throw precheckErr;
+          console.warn("IQC CTN／容量預檢因弱網略過；IqcLog 後端仍會做最終驗證。", precheckErr);
+          showLoadingMessage('📡 網路較慢，已略過 IQC 前端預檢<br><span style="font-size:14px;color:rgba(255,255,255,.78);">RT、CTN、容量、區域仍由後端最終驗證。</span>');
+          await waitForPaint();
+        }
 
-        if(Array.isArray(serverCheck.frameCardConflicts) && serverCheck.frameCardConflicts.length > 0){
+        if(serverCheck && Array.isArray(serverCheck.frameCardConflicts) && serverCheck.frameCardConflicts.length > 0){
           const firstFrameConflict = serverCheck.frameCardConflicts[0];
           const firstConflict = applyIqcFrameCardConflictValidation(serverCheck);
           const cardIndex = firstConflict ? firstConflict.cardIndex : 0;
@@ -4980,7 +5253,7 @@ function bindFramePairTableEvents(){
           return;
         }
 
-        if(Array.isArray(serverCheck.capacityConflicts) && serverCheck.capacityConflicts.length > 0){
+        if(serverCheck && Array.isArray(serverCheck.capacityConflicts) && serverCheck.capacityConflicts.length > 0){
           const firstCapacity = serverCheck.capacityConflicts[0];
           const firstConflict = applyIqcCapacityValidation(serverCheck);
           const cardIndex = firstConflict ? firstConflict.cardIndex : 0;
@@ -4996,7 +5269,7 @@ function bindFramePairTableEvents(){
           return;
         }
 
-        if(serverCheck.duplicates.length > 0){
+        if(serverCheck && serverCheck.duplicates.length > 0){
           const duplicateText = (serverCheck.duplicateDetails && serverCheck.duplicateDetails.length)
             ? serverCheck.duplicateDetails.slice(0,3).map(item => item.message || `${item.ctn}（${item.date || "既有 IQC"}）`).join("；")
             : serverCheck.duplicates.slice(0,3).join("、");
@@ -5025,6 +5298,8 @@ function bindFramePairTableEvents(){
       persistDraft();
 
       payload["_submission_id"] = dailySubmissionId;
+      // 與草稿分離的 Outbox：即使頁面關閉，仍能用同一 submission_id 查收據或安全續傳。
+      saveDailyOutbox(payload);
 
       showLoadingMessage('送出中...<br><span style="font-size:14px;color:rgba(255,255,255,.72);">資料已送出，正在等待伺服器處理，請勿關閉頁面。</span>');
       await waitForPaint();
@@ -5045,6 +5320,7 @@ function bindFramePairTableEvents(){
       waitingForExistingDailySubmission = false;
       stopDailySubmissionStatusPolling();
       console.log("送出成功：", result);
+      clearDailyOutbox();
 
       clearDraft(false, {
         requireConfirm: false
@@ -5070,12 +5346,56 @@ function bindFramePairTableEvents(){
       waitingForExistingDailySubmission = false;
       stopDailySubmissionStatusPolling();
       console.error("送出失敗", err);
+
+      if(payload && isWeakNetworkAmbiguousError(err)){
+        const recovered = await recoverDailySubmissionAfterAmbiguousError(
+          payload,
+          err
+        );
+
+        if(recovered.state === "success"){
+          sending = false;
+          showRecoveredDailySuccess(
+            recovered.result || recovered.status,
+            "網路回應中斷，但已由 submission_id 確認後台成功；未重複寫入。"
+          );
+          return;
+        }
+
+        if(recovered.state === "failed"){
+          clearDailyOutbox();
+          resetDailySubmissionIdForRetry();
+          sending = false;
+          const failureMessage = recovered.error && recovered.error.message
+            ? recovered.error.message
+            : recovered.status && recovered.status.message
+              ? recovered.status.message
+              : "後端拒絕送出";
+          showLoadingMessage(`❌ 後端確認送出失敗：${escapeHtml(failureMessage)}`);
+          setTimeout(()=>hideLoadingMessage(), 2800);
+          return;
+        }
+
+        waitingForExistingDailySubmission = true;
+        sending = false;
+        showLoadingMessage(
+          '📶 網路仍不穩，資料狀態待確認<br>' +
+          '<span style="font-size:14px;color:rgba(255,255,255,.78);">草稿與 submission_id 已安全保留。請勿重新建立同一筆資料；網路恢復或重新開啟 APP 後會自動確認。</span>'
+        );
+        return;
+      }
+
+      // 明確業務錯誤（RT、CTN、容量、區域等）不能沿用 failed submission_id。
+      if(err && err.definitive){
+        clearDailyOutbox();
+        resetDailySubmissionIdForRetry();
+      }
       sending = false;
       showLoadingMessage(`❌ 送出失敗：${escapeHtml(err.message || "未知錯誤")}`);
 
       setTimeout(()=>{
         hideLoadingMessage();
-      }, 2200);
+      }, 2800);
     }
   }
 
@@ -5308,6 +5628,9 @@ function bindFramePairTableEvents(){
     }
     if(!getIqcRegionOptionsForType(type).length){
       return `目前沒有適用於「${type}」的啟用區域，請至 IQC_Region_Master 設定。`;
+    }
+    if(iqcRegionSource === "cache"){
+      return "目前網路不穩，先使用最近一次成功的區域清單；送出時後端仍會以最新主檔驗證。";
     }
     return "區域由 IQC_Region_Master 管理；修改主檔後，重新開啟日報即可載入最新選項。";
   }
@@ -6053,7 +6376,7 @@ function bindFramePairTableEvents(){
       }
 
       const normalized = normalizeIqcRtNo(value);
-      if(normalized && /^\d+$/.test(normalized) && iqcRtMasterLoaded){
+      if(normalized && /^\d+$/.test(normalized) && iqcRtMasterLoaded && iqcRtMasterSource === "live"){
         const type = input.classList.contains("iqc-bundle-rt") ? "集束" : "散支";
         if(!isIqcRtAllowedForType(normalized, type)){
           setIqcFieldValidation(input, getIqcRtWrongTypeMessage(normalized, type));
@@ -6102,7 +6425,7 @@ function bindFramePairTableEvents(){
         return false;
       }
 
-      if(iqcRegionLoadError){
+      if(iqcRegionLoadError && !iqcRegionsLoaded){
         showIqcError(index, `IQC 區域主檔讀取失敗：${iqcRegionLoadError}`);
         return false;
       }
@@ -6112,7 +6435,7 @@ function bindFramePairTableEvents(){
         return false;
       }
 
-      if(iqcRtMasterLoadError){
+      if(iqcRtMasterLoadError && !iqcRtMasterLoaded){
         showIqcError(index, `IQC RT主檔讀取失敗：${iqcRtMasterLoadError}`);
         return false;
       }
@@ -6146,7 +6469,7 @@ function bindFramePairTableEvents(){
           return false;
         }
 
-        if(!isIqcRtAllowedForType(rtNo, "集束")){
+        if(iqcRtMasterSource === "live" && !isIqcRtAllowedForType(rtNo, "集束")){
           const selector = `.iqc-bundle-rt[data-iqc-card-index="${index}"]`;
           const input = document.querySelector(selector);
           const message = `第${index + 1}筆集束 IQC：${getIqcRtWrongTypeMessage(rtNo, "集束")}`;
@@ -6221,7 +6544,7 @@ function bindFramePairTableEvents(){
             return false;
           }
 
-          if(!isIqcRtAllowedForType(rtNo, "散支")){
+          if(iqcRtMasterSource === "live" && !isIqcRtAllowedForType(rtNo, "散支")){
             const selector = `.iqc-loose-rt[data-iqc-card-index="${index}"][data-iqc-pair-index="${pairIndex}"]`;
             const input = document.querySelector(selector);
             const message = `第${index + 1}筆 IQC 的第${pairIndex + 1}支鋼瓶：${getIqcRtWrongTypeMessage(rtNo, "散支")}`;
@@ -7067,6 +7390,7 @@ function bindFramePairTableEvents(){
     if(String(formData.site || "").trim() === "IQC"){
       startupTasks.push(loadIqcRtMaster(true));
     }
+    startupTasks.push(recoverDailyOutboxOnStartup());
     await Promise.all(startupTasks);
 
     const projectSelect = document.getElementById("project_item");
@@ -7083,6 +7407,17 @@ function bindFramePairTableEvents(){
       loadTargets:true
     });
   };
+
+  if(!window.__dsWeakNetworkOnlineBound){
+    window.__dsWeakNetworkOnlineBound = true;
+    window.addEventListener("online", function(){
+      recoverDailyOutboxOnStartup();
+      if(String(formData.site || "").trim() === "IQC"){
+        loadIqcRegions();
+        loadIqcRtMaster(true);
+      }
+    });
+  }
 
 function getDefaultBundleNote(inDate = "", doneDate = ""){
   const inText = inDate ? `${inDate} 入框` : "入框";
