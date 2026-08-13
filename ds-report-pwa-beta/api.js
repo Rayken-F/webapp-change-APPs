@@ -1,7 +1,7 @@
-// Grinding WIP BETA v2.0.3｜待噴砂框原子交易＋中斷恢復＋畫面一致性
+// Grinding WIP BETA v2.0.7｜弱網交易確認＋同 submission_id 安全續傳
 const BETA_API_URL = "https://script.google.com/macros/s/AKfycbw3Xg0ev3zoTO-WFfe7sTIUlr6wF4P-qAgZEZUF3uUhioT63bQYT-9QRgZqLU0IhB6G/exec";
 const BETA_API_TOKEN = "-M-yiaurzifieaJyYS4838MCYiuDh4wB";
-const BETA_CLIENT_VERSION = "BETA_GRINDING_WIP_V2_0_6_CYLINDER_STATUS_DISPLAY_20260811";
+const BETA_CLIENT_VERSION = "BETA_GRINDING_WIP_V2_0_7_WEAK_NETWORK_RECOVERY_20260813";
 
 function isBetaApiConfigured() {
   return /^https:\/\/script\.google\.com\/macros\/s\/.+\/exec$/.test(
@@ -27,33 +27,66 @@ function emitBetaClientUpdateRequired(data) {
   } catch (ignore) {}
 }
 
+function createBetaApiError(message, options) {
+  const opts = options || {};
+  const error = new Error(String(message || "BETA API 請求失敗"));
+  error.code = String(opts.code || "");
+  error.ambiguous = !!opts.ambiguous;
+  error.definitive = !!opts.definitive;
+  error.requiredClientVersion = String(opts.requiredClientVersion || "");
+  error.receivedClientVersion = String(opts.receivedClientVersion || "");
+  error.updateUrl = String(opts.updateUrl || "");
+  return error;
+}
+
+function isBetaAmbiguousApiError(error) {
+  return !!(error && error.ambiguous === true);
+}
+
 async function parseBetaApiJsonResponse(response) {
-  const text = await response.text();
+  let text = "";
+  try {
+    text = await response.text();
+  } catch (err) {
+    throw createBetaApiError(
+      "BETA 回應讀取中斷；後端可能已完成交易，系統會用 submission_id 確認。",
+      { code: "RESPONSE_READ_FAILED", ambiguous: true }
+    );
+  }
+
+  if (!text || !String(text).trim()) {
+    throw createBetaApiError(
+      "BETA 沒有收到完整回應；這不代表交易失敗，系統會確認後台收據。",
+      { code: "EMPTY_RESPONSE", ambiguous: true }
+    );
+  }
+
   let data = null;
   try {
     data = JSON.parse(text);
   } catch (err) {
-    throw new Error("BETA API 回傳格式錯誤");
+    throw createBetaApiError(
+      "BETA 回應未完整（不是有效 JSON）；系統會確認 submission_id 後再決定是否續傳。",
+      { code: "INVALID_JSON_RESPONSE", ambiguous: true }
+    );
   }
 
   if (!response.ok || !data || data.ok !== true) {
     if (data && data.code === "CLIENT_UPDATE_REQUIRED") {
       emitBetaClientUpdateRequired(data);
     }
-    const error = new Error(
-      data && data.message ? data.message : "BETA API 請求失敗"
+    const status = Number(response && response.status || 0);
+    throw createBetaApiError(
+      data && data.message ? data.message : "BETA API 請求失敗",
+      {
+        code: data && data.code ? String(data.code) : (status ? "HTTP_" + status : "BETA_API_FAILED"),
+        ambiguous: !data || status >= 500 || status === 0,
+        definitive: !!data && data.ok === false && data.code !== "CLIENT_UPDATE_REQUIRED",
+        requiredClientVersion: data && data.requiredClientVersion,
+        receivedClientVersion: data && data.receivedClientVersion,
+        updateUrl: data && data.updateUrl
+      }
     );
-    error.code = data && data.code ? String(data.code) : "";
-    error.requiredClientVersion =
-      data && data.requiredClientVersion
-        ? String(data.requiredClientVersion)
-        : "";
-    error.receivedClientVersion =
-      data && data.receivedClientVersion
-        ? String(data.receivedClientVersion)
-        : "";
-    error.updateUrl = data && data.updateUrl ? String(data.updateUrl) : "";
-    throw error;
   }
   return data;
 }
@@ -73,9 +106,16 @@ async function betaFetchWithTimeout(url, options, timeoutMs) {
     }));
   } catch (err) {
     if (err && err.name === "AbortError") {
-      throw new Error("BETA API 連線逾時，請重新辨識或重試。");
+      throw createBetaApiError(
+        "BETA API 連線逾時；後端可能仍在處理，系統會先確認 submission_id 收據。",
+        { code: "NETWORK_TIMEOUT", ambiguous: true }
+      );
     }
-    throw err;
+    if (err && (err.definitive || err.ambiguous)) throw err;
+    throw createBetaApiError(
+      "BETA 網路連線中斷；後端可能已收到交易，系統會先確認收據。",
+      { code: "NETWORK_ERROR", ambiguous: true }
+    );
   } finally {
     if (timer) clearTimeout(timer);
   }
@@ -160,6 +200,12 @@ async function fetchBetaGrindingRevision(reportDate) {
   return betaGetApi("wip_revision", {
     date: String(reportDate || "").trim()
   });
+}
+
+async function fetchBetaWipSubmissionStatus(submissionId) {
+  return betaGetApi("wip_submission_status", {
+    submission_id: String(submissionId || "").trim()
+  }, 12000);
 }
 
 async function submitBetaGrindingCheckIn(payload) {
