@@ -6,7 +6,7 @@
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
-  <title>鼎世日報系統｜Grinding WIP BETA</title>
+  <title>鼎世日報系統｜Grinding WIP BETA v2.0.7</title>
   <style>
     *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
     :root{
@@ -756,6 +756,10 @@
         event.preventDefault();
         event.returnValue=""
       });
+      window.addEventListener("online",()=>{
+        recoverPendingTransactions_();
+        checkHealth().then(ok=>{ if(ok) refreshAll(false) })
+      });
 
       setupGrindingSync();
       startLookupWatchdog_();
@@ -764,7 +768,7 @@
       checkHealth().then(async ok=>{
         if(ok){
           await refreshAll(false);
-          await recoverPendingFrameEdit_();
+          await recoverPendingTransactions_();
           revalidateRestoredDraftSources()
         }
       })
@@ -1163,6 +1167,77 @@
       state[key].payload=payload&&typeof payload==="object"?safeClone(payload):null;
       saveState()
     }
+    async function submitPendingPayloadByKind_(kind,payload){
+      if(kind==="checkin")return submitBetaGrindingCheckIn(payload);
+      if(kind==="frame_edit")return submitBetaGrindingFrameEdit(payload);
+      return submitBetaGrindingDisposition(payload)
+    }
+    async function resolvePendingTransaction_(kind,payload,options){
+      const opts=options||{};
+      const submissionId=String(payload&&payload.submission_id||"").trim();
+      if(!submissionId)return {state:"unknown",message:"缺少 submission_id"};
+      let sawProcessing=false;
+      let sawNotFound=false;
+
+      for(let attempt=0;attempt<Math.max(1,Number(opts.statusAttempts||3));attempt++){
+        try{
+          const status=await fetchBetaWipSubmissionStatus(submissionId);
+          if(status&&status.found){
+            const backendStatus=String(status.status||"").toLowerCase();
+            if(backendStatus==="completed"){
+              return {state:"completed",result:status.result||{},status};
+            }
+            if(backendStatus==="failed"){
+              return {state:"failed",message:status.message||"Grinding WIP 後端確認交易失敗",status};
+            }
+            sawProcessing=true
+          }else if(status&&status.status==="not_found"){
+            sawNotFound=true
+          }
+        }catch(err){
+          if(err&&err.definitive){
+            return {state:"failed",message:err.message||"交易狀態查詢失敗",error:err}
+          }
+        }
+        if(attempt<Math.max(1,Number(opts.statusAttempts||3))-1){
+          await new Promise(resolve=>setTimeout(resolve,1800))
+        }
+      }
+
+      // 後端已明確顯示 processing 時不要再打一個同 ID POST；等待原交易完成即可。
+      if(sawProcessing)return {state:"processing"};
+
+      // 查不到收據才使用相同 submission_id 安全續傳一次。後端 WIP_Submission_Log 會冪等防重。
+      if((sawNotFound||opts.forceRetry===true)&&
+         (typeof navigator==="undefined"||navigator.onLine!==false)){
+        try{
+          const result=await submitPendingPayloadByKind_(kind,safeClone(payload));
+          return {state:"completed",result,duplicate:!!(result&&result.duplicate)}
+        }catch(err){
+          if(err&&err.definitive){
+            return {state:"failed",message:err.message||"Grinding WIP 後端拒絕交易",error:err}
+          }
+        }
+      }
+
+      return {state:"unknown"}
+    }
+    function clearPendingAfterCompleted_(kind){
+      if(kind==="checkin"){
+        state.pendingCheckIn=null;
+        state.sources=[];
+        state.activeSourceId=""
+      }else if(kind==="frame_edit"){
+        state.pendingFrameEdit=null
+      }else{
+        state.pendingDisposition=null;
+        state.selected={};
+        state.selectedQty={};
+        state.barcodeSelected={};
+        state.barcodeRecent=[]
+      }
+      saveState()
+    }
     async function submitCheckIn(){
       if(!ensureClientWriteAllowed())return;
       syncMetaFromInputs();
@@ -1245,8 +1320,27 @@
 
         setTimeout(()=>refreshAll(false),250)
       }catch(err){
-        markPendingSubmission("checkin",checkInPayload,"failed_or_unknown");
-        showToast(err.message||"Grinding 入站失敗；已保留 submission_id 與送出草稿供安全重試",true)
+        if(err&&typeof isBetaAmbiguousApiError==="function"&&isBetaAmbiguousApiError(err)){
+          showToast("網路回應中斷，正在確認 Grinding 入站收據…");
+          const recovered=await resolvePendingTransaction_("checkin",checkInPayload,{statusAttempts:4});
+          if(recovered.state==="completed"){
+            clearPendingAfterCompleted_("checkin");
+            renderCheckIn();
+            switchTab("wip");
+            await refreshAll(false);
+            broadcastRevision(state.revision);
+            showToast(recovered.duplicate?"入站其實已完成，已回復原收據且未重複寫入。":"弱網期間已安全確認 Grinding 入站完成。")
+          }else if(recovered.state==="failed"){
+            markPendingSubmission("checkin",checkInPayload,"backend_failed");
+            showToast(recovered.message||"Grinding 入站被後端拒絕，草稿已保留。",true)
+          }else{
+            markPendingSubmission("checkin",checkInPayload,"failed_or_unknown");
+            showToast("網路仍不穩；入站草稿與原 submission_id 已保留，恢復連線後會再次確認。",true)
+          }
+        }else{
+          markPendingSubmission("checkin",checkInPayload,"backend_failed");
+          showToast(err.message||"Grinding 入站失敗；草稿已保留，修正後可重試",true)
+        }
       }finally{
         if(submitButton){submitButton.disabled=false;submitButton.textContent=originalSubmitText}
       }
@@ -1696,8 +1790,26 @@
         state.revision=snapshot.revision;
         renderSummary();
         renderWip();
-        markPendingSubmission("disposition",body,"failed_or_unknown");
-        showToast(err.message||"Grinding 動作失敗；已保留 submission_id 與送出草稿供安全重試",true)
+
+        if(err&&typeof isBetaAmbiguousApiError==="function"&&isBetaAmbiguousApiError(err)){
+          showToast("網路回應中斷，正在確認 Grinding 動作收據…");
+          const recovered=await resolvePendingTransaction_("disposition",body,{statusAttempts:4});
+          if(recovered.state==="completed"){
+            clearPendingAfterCompleted_("disposition");
+            await refreshAll(false);
+            broadcastRevision(state.revision);
+            showToast(recovered.duplicate?"此動作其實已完成，已回復原收據。":"弱網期間已安全確認 Grinding 動作完成。")
+          }else if(recovered.state==="failed"){
+            markPendingSubmission("disposition",body,"backend_failed");
+            showToast(recovered.message||"Grinding 動作被後端拒絕，原選取已恢復。",true)
+          }else{
+            markPendingSubmission("disposition",body,"failed_or_unknown");
+            showToast("網路仍不穩；原 submission_id 已保留，恢復連線後會再次確認。",true)
+          }
+        }else{
+          markPendingSubmission("disposition",body,"backend_failed");
+          showToast(err.message||"Grinding 動作失敗；原選取已恢復。",true)
+        }
       }finally{
         state.dispositionBusy=false;
         renderSticky()
@@ -1851,20 +1963,65 @@
       renderSummary();renderWip();renderBarcodeScanner();renderSticky();
       saveState()
     }
+    async function recoverOnePendingTransaction_(kind,pending){
+      if(!pending||!pending.payload||pending.status==="prepared")return false;
+      const recovered=await resolvePendingTransaction_(kind,pending.payload,{statusAttempts:3});
+      if(recovered.state==="completed"){
+        clearPendingAfterCompleted_(kind);
+        return true
+      }
+      if(recovered.state==="failed"){
+        markPendingSubmission(kind,pending.payload,"backend_failed");
+        showToast(recovered.message||"上次交易已由後端確認失敗，草稿仍保留。",true);
+        return false
+      }
+      markPendingSubmission(kind,pending.payload,recovered.state==="processing"?"sending":"failed_or_unknown");
+      return false
+    }
+    async function recoverPendingTransactions_(){
+      const jobs=[
+        {kind:"checkin",pending:state.pendingCheckIn},
+        {kind:"disposition",pending:state.pendingDisposition},
+        {kind:"frame_edit",pending:state.pendingFrameEdit}
+      ].filter(item=>item.pending&&item.pending.payload&&item.pending.status!=="prepared")
+       .sort((a,b)=>Number(a.pending.createdAt||0)-Number(b.pending.createdAt||0));
+
+      if(!jobs.length)return;
+      showToast("正在確認上次弱網期間未取得回應的交易…");
+      let completedAny=false;
+      for(const job of jobs){
+        try{
+          completedAny=(await recoverOnePendingTransaction_(job.kind,job.pending))||completedAny
+        }catch(err){
+          console.warn("Grinding pending recovery failed",job.kind,err)
+        }
+      }
+      if(completedAny){
+        await refreshAll(false);
+        renderCheckIn();
+        renderWip();
+        showToast("上次交易已由 submission_id 確認完成，畫面已同步。")
+      }
+    }
     async function recoverPendingFrameEdit_(){
       const pending=state.pendingFrameEdit;
       if(!pending||!pending.payload||pending.status==="prepared")return;
-      showToast("正在確認上次未取得回應的待噴砂框交易…");
-      try{
+      const recovered=await resolvePendingTransaction_("frame_edit",pending.payload,{statusAttempts:4});
+      if(recovered.state==="completed"){
         const body=safeClone(pending.payload);
-        const result=await submitBetaGrindingFrameEdit(body);
-        applyFrameEditResult_(body.action,normalizeCtn(body.frame_ctn),result);
-        state.pendingFrameEdit=null;saveState();
+        if(recovered.result&&recovered.result.ok){
+          applyFrameEditResult_(body.action,normalizeCtn(body.frame_ctn),recovered.result)
+        }
+        clearPendingAfterCompleted_("frame_edit");
+        await refreshAll(false);
         broadcastRevision(state.revision);
-        showToast(result.duplicate?"上次交易已由後台完成，畫面已恢復。":"上次未完成回應的交易已安全續作完成。")
-      }catch(err){
-        markPendingSubmission("frame_edit",pending.payload,"failed_or_unknown");
-        showToast(err.message||"待噴砂框交易狀態仍無法確認，已保留原 submission_id。",true)
+        showToast(recovered.duplicate?"上次框內交易已由後台完成，未重複寫入。":"上次框內交易已安全續作完成。")
+      }else if(recovered.state==="failed"){
+        markPendingSubmission("frame_edit",pending.payload,"backend_failed");
+        showToast(recovered.message||"上次框內交易已確認失敗，原 submission_id 已保留。",true)
+      }else{
+        markPendingSubmission("frame_edit",pending.payload,recovered.state==="processing"?"sending":"failed_or_unknown");
+        showToast("框內交易狀態尚未確認，系統會保留原 submission_id。",true)
       }
     }
 
@@ -1919,8 +2076,31 @@
           :`｜${seconds.toFixed(1)}秒`;
         showToast((result.message||"框內回修完成")+timing)
       }catch(err){
-        markPendingSubmission("frame_edit",body,"failed_or_unknown");
-        showToast(err.message||"框內回修回應中斷；已保留相同 submission_id，重新開啟APP會自動確認。",true)
+        if(err&&typeof isBetaAmbiguousApiError==="function"&&isBetaAmbiguousApiError(err)){
+          showToast("網路回應中斷，正在確認待噴砂框交易收據…");
+          const recovered=await resolvePendingTransaction_("frame_edit",body,{statusAttempts:4});
+          if(recovered.state==="completed"){
+            if(recovered.result&&recovered.result.ok){
+              applyFrameEditResult_(action,frameCtn,recovered.result)
+            }
+            clearPendingAfterCompleted_("frame_edit");
+            completed=true;
+            setFrameEditBusy(false,"");
+            closeFrameEditModal(true);
+            await refreshAll(false);
+            broadcastRevision(state.revision);
+            showToast(recovered.duplicate?"框內交易其實已完成，已回復原收據。":"弱網期間已安全確認框內交易完成。")
+          }else if(recovered.state==="failed"){
+            markPendingSubmission("frame_edit",body,"backend_failed");
+            showToast(recovered.message||"框內回修被後端拒絕，原 submission_id 已保留。",true)
+          }else{
+            markPendingSubmission("frame_edit",body,"failed_or_unknown");
+            showToast("網路仍不穩；框內回修的原 submission_id 已保留，重新開啟 APP 會再次確認。",true)
+          }
+        }else{
+          markPendingSubmission("frame_edit",body,"backend_failed");
+          showToast(err.message||"框內回修失敗；原 submission_id 已保留。",true)
+        }
       }finally{
         if(!completed)setFrameEditBusy(false,"")
       }
