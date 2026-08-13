@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+  <title>DS System Diagnostics｜P0.1</title>
+  <style>
+    *{box-sizing:border-box} body{margin:0;min-height:100vh;padding:20px 14px 40px;font-family:Arial,"Microsoft JhengHei",sans-serif;color:#fff;background:radial-gradient(circle at 20% 10%,rgba(54,122,255,.35),transparent 28%),radial-gradient(circle at 85% 18%,rgba(164,69,255,.28),transparent 32%),linear-gradient(180deg,#07112b,#111d50 55%,#25105e)}
+    .wrap{max-width:860px;margin:0 auto}.title{text-align:center;font-size:32px;font-weight:900;margin:8px 0 4px}.sub{text-align:center;color:rgba(238,242,255,.72);font-size:13px;margin-bottom:18px}.card{padding:16px;margin:12px 0;border:1px solid rgba(224,234,255,.22);border-radius:20px;background:rgba(35,52,128,.35);box-shadow:0 16px 44px rgba(2,8,42,.38);backdrop-filter:blur(12px)}
+    .grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}@media(max-width:680px){.grid{grid-template-columns:1fr}}
+    label{display:block;font-size:12px;font-weight:800;color:rgba(235,240,255,.72);margin-bottom:6px}.input{width:100%;min-height:46px;border:1px solid rgba(255,255,255,.16);border-radius:13px;padding:10px 12px;background:rgba(255,255,255,.08);color:#fff;outline:none}.input::placeholder{color:rgba(255,255,255,.35)}
+    .actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}.btn{min-height:43px;padding:9px 13px;border:0;border-radius:13px;color:#fff;font-weight:900;cursor:pointer;background:linear-gradient(135deg,#7868ff,#5145e7)}.btn.alt{background:linear-gradient(135deg,#2ea9c0,#266dae)}.btn.warn{background:linear-gradient(135deg,#d99b32,#ad5e19)}.btn:disabled{opacity:.45;cursor:not-allowed}
+    .note{font-size:12px;color:rgba(235,240,255,.68);line-height:1.55;margin-top:9px}.result{margin-top:12px;display:grid;gap:8px}.check{padding:10px 11px;border-radius:13px;background:rgba(255,255,255,.055);border:1px solid rgba(255,255,255,.1)}.check.pass{border-color:rgba(74,222,128,.45)}.check.warn{border-color:rgba(250,204,21,.5)}.check.fail{border-color:rgba(248,113,113,.55)}.top{display:flex;justify-content:space-between;gap:10px;align-items:center}.name{font-weight:900}.badge{font-size:10px;font-weight:900;padding:4px 7px;border-radius:999px;background:rgba(255,255,255,.08)}.detail{margin-top:6px;color:rgba(235,240,255,.72);font-size:12px;line-height:1.5;white-space:pre-wrap;word-break:break-word}
+    .statusline{padding:11px;border-radius:13px;background:rgba(58,196,220,.1);border:1px solid rgba(58,196,220,.28);font-size:12px;line-height:1.55;margin-top:10px}.statusline.bad{background:rgba(248,113,113,.1);border-color:rgba(248,113,113,.35)}
+    .summary{font-weight:900;margin-top:10px}.mono{font-family:Consolas,monospace;word-break:break-all}.tiny{font-size:11px;color:rgba(235,240,255,.52)}
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <div class="title">DS System Diagnostics</div>
+  <div class="sub">P0.1｜正式日報 / IQC ＋ Grinding WIP BETA 弱網自我診斷</div>
+
+  <section class="card">
+    <div class="grid">
+      <div><label>正式 Apps Script URL</label><input id="formalUrl" class="input" value="https://script.google.com/macros/s/AKfycbwYjPR-mHy_UCRAAsvU84-3T_MMQcfKHX9PSR8Da7E2gQq3xVEcK0Fnz0JvrHaIHpem/exec"></div>
+      <div><label>正式 Diagnostics Token</label><input id="formalToken" class="input" type="password" placeholder="setupDsSystemDiagnostics() 產生的 token"></div>
+      <div><label>Grinding BETA Apps Script URL</label><input id="betaUrl" class="input" value="https://script.google.com/macros/s/AKfycbw3Xg0ev3zoTO-WFfe7sTIUlr6wF4P-qAgZEZUF3uUhioT63bQYT-9QRgZqLU0IhB6G/exec"></div>
+      <div><label>Grinding Diagnostics Token</label><input id="betaToken" class="input" type="password" placeholder="setupBetaSystemDiagnostics() 產生的 token"></div>
+    </div>
+    <div class="actions">
+      <button class="btn" onclick="runFormalDiagnostics()">正式系統檢測</button>
+      <button class="btn alt" onclick="runBetaDiagnostics(false)">Grinding 檢測</button>
+      <button class="btn alt" onclick="runBetaDiagnostics(true)">Grinding 深度稽核</button>
+      <button class="btn warn" onclick="runAll()">全部執行</button>
+      <button class="btn" onclick="copyDiagnosticSummary()">複製測試摘要</button>
+    </div>
+    <div class="note">Token 只存在這個頁面的記憶體，不寫 localStorage。診斷交易不寫 Response / IQC_Log / WIP Current State。</div>
+  </section>
+
+  <section class="card">
+    <div class="name">弱網「後端已成功、HTTP 回應遺失」實測</div>
+    <div class="note">測試會讓後端先 commit 永久收據，再故意延遲 8 秒；瀏覽器 2.5 秒主動 timeout，接著以同一 submission_id 查收據，再重送同 ID 驗證不重複。</div>
+    <div class="actions">
+      <button class="btn" onclick="runWeakNetworkTest('formal')">測正式日報收據</button>
+      <button class="btn alt" onclick="runWeakNetworkTest('beta')">測 Grinding WIP 收據</button>
+    </div>
+    <div id="weakResult" class="result"></div>
+  </section>
+
+  <section class="card"><div class="name">正式日報 / IQC</div><div id="formalSummary" class="summary"></div><div id="formalResult" class="result"></div></section>
+  <section class="card"><div class="name">Grinding WIP BETA</div><div id="betaSummary" class="summary"></div><div id="betaResult" class="result"></div></section>
+</div>
+<script>
+  const $=id=>document.getElementById(id);
+  const diagState={formal:null,beta:null,weak:[]};
+  const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+  function cleanUrl(v){return String(v||'').trim().replace(/\/$/,'')}
+  function esc(v){return String(v==null?'':v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+  function textDetail(v){try{return typeof v==='string'?v:JSON.stringify(v,null,2)}catch(e){return String(v)}}
+  async function fetchJson(url,options={},timeoutMs=30000){
+    const controller=new AbortController();const timer=setTimeout(()=>controller.abort(),timeoutMs);
+    try{const res=await fetch(url,{...options,signal:controller.signal,cache:'no-store'});const text=await res.text();let data;try{data=JSON.parse(text)}catch(e){throw new Error('非 JSON 回應：'+text.slice(0,120))}if(!res.ok||!data||data.ok!==true)throw new Error(data&&data.message?data.message:'API 請求失敗');return data}
+    catch(e){if(e&&e.name==='AbortError'){const err=new Error('CLIENT_TIMEOUT');err.code='CLIENT_TIMEOUT';throw err}throw e}
+    finally{clearTimeout(timer)}
+  }
+  function renderDiagnostics(targetId,summaryId,data){
+    const target=$(targetId);const summary=$(summaryId);target.innerHTML='';
+    const s=data&&data.summary||{};summary.textContent=`${data&&data.ok?'✅':'⚠️'} PASS ${s.pass||0}｜WARN ${s.warn||0}｜FAIL ${s.fail||0}｜${data&&data.elapsedMs||0} ms`;
+    (data&&data.checks||[]).forEach(item=>{const el=document.createElement('div');el.className='check '+String(item.status||'').toLowerCase();el.innerHTML=`<div class="top"><div class="name">${esc(item.label)}</div><div class="badge">${esc(item.status)} · ${Number(item.elapsedMs||0)}ms</div></div><div class="detail">${esc(textDetail(item.detail))}</div>`;target.appendChild(el)})
+  }
+  async function runFormalDiagnostics(){
+    $('formalSummary').textContent='檢測中…';$('formalResult').innerHTML='';
+    try{const url=cleanUrl($('formalUrl').value);const token=$('formalToken').value.trim();const data=await fetchJson(`${url}?api=system_diagnostics&diag_token=${encodeURIComponent(token)}&nonce=${Date.now()}`);diagState.formal=data;renderDiagnostics('formalResult','formalSummary',data)}catch(e){$('formalSummary').textContent='❌ '+e.message}
+  }
+  async function runBetaDiagnostics(deep){
+    $('betaSummary').textContent='檢測中…';$('betaResult').innerHTML='';
+    try{const url=cleanUrl($('betaUrl').value);const token=$('betaToken').value.trim();const data=await fetchJson(`${url}?api=system_diagnostics&diag_token=${encodeURIComponent(token)}&deep=${deep?'1':'0'}&nonce=${Date.now()}`,{},deep?60000:30000);diagState.beta=data;renderDiagnostics('betaResult','betaSummary',data)}catch(e){$('betaSummary').textContent='❌ '+e.message}
+  }
+  async function runAll(){await runFormalDiagnostics();await runBetaDiagnostics(false)}
+  function weakLine(title,good,detail){diagState.weak.push({title,pass:!!good,detail:String(detail||'')});const el=document.createElement('div');el.className='check '+(good?'pass':'fail');el.innerHTML=`<div class="top"><div class="name">${esc(title)}</div><div class="badge">${good?'PASS':'FAIL'}</div></div><div class="detail">${esc(detail)}</div>`;$('weakResult').appendChild(el)}
+  function makeSubmissionId(){return 'DIAG_WEB_'+Date.now()+'_'+Math.random().toString(36).slice(2,10).toUpperCase()}
+  async function runWeakNetworkTest(kind){
+    $('weakResult').innerHTML='';diagState.weak=[];const formal=kind==='formal';const base=cleanUrl($(formal?'formalUrl':'betaUrl').value);const token=$(formal?'formalToken':'betaToken').value.trim();if(!base||!token){weakLine('設定',false,'請先填 URL 與 Diagnostics Token');return}
+    const submissionId=makeSubmissionId();const marker='P0_1_'+Date.now();let timedOut=false;let firstReceipt='';
+    weakLine('建立測試交易',true,submissionId);
+    try{
+      await fetchJson(`${base}?api=system_diag_tx&diag_token=${encodeURIComponent(token)}`,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({submission_id:submissionId,delay_ms:8000,marker})},2500);
+      weakLine('客戶端 timeout 模擬',false,'POST 在 2.5 秒內就回應，沒有成功製造 timeout；但仍繼續驗證收據。');
+    }catch(e){if(e.code==='CLIENT_TIMEOUT'||e.message==='CLIENT_TIMEOUT'){timedOut=true;weakLine('客戶端 timeout 模擬',true,'2.5 秒中止等待；後端應繼續執行並已先 commit。')}else{weakLine('首次 POST',false,e.message);return}}
+    let statusData=null;
+    for(let i=0;i<12;i++){
+      await sleep(1000);
+      try{statusData=await fetchJson(`${base}?api=system_diag_tx_status&diag_token=${encodeURIComponent(token)}&submission_id=${encodeURIComponent(submissionId)}&nonce=${Date.now()}`,{},8000)}catch(e){continue}
+      const status=formal?(statusData.status&&statusData.status.state):statusData.status;
+      if(status==='success'||status==='completed')break;
+    }
+    const state=formal?(statusData&&statusData.status&&statusData.status.state):(statusData&&statusData.status);
+    const receipt=formal?(statusData&&statusData.status&&statusData.status.receipt&&statusData.status.receipt.receiptId):(statusData&&statusData.receiptId);
+    firstReceipt=receipt||'';
+    const recovered=state==='success'||state==='completed';
+    weakLine('timeout 後查永久收據',recovered,recovered?`狀態 ${state}｜receipt ${firstReceipt||'-'}`:`最後狀態 ${state||'not_found'}`);
+    if(!recovered)return;
+    try{
+      const second=await fetchJson(`${base}?api=system_diag_tx&diag_token=${encodeURIComponent(token)}`,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({submission_id:submissionId,delay_ms:0,marker})},10000);
+      const secondReceipt=formal?(second.receipt&&second.receipt.receiptId):second.receipt_id;
+      const duplicate=second.duplicate===true;
+      const sameReceipt=!firstReceipt||!secondReceipt||firstReceipt===secondReceipt;
+      weakLine('同 submission_id 安全重送',duplicate&&sameReceipt,`duplicate=${duplicate}｜receipt=${secondReceipt||'-'}｜原 receipt=${firstReceipt||'-'}`);
+      weakLine('弱網 P0.1 結論',timedOut&&recovered&&duplicate&&sameReceipt,'後端先 commit → 客戶端 timeout → 查到原收據 → 同 ID 重送不重複。');
+    }catch(e){weakLine('同 submission_id 重送',false,e.message)}
+  }
+
+  async function copyDiagnosticSummary(){
+    const payload={
+      copiedAt:new Date().toISOString(),
+      formal:diagState.formal?{ok:diagState.formal.ok,summary:diagState.formal.summary,checks:(diagState.formal.checks||[]).map(x=>({id:x.id,label:x.label,status:x.status,elapsedMs:x.elapsedMs,detail:x.detail}))}:null,
+      beta:diagState.beta?{ok:diagState.beta.ok,buildVersion:diagState.beta.buildVersion,summary:diagState.beta.summary,checks:(diagState.beta.checks||[]).map(x=>({id:x.id,label:x.label,status:x.status,elapsedMs:x.elapsedMs,detail:x.detail}))}:null,
+      weak:diagState.weak
+    };
+    const text=JSON.stringify(payload,null,2);
+    try{await navigator.clipboard.writeText(text);alert('已複製測試摘要，可直接貼回聊天。Token 不會包含在摘要內。')}catch(e){prompt('請複製以下測試摘要：',text)}
+  }
+</script>
+</body>
+</html>
