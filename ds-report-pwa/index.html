@@ -2636,12 +2636,12 @@ user-scalable=no">
   ">
     <div class="loading-text">送出中...</div>
   </div>
-<script src="./api.js?v=DS_WEAK_NETWORK_P0_V2_1_5_20260813"></script>
+<script src="./api.js?v=DS_WEAK_NETWORK_P0_3_V2_1_6_20260816"></script>
 <script>
   // 2026-07-19：IQC 散支改用右下快捷新增／選擇刪除；側滑卡片依目前框別動態調整高度並自動定位。
   // 2026-08-10：IQC 集束新增「集束狀態」，與集束框架編號一併寫入 IQC_Log，供正式 Grinding／後續庫存追蹤。
   // v2.1.3：散支「鋼瓶狀態」與集束「集束狀態」前端輸入、草稿、批次套用與送出一律強制大寫。
-  // v2.1.5 P0：弱網 Last-Known-Good、Outbox、submission_id 收據確認、同 ID 安全續傳。
+  // v2.1.6 P0.3：修正 PWA 強制關閉時的送出 checkpoint、啟動恢復與 IQC 區域草稿保護。
   // 2026-06-29 正式版：保留既有 Response 欄位；新增「下一步指定結案」僅寫入 Project_Event_Log。
   const STORAGE_KEY = "ds_report_draft_v2";
   const VISIBLE_ERROR_ATTR = "data-has-visible-error";
@@ -2842,8 +2842,9 @@ user-scalable=no">
   async function loadIqcRegions(){
     const requestSeq = ++iqcRegionRequestSeq;
 
-    // 重新渲染前先把目前畫面值收回 formData，避免主檔載入完成時覆蓋使用者資料。
-    if(document.getElementById("iqcCardsContainer")){
+    // 只有「區域主檔已經存在於記憶體」時才從 UI 回收卡片。
+    // PWA 冷啟動時 select 尚未有區域 options；此時若 collect，會把草稿中的 regionCode 誤洗成空白。
+    if(document.getElementById("iqcCardsContainer") && iqcRegionsLoaded && iqcRegionOptions.length){
       collectIqcCardsFromUI();
     }
 
@@ -4793,6 +4794,23 @@ function bindFramePairTableEvents(){
     removeLocalJson(DS_DAILY_OUTBOX_KEY);
   }
 
+  // P0.3：真正開始「送出流程」時，第一個同步動作就是建立 submission_id + Outbox。
+  // 必須早於任何後端預檢，否則使用者在預檢進行中強制關閉 PWA，重開後將沒有交易可恢復。
+  function prepareDailySubmissionCheckpoint(payload){
+    if(!payload || typeof payload !== "object") return "";
+    const submissionId = String(formData.daily_submission_id || payload._submission_id || "").trim() || generateDailySubmissionId();
+    formData.daily_submission_id = submissionId;
+    payload._submission_id = submissionId;
+    persistDraft();
+    saveDailyOutbox(payload);
+    return submissionId;
+  }
+
+  function discardPreparedDailySubmissionCheckpoint(){
+    clearDailyOutbox();
+    resetDailySubmissionIdForRetry();
+  }
+
   function resetDailySubmissionIdForRetry(){
     formData.daily_submission_id = "";
     persistDraft();
@@ -4871,15 +4889,29 @@ function bindFramePairTableEvents(){
   }
 
   async function recoverDailyOutboxOnStartup(){
-    if(dailyOutboxRecoveryRunning) return;
+    if(dailyOutboxRecoveryRunning) return "running";
     const outbox = getDailyOutbox();
-    if(!outbox) return;
+    if(!outbox) return "none";
+
     dailyOutboxRecoveryRunning = true;
+    showLoadingMessage(
+      '🔄 偵測到上次未完成的送出交易，正在確認後台收據...<br>' +
+      '<span style="font-size:14px;color:rgba(255,255,255,.78);">請勿重新送出；系統會沿用原 submission_id。</span>'
+    );
+
     try{
-      const terminal = await queryDailySubmissionTerminalState(outbox.submissionId, 2);
+      if(typeof navigator !== "undefined" && navigator.onLine === false){
+        showLoadingMessage(
+          '📴 上次送出仍待確認<br>' +
+          '<span style="font-size:14px;color:rgba(255,255,255,.78);">原 submission_id 與 payload 已保留；網路恢復後會自動確認。</span>'
+        );
+        return "pending";
+      }
+
+      const terminal = await queryDailySubmissionTerminalState(outbox.submissionId, 1);
       if(terminal.state === "success"){
-        showRecoveredDailySuccess(terminal.status, "已確認上次弱網送出的資料其實已成功寫入。" );
-        return;
+        showRecoveredDailySuccess(terminal.status, "已確認上次關閉 APP 前的資料其實已成功寫入。" );
+        return "success";
       }
       if(terminal.state === "failed"){
         clearDailyOutbox();
@@ -4887,18 +4919,30 @@ function bindFramePairTableEvents(){
         showDraftBanner(`上次送出已由後端確認失敗：${escapeHtml(terminal.status && terminal.status.message || "未知錯誤")}。草稿已保留，修正後可重新送出。`, {
           autoHide:false
         });
-        return;
+        hideLoadingMessage();
+        return "failed";
       }
+
       if(typeof navigator === "undefined" || navigator.onLine !== false){
         const recovered = await recoverDailySubmissionAfterAmbiguousError(outbox.payload, null);
         if(recovered.state === "success"){
-          showRecoveredDailySuccess(recovered.result || recovered.status, "已安全續傳並確認成功。" );
-        }else if(recovered.state === "failed"){
+          showRecoveredDailySuccess(recovered.result || recovered.status, "已從上次關閉 APP 的 Outbox 安全續傳並確認成功。" );
+          return "success";
+        }
+        if(recovered.state === "failed"){
           clearDailyOutbox();
           resetDailySubmissionIdForRetry();
           showDraftBanner(`上次送出已確認失敗：${escapeHtml(recovered.error && recovered.error.message || recovered.status && recovered.status.message || "未知錯誤")}。草稿仍保留。`, { autoHide:false });
+          hideLoadingMessage();
+          return "failed";
         }
       }
+
+      showLoadingMessage(
+        '📶 上次交易仍待確認<br>' +
+        '<span style="font-size:14px;color:rgba(255,255,255,.78);">Outbox 與 submission_id 已保留；網路恢復後會再次自動確認。</span>'
+      );
+      return "pending";
     }finally{
       dailyOutboxRecoveryRunning = false;
     }
@@ -5195,8 +5239,16 @@ function bindFramePairTableEvents(){
         return;
       }
 
+      // P0.3：payload 一完成就先建立可恢復 checkpoint，再做任何後端預檢。
+      // 這樣就算使用者在預檢尚未回來前直接殺掉 PWA，重開仍能找到原交易並安全續傳。
+      const dailySubmissionId = prepareDailySubmissionCheckpoint(payload);
+      if(!dailySubmissionId){
+        throw new Error("無法建立送出 checkpoint");
+      }
+
       if(formData.site === "自動噴砂站"){
         if(!validateSandblastFramePairs(true)){
+          discardPreparedDailySubmissionCheckpoint();
           sending = false;
           hideLoadingMessage();
           backToSite();
@@ -5217,6 +5269,7 @@ function bindFramePairTableEvents(){
             ? serverCheck.duplicateDetails.slice(0,3).map(item => `${item.ctn}（${item.date || "既有資料"}）`).join("、")
             : serverCheck.duplicates.slice(0,3).join("、");
           showScanError("sb_frame_scan", `後端已有重複CTN：${duplicateText}${serverCheck.duplicates.length > 3 ? "..." : ""}`);
+          discardPreparedDailySubmissionCheckpoint();
           sending = false;
           hideLoadingMessage();
           backToSite();
@@ -5246,6 +5299,7 @@ function bindFramePairTableEvents(){
             `同一次送出只能使用一張卡片，請把該框的鋼瓶 CTN＋RT 集中填在同一張卡片內。`
           );
 
+          discardPreparedDailySubmissionCheckpoint();
           sending = false;
           hideLoadingMessage();
           backToSite();
@@ -5262,6 +5316,7 @@ function bindFramePairTableEvents(){
             `運輸框架 ${firstCapacity.frameCtn} 容量超限：目前 ${firstCapacity.currentCount} 支，` +
             `本次新增 ${firstCapacity.incomingCount} 支，預計 ${firstCapacity.projectedCount} 支；每框最多 18 支。`
           );
+          discardPreparedDailySubmissionCheckpoint();
           sending = false;
           hideLoadingMessage();
           backToSite();
@@ -5284,6 +5339,7 @@ function bindFramePairTableEvents(){
             `IQC CTN 已存在：${duplicateText}${serverCheck.duplicates.length > 3 ? "..." : ""} 已將重複的 CTN 欄位標紅。`
           );
 
+          discardPreparedDailySubmissionCheckpoint();
           sending = false;
           hideLoadingMessage();
           backToSite();
@@ -5292,14 +5348,7 @@ function bindFramePairTableEvents(){
         }
       }
 
-      const dailySubmissionId = formData.daily_submission_id || generateDailySubmissionId();
-      formData.daily_submission_id = dailySubmissionId;
-      // 在網路請求前先存草稿。即使網路中斷但後端已寫入，重送仍會帶同一個 ID，避免重複寫入。
-      persistDraft();
-
-      payload["_submission_id"] = dailySubmissionId;
-      // 與草稿分離的 Outbox：即使頁面關閉，仍能用同一 submission_id 查收據或安全續傳。
-      saveDailyOutbox(payload);
+      // submission_id / Outbox 已於所有後端預檢之前建立。
 
       showLoadingMessage('送出中...<br><span style="font-size:14px;color:rgba(255,255,255,.72);">資料已送出，正在等待伺服器處理，請勿關閉頁面。</span>');
       await waitForPaint();
@@ -5974,7 +6023,17 @@ function bindFramePairTableEvents(){
         bundleStatus:normalizeIqcStatusText(bundleStatusEl ? bundleStatusEl.value : ""),
         transportFrameCtn:normalizeCTN(transportFrameCtnEl ? transportFrameCtnEl.value : ""),
         loosePairs:loosePairs.length ? loosePairs : normalizeIqcPairs(formData.iqc_cards[i] && formData.iqc_cards[i].loosePairs),
-        regionCode:String(regionEl ? regionEl.value : (formData.iqc_cards[i] && formData.iqc_cards[i].regionCode) || "").trim().toUpperCase()
+        // 冷啟動／弱網時區域 select 可能尚未載入 options。
+        // 這時 DOM value 會暫時是空白，但不得把已存在草稿中的 regionCode 洗掉。
+        regionCode:(()=>{
+          const previous = String(formData.iqc_cards[i] && formData.iqc_cards[i].regionCode || "").trim().toUpperCase();
+          const current = String(regionEl ? regionEl.value : "").trim().toUpperCase();
+          if(current) return current;
+          if(previous && (!iqcRegionsLoaded || !iqcRegionOptions.length || (regionEl && regionEl.disabled))){
+            return previous;
+          }
+          return current;
+        })()
       });
     }
 
@@ -7383,6 +7442,14 @@ function bindFramePairTableEvents(){
     bindIqcEvents();
     loadPerson();
     loadDraft();
+
+    // P0.3：先處理前一次未完成交易，再載入會重新渲染表單的主檔。
+    // Outbox 內容本身已保存完整 payload，不依賴目前畫面的 select/options。
+    const startupRecoveryState = await recoverDailyOutboxOnStartup();
+    if(startupRecoveryState === "success"){
+      return;
+    }
+
     const startupTasks = [
       loadProjectOptions(),
       loadIqcRegions()
@@ -7390,7 +7457,6 @@ function bindFramePairTableEvents(){
     if(String(formData.site || "").trim() === "IQC"){
       startupTasks.push(loadIqcRtMaster(true));
     }
-    startupTasks.push(recoverDailyOutboxOnStartup());
     await Promise.all(startupTasks);
 
     const projectSelect = document.getElementById("project_item");
