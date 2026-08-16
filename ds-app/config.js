@@ -5,7 +5,7 @@
 
     // 沿用現有 IQC 異常處理台登入／session，不另建帳號密碼系統。
     AUTH_API_URL: "https://script.google.com/macros/s/AKfycbzgOpdC9aStQBaqMjR9MORMFcmWi-DTbP3f_RLtb5lq_U48e1kv_7vu9z_9IHtJqQDs/exec",
-    AUTH_CLIENT_VERSION: "IQC_CORRECTION_V0_9_20260809",
+    AUTH_CLIENT_VERSION: "IQC_CORRECTION_V0_9_7_20260810",
     AUTH_TOKEN_KEY: "ds_iqcc_session_v2",
 
     // 部署 DsPortalBackend.gs 後，把固定 /exec URL 貼在這裡。
