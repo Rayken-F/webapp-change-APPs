@@ -166,9 +166,21 @@
       .modal-actions.three{gap:7px}.modal-actions.three .btn{padding:9px 7px;font-size:12px;min-width:0}
       #historyTimeline{max-height:none!important}
     }
+  
+    /* 2026-08-16｜Phase 1 same-origin embedded mode */
+    body.embedded-mode{padding:8px 6px 112px;background:transparent;background-attachment:scroll}
+    body.embedded-mode .wrap{max-width:none}
+    body.embedded-mode .title,
+    body.embedded-mode .subtitle,
+    body.embedded-mode .banner,
+    body.embedded-mode #operationInfoCard{display:none!important}
+    body.embedded-mode .card{box-shadow:none;background:linear-gradient(180deg,rgba(56,79,173,.25),rgba(32,42,114,.22))}
+    body.embedded-mode .sticky-actions{width:calc(100% - 12px);bottom:calc(6px + env(safe-area-inset-bottom))}
+
   </style>
 </head>
 <!-- Grinding Recovery UX copy patch 2026-08-16; client version unchanged -->
+<!-- Phase 1 embedded host support 2026-08-16; API/client version lock unchanged -->
 <body>
   <main class="wrap">
     <h1 class="title">Grinding WIP</h1>
@@ -178,7 +190,7 @@
       v2.0.5 修正入站明細取消勾選後清單收合、辨識狀態卡住與來源批次上限提示；操作日期每次開啟自動更新為當天，所有寫入只進 BETA 隔離表。
     </section>
 
-    <section class="card">
+    <section id="operationInfoCard" class="card">
       <div class="row between">
         <div class="section-title">操作資訊</div>
         <span id="apiPill" class="api-pill">API 檢查中</span>
@@ -701,10 +713,26 @@
     });
 
     function init(){
+      const hostParams=new URLSearchParams(window.location.search);
+      const embeddedMode=hostParams.get("embedded")==="1";
+      if(embeddedMode){
+        document.body.classList.add("embedded-mode");
+        document.documentElement.classList.add("embedded-mode");
+      }
+
       loadState();
-      state.reportDate=localYmd();
+
+      const hostDate=String(hostParams.get("date")||"").trim();
+      const hostOperator=String(hostParams.get("operator")||"").trim();
+      state.reportDate=/^\d{4}-\d{2}-\d{2}$/.test(hostDate)?hostDate:localYmd();
+      if(hostOperator) state.operator=hostOperator;
+
       document.getElementById("reportDate").value=state.reportDate;
       document.getElementById("operatorName").value=state.operator;
+      if(embeddedMode){
+        document.getElementById("reportDate").disabled=true;
+        document.getElementById("operatorName").readOnly=true;
+      }
       updateDateDisplay();
 
       document.getElementById("reportDate").addEventListener("change",()=>{
