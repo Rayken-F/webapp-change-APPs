@@ -111,8 +111,16 @@ function syncBottomNavHeight(){
   const h=Math.max(1,Math.ceil(nav.getBoundingClientRect().height));
   document.documentElement.style.setProperty("--ds-nav-real-h",`${h}px`);
 }
-function installBottomNavHeightObserver(){
+function syncShellViewport(){
+  // iOS standalone PWA 在 iframe module 切換時，layout viewport 與 visual viewport
+  // 偶爾不同步；直接以目前可視高度作為 App Shell 的實際高度。
+  const vv=window.visualViewport;
+  const h=Math.max(1,Math.round(vv?.height||window.innerHeight||document.documentElement.clientHeight||1));
+  document.documentElement.style.setProperty("--ds-shell-vh",`${h}px`);
   syncBottomNavHeight();
+}
+function installBottomNavHeightObserver(){
+  syncShellViewport();
   if(typeof ResizeObserver!=="undefined"){
     const nav=document.querySelector(".bottom-nav");
     if(nav){
@@ -121,8 +129,11 @@ function installBottomNavHeightObserver(){
       window.__dsBottomNavRO=ro;
     }
   }
-  addEventListener("resize",syncBottomNavHeight,{passive:true});
-  addEventListener("orientationchange",()=>setTimeout(syncBottomNavHeight,80),{passive:true});
+  addEventListener("resize",syncShellViewport,{passive:true});
+  addEventListener("orientationchange",()=>setTimeout(syncShellViewport,80),{passive:true});
+  if(window.visualViewport){
+    window.visualViewport.addEventListener("resize",syncShellViewport,{passive:true});
+  }
 }
 function ensureModuleFrame(key,url,title){
   const host=$("moduleFrameHost");
@@ -173,17 +184,18 @@ function openModule(key,url,title,navKey){
   $("moreModule").classList.add("hidden");
   $("moduleModule").classList.remove("hidden");
   $("moduleFrameHost").querySelectorAll(".module-frame").forEach(f=>f.classList.toggle("hidden",f!==frame));
-  syncBottomNavHeight();
+  syncShellViewport();
   $("appShell").classList.add("module-mode");
   document.body.classList.add("ds-module-active");
   // iOS PWA 在切換 iframe 時偶爾會延後重算 safe-area；下一個 frame 再校正一次。
-  requestAnimationFrame(syncBottomNavHeight);
+  requestAnimationFrame(syncShellViewport);
   setActiveNav(navKey||key);
 }
 function leaveModuleMode(){
   $("moduleModule").classList.add("hidden");
   $("appShell").classList.remove("module-mode");
   document.body.classList.remove("ds-module-active");
+  requestAnimationFrame(syncShellViewport);
 }
 function permission(key){return !!state.profile?.permissions?.[key]}
 function setNavPermission(id,enabled){
