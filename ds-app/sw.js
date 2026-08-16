@@ -1,5 +1,5 @@
 "use strict";
-const CACHE="ds-app-shell-v1-3-20260816";
+const CACHE="ds-app-shell-v1-4-20260816";
 const STATIC=[
   "./",
   "./index.html",
