@@ -1,10 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
- <!-- DS Workstation Portal Gate：放在各內部系統 index.html 的 <head>，主要 JS 之前 -->
-<script src="../ds-app/config.js"></script>
-<script src="../ds-app/portal-gate.js"></script>
-<title>鼎世日報系統</title>
+ <title>鼎世日報系統</title>
 <link rel="icon" href="./favicon.ico">
 <link rel="apple-touch-icon" href="./icons/icon-192.png">
 <link rel="manifest" href="./manifest.json">
@@ -2089,22 +2086,7 @@ user-scalable=no">
   }
 
 
-    /* 2026-08-16｜自動噴砂 × Grinding WIP Phase 1 前端整併 */
-    .sandblast-phase1-shell{margin-bottom:18px}
-    .sandblast-phase1-head{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;margin-bottom:12px}
-    .sandblast-phase1-kicker{font-size:13px;font-weight:900;color:rgba(230,237,255,.72);letter-spacing:.4px}
-    .sandblast-phase1-title{margin:5px 0 4px;font-size:clamp(25px,6vw,36px);line-height:1.1}
-    .sandblast-phase1-sub{color:rgba(235,241,255,.76);font-size:14px;line-height:1.6}
-    .sandblast-phase1-badge{flex:0 0 auto;padding:6px 10px;border-radius:999px;background:rgba(88,214,141,.13);border:1px solid rgba(88,214,141,.42);color:#caffdc;font-size:11px;font-weight:900;letter-spacing:.6px}
-    .sandblast-phase1-note{margin:0 0 12px;padding:11px 13px;border-radius:14px;background:rgba(67,198,232,.08);border:1px solid rgba(67,198,232,.24);color:rgba(235,247,255,.83);font-size:12px;line-height:1.6}
-    .grinding-embed-toolbar{display:flex;justify-content:flex-end;gap:8px;margin-bottom:9px;flex-wrap:wrap}
-    .grinding-embed-btn{min-height:38px;padding:8px 11px;border-radius:12px;border:1px solid rgba(255,255,255,.15);background:rgba(119,103,255,.25);color:#fff;font-size:12px;font-weight:900}
-    .grinding-embed-btn.secondary{background:rgba(67,198,232,.12);border-color:rgba(67,198,232,.28)}
-    .grinding-embed-shell{position:relative;overflow:hidden;border-radius:20px;border:1px solid rgba(215,225,255,.22);background:rgba(7,17,43,.34);box-shadow:0 18px 42px rgba(4,10,48,.24)}
-    .grinding-wip-frame{display:block;width:100%;height:78dvh;min-height:620px;max-height:920px;border:0;background:transparent}
-    .grinding-embed-loading{position:absolute;inset:0;z-index:1;display:flex;align-items:center;justify-content:center;padding:20px;background:linear-gradient(180deg,rgba(17,29,80,.96),rgba(29,16,94,.96));color:rgba(240,244,255,.88);font-weight:900;text-align:center;pointer-events:none;transition:opacity .2s}
-    .grinding-embed-loading.hidden{opacity:0;visibility:hidden}
-    .sandblast-main-back-row{margin-top:12px}
+    /* 2026-08-16｜短期 Phase 1.1：DS App Shell + 自動噴砂無內嵌捲動 */
     .legacy-sandblast-backup{margin-top:18px;border:1px solid rgba(255,202,100,.3);border-radius:18px;background:rgba(255,202,100,.055);overflow:hidden}
     .legacy-sandblast-backup>summary{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:15px 16px;cursor:pointer;list-style:none;color:#fff4c9;font-weight:900}
     .legacy-sandblast-backup>summary::-webkit-details-marker{display:none}
@@ -2112,8 +2094,20 @@ user-scalable=no">
     .legacy-sandblast-backup[open]>summary{border-bottom:1px solid rgba(255,202,100,.18)}
     .legacy-sandblast-body{padding:14px 0 2px}
     .legacy-sandblast-warning{margin:0 0 14px;padding:10px 12px;border-radius:13px;background:rgba(255,202,100,.09);border:1px solid rgba(255,202,100,.24);color:#fff0bd;font-size:12px;line-height:1.55}
+    .legacy-sandblast-entry{margin-top:12px;padding:10px 12px;border-radius:14px;background:rgba(255,202,100,.06);border:1px solid rgba(255,202,100,.18)}
+    .legacy-sandblast-entry summary{cursor:pointer;color:#ffe9aa;font-weight:900}
+    .legacy-sandblast-entry button{margin-top:10px;width:100%}
+
+    .ds-app-nav-spacer{height:92px}
+    .ds-app-nav{position:fixed;left:50%;bottom:0;transform:translateX(-50%);z-index:12000;width:min(760px,100%);padding:8px 10px calc(8px + env(safe-area-inset-bottom));background:linear-gradient(180deg,rgba(12,20,61,.88),rgba(10,15,48,.98));border-top:1px solid rgba(255,255,255,.16);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);box-shadow:0 -14px 36px rgba(5,9,38,.34)}
+    .ds-app-nav-inner{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+    .ds-app-nav-btn{min-width:0;min-height:58px;border-radius:16px;background:transparent;color:rgba(238,243,255,.66);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;font-size:11px;font-weight:900;text-decoration:none;border:1px solid transparent}
+    .ds-app-nav-btn .ico{font-size:21px;line-height:1}
+    .ds-app-nav-btn.active{color:#fff;background:linear-gradient(180deg,rgba(119,103,255,.32),rgba(67,198,232,.13));border-color:rgba(139,198,255,.32)}
+    .ds-app-nav-btn:active{transform:translateY(1px)}
     @media(max-width:620px){
-      .sandblast-phase1-head{gap:8px}.sandblast-phase1-badge{padding:5px 8px}.grinding-wip-frame{height:76dvh;min-height:590px}.legacy-sandblast-backup>summary{align-items:flex-start;flex-direction:column}.legacy-sandblast-backup>summary small{text-align:left}
+      .legacy-sandblast-backup>summary{align-items:flex-start;flex-direction:column}.legacy-sandblast-backup>summary small{text-align:left}
+      .ds-app-nav{width:100%}.ds-app-nav-btn{min-height:56px;font-size:10px}.ds-app-nav-btn .ico{font-size:20px}
     }
 
   </style>
@@ -2166,7 +2160,7 @@ user-scalable=no">
       <div id="card-site" class="form-card">
         <div class="form-title">🏭 站別 <span class="required">*</span></div>
         <div class="radio-group">
-          <label><input type="radio" name="site" value="自動噴砂站">⚙️ 自動噴砂站</label>
+          <label><input type="radio" name="site" value="自動噴砂站">⚙️ 自動噴砂站（舊版日報）</label>
           <label><input type="radio" name="site" value="UT站">🔍 UT站</label>
           <label><input type="radio" name="site" value="鋼印鎖瓶站">🔩 鋼印鎖瓶站</label>
           <label><input type="radio" name="site" value="集束中心">📦 集束中心</label>
@@ -2175,6 +2169,12 @@ user-scalable=no">
         </div>
         <div id="error-site" class="error-text"></div>
       </div>
+
+      <details class="legacy-sandblast-entry">
+        <summary>🧯 舊版自動噴砂回報｜緊急備援</summary>
+        <div class="scan-tip" style="margin-top:8px;">Grinding WIP 已移至 DS 工作站「製程」。本日報站別只保留舊版 Response 回報作緊急備援。</div>
+        <button type="button" class="btn-danger" onclick="enterLegacySandblastBackup()">開啟舊版自動噴砂日報</button>
+      </details>
 
       <div class="form-card">
         <div class="form-title">👥 人員姓名</div>
@@ -2205,41 +2205,14 @@ user-scalable=no">
 
     
     <div id="pageSandblast" class="page">
-      <section class="sandblast-phase1-shell">
-        <div class="sandblast-phase1-head">
-          <div>
-            <div class="sandblast-phase1-kicker">⚙️ 自動噴砂站｜新版主流程</div>
-            <h2 class="sandblast-phase1-title">Grinding WIP</h2>
-            <div class="sandblast-phase1-sub">研磨入站、在製追蹤、待噴砂入框、DCYL、轉 HT 與送噴砂，統一在原「自動噴砂站」內操作。</div>
-          </div>
-          <span class="sandblast-phase1-badge">PHASE 1</span>
-        </div>
-
-        <div class="sandblast-phase1-note">
-          目前 Phase 1 僅整併操作入口；Grinding 仍沿用已驗收的 WIP BETA 資料層。舊版自動噴砂回報完整保留於下方緊急備援，不會刪除既有 Response 流程。
-        </div>
-
-        <div class="grinding-embed-toolbar">
-          <button type="button" class="grinding-embed-btn" onclick="reloadGrindingWipEmbed()">重新載入 WIP</button>
-          <button type="button" class="grinding-embed-btn secondary" onclick="openGrindingWipStandalone()">獨立開啟</button>
-        </div>
-
-        <div class="grinding-embed-shell">
-          <div id="grindingEmbedLoading" class="grinding-embed-loading">正在載入 Grinding WIP…</div>
-          <iframe id="grindingWipFrame" class="grinding-wip-frame" title="Grinding WIP" loading="eager" referrerpolicy="same-origin" src="about:blank"></iframe>
-        </div>
-
-        <div class="btn-row sandblast-main-back-row">
-          <button type="button" onclick="prevPage('page1')">返回站別</button>
+      <section class="legacy-sandblast-backup" style="margin-top:0;padding:14px;">
+        <div class="legacy-sandblast-warning">
+          🧯 <strong>舊版自動噴砂回報｜緊急備援</strong><br>
+          正常作業已改由「製程」頁面的 Grinding WIP 管理。此頁完整保留原 Response 日報流程，僅在新版製程異常時使用。
         </div>
       </section>
 
-      <details id="legacySandblastBackup" class="legacy-sandblast-backup">
-        <summary>
-          <span>🧯 舊版自動噴砂回報｜緊急備援</span>
-          <small>預設收合；新版異常時再展開</small>
-        </summary>
-        <div class="legacy-sandblast-body">
+      <div id="legacySandblastBackup" class="legacy-sandblast-body">
           <div class="legacy-sandblast-warning">此區仍使用原本日報預覽／送出流程並寫入 Response。正常作業請優先使用上方 Grinding WIP。</div>
       <div class="form-card">
         <div class="form-title">前置完全（框）</div>
@@ -2302,7 +2275,7 @@ user-scalable=no">
         <button type="button" onclick="handlePreviewNavigation()">預覽</button>
       </div>
         </div>
-      </details>
+      </div>
     </div>
     <div id="pageUT" class="page">
       <div class="form-card">
@@ -2704,7 +2677,7 @@ user-scalable=no">
   ">
     <div class="loading-text">送出中...</div>
   </div>
-<script src="./api.js?v=DS_SANDBLAST_GRINDING_PHASE1_V2_2_0_20260816"></script>
+<script src="./api.js?v=DS_SHORT_TERM_PHASE1_1_APP_SHELL_20260816"></script>
 <script>
   // 2026-07-19：IQC 散支改用右下快捷新增／選擇刪除；側滑卡片依目前框別動態調整高度並自動定位。
   // 2026-08-10：IQC 集束新增「集束狀態」，與集束框架編號一併寫入 IQC_Log，供正式 Grinding／後續庫存追蹤。
@@ -3395,44 +3368,36 @@ user-scalable=no">
   }
 
 
-  // 2026-08-16｜Phase 1：Grinding WIP 併入原「自動噴砂站」。
-  // 此階段只整併前端入口；Grinding 仍使用已驗收 BETA API／WIP 核心表。
-  const GRINDING_PHASE1_EMBED_BASE = "../ds-report-pwa-beta/";
-  let grindingEmbedUrlKey = "";
+  // 2026-08-16｜短期 Phase 1.1：自動噴砂改為同網域製程模組，取消 iframe / 內層捲動。
+  const DS_GRINDING_MODULE_URL = "../ds-report-pwa-beta/";
+  const DS_DASHBOARD_URL = "https://script.google.com/macros/s/AKfycbwYjPR-mHy_UCRAAsvU84-3T_MMQcfKHX9PSR8Da7E2gQq3xVEcK0Fnz0JvrHaIHpem/exec";
+  const DS_IQC_EXCEPTION_URL = "../DS-IQC-WIP/";
 
-  function buildGrindingWipUrl_(embedded){
-    const url = new URL(GRINDING_PHASE1_EMBED_BASE, window.location.href);
-    url.searchParams.set("embedded", embedded ? "1" : "0");
+  function buildGrindingModuleUrl_(){
+    const url = new URL(DS_GRINDING_MODULE_URL, window.location.href);
     url.searchParams.set("date", String(formData.date || document.getElementById("date")?.value || ""));
     url.searchParams.set("operator", String(formData.person || document.getElementById("person")?.value || ""));
-    url.searchParams.set("host", "auto_sandblast");
-    url.searchParams.set("phase", "PHASE1_20260816");
+    url.searchParams.set("host", "ds_app_shell");
     return url;
   }
 
-  function initGrindingWipEmbed(forceReload){
-    const frame = document.getElementById("grindingWipFrame");
-    const loading = document.getElementById("grindingEmbedLoading");
-    if(!frame) return;
-    const url = buildGrindingWipUrl_(true);
-    const nextKey = url.toString();
-    if(!forceReload && grindingEmbedUrlKey === nextKey && frame.src && frame.src !== "about:blank") return;
-    grindingEmbedUrlKey = nextKey;
-    if(loading) loading.classList.remove("hidden");
-    frame.onload = function(){
-      if(loading) loading.classList.add("hidden");
-    };
-    frame.src = nextKey;
+  function goGrindingModule(){
+    saveData();
+    persistDraft();
+    window.location.href = buildGrindingModuleUrl_().toString();
   }
 
-  function reloadGrindingWipEmbed(){
-    initGrindingWipEmbed(true);
+  function enterLegacySandblastBackup(){
+    saveData();
+    formData.site = "自動噴砂站";
+    const radio = document.querySelector('input[name="site"][value="自動噴砂站"]');
+    if(radio) radio.checked = true;
+    persistDraft();
+    nextPage("pageSandblast");
   }
 
-  function openGrindingWipStandalone(){
-    const url = buildGrindingWipUrl_(false);
-    window.open(url.toString(), "_blank", "noopener");
-  }
+  function goDsDashboard(){ window.location.href = DS_DASHBOARD_URL; }
+  function goDsIqcException(){ window.location.href = new URL(DS_IQC_EXCEPTION_URL, window.location.href).toString(); }
 
   function nextPage(pageId){
     saveData();
@@ -3444,10 +3409,6 @@ user-scalable=no">
 
     current.classList.remove("active");
     next.classList.add("active");
-
-    if(pageId === "pageSandblast"){
-      initGrindingWipEmbed(false);
-    }
 
     if(pageId === "page7"){
       renderConfirm();
@@ -5598,6 +5559,8 @@ function bindFramePairTableEvents(){
     let targetPage = "page1";
 
     if(siteValue === "自動噴砂站"){
+      // DS 工作站 v1.2：Grinding 已正式視為獨立「製程」模組。
+      // 日報中的自動噴砂只保留既有 Response 備援，不再跳轉／嵌入 Grinding。
       targetPage = "pageSandblast";
     }
     else if(siteValue === "UT站"){
@@ -7577,6 +7540,22 @@ function bindFramePairTableEvents(){
       preserveTarget:true,
       loadTargets:true
     });
+
+    const startupParams = new URLSearchParams(window.location.search);
+    if(startupParams.get("legacy_sandblast") === "1"){
+      const qDate = String(startupParams.get("date") || "").trim();
+      const qOperator = String(startupParams.get("operator") || "").trim();
+      if(/^\d{4}-\d{2}-\d{2}$/.test(qDate)){
+        document.getElementById("date").value = qDate;
+        formData.date = qDate;
+      }
+      if(qOperator){
+        const personInput = document.getElementById("person");
+        if(personInput && Array.from(personInput.options).some(o=>o.value===qOperator)) personInput.value = qOperator;
+        formData.person = qOperator;
+      }
+      enterLegacySandblastBackup();
+    }
   };
 
   if(!window.__dsWeakNetworkOnlineBound){
@@ -8076,5 +8055,15 @@ function toUpperSafe(value){
   return String(value || "").toUpperCase();
 }
 </script>
+  <div class="ds-app-nav-spacer" aria-hidden="true"></div>
+  <nav class="ds-app-nav" aria-label="DS 主功能">
+    <div class="ds-app-nav-inner">
+      <button type="button" class="ds-app-nav-btn active" onclick="window.scrollTo({top:0,behavior:'smooth'})"><span class="ico">📝</span><span>日報</span></button>
+      <button type="button" class="ds-app-nav-btn" onclick="goGrindingModule()"><span class="ico">⚙️</span><span>製程</span></button>
+      <button type="button" class="ds-app-nav-btn" onclick="goDsDashboard()"><span class="ico">📊</span><span>戰情</span></button>
+      <button type="button" class="ds-app-nav-btn" onclick="goDsIqcException()"><span class="ico">🧰</span><span>異常</span></button>
+    </div>
+  </nav>
+
 </body>
 </html>
