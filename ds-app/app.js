@@ -75,6 +75,51 @@ function openExternal(url,label){
   }
   location.href=url;
 }
+function moduleUrl(url){
+  if(!url||url.includes("PASTE_")) return "";
+  try{
+    const u=new URL(url,location.href);
+    u.searchParams.set("ds_shell","1");
+    return u.href;
+  }catch(_){return url}
+}
+function setActiveNav(key){
+  document.querySelectorAll(".nav-item").forEach(el=>el.classList.toggle("active",el.dataset.nav===key));
+}
+function ensureModuleFrame(key,url,title){
+  const host=$("moduleFrameHost");
+  let frame=host.querySelector(`[data-module-key="${key}"]`);
+  if(!frame){
+    frame=document.createElement("iframe");
+    frame.className="module-frame hidden";
+    frame.dataset.moduleKey=key;
+    frame.title=title||key;
+    frame.setAttribute("allow","clipboard-read; clipboard-write; camera; notifications");
+    frame.setAttribute("referrerpolicy","strict-origin-when-cross-origin");
+    frame.src=moduleUrl(url);
+    host.appendChild(frame);
+  }
+  return frame;
+}
+function openModule(key,url,title,navKey){
+  if(!url||url.includes("PASTE_")){
+    toast(`${title}網址尚未設定`,true);
+    return;
+  }
+  const frame=ensureModuleFrame(key,url,title);
+  $("homeModule").classList.add("hidden");
+  $("moreModule").classList.add("hidden");
+  $("moduleModule").classList.remove("hidden");
+  $("moduleFrameHost").querySelectorAll(".module-frame").forEach(f=>f.classList.toggle("hidden",f!==frame));
+  $("appShell").classList.add("module-mode");
+  document.body.classList.add("ds-module-active");
+  setActiveNav(navKey||key);
+}
+function leaveModuleMode(){
+  $("moduleModule").classList.add("hidden");
+  $("appShell").classList.remove("module-mode");
+  document.body.classList.remove("ds-module-active");
+}
 function permission(key){return !!state.profile?.permissions?.[key]}
 function setNavPermission(id,enabled){
   const el=$(id);
@@ -111,11 +156,40 @@ async function loadProfile(){
   hydrateUser();
   syncShellPermissions();
 }
+function requestedReturnPath(){
+  const p=new URLSearchParams(location.search);
+  return String(p.get("return")||"");
+}
+function clearReturnQuery(){
+  const u=new URL(location.href);
+  u.searchParams.delete("return");
+  u.searchParams.delete("reason");
+  history.replaceState({},"",u.pathname+(u.search?u.search:"")+u.hash);
+}
+function routeAfterAuth(){
+  const target=requestedReturnPath();
+  if(!target) return false;
+  clearReturnQuery();
+  if(target.includes("/ds-report-pwa-beta/") && permission("grinding_enabled")){
+    openModule("grinding",CFG.GRINDING_URL,"Grinding WIP","process");
+    return true;
+  }
+  if(target.includes("/ds-report-pwa/") && permission("daily_report_enabled")){
+    openModule("daily",CFG.DAILY_REPORT_URL,"日報系統","daily");
+    return true;
+  }
+  if(target.includes("/DS-IQC-WIP/") && permission("iqc_correction_enabled")){
+    openModule("iqc",CFG.IQC_CORRECTION_URL,"IQC 異常處理","more");
+    return true;
+  }
+  return false;
+}
 async function completeLogin(authResult,remember){
   if(authResult?.sessionToken) saveToken(authResult.sessionToken,remember);
   state.authUser=authResult?.user||state.authUser;
   await loadProfile();
   showApp();
+  if(routeAfterAuth()) return;
   if(permission("home_enabled")){
     await loadHomeData();
     switchView("home");
@@ -140,6 +214,7 @@ async function tryRestore(){
     state.authUser=result.user||null;
     await loadProfile();
     showApp();
+    if(routeAfterAuth()) return;
     if(permission("home_enabled")){
       await loadHomeData();
       switchView("home");
@@ -151,9 +226,10 @@ async function tryRestore(){
   }finally{hideLoading()}
 }
 function switchView(view){
+  leaveModuleMode();
   $("homeModule").classList.toggle("hidden",view!=="home");
   $("moreModule").classList.toggle("hidden",view!=="more");
-  document.querySelectorAll(".nav-item").forEach(el=>el.classList.toggle("active",el.dataset.nav===view));
+  setActiveNav(view);
   if(view==="home"){
     $("pageEyebrow").textContent="OPERATIONS HOME";
     $("pageTitle").textContent="公佈欄";
@@ -170,19 +246,19 @@ function handleNav(view){
   }
   if(view==="daily"){
     if(!permission("daily_report_enabled")) return toast("此帳號未開啟日報系統權限",true);
-    return openExternal(CFG.DAILY_REPORT_URL,"日報系統");
+    return openModule("daily",CFG.DAILY_REPORT_URL,"日報系統","daily");
   }
-  if(view==="dashboard") return openExternal(CFG.DASHBOARD_PUBLIC_URL,"日報 Dashboard");
+  if(view==="dashboard") return openModule("dashboard",CFG.DASHBOARD_PUBLIC_URL,"日報 Dashboard","dashboard");
   if(view==="process"){
-    if(permission("grinding_enabled")) return openExternal(CFG.GRINDING_URL,"Grinding WIP");
+    if(permission("grinding_enabled")) return openModule("grinding",CFG.GRINDING_URL,"Grinding WIP","process");
     return switchView("more");
   }
   if(view==="more") return switchView("more");
 }
 function renderMore(){
   const tools=[];
-  if(permission("grinding_enabled")) tools.push({title:"Grinding WIP",desc:"研磨入站、WIP、待噴砂、DCYL、轉HT",url:CFG.GRINDING_URL});
-  if(permission("iqc_correction_enabled")) tools.push({title:"IQC 異常處理",desc:"補建、修正、轉框與異常單",url:CFG.IQC_CORRECTION_URL});
+  if(permission("grinding_enabled")) tools.push({key:"grinding",title:"Grinding WIP",desc:"研磨入站、WIP、待噴砂、DCYL、轉HT",url:CFG.GRINDING_URL,nav:"process"});
+  if(permission("iqc_correction_enabled")) tools.push({key:"iqc",title:"IQC 異常處理",desc:"補建、修正、轉框與異常單",url:CFG.IQC_CORRECTION_URL,nav:"more"});
   if(permission("stamp_shipping_enabled")) tools.push({title:"鋼印鎖瓶／裝框",desc:"中期模組：庫存、裝框、出貨",disabled:true});
   if(permission("inventory_enabled")) tools.push({title:"庫存盤點",desc:"中長期模組：現場實體庫存與盤點",disabled:true});
   if(permission("hr_enabled")) tools.push({title:"人事系統",desc:"已保留權限欄位，URL於整併時接入",disabled:true});
@@ -190,7 +266,7 @@ function renderMore(){
   $("moreGrid").innerHTML=tools.map((t,i)=>`<button class="tool-card" type="button" data-tool-index="${i}" ${t.disabled?"disabled":""}><strong>${escapeHtml(t.title)}</strong><span>${escapeHtml(t.desc)}</span></button>`).join("");
   $("moreGrid").querySelectorAll("[data-tool-index]").forEach(btn=>btn.addEventListener("click",()=>{
     const item=tools[Number(btn.dataset.toolIndex)];
-    if(item&&!item.disabled) openExternal(item.url,item.title);
+    if(item&&!item.disabled) openModule(item.key,item.url,item.title,item.nav||"more");
   }));
 }
 async function loadHomeData(){
@@ -334,6 +410,12 @@ function bind(){
   $("archivePriorityBtn").addEventListener("click",async()=>{try{await archivePriority()}catch(err){hideLoading();toast(err.message||"封存失敗",true)}});
   document.addEventListener("click",e=>{if(!$("userMenu").contains(e.target)&&!$("userButton").contains(e.target)) $("userMenu").classList.add("hidden")});
 }
+window.DS_PORTAL_BRIDGE=Object.freeze({
+  getToken:()=>getToken(),
+  getProfile:()=>state.profile,
+  getClientVersion:()=>CFG.CLIENT_VERSION
+});
+
 function handlePublicRoute(){
   const p=new URLSearchParams(location.search);
   if(p.get("public")==="dashboard"){
