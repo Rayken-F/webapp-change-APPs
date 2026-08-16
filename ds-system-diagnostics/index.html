@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-  <title>DS System Diagnostics｜P0.1</title>
+  <title>DS System Diagnostics｜P0.1.1</title>
   <style>
     *{box-sizing:border-box} body{margin:0;min-height:100vh;padding:20px 14px 40px;font-family:Arial,"Microsoft JhengHei",sans-serif;color:#fff;background:radial-gradient(circle at 20% 10%,rgba(54,122,255,.35),transparent 28%),radial-gradient(circle at 85% 18%,rgba(164,69,255,.28),transparent 32%),linear-gradient(180deg,#07112b,#111d50 55%,#25105e)}
     .wrap{max-width:860px;margin:0 auto}.title{text-align:center;font-size:32px;font-weight:900;margin:8px 0 4px}.sub{text-align:center;color:rgba(238,242,255,.72);font-size:13px;margin-bottom:18px}.card{padding:16px;margin:12px 0;border:1px solid rgba(224,234,255,.22);border-radius:20px;background:rgba(35,52,128,.35);box-shadow:0 16px 44px rgba(2,8,42,.38);backdrop-filter:blur(12px)}
@@ -18,7 +18,7 @@
 <body>
 <div class="wrap">
   <div class="title">DS System Diagnostics</div>
-  <div class="sub">P0.1｜正式日報 / IQC ＋ Grinding WIP BETA 弱網自我診斷</div>
+  <div class="sub">P0.1.1｜正式日報 / IQC ＋ Grinding WIP BETA 弱網自我診斷</div>
 
   <section class="card">
     <div class="grid">
@@ -38,8 +38,8 @@
   </section>
 
   <section class="card">
-    <div class="name">弱網「後端已成功、HTTP 回應遺失」實測</div>
-    <div class="note">測試會讓後端先 commit 永久收據，再故意延遲 8 秒；瀏覽器 2.5 秒主動 timeout，接著以同一 submission_id 查收據，再重送同 ID 驗證不重複。</div>
+    <div class="name">弱網 A｜模擬「後端已成功、HTTP 回應遺失」</div>
+    <div class="note">這一組不需要真的關網。後端先 commit 永久收據，再故意延遲 8 秒；瀏覽器 2.5 秒主動 timeout，接著用同一 submission_id 查收據，再重送同 ID 驗證不重複。</div>
     <div class="actions">
       <button class="btn" onclick="runWeakNetworkTest('formal')">測正式日報收據</button>
       <button class="btn alt" onclick="runWeakNetworkTest('beta')">測 Grinding WIP 收據</button>
@@ -47,12 +47,26 @@
     <div id="weakResult" class="result"></div>
   </section>
 
+  <section class="card">
+    <div class="name">弱網 B｜真實關網／恢復網路</div>
+    <div class="note">這一組才需要手動關行動網路或開飛航模式。按下按鈕後，頁面會先保存 submission_id；即使首次 POST 因斷網失敗，也不會直接判定交易失敗。網路恢復後會自動查原 submission_id；查不到才以同一 ID 安全續傳。Token 不會寫入 localStorage。</div>
+    <div class="actions">
+      <button class="btn" onclick="runRealDisconnectTest('formal')">真實斷網｜正式日報</button>
+      <button class="btn alt" onclick="runRealDisconnectTest('beta')">真實斷網｜Grinding</button>
+      <button class="btn warn" onclick="resumeRealDisconnectTest(true)">恢復未完成測試</button>
+    </div>
+    <div id="realNetStatus" class="statusline">尚未開始真實斷網測試。</div>
+    <div id="realNetResult" class="result"></div>
+  </section>
+
   <section class="card"><div class="name">正式日報 / IQC</div><div id="formalSummary" class="summary"></div><div id="formalResult" class="result"></div></section>
   <section class="card"><div class="name">Grinding WIP BETA</div><div id="betaSummary" class="summary"></div><div id="betaResult" class="result"></div></section>
 </div>
 <script>
   const $=id=>document.getElementById(id);
-  const diagState={formal:null,beta:null,weak:[]};
+  const diagState={formal:null,beta:null,weak:[],realNet:[]};
+  const REAL_NET_PENDING_KEY='ds_diag_real_network_pending_p011';
+  let realNetRecovering=false;
   const sleep=ms=>new Promise(r=>setTimeout(r,ms));
   function cleanUrl(v){return String(v||'').trim().replace(/\/$/,'')}
   function esc(v){return String(v==null?'':v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
@@ -110,16 +124,144 @@
     }catch(e){weakLine('同 submission_id 重送',false,e.message)}
   }
 
+  function realNetLine(title,good,detail){
+    diagState.realNet.push({title,pass:!!good,detail:String(detail||'')});
+    const el=document.createElement('div');el.className='check '+(good?'pass':'fail');
+    el.innerHTML=`<div class="top"><div class="name">${esc(title)}</div><div class="badge">${good?'PASS':'INFO'}</div></div><div class="detail">${esc(detail)}</div>`;
+    $('realNetResult').appendChild(el);
+  }
+  function setRealNetStatus(text,bad=false){
+    const el=$('realNetStatus');el.textContent=text;el.className='statusline'+(bad?' bad':'');
+  }
+  function getRealNetPending(){
+    try{return JSON.parse(localStorage.getItem(REAL_NET_PENDING_KEY)||'null')}catch(e){return null}
+  }
+  function saveRealNetPending(pending){
+    localStorage.setItem(REAL_NET_PENDING_KEY,JSON.stringify(pending));
+  }
+  function clearRealNetPending(){
+    localStorage.removeItem(REAL_NET_PENDING_KEY);
+  }
+  function getDiagCredentials(kind,pending){
+    const formal=kind==='formal';
+    return {
+      formal,
+      base:cleanUrl((pending&&pending.base)||$(formal?'formalUrl':'betaUrl').value),
+      token:$(formal?'formalToken':'betaToken').value.trim()
+    };
+  }
+  async function queryDiagTxStatus(kind,base,token,submissionId){
+    const formal=kind==='formal';
+    const data=await fetchJson(`${base}?api=system_diag_tx_status&diag_token=${encodeURIComponent(token)}&submission_id=${encodeURIComponent(submissionId)}&nonce=${Date.now()}`,{},8000);
+    const state=formal?(data.status&&data.status.state):data.status;
+    const receipt=formal?(data.status&&data.status.receipt&&data.status.receipt.receiptId):data.receiptId;
+    return {data,state:state||'',receipt:receipt||''};
+  }
+  async function verifyDiagDuplicate(kind,base,token,pending,firstReceipt){
+    const formal=kind==='formal';
+    const second=await fetchJson(`${base}?api=system_diag_tx&diag_token=${encodeURIComponent(token)}`,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({submission_id:pending.submissionId,delay_ms:0,marker:pending.marker})},12000);
+    const secondReceipt=formal?(second.receipt&&second.receipt.receiptId):second.receipt_id;
+    const duplicate=second.duplicate===true;
+    const sameReceipt=!firstReceipt||!secondReceipt||firstReceipt===secondReceipt;
+    realNetLine('同 submission_id 安全重送',duplicate&&sameReceipt,`duplicate=${duplicate}｜receipt=${secondReceipt||'-'}｜原 receipt=${firstReceipt||'-'}`);
+    return duplicate&&sameReceipt;
+  }
+  async function recoverRealDisconnectPending(manual=false){
+    if(realNetRecovering)return;
+    const pending=getRealNetPending();
+    if(!pending){if(manual)setRealNetStatus('沒有未完成的真實斷網測試。');return}
+    const {formal,base,token}=getDiagCredentials(pending.kind,pending);
+    if(!token){setRealNetStatus('網路已恢復，但請先重新輸入對應的 Diagnostics Token，再按「恢復未完成測試」。',true);return}
+    if(!navigator.onLine){setRealNetStatus('目前仍離線；等待網路恢復後會自動繼續。');return}
+    realNetRecovering=true;
+    setRealNetStatus(`正在恢復 ${pending.kind==='formal'?'正式日報':'Grinding'} 測試｜submission_id ${pending.submissionId}`);
+    try{
+      let status=null;
+      for(let i=0;i<8;i++){
+        try{status=await queryDiagTxStatus(pending.kind,base,token,pending.submissionId)}catch(e){status=null}
+        if(status&&(status.state==='success'||status.state==='completed'))break;
+        if(status&&status.state==='failed')break;
+        await sleep(1000);
+      }
+      if(status&&(status.state==='success'||status.state==='completed')){
+        realNetLine('恢復網路後找回原收據',true,`狀態 ${status.state}｜receipt ${status.receipt||'-'}`);
+        const ok=await verifyDiagDuplicate(pending.kind,base,token,pending,status.receipt||'');
+        if(ok){realNetLine('真實斷網 P0.1.1 結論',true,'斷網造成首次回應遺失，但恢復後找回原交易；同 ID 重送不重複。');clearRealNetPending();setRealNetStatus('✅ 真實斷網測試完成。')}
+        else setRealNetStatus('❌ 找回收據後，重送驗證沒有通過。',true);
+        return;
+      }
+      if(status&&status.state==='failed'){
+        realNetLine('恢復後後端狀態',false,'後端明確回報 failed；這不是不確定狀態。');
+        clearRealNetPending();setRealNetStatus('❌ 後端交易明確失敗。',true);return;
+      }
+      realNetLine('恢復後首次查詢',true,'尚未找到已完成收據；以相同 submission_id 安全續傳一次。');
+      let resend=null;
+      try{
+        resend=await fetchJson(`${base}?api=system_diag_tx&diag_token=${encodeURIComponent(token)}`,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({submission_id:pending.submissionId,delay_ms:0,marker:pending.marker})},12000);
+      }catch(e){
+        setRealNetStatus('續傳仍失敗：'+e.message+'。保留原 submission_id，可再次按「恢復未完成測試」。',true);return;
+      }
+      const resendReceipt=formal?(resend.receipt&&resend.receipt.receiptId):resend.receipt_id;
+      const resendDuplicate=resend.duplicate===true;
+      realNetLine('同 ID 安全續傳',true,`duplicate=${resendDuplicate}｜receipt=${resendReceipt||'-'}`);
+      let finalStatus=null;
+      try{finalStatus=await queryDiagTxStatus(pending.kind,base,token,pending.submissionId)}catch(e){}
+      const finalOk=finalStatus&&(finalStatus.state==='success'||finalStatus.state==='completed');
+      realNetLine('續傳後查永久收據',!!finalOk,finalOk?`狀態 ${finalStatus.state}｜receipt ${finalStatus.receipt||resendReceipt||'-'}`:'仍找不到完成狀態');
+      if(finalOk){
+        realNetLine('真實斷網 P0.1.1 結論',true,'首次 POST 可能未送達後端；恢復後以同一 submission_id 續傳成功，仍保持冪等。');
+        clearRealNetPending();setRealNetStatus('✅ 真實斷網測試完成。');
+      }else setRealNetStatus('⚠️ 交易結果仍不確定；保留原 submission_id，請再次按「恢復未完成測試」。',true);
+    }finally{realNetRecovering=false}
+  }
+  async function resumeRealDisconnectTest(manual=false){
+    return recoverRealDisconnectPending(!!manual);
+  }
+  async function runRealDisconnectTest(kind){
+    $('realNetResult').innerHTML='';diagState.realNet=[];
+    const {base,token}=getDiagCredentials(kind,null);
+    if(!base||!token){realNetLine('設定',false,'請先填 URL 與對應 Diagnostics Token');return}
+    if(getRealNetPending()){setRealNetStatus('已有未完成測試。請先按「恢復未完成測試」，不要產生新的 submission_id。',true);return}
+    const submissionId=makeSubmissionId();
+    const marker='P0_1_1_REAL_'+Date.now();
+    const pending={kind,base,submissionId,marker,startedAt:new Date().toISOString(),stage:'POST_STARTED'};
+    saveRealNetPending(pending);
+    realNetLine('建立可恢復測試交易',true,submissionId);
+    setRealNetStatus('現在請在約 1 秒內關閉行動網路／開飛航模式。即使首次 POST 顯示中斷，也不要重按；等 8～10 秒後恢復網路，頁面會自動續查。');
+    try{
+      await fetchJson(`${base}?api=system_diag_tx&diag_token=${encodeURIComponent(token)}`,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({submission_id:submissionId,delay_ms:8000,marker})},15000);
+      realNetLine('首次 POST',true,'POST 完整收到回應；可能關網太晚，但仍會用同一 submission_id 驗證收據。');
+      await recoverRealDisconnectPending(false);
+    }catch(e){
+      realNetLine('首次 POST 已中斷',true,'這是本測試預期情境：'+(e&&e.message?e.message:String(e)));
+      pending.stage='POST_INTERRUPTED';saveRealNetPending(pending);
+      if(navigator.onLine){setRealNetStatus('POST 已中斷但裝置目前顯示在線；1.5 秒後開始查原 submission_id。');setTimeout(()=>recoverRealDisconnectPending(false),1500)}
+      else setRealNetStatus('目前已離線。請等待 8～10 秒後恢復網路；恢復後會自動查原 submission_id。');
+    }
+  }
+  window.addEventListener('online',()=>{
+    const pending=getRealNetPending();
+    if(!pending)return;
+    setRealNetStatus('偵測到網路恢復，1.5 秒後自動查原 submission_id…');
+    setTimeout(()=>recoverRealDisconnectPending(false),1500);
+  });
+  window.addEventListener('offline',()=>{
+    if(getRealNetPending())setRealNetStatus('已偵測離線。不要重按測試按鈕；保留原 submission_id，等網路恢復。');
+  });
+
   async function copyDiagnosticSummary(){
     const payload={
       copiedAt:new Date().toISOString(),
       formal:diagState.formal?{ok:diagState.formal.ok,summary:diagState.formal.summary,checks:(diagState.formal.checks||[]).map(x=>({id:x.id,label:x.label,status:x.status,elapsedMs:x.elapsedMs,detail:x.detail}))}:null,
       beta:diagState.beta?{ok:diagState.beta.ok,buildVersion:diagState.beta.buildVersion,summary:diagState.beta.summary,checks:(diagState.beta.checks||[]).map(x=>({id:x.id,label:x.label,status:x.status,elapsedMs:x.elapsedMs,detail:x.detail}))}:null,
-      weak:diagState.weak
+      weak:diagState.weak,
+      realNetwork:diagState.realNet
     };
     const text=JSON.stringify(payload,null,2);
     try{await navigator.clipboard.writeText(text);alert('已複製測試摘要，可直接貼回聊天。Token 不會包含在摘要內。')}catch(e){prompt('請複製以下測試摘要：',text)}
   }
+
+  if(getRealNetPending())setRealNetStatus('偵測到上一筆未完成的真實斷網測試；輸入對應 Token 後按「恢復未完成測試」。');
 </script>
 </body>
 </html>
