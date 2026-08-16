@@ -2085,7 +2085,35 @@ user-scalable=no">
     }
   }
 
-</style>
+
+    /* 2026-08-16｜自動噴砂 × Grinding WIP Phase 1 前端整併 */
+    .sandblast-phase1-shell{margin-bottom:18px}
+    .sandblast-phase1-head{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;margin-bottom:12px}
+    .sandblast-phase1-kicker{font-size:13px;font-weight:900;color:rgba(230,237,255,.72);letter-spacing:.4px}
+    .sandblast-phase1-title{margin:5px 0 4px;font-size:clamp(25px,6vw,36px);line-height:1.1}
+    .sandblast-phase1-sub{color:rgba(235,241,255,.76);font-size:14px;line-height:1.6}
+    .sandblast-phase1-badge{flex:0 0 auto;padding:6px 10px;border-radius:999px;background:rgba(88,214,141,.13);border:1px solid rgba(88,214,141,.42);color:#caffdc;font-size:11px;font-weight:900;letter-spacing:.6px}
+    .sandblast-phase1-note{margin:0 0 12px;padding:11px 13px;border-radius:14px;background:rgba(67,198,232,.08);border:1px solid rgba(67,198,232,.24);color:rgba(235,247,255,.83);font-size:12px;line-height:1.6}
+    .grinding-embed-toolbar{display:flex;justify-content:flex-end;gap:8px;margin-bottom:9px;flex-wrap:wrap}
+    .grinding-embed-btn{min-height:38px;padding:8px 11px;border-radius:12px;border:1px solid rgba(255,255,255,.15);background:rgba(119,103,255,.25);color:#fff;font-size:12px;font-weight:900}
+    .grinding-embed-btn.secondary{background:rgba(67,198,232,.12);border-color:rgba(67,198,232,.28)}
+    .grinding-embed-shell{position:relative;overflow:hidden;border-radius:20px;border:1px solid rgba(215,225,255,.22);background:rgba(7,17,43,.34);box-shadow:0 18px 42px rgba(4,10,48,.24)}
+    .grinding-wip-frame{display:block;width:100%;height:78dvh;min-height:620px;max-height:920px;border:0;background:transparent}
+    .grinding-embed-loading{position:absolute;inset:0;z-index:1;display:flex;align-items:center;justify-content:center;padding:20px;background:linear-gradient(180deg,rgba(17,29,80,.96),rgba(29,16,94,.96));color:rgba(240,244,255,.88);font-weight:900;text-align:center;pointer-events:none;transition:opacity .2s}
+    .grinding-embed-loading.hidden{opacity:0;visibility:hidden}
+    .sandblast-main-back-row{margin-top:12px}
+    .legacy-sandblast-backup{margin-top:18px;border:1px solid rgba(255,202,100,.3);border-radius:18px;background:rgba(255,202,100,.055);overflow:hidden}
+    .legacy-sandblast-backup>summary{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:15px 16px;cursor:pointer;list-style:none;color:#fff4c9;font-weight:900}
+    .legacy-sandblast-backup>summary::-webkit-details-marker{display:none}
+    .legacy-sandblast-backup>summary small{color:rgba(255,244,201,.68);font-size:11px;font-weight:800;text-align:right}
+    .legacy-sandblast-backup[open]>summary{border-bottom:1px solid rgba(255,202,100,.18)}
+    .legacy-sandblast-body{padding:14px 0 2px}
+    .legacy-sandblast-warning{margin:0 0 14px;padding:10px 12px;border-radius:13px;background:rgba(255,202,100,.09);border:1px solid rgba(255,202,100,.24);color:#fff0bd;font-size:12px;line-height:1.55}
+    @media(max-width:620px){
+      .sandblast-phase1-head{gap:8px}.sandblast-phase1-badge{padding:5px 8px}.grinding-wip-frame{height:76dvh;min-height:590px}.legacy-sandblast-backup>summary{align-items:flex-start;flex-direction:column}.legacy-sandblast-backup>summary small{text-align:left}
+    }
+
+  </style>
 </head>
 
 <body>
@@ -2140,7 +2168,6 @@ user-scalable=no">
           <label><input type="radio" name="site" value="鋼印鎖瓶站">🔩 鋼印鎖瓶站</label>
           <label><input type="radio" name="site" value="集束中心">📦 集束中心</label>
           <label><input type="radio" name="site" value="IQC">📥 IQC</label>
-          <label><input type="radio" name="site" value="Grinding">🛠️ Grinding 研磨站</label>
           <label><input type="radio" name="site" value="專案">🚀 專案</label>
         </div>
         <div id="error-site" class="error-text"></div>
@@ -2175,6 +2202,42 @@ user-scalable=no">
 
     
     <div id="pageSandblast" class="page">
+      <section class="sandblast-phase1-shell">
+        <div class="sandblast-phase1-head">
+          <div>
+            <div class="sandblast-phase1-kicker">⚙️ 自動噴砂站｜新版主流程</div>
+            <h2 class="sandblast-phase1-title">Grinding WIP</h2>
+            <div class="sandblast-phase1-sub">研磨入站、在製追蹤、待噴砂入框、DCYL、轉 HT 與送噴砂，統一在原「自動噴砂站」內操作。</div>
+          </div>
+          <span class="sandblast-phase1-badge">PHASE 1</span>
+        </div>
+
+        <div class="sandblast-phase1-note">
+          目前 Phase 1 僅整併操作入口；Grinding 仍沿用已驗收的 WIP BETA 資料層。舊版自動噴砂回報完整保留於下方緊急備援，不會刪除既有 Response 流程。
+        </div>
+
+        <div class="grinding-embed-toolbar">
+          <button type="button" class="grinding-embed-btn" onclick="reloadGrindingWipEmbed()">重新載入 WIP</button>
+          <button type="button" class="grinding-embed-btn secondary" onclick="openGrindingWipStandalone()">獨立開啟</button>
+        </div>
+
+        <div class="grinding-embed-shell">
+          <div id="grindingEmbedLoading" class="grinding-embed-loading">正在載入 Grinding WIP…</div>
+          <iframe id="grindingWipFrame" class="grinding-wip-frame" title="Grinding WIP" loading="eager" referrerpolicy="same-origin" src="about:blank"></iframe>
+        </div>
+
+        <div class="btn-row sandblast-main-back-row">
+          <button type="button" onclick="prevPage('page1')">返回站別</button>
+        </div>
+      </section>
+
+      <details id="legacySandblastBackup" class="legacy-sandblast-backup">
+        <summary>
+          <span>🧯 舊版自動噴砂回報｜緊急備援</span>
+          <small>預設收合；新版異常時再展開</small>
+        </summary>
+        <div class="legacy-sandblast-body">
+          <div class="legacy-sandblast-warning">此區仍使用原本日報預覽／送出流程並寫入 Response。正常作業請優先使用上方 Grinding WIP。</div>
       <div class="form-card">
         <div class="form-title">前置完全（框）</div>
         <input type="number" id="sb_pre_complete" class="form-input">
@@ -2235,6 +2298,8 @@ user-scalable=no">
         <button type="button" onclick="prevPage('page1')">返回</button>
         <button type="button" onclick="handlePreviewNavigation()">預覽</button>
       </div>
+        </div>
+      </details>
     </div>
     <div id="pageUT" class="page">
       <div class="form-card">
@@ -2636,7 +2701,7 @@ user-scalable=no">
   ">
     <div class="loading-text">送出中...</div>
   </div>
-<script src="./api.js?v=DS_WEAK_NETWORK_P0_3_V2_1_6_20260816"></script>
+<script src="./api.js?v=DS_SANDBLAST_GRINDING_PHASE1_V2_2_0_20260816"></script>
 <script>
   // 2026-07-19：IQC 散支改用右下快捷新增／選擇刪除；側滑卡片依目前框別動態調整高度並自動定位。
   // 2026-08-10：IQC 集束新增「集束狀態」，與集束框架編號一併寫入 IQC_Log，供正式 Grinding／後續庫存追蹤。
@@ -3326,6 +3391,46 @@ user-scalable=no">
     });
   }
 
+
+  // 2026-08-16｜Phase 1：Grinding WIP 併入原「自動噴砂站」。
+  // 此階段只整併前端入口；Grinding 仍使用已驗收 BETA API／WIP 核心表。
+  const GRINDING_PHASE1_EMBED_BASE = "../ds-report-pwa-beta/";
+  let grindingEmbedUrlKey = "";
+
+  function buildGrindingWipUrl_(embedded){
+    const url = new URL(GRINDING_PHASE1_EMBED_BASE, window.location.href);
+    url.searchParams.set("embedded", embedded ? "1" : "0");
+    url.searchParams.set("date", String(formData.date || document.getElementById("date")?.value || ""));
+    url.searchParams.set("operator", String(formData.person || document.getElementById("person")?.value || ""));
+    url.searchParams.set("host", "auto_sandblast");
+    url.searchParams.set("phase", "PHASE1_20260816");
+    return url;
+  }
+
+  function initGrindingWipEmbed(forceReload){
+    const frame = document.getElementById("grindingWipFrame");
+    const loading = document.getElementById("grindingEmbedLoading");
+    if(!frame) return;
+    const url = buildGrindingWipUrl_(true);
+    const nextKey = url.toString();
+    if(!forceReload && grindingEmbedUrlKey === nextKey && frame.src && frame.src !== "about:blank") return;
+    grindingEmbedUrlKey = nextKey;
+    if(loading) loading.classList.remove("hidden");
+    frame.onload = function(){
+      if(loading) loading.classList.add("hidden");
+    };
+    frame.src = nextKey;
+  }
+
+  function reloadGrindingWipEmbed(){
+    initGrindingWipEmbed(true);
+  }
+
+  function openGrindingWipStandalone(){
+    const url = buildGrindingWipUrl_(false);
+    window.open(url.toString(), "_blank", "noopener");
+  }
+
   function nextPage(pageId){
     saveData();
 
@@ -3336,6 +3441,10 @@ user-scalable=no">
 
     current.classList.remove("active");
     next.classList.add("active");
+
+    if(pageId === "pageSandblast"){
+      initGrindingWipEmbed(false);
+    }
 
     if(pageId === "page7"){
       renderConfirm();
@@ -3711,6 +3820,11 @@ user-scalable=no">
           formData[key] = draft.formData[key];
         }
       });
+
+      // Phase 1 相容：舊草稿若曾選獨立 Grinding 站別，統一遷移回自動噴砂站。
+      if(formData.site === "Grinding"){
+        formData.site = "自動噴砂站";
+      }
 
       if(!formData.date){
         formData.date = today;
@@ -5496,17 +5610,6 @@ function bindFramePairTableEvents(){
       targetPage = "pageIQC";
       loadIqcRtMaster(false);
     }
-    else if(siteValue === "Grinding"){
-      // Grinding 使用正式站點頁，沿用本頁的日期與填表人員。
-      // 不建立 Response 假日報列；所有交易由正式 WIP API 與核心狀態表管理。
-      persistDraft();
-      const grindingUrl = new URL("./grinding.html", window.location.href);
-      grindingUrl.searchParams.set("date", date);
-      grindingUrl.searchParams.set("operator", person);
-      grindingUrl.searchParams.set("return", "./index.html");
-      window.location.href = grindingUrl.toString();
-      return;
-    }
     else if(siteValue === "專案"){
       targetPage = "pageProject";
     }
@@ -5551,7 +5654,6 @@ function bindFramePairTableEvents(){
       "鋼印鎖瓶站":"🔩",
       "集束中心":"📦",
       "IQC":"📥",
-      "Grinding":"🛠️",
       "專案":"🚀"
     };
 
