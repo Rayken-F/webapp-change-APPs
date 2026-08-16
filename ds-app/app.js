@@ -42,15 +42,34 @@ function clearToken(){
   sessionStorage.removeItem(CFG.AUTH_TOKEN_KEY);
   localStorage.removeItem(CFG.AUTH_TOKEN_KEY);
 }
-async function authPost(api,payload={}){
-  const body={...payload,api,client_version:CFG.AUTH_CLIENT_VERSION};
-  const token=getToken();
-  if(token&&api!=="login") body.session_token=token;
-  const r=await fetch(CFG.AUTH_API_URL,{method:"POST",headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify(body),redirect:"follow",cache:"no-store"});
+function saveRememberedAccount(account,remember){
+  const normalized=String(account||"").trim();
+  if(remember){
+    localStorage.setItem(CFG.REMEMBER_ACCOUNT_KEY,normalized);
+    localStorage.setItem(CFG.REMEMBER_ENABLED_KEY,"1");
+  }else{
+    localStorage.removeItem(CFG.REMEMBER_ACCOUNT_KEY);
+    localStorage.removeItem(CFG.REMEMBER_ENABLED_KEY);
+  }
+}
+function hydrateRememberedLogin(){
+  const remember=localStorage.getItem(CFG.REMEMBER_ENABLED_KEY)==="1";
+  const account=remember?String(localStorage.getItem(CFG.REMEMBER_ACCOUNT_KEY)||""):"";
+  if($("rememberLogin")) $("rememberLogin").checked=remember;
+  if(account&&$("loginAccount")&&!$("loginAccount").value) $("loginAccount").value=account;
+}
+function isExplicitAuthInvalidMessage(message){
+  const text=String(message||"").toLowerCase();
+  return text.includes("登入狀態已失效")||text.includes("session invalid")||text.includes("session expired")||text.includes("帳號已停用")||text.includes("此帳號已停用");
+}
+async function portalPublicPost(api,payload={}){
+  assertPortalConfigured();
+  const body={...payload,api,client_version:CFG.CLIENT_VERSION};
+  const r=await fetch(CFG.PORTAL_API_URL,{method:"POST",headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify(body),redirect:"follow",cache:"no-store"});
   const text=await r.text();
   let data;
-  try{data=JSON.parse(text)}catch(_){throw new Error("登入服務回傳格式錯誤")}
-  if(!data.ok) throw new Error(data.message||"登入服務失敗");
+  try{data=JSON.parse(text)}catch(_){throw new Error("Portal API 回傳格式錯誤")}
+  if(!data.ok) throw new Error(data.message||"Portal API 執行失敗");
   return data;
 }
 function assertPortalConfigured(){
@@ -198,32 +217,64 @@ async function completeLogin(authResult,remember){
     toast("此帳號尚未勾選公佈欄權限");
   }
 }
-async function login(account,password,remember){
-  showLoading("正在登入","沿用既有 System_Access_Master 驗證帳號與權限…");
+async function loadHomeDataSafe(){
+  if(!permission("home_enabled")) return;
   try{
-    const result=await authPost("login",{user_id:String(account||"").trim(),password});
-    await completeLogin(result,remember);
-    toast(`登入成功，${result.user?.displayName||""}`);
-  }finally{hideLoading()}
+    await loadHomeData();
+  }catch(err){
+    console.warn("DS Portal home data load failed",err);
+    toast(`公佈欄資料暫時無法載入：${err.message||err}`,true);
+  }
 }
-async function tryRestore(){
-  if(!getToken()) return showLogin();
-  showLoading("恢復登入","正在確認既有 session 與最新權限…");
+async function login(account,password,remember){
+  const normalized=String(account||"").trim();
+  saveRememberedAccount(normalized,remember);
+  showLoading("正在登入","正在驗證帳號、密碼、使用者權限");
   try{
-    const result=await authPost("bootstrap",{});
+    const result=await portalPublicPost("portal_login",{user_id:normalized,password:String(password||"")});
+    if(result.sessionToken) saveToken(result.sessionToken,remember);
     state.authUser=result.user||null;
-    await loadProfile();
+    state.profile={user:result.user||null,permissions:result.permissions||{}};
+    hydrateUser();
+    syncShellPermissions();
     showApp();
     if(routeAfterAuth()) return;
-    if(permission("home_enabled")){
-      await loadHomeData();
-      switchView("home");
-    }else switchView("more");
+    if(permission("home_enabled")) switchView("home"); else switchView("more");
+    hideLoading();
+    toast(`登入成功，${result.user?.displayName||""}`);
+    loadHomeDataSafe();
   }catch(err){
-    clearToken();
-    showLogin();
-    toast(err.message||"登入已失效",true);
-  }finally{hideLoading()}
+    hideLoading();
+    throw err;
+  }
+}
+async function tryRestore(){
+  hydrateRememberedLogin();
+  if(!getToken()) return showLogin();
+  showLoading("恢復登入","正在驗證使用者登入狀態與最新權限…");
+  try{
+    const result=await portalPost("portal_bootstrap",{});
+    state.authUser=result.user||null;
+    state.profile={user:result.user||null,permissions:result.permissions||{}};
+    hydrateUser();
+    syncShellPermissions();
+    showApp();
+    if(routeAfterAuth()){ hideLoading(); return; }
+    if(permission("home_enabled")) switchView("home"); else switchView("more");
+    hideLoading();
+    loadHomeDataSafe();
+  }catch(err){
+    hideLoading();
+    // 只有後端明確判定 session 無效才清除；網路失敗、RT主檔錯誤等都不得把「記住登入」洗掉。
+    if(isExplicitAuthInvalidMessage(err.message)){
+      clearToken();
+      showLogin();
+      toast("登入已失效，請重新登入",true);
+    }else{
+      showLogin();
+      toast("目前網路或登入服務無法確認，已保留登入狀態，請稍後再試",true);
+    }
+  }
 }
 function switchView(view){
   leaveModuleMode();
@@ -271,13 +322,10 @@ function renderMore(){
 }
 async function loadHomeData(){
   if(!permission("home_enabled")) return;
-  const [priority,rt]=await Promise.all([
-    portalPost("portal_priority_list",{}),
-    state.rtMaster.length?Promise.resolve({items:state.rtMaster}):portalPost("portal_rt_master",{})
-  ]);
-  state.priorities=Array.isArray(priority.items)?priority.items:[];
-  if(!state.rtMaster.length){
-    state.rtMaster=Array.isArray(rt.items)?rt.items:[];
+  const result=await portalPost("portal_home_data",{include_rt_master:!state.rtMaster.length});
+  state.priorities=Array.isArray(result.priorities)?result.priorities:[];
+  if(!state.rtMaster.length&&Array.isArray(result.rtMaster)){
+    state.rtMaster=result.rtMaster;
     state.rtMap=new Map(state.rtMaster.map(item=>[String(item.rtNo),item]));
   }
   renderPriorities();
@@ -399,7 +447,7 @@ function bind(){
   $("togglePassword").addEventListener("click",()=>{$("loginPassword").type=$("loginPassword").type==="password"?"text":"password"});
   document.querySelectorAll("[data-nav]").forEach(btn=>btn.addEventListener("click",()=>handleNav(btn.dataset.nav)));
   $("userButton").addEventListener("click",()=>$("userMenu").classList.toggle("hidden"));
-  $("logoutBtn").addEventListener("click",()=>{clearToken();state.authUser=null;state.profile=null;$("userMenu").classList.add("hidden");showLogin()});
+  $("logoutBtn").addEventListener("click",()=>{clearToken();state.authUser=null;state.profile=null;$("userMenu").classList.add("hidden");hydrateRememberedLogin();showLogin()});
   $("addPriorityBtn").addEventListener("click",()=>openPriorityModal());
   $("refreshPriorityBtn").addEventListener("click",async()=>{try{showLoading("重新整理","正在取得最新需求…");await loadHomeData();toast("已更新")}catch(err){toast(err.message,true)}finally{hideLoading()}});
   $("statusFilters").querySelectorAll("[data-status]").forEach(btn=>btn.addEventListener("click",()=>{state.filter=btn.dataset.status;$("statusFilters").querySelectorAll("[data-status]").forEach(x=>x.classList.toggle("active",x===btn));renderPriorities()}));
@@ -426,6 +474,7 @@ function handlePublicRoute(){
 }
 async function init(){
   bind();
+  hydrateRememberedLogin();
   if(handlePublicRoute()) return;
   if("serviceWorker" in navigator){navigator.serviceWorker.register("sw.js").catch(()=>{})}
   await tryRestore();
