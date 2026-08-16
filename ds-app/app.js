@@ -355,7 +355,7 @@ function handleNav(view){
 }
 function renderMore(){
   const tools=[];
-  if(permission("grinding_enabled")) tools.push({key:"grinding",title:"Grinding WIP",desc:"研磨入站、WIP、待噴砂、DCYL、轉HT",url:CFG.GRINDING_URL,nav:"grinding"});
+  // Grinding WIP 已有固定底部入口，不在「更多」重複顯示。
   if(permission("iqc_correction_enabled")) tools.push({key:"iqc",title:"IQC 異常處理",desc:"補建、修正、轉框與異常單",url:CFG.IQC_CORRECTION_URL,nav:"more"});
   if(permission("stamp_shipping_enabled")) tools.push({title:"鋼印鎖瓶／裝框",desc:"中期模組：庫存、裝框、出貨",disabled:true});
   if(permission("inventory_enabled")) tools.push({title:"庫存盤點",desc:"中長期模組：現場實體庫存與盤點",disabled:true});
