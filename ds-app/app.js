@@ -120,6 +120,30 @@ function ensureModuleFrame(key,url,title){
   }
   return frame;
 }
+function prewarmModule(key,url,title){
+  if(!url||url.includes("PASTE_")) return null;
+  return ensureModuleFrame(key,url,title);
+}
+function prewarmForNav(view){
+  if(view==="daily" && permission("daily_report_enabled")) return prewarmModule("daily",CFG.DAILY_REPORT_URL,"日報系統");
+  if(view==="grinding" && permission("grinding_enabled")) return prewarmModule("grinding",CFG.GRINDING_URL,"Grinding WIP");
+  if(view==="dashboard") return prewarmModule("dashboard",CFG.DASHBOARD_PUBLIC_URL,"日報 Dashboard");
+  return null;
+}
+function scheduleCorePrewarm(){
+  // 不在登入階段搶頻寬；先讓工作台可操作，再分段預熱最常用的兩個內部模組。
+  clearTimeout(scheduleCorePrewarm.t1);
+  clearTimeout(scheduleCorePrewarm.t2);
+  scheduleCorePrewarm.t1=setTimeout(()=>{
+    if(document.hidden) return;
+    prewarmForNav("daily");
+  },1200);
+  scheduleCorePrewarm.t2=setTimeout(()=>{
+    if(document.hidden) return;
+    prewarmForNav("grinding");
+  },2600);
+}
+
 function openModule(key,url,title,navKey){
   if(!url||url.includes("PASTE_")){
     toast(`${title}網址尚未設定`,true);
@@ -150,8 +174,7 @@ function syncShellPermissions(){
   setNavPermission("navDaily",permission("daily_report_enabled"));
   // Dashboard 是 public exception，永遠可進。
   setNavPermission("navDashboard",true);
-  const hasProcess=permission("grinding_enabled")||permission("stamp_shipping_enabled")||permission("inventory_enabled");
-  $("navProcess").classList.toggle("hidden",!hasProcess);
+  $("navGrinding").classList.toggle("hidden",!permission("grinding_enabled"));
   $("addPriorityBtn").classList.toggle("hidden",!permission("production_priority_edit_enabled"));
   renderMore();
 }
@@ -190,7 +213,7 @@ function routeAfterAuth(){
   if(!target) return false;
   clearReturnQuery();
   if(target.includes("/ds-report-pwa-beta/") && permission("grinding_enabled")){
-    openModule("grinding",CFG.GRINDING_URL,"Grinding WIP","process");
+    openModule("grinding",CFG.GRINDING_URL,"Grinding WIP","grinding");
     return true;
   }
   if(target.includes("/ds-report-pwa/") && permission("daily_report_enabled")){
@@ -238,6 +261,7 @@ async function login(account,password,remember){
     hydrateUser();
     syncShellPermissions();
     showApp();
+    scheduleCorePrewarm();
     if(routeAfterAuth()) return;
     if(permission("home_enabled")) switchView("home"); else switchView("more");
     hideLoading();
@@ -259,6 +283,7 @@ async function tryRestore(){
     hydrateUser();
     syncShellPermissions();
     showApp();
+    scheduleCorePrewarm();
     if(routeAfterAuth()){ hideLoading(); return; }
     if(permission("home_enabled")) switchView("home"); else switchView("more");
     hideLoading();
@@ -300,25 +325,33 @@ function handleNav(view){
     return openModule("daily",CFG.DAILY_REPORT_URL,"日報系統","daily");
   }
   if(view==="dashboard") return openModule("dashboard",CFG.DASHBOARD_PUBLIC_URL,"日報 Dashboard","dashboard");
-  if(view==="process"){
-    if(permission("grinding_enabled")) return openModule("grinding",CFG.GRINDING_URL,"Grinding WIP","process");
-    return switchView("more");
+  if(view==="grinding"){
+    if(!permission("grinding_enabled")) return toast("此帳號未開啟 Grinding WIP 權限",true);
+    return openModule("grinding",CFG.GRINDING_URL,"Grinding WIP","grinding");
   }
   if(view==="more") return switchView("more");
 }
 function renderMore(){
   const tools=[];
-  if(permission("grinding_enabled")) tools.push({key:"grinding",title:"Grinding WIP",desc:"研磨入站、WIP、待噴砂、DCYL、轉HT",url:CFG.GRINDING_URL,nav:"process"});
+  if(permission("grinding_enabled")) tools.push({key:"grinding",title:"Grinding WIP",desc:"研磨入站、WIP、待噴砂、DCYL、轉HT",url:CFG.GRINDING_URL,nav:"grinding"});
   if(permission("iqc_correction_enabled")) tools.push({key:"iqc",title:"IQC 異常處理",desc:"補建、修正、轉框與異常單",url:CFG.IQC_CORRECTION_URL,nav:"more"});
   if(permission("stamp_shipping_enabled")) tools.push({title:"鋼印鎖瓶／裝框",desc:"中期模組：庫存、裝框、出貨",disabled:true});
   if(permission("inventory_enabled")) tools.push({title:"庫存盤點",desc:"中長期模組：現場實體庫存與盤點",disabled:true});
   if(permission("hr_enabled")) tools.push({title:"人事系統",desc:"已保留權限欄位，URL於整併時接入",disabled:true});
   if(!tools.length) tools.push({title:"尚無其他功能",desc:"System_Access_Master 勾選權限後會自動出現。",disabled:true});
   $("moreGrid").innerHTML=tools.map((t,i)=>`<button class="tool-card" type="button" data-tool-index="${i}" ${t.disabled?"disabled":""}><strong>${escapeHtml(t.title)}</strong><span>${escapeHtml(t.desc)}</span></button>`).join("");
-  $("moreGrid").querySelectorAll("[data-tool-index]").forEach(btn=>btn.addEventListener("click",()=>{
-    const item=tools[Number(btn.dataset.toolIndex)];
-    if(item&&!item.disabled) openModule(item.key,item.url,item.title,item.nav||"more");
-  }));
+  $("moreGrid").querySelectorAll("[data-tool-index]").forEach(btn=>{
+    const warm=()=>{
+      const item=tools[Number(btn.dataset.toolIndex)];
+      if(item&&!item.disabled&&item.key&&item.url) prewarmModule(item.key,item.url,item.title);
+    };
+    btn.addEventListener("pointerdown",warm,{passive:true});
+    btn.addEventListener("touchstart",warm,{passive:true});
+    btn.addEventListener("click",()=>{
+      const item=tools[Number(btn.dataset.toolIndex)];
+      if(item&&!item.disabled) openModule(item.key,item.url,item.title,item.nav||"more");
+    });
+  });
 }
 async function loadHomeData(){
   if(!permission("home_enabled")) return;
@@ -445,7 +478,11 @@ function bind(){
     try{await login($("loginAccount").value,$("loginPassword").value,$("rememberLogin").checked)}catch(err){hideLoading();toast(err.message||"登入失敗",true)}
   });
   $("togglePassword").addEventListener("click",()=>{$("loginPassword").type=$("loginPassword").type==="password"?"text":"password"});
-  document.querySelectorAll("[data-nav]").forEach(btn=>btn.addEventListener("click",()=>handleNav(btn.dataset.nav)));
+  document.querySelectorAll("[data-nav]").forEach(btn=>{
+    btn.addEventListener("pointerdown",()=>prewarmForNav(btn.dataset.nav),{passive:true});
+    btn.addEventListener("touchstart",()=>prewarmForNav(btn.dataset.nav),{passive:true});
+    btn.addEventListener("click",()=>handleNav(btn.dataset.nav));
+  });
   $("userButton").addEventListener("click",()=>$("userMenu").classList.toggle("hidden"));
   $("logoutBtn").addEventListener("click",()=>{clearToken();state.authUser=null;state.profile=null;$("userMenu").classList.add("hidden");hydrateRememberedLogin();showLogin()});
   $("addPriorityBtn").addEventListener("click",()=>openPriorityModal());
@@ -461,7 +498,8 @@ function bind(){
 window.DS_PORTAL_BRIDGE=Object.freeze({
   getToken:()=>getToken(),
   getProfile:()=>state.profile,
-  getClientVersion:()=>CFG.CLIENT_VERSION
+  getClientVersion:()=>CFG.CLIENT_VERSION,
+  getSessionContext:()=>({token:getToken(),profile:state.profile,clientVersion:CFG.CLIENT_VERSION})
 });
 
 function handlePublicRoute(){
