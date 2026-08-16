@@ -105,6 +105,25 @@ function moduleUrl(url){
 function setActiveNav(key){
   document.querySelectorAll(".nav-item").forEach(el=>el.classList.toggle("active",el.dataset.nav===key));
 }
+function syncBottomNavHeight(){
+  const nav=document.querySelector(".bottom-nav");
+  if(!nav) return;
+  const h=Math.max(1,Math.ceil(nav.getBoundingClientRect().height));
+  document.documentElement.style.setProperty("--ds-nav-real-h",`${h}px`);
+}
+function installBottomNavHeightObserver(){
+  syncBottomNavHeight();
+  if(typeof ResizeObserver!=="undefined"){
+    const nav=document.querySelector(".bottom-nav");
+    if(nav){
+      const ro=new ResizeObserver(()=>syncBottomNavHeight());
+      ro.observe(nav);
+      window.__dsBottomNavRO=ro;
+    }
+  }
+  addEventListener("resize",syncBottomNavHeight,{passive:true});
+  addEventListener("orientationchange",()=>setTimeout(syncBottomNavHeight,80),{passive:true});
+}
 function ensureModuleFrame(key,url,title){
   const host=$("moduleFrameHost");
   let frame=host.querySelector(`[data-module-key="${key}"]`);
@@ -154,8 +173,11 @@ function openModule(key,url,title,navKey){
   $("moreModule").classList.add("hidden");
   $("moduleModule").classList.remove("hidden");
   $("moduleFrameHost").querySelectorAll(".module-frame").forEach(f=>f.classList.toggle("hidden",f!==frame));
+  syncBottomNavHeight();
   $("appShell").classList.add("module-mode");
   document.body.classList.add("ds-module-active");
+  // iOS PWA 在切換 iframe 時偶爾會延後重算 safe-area；下一個 frame 再校正一次。
+  requestAnimationFrame(syncBottomNavHeight);
   setActiveNav(navKey||key);
 }
 function leaveModuleMode(){
@@ -515,6 +537,7 @@ async function init(){
   hydrateRememberedLogin();
   if(handlePublicRoute()) return;
   if("serviceWorker" in navigator){navigator.serviceWorker.register("sw.js").catch(()=>{})}
-  await tryRestore();
+  await installBottomNavHeightObserver();
+  tryRestore();
 }
 init();
