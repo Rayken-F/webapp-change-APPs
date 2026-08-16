@@ -168,6 +168,7 @@
     }
   </style>
 </head>
+<!-- Grinding Recovery UX copy patch 2026-08-16; client version unchanged -->
 <body>
   <main class="wrap">
     <h1 class="title">Grinding WIP</h1>
@@ -1321,7 +1322,7 @@
         setTimeout(()=>refreshAll(false),250)
       }catch(err){
         if(err&&typeof isBetaAmbiguousApiError==="function"&&isBetaAmbiguousApiError(err)){
-          showToast("網路回應中斷，正在確認 Grinding 入站收據…");
+          showToast("📡 網路連線中斷，正在確認本次 Grinding 入站結果，請勿重複操作。");
           const recovered=await resolvePendingTransaction_("checkin",checkInPayload,{statusAttempts:4});
           if(recovered.state==="completed"){
             clearPendingAfterCompleted_("checkin");
@@ -1329,13 +1330,13 @@
             switchTab("wip");
             await refreshAll(false);
             broadcastRevision(state.revision);
-            showToast(recovered.duplicate?"入站其實已完成，已回復原收據且未重複寫入。":"弱網期間已安全確認 Grinding 入站完成。")
+            showToast(recovered.duplicate?"✅ 本次 Grinding 入站已確認成功，資料已同步且未重複寫入。":"✅ 本次 Grinding 入站已確認成功，資料已同步。")
           }else if(recovered.state==="failed"){
             markPendingSubmission("checkin",checkInPayload,"backend_failed");
             showToast(recovered.message||"Grinding 入站被後端拒絕，草稿已保留。",true)
           }else{
             markPendingSubmission("checkin",checkInPayload,"failed_or_unknown");
-            showToast("網路仍不穩；入站草稿與原 submission_id 已保留，恢復連線後會再次確認。",true)
+            showToast("📡 網路仍不穩，入站資料已安全保留；連線恢復後系統會自動確認，請勿重複操作。",true)
           }
         }else{
           markPendingSubmission("checkin",checkInPayload,"backend_failed");
@@ -1792,19 +1793,19 @@
         renderWip();
 
         if(err&&typeof isBetaAmbiguousApiError==="function"&&isBetaAmbiguousApiError(err)){
-          showToast("網路回應中斷，正在確認 Grinding 動作收據…");
+          showToast("📡 網路連線中斷，正在確認本次 Grinding 操作結果，請勿重複操作。");
           const recovered=await resolvePendingTransaction_("disposition",body,{statusAttempts:4});
           if(recovered.state==="completed"){
             clearPendingAfterCompleted_("disposition");
             await refreshAll(false);
             broadcastRevision(state.revision);
-            showToast(recovered.duplicate?"此動作其實已完成，已回復原收據。":"弱網期間已安全確認 Grinding 動作完成。")
+            showToast(recovered.duplicate?"✅ 本次 Grinding 操作已確認成功，資料已同步且未重複寫入。":"✅ 本次 Grinding 操作已確認成功，資料已同步。")
           }else if(recovered.state==="failed"){
             markPendingSubmission("disposition",body,"backend_failed");
             showToast(recovered.message||"Grinding 動作被後端拒絕，原選取已恢復。",true)
           }else{
             markPendingSubmission("disposition",body,"failed_or_unknown");
-            showToast("網路仍不穩；原 submission_id 已保留，恢復連線後會再次確認。",true)
+            showToast("📡 網路仍不穩，本次操作資料已安全保留；連線恢復後系統會自動確認。",true)
           }
         }else{
           markPendingSubmission("disposition",body,"backend_failed");
@@ -1972,7 +1973,7 @@
       }
       if(recovered.state==="failed"){
         markPendingSubmission(kind,pending.payload,"backend_failed");
-        showToast(recovered.message||"上次交易已由後端確認失敗，草稿仍保留。",true);
+        showToast(recovered.message||"⚠️ 上次 Grinding 操作未完成，原資料已保留，請確認後重新操作。",true);
         return false
       }
       markPendingSubmission(kind,pending.payload,recovered.state==="processing"?"sending":"failed_or_unknown");
@@ -1987,7 +1988,7 @@
        .sort((a,b)=>Number(a.pending.createdAt||0)-Number(b.pending.createdAt||0));
 
       if(!jobs.length)return;
-      showToast("正在確認上次弱網期間未取得回應的交易…");
+      showToast("🔄 正在確認上次 Grinding 操作結果…請稍候，系統正在確認資料是否已成功寫入，請勿重複操作。");
       let completedAny=false;
       for(const job of jobs){
         try{
@@ -2000,7 +2001,7 @@
         await refreshAll(false);
         renderCheckIn();
         renderWip();
-        showToast("上次交易已由 submission_id 確認完成，畫面已同步。")
+        showToast("✅ 上次 Grinding 操作已確認成功，資料已同步，可以繼續操作。")
       }
     }
     async function recoverPendingFrameEdit_(){
@@ -2015,13 +2016,13 @@
         clearPendingAfterCompleted_("frame_edit");
         await refreshAll(false);
         broadcastRevision(state.revision);
-        showToast(recovered.duplicate?"上次框內交易已由後台完成，未重複寫入。":"上次框內交易已安全續作完成。")
+        showToast(recovered.duplicate?"✅ 上次待噴砂框操作已確認成功，資料已同步。":"✅ 上次待噴砂框操作已安全完成，資料已同步。")
       }else if(recovered.state==="failed"){
         markPendingSubmission("frame_edit",pending.payload,"backend_failed");
-        showToast(recovered.message||"上次框內交易已確認失敗，原 submission_id 已保留。",true)
+        showToast(recovered.message||"⚠️ 上次待噴砂框操作未完成，原資料已保留，請確認後重新操作。",true)
       }else{
         markPendingSubmission("frame_edit",pending.payload,recovered.state==="processing"?"sending":"failed_or_unknown");
-        showToast("框內交易狀態尚未確認，系統會保留原 submission_id。",true)
+        showToast("📡 目前仍無法確認上次待噴砂框操作；原資料已安全保留，連線穩定後系統會再次確認。",true)
       }
     }
 
@@ -2089,17 +2090,17 @@
             closeFrameEditModal(true);
             await refreshAll(false);
             broadcastRevision(state.revision);
-            showToast(recovered.duplicate?"框內交易其實已完成，已回復原收據。":"弱網期間已安全確認框內交易完成。")
+            showToast(recovered.duplicate?"✅ 本次待噴砂框操作已確認成功，資料已同步且未重複寫入。":"✅ 本次待噴砂框操作已確認成功，資料已同步。")
           }else if(recovered.state==="failed"){
             markPendingSubmission("frame_edit",body,"backend_failed");
             showToast(recovered.message||"框內回修被後端拒絕，原 submission_id 已保留。",true)
           }else{
             markPendingSubmission("frame_edit",body,"failed_or_unknown");
-            showToast("網路仍不穩；框內回修的原 submission_id 已保留，重新開啟 APP 會再次確認。",true)
+            showToast("📡 網路仍不穩，待噴砂框操作資料已安全保留；重新開啟 APP 後系統會自動確認。",true)
           }
         }else{
           markPendingSubmission("frame_edit",body,"backend_failed");
-          showToast(err.message||"框內回修失敗；原 submission_id 已保留。",true)
+          showToast(err.message||"待噴砂框操作未完成；原資料已保留，請確認後重新操作。",true)
         }
       }finally{
         if(!completed)setFrameEditBusy(false,"")
