@@ -1,8 +1,9 @@
 <!DOCTYPE html>
 <html>
 <head>
- <script src="../ds-app/config.js"></script>
- <script src="../ds-app/portal-gate.js"></script>
+  <!-- DS Workstation Portal Gate：內部系統僅允許由 DS 工作站登入後使用 -->
+  <script src="../ds-app/config.js"></script>
+  <script src="../ds-app/portal-gate.js"></script>
  <title>鼎世日報系統</title>
 <link rel="icon" href="./favicon.ico">
 <link rel="apple-touch-icon" href="./icons/icon-192.png">
@@ -2099,17 +2100,9 @@ user-scalable=no">
     .legacy-sandblast-entry{margin-top:12px;padding:10px 12px;border-radius:14px;background:rgba(255,202,100,.06);border:1px solid rgba(255,202,100,.18)}
     .legacy-sandblast-entry summary{cursor:pointer;color:#ffe9aa;font-weight:900}
     .legacy-sandblast-entry button{margin-top:10px;width:100%}
-
-    .ds-app-nav-spacer{height:92px}
-    .ds-app-nav{position:fixed;left:50%;bottom:0;transform:translateX(-50%);z-index:12000;width:min(760px,100%);padding:8px 10px calc(8px + env(safe-area-inset-bottom));background:linear-gradient(180deg,rgba(12,20,61,.88),rgba(10,15,48,.98));border-top:1px solid rgba(255,255,255,.16);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);box-shadow:0 -14px 36px rgba(5,9,38,.34)}
-    .ds-app-nav-inner{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
-    .ds-app-nav-btn{min-width:0;min-height:58px;border-radius:16px;background:transparent;color:rgba(238,243,255,.66);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;font-size:11px;font-weight:900;text-decoration:none;border:1px solid transparent}
-    .ds-app-nav-btn .ico{font-size:21px;line-height:1}
-    .ds-app-nav-btn.active{color:#fff;background:linear-gradient(180deg,rgba(119,103,255,.32),rgba(67,198,232,.13));border-color:rgba(139,198,255,.32)}
-    .ds-app-nav-btn:active{transform:translateY(1px)}
     @media(max-width:620px){
-      .legacy-sandblast-backup>summary{align-items:flex-start;flex-direction:column}.legacy-sandblast-backup>summary small{text-align:left}
-      .ds-app-nav{width:100%}.ds-app-nav-btn{min-height:56px;font-size:10px}.ds-app-nav-btn .ico{font-size:20px}
+      .legacy-sandblast-backup>summary{align-items:flex-start;flex-direction:column}
+      .legacy-sandblast-backup>summary small{text-align:left}
     }
 
   </style>
@@ -2174,7 +2167,7 @@ user-scalable=no">
 
       <details class="legacy-sandblast-entry">
         <summary>🧯 舊版自動噴砂回報｜緊急備援</summary>
-        <div class="scan-tip" style="margin-top:8px;">Grinding WIP 已移至 DS 工作站「製程」。本日報站別只保留舊版 Response 回報作緊急備援。</div>
+        <div class="scan-tip" style="margin-top:8px;">Grinding WIP 已移至 DS 工作站獨立功能。本日報站別只保留舊版 Response 回報作緊急備援。</div>
         <button type="button" class="btn-danger" onclick="enterLegacySandblastBackup()">開啟舊版自動噴砂日報</button>
       </details>
 
@@ -2210,7 +2203,7 @@ user-scalable=no">
       <section class="legacy-sandblast-backup" style="margin-top:0;padding:14px;">
         <div class="legacy-sandblast-warning">
           🧯 <strong>舊版自動噴砂回報｜緊急備援</strong><br>
-          正常作業已改由「製程」頁面的 Grinding WIP 管理。此頁完整保留原 Response 日報流程，僅在新版製程異常時使用。
+          正常作業已改由 DS 工作站的 Grinding WIP 管理。此頁完整保留原 Response 日報流程，僅在 Grinding WIP 異常時使用。
         </div>
       </section>
 
@@ -3369,26 +3362,7 @@ user-scalable=no">
     });
   }
 
-
-  // 2026-08-16｜短期 Phase 1.1：自動噴砂改為同網域製程模組，取消 iframe / 內層捲動。
-  const DS_GRINDING_MODULE_URL = "../ds-report-pwa-beta/";
-  const DS_DASHBOARD_URL = "https://script.google.com/macros/s/AKfycbwYjPR-mHy_UCRAAsvU84-3T_MMQcfKHX9PSR8Da7E2gQq3xVEcK0Fnz0JvrHaIHpem/exec";
-  const DS_IQC_EXCEPTION_URL = "../DS-IQC-WIP/";
-
-  function buildGrindingModuleUrl_(){
-    const url = new URL(DS_GRINDING_MODULE_URL, window.location.href);
-    url.searchParams.set("date", String(formData.date || document.getElementById("date")?.value || ""));
-    url.searchParams.set("operator", String(formData.person || document.getElementById("person")?.value || ""));
-    url.searchParams.set("host", "ds_app_shell");
-    return url;
-  }
-
-  function goGrindingModule(){
-    saveData();
-    persistDraft();
-    window.location.href = buildGrindingModuleUrl_().toString();
-  }
-
+  // DS 工作站 v1.4：Grinding WIP 已改為工作站獨立功能；日報只保留舊版自動噴砂備援。
   function enterLegacySandblastBackup(){
     saveData();
     formData.site = "自動噴砂站";
@@ -3397,10 +3371,6 @@ user-scalable=no">
     persistDraft();
     nextPage("pageSandblast");
   }
-
-  function goDsDashboard(){ window.location.href = DS_DASHBOARD_URL; }
-  function goDsIqcException(){ window.location.href = new URL(DS_IQC_EXCEPTION_URL, window.location.href).toString(); }
-
   function nextPage(pageId){
     saveData();
 
@@ -5561,7 +5531,7 @@ function bindFramePairTableEvents(){
     let targetPage = "page1";
 
     if(siteValue === "自動噴砂站"){
-      // DS 工作站 v1.2：Grinding 已正式視為獨立「製程」模組。
+      // DS 工作站 v1.4：Grinding WIP 已正式改為工作站獨立功能。
       // 日報中的自動噴砂只保留既有 Response 備援，不再跳轉／嵌入 Grinding。
       targetPage = "pageSandblast";
     }
@@ -8057,15 +8027,5 @@ function toUpperSafe(value){
   return String(value || "").toUpperCase();
 }
 </script>
-  <div class="ds-app-nav-spacer" aria-hidden="true"></div>
-  <nav class="ds-app-nav" aria-label="DS 主功能">
-    <div class="ds-app-nav-inner">
-      <button type="button" class="ds-app-nav-btn active" onclick="window.scrollTo({top:0,behavior:'smooth'})"><span class="ico">📝</span><span>日報</span></button>
-      <button type="button" class="ds-app-nav-btn" onclick="goGrindingModule()"><span class="ico">⚙️</span><span>製程</span></button>
-      <button type="button" class="ds-app-nav-btn" onclick="goDsDashboard()"><span class="ico">📊</span><span>戰情</span></button>
-      <button type="button" class="ds-app-nav-btn" onclick="goDsIqcException()"><span class="ico">🧰</span><span>異常</span></button>
-    </div>
-  </nav>
-
 </body>
 </html>
