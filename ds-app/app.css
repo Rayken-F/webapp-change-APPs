@@ -44,3 +44,15 @@ label{display:grid;gap:8px;color:#eaf0ff;font-weight:700}input,select{width:100%
 .loading-overlay{position:fixed;z-index:200;inset:0;background:rgba(5,10,33,.72);backdrop-filter:blur(8px);display:grid;place-items:center;padding:20px}.loading-card{width:min(360px,90vw);padding:24px;border:1px solid var(--line);border-radius:24px;background:#111c4b;text-align:center;box-shadow:var(--shadow);display:grid;justify-items:center;gap:8px}.loading-card span{color:#a8b7df;line-height:1.55}.spinner{width:34px;height:34px;border:3px solid rgba(255,255,255,.14);border-top-color:#7d72ff;border-radius:50%;animation:spin .8s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}
 .toast{position:fixed;z-index:220;left:50%;bottom:calc(var(--nav-h) + env(safe-area-inset-bottom,0px) + 18px);transform:translateX(-50%);width:min(520px,calc(100vw - 32px));padding:12px 16px;border-radius:16px;background:#17245d;border:1px solid rgba(177,196,255,.25);box-shadow:var(--shadow);text-align:center;font-weight:700}.toast.error{background:#5d1e3b;border-color:#b64b6e}.user-menu{position:fixed;z-index:90;right:16px;top:calc(env(safe-area-inset-top,0px) + 74px);width:220px;padding:12px;border:1px solid var(--line);border-radius:18px;background:#121d4e;box-shadow:var(--shadow)}.user-menu-name{padding:8px 7px 12px;font-weight:800}.user-menu button{width:100%;border:0;border-radius:12px;background:rgba(255,255,255,.07);color:#fff;padding:10px}
 @media(max-width:640px){.hero-card{display:grid}.hero-card .secondary-btn{width:100%}.progress-strip{grid-template-columns:1fr}.priority-section{padding:14px}.priority-line1{padding-right:44px;font-size:15px}.priority-desc{font-size:13px}.bottom-nav{gap:0}.nav-item{font-size:10px}.tool-grid{grid-template-columns:1fr 1fr}.topbar{padding-left:14px;padding-right:14px}.user-chip{max-width:120px}.user-chip span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}}
+
+
+/* DS App Shell v1.1 — seamless module viewport */
+.app-shell.module-mode{height:100dvh;overflow:hidden;padding-bottom:0}
+.app-shell.module-mode .topbar{display:none}
+.app-shell.module-mode .main-view{width:100%;max-width:none;height:calc(100dvh - var(--nav-h) - env(safe-area-inset-bottom,0px));margin:0;padding:0;overflow:hidden}
+.module-host{width:100%;height:100%;padding:0;margin:0;overflow:hidden;background:#07112b}
+.module-frame-host{position:relative;width:100%;height:100%;overflow:hidden}
+.module-frame{position:absolute;inset:0;width:100%;height:100%;border:0;background:#07112b;display:block}
+.module-frame.hidden{display:none!important}
+body.ds-module-active{height:100dvh;overflow:hidden;overscroll-behavior:none}
+@supports(height:100svh){.app-shell.module-mode{height:100svh}.app-shell.module-mode .main-view{height:calc(100svh - var(--nav-h) - env(safe-area-inset-bottom,0px))}}
