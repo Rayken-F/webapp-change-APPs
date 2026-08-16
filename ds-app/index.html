@@ -8,7 +8,9 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="DS工作台">
   <title>鼎世工作台</title>
-  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="manifest" href="manifest.json">
+  <link rel="apple-touch-icon" sizes="180x180" href="./icons/apple-touch-icon.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="./icons/icon-192.png">
   <link rel="stylesheet" href="app.css">
 </head>
 <body>
@@ -47,6 +49,7 @@
         <span>記住登入</span>
       </label>
       <button id="loginBtn" class="primary-btn" type="submit">登入</button>
+      <div class="login-note">帳號與密碼沿用既有 System_Access_Master，不建立第二套登入資料。</div>
     </form>
   </section>
 
@@ -112,6 +115,10 @@
             <div class="empty-state">正在載入生產需求…</div>
           </div>
         </section>
+      </section>
+
+      <section id="moduleModule" class="module-view module-host hidden" aria-live="polite">
+        <div id="moduleFrameHost" class="module-frame-host"></div>
       </section>
 
       <section id="moreModule" class="module-view hidden">
