@@ -20,7 +20,7 @@
       let html=await response.text();
 
       html=html
-        .replace('href="manifest.json"','href="../ds-app/manifest.json"')
+        .replace('href="manifest.json"','href="./manifest.json"')
         .replace(/href="\.\/icons\//g,'href="../ds-app/icons/')
         .replace('href="app.css"','href="../ds-app/app.css"')
         .replace('</head>','<link rel="stylesheet" href="./keyboard-nav-hotfix.css?v=20260819"></head>')
