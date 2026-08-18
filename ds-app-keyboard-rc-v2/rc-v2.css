@@ -1,0 +1,132 @@
+/* DS App Shell RC v2｜iOS keyboard / module title / zoom containment
+   Test path only. Production ds-app remains untouched.
+*/
+:root{
+  --ds-module-context-h:calc(env(safe-area-inset-top,0px) + 44px);
+}
+html,body{
+  -webkit-text-size-adjust:100%;
+  touch-action:manipulation;
+}
+
+/* Persistent module identity: the iframe can keep its own scroll position,
+   but the user should always know which DS module is currently active. */
+.ds-module-context-bar{
+  display:none;
+}
+.app-shell.module-mode .ds-module-context-bar{
+  position:absolute;
+  z-index:75;
+  top:0;
+  left:0;
+  right:0;
+  height:var(--ds-module-context-h);
+  padding:env(safe-area-inset-top,0px) 14px 6px;
+  display:flex;
+  align-items:flex-end;
+  justify-content:space-between;
+  gap:10px;
+  background:linear-gradient(180deg,rgba(7,14,42,.99),rgba(11,23,64,.96));
+  border-bottom:1px solid rgba(176,195,255,.16);
+  box-shadow:0 8px 24px rgba(0,0,0,.16);
+  backdrop-filter:blur(18px);
+  -webkit-backdrop-filter:blur(18px);
+}
+.ds-module-context-left{
+  min-width:0;
+  display:flex;
+  align-items:center;
+  gap:9px;
+}
+.ds-module-context-left small{
+  display:block;
+  margin-bottom:1px;
+  color:#93a6dd;
+  font-size:9px;
+  font-weight:800;
+  letter-spacing:.08em;
+}
+.ds-module-context-left strong{
+  display:block;
+  overflow:hidden;
+  color:#fff;
+  font-size:13px;
+  line-height:1.15;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+.ds-module-context-icon{
+  width:29px;
+  height:29px;
+  flex:0 0 29px;
+  display:grid;
+  place-items:center;
+  border-radius:10px;
+  background:linear-gradient(145deg,#5469ff,#50b8ff);
+  box-shadow:0 7px 20px rgba(69,91,255,.30);
+  font-size:13px;
+  font-weight:900;
+}
+.ds-module-context-user{
+  max-width:42%;
+  overflow:hidden;
+  padding:5px 9px;
+  border:1px solid rgba(176,195,255,.16);
+  border-radius:999px;
+  background:rgba(255,255,255,.055);
+  color:#c7d2f4;
+  font-size:10px;
+  font-weight:800;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+
+/* Official v1.4.3 starts iframe modules at top:0. RC v2 reserves a compact,
+   predictable header so the current module name can never disappear. */
+.app-shell.module-mode .main-view{
+  top:var(--ds-module-context-h)!important;
+}
+
+.bottom-nav{
+  transform:translate3d(0,0,0);
+  will-change:transform,opacity;
+  transition:transform .12s ease,opacity .08s ease,visibility .08s linear;
+}
+
+/* Keyboard owns the lower visual viewport. Hide Shell chrome and let the iframe
+   use the entire remaining visible canvas; critically, do NOT leave a hidden
+   nav-sized blank reservation above the iOS keyboard. */
+html.ds-keyboard-open .bottom-nav{
+  transform:translate3d(0,calc(100% + env(safe-area-inset-bottom,0px) + 12px),0)!important;
+  opacity:0!important;
+  visibility:hidden!important;
+  pointer-events:none!important;
+}
+html.ds-keyboard-open .app-shell.module-mode .ds-module-context-bar{
+  opacity:0!important;
+  visibility:hidden!important;
+  pointer-events:none!important;
+}
+html.ds-keyboard-open .app-shell.module-mode .main-view{
+  top:0!important;
+  bottom:0!important;
+}
+html.ds-keyboard-open .app-shell.module-mode{
+  height:var(--ds-shell-vh,100dvh)!important;
+  max-height:var(--ds-shell-vh,100dvh)!important;
+}
+
+/* Keep the Shell from showing exposed background during transient iOS geometry. */
+html:has(body.ds-module-active),
+body.ds-module-active,
+.app-shell.module-mode,
+.app-shell.module-mode .main-view,
+.app-shell.module-mode .module-host,
+.app-shell.module-mode .module-frame-host{
+  background:#07112b!important;
+}
+
+@media(max-width:420px){
+  .ds-module-context-user{max-width:36%;font-size:9px;padding-inline:7px}
+  .ds-module-context-left strong{font-size:12px}
+}
