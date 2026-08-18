@@ -1,0 +1,26 @@
+/* DS App Shell keyboard-safe bottom navigation RC｜2026-08-19
+   Test path only. Production ds-app/ is untouched.
+*/
+
+.bottom-nav{
+  transform:translate3d(0,0,0);
+  will-change:transform,opacity;
+  transition:transform .14s ease,opacity .10s ease,visibility .10s linear;
+}
+
+/* iOS soft keyboard opens by shrinking visualViewport. The shell keeps its
+   last keyboard-closed height, while the nav temporarily leaves the visible
+   interaction area instead of being pushed upward above the keyboard. */
+html.ds-keyboard-open .bottom-nav{
+  transform:translate3d(0,calc(100% + env(safe-area-inset-bottom,0px) + 8px),0)!important;
+  opacity:0!important;
+  visibility:hidden!important;
+  pointer-events:none!important;
+}
+
+/* Keep module canvas geometry stable while the keyboard is open. The OS
+   keyboard owns the reduced visual area; do not recompute the app shell to it. */
+html.ds-keyboard-open .app-shell.module-mode{
+  height:var(--ds-shell-vh,100dvh)!important;
+  max-height:var(--ds-shell-vh,100dvh)!important;
+}
