@@ -30,7 +30,7 @@
       <label><span>密碼</span><div class="password-field"><input id="loginPassword" name="password" type="password" autocomplete="current-password" required><button id="togglePassword" type="button" class="icon-btn" aria-label="顯示或隱藏密碼">👁</button></div></label>
       <label class="remember-row"><input id="rememberLogin" type="checkbox" checked><span>記住登入</span></label>
       <button id="loginBtn" class="primary-btn" type="submit">登入 RC</button>
-      <div class="login-note">RC｜測試弱網辨識恢復與 HT/DCYL 退回 Grinding；正式資料寫入仍需後端 RC 路由。</div>
+      <div class="login-note">RC｜測試弱網辨識恢復與 HT/DCYL 退回 Grinding；新退回寫入只會走獨立 Backend RC URL。</div>
     </form>
   </section>
 
@@ -64,6 +64,6 @@
   <script src="../ds-app/app.js"></script>
   <script src="../ds-app-keyboard-rc-v3/rc-v3.js?v=20260819-1"></script>
   <script src="./lookup-recovery-rc.js?v=20260820-2"></script>
-  <script src="./return-to-wip-rc.js?v=20260820-1"></script>
+  <script src="./return-to-wip-rc-v2.js?v=20260820-1"></script>
 </body>
 </html>
