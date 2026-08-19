@@ -1,0 +1,78 @@
+/* DS App Shell Production UX｜2026-08-19
+   Promoted from field-accepted RC v3.
+*/
+:root{
+  --ds-module-context-h:calc(env(safe-area-inset-top,0px) + 34px);
+}
+html,body{
+  -webkit-text-size-adjust:100%;
+  touch-action:manipulation;
+}
+
+.ds-module-context-bar{display:none}
+.app-shell.module-mode .ds-module-context-bar{
+  position:absolute;
+  z-index:75;
+  top:0;
+  left:0;
+  right:0;
+  height:var(--ds-module-context-h);
+  padding:env(safe-area-inset-top,0px) 12px 3px;
+  display:flex;
+  align-items:flex-end;
+  justify-content:space-between;
+  gap:8px;
+  background:linear-gradient(180deg,rgba(7,14,42,.99),rgba(11,23,64,.97));
+  border-bottom:1px solid rgba(176,195,255,.14);
+  box-shadow:0 5px 18px rgba(0,0,0,.13);
+  backdrop-filter:blur(16px);
+  -webkit-backdrop-filter:blur(16px);
+}
+.ds-module-context-left{min-width:0;display:flex;align-items:center;gap:7px}
+.ds-module-context-left strong{display:block;overflow:hidden;color:#fff;font-size:12px;line-height:1;text-overflow:ellipsis;white-space:nowrap}
+.ds-module-context-icon{width:24px;height:24px;flex:0 0 24px;display:grid;place-items:center;border-radius:8px;background:linear-gradient(145deg,#5469ff,#50b8ff);box-shadow:0 5px 14px rgba(69,91,255,.24);font-size:11px;font-weight:900}
+.ds-module-context-user{max-width:44%;overflow:hidden;padding:4px 8px;border:1px solid rgba(176,195,255,.14);border-radius:999px;background:rgba(255,255,255,.05);color:#c7d2f4;font-size:9px;font-weight:800;text-overflow:ellipsis;white-space:nowrap}
+
+.app-shell.module-mode{
+  position:absolute!important;
+  top:0!important;
+  left:0!important;
+  right:0!important;
+  bottom:auto!important;
+  width:100%!important;
+  height:var(--ds-shell-vh,100dvh)!important;
+  max-height:none!important;
+  min-height:0!important;
+  overflow:hidden!important;
+}
+.app-shell.module-mode .main-view{
+  position:absolute!important;
+  top:var(--ds-module-context-h)!important;
+  left:0!important;
+  right:0!important;
+  bottom:var(--ds-nav-real-h)!important;
+  width:auto!important;
+  height:auto!important;
+  overflow:hidden!important;
+}
+.app-shell.module-mode .bottom-nav{
+  position:absolute!important;
+  left:0!important;
+  right:0!important;
+  bottom:0!important;
+}
+body.ds-module-active{
+  height:var(--ds-shell-vh,100dvh)!important;
+  min-height:var(--ds-shell-vh,100dvh)!important;
+  max-height:var(--ds-shell-vh,100dvh)!important;
+  overflow:hidden!important;
+}
+
+.bottom-nav{transform:translate3d(0,0,0);will-change:transform,opacity;transition:transform .10s ease,opacity .07s ease,visibility .07s linear}
+html.ds-keyboard-open .bottom-nav{transform:translate3d(0,calc(100% + env(safe-area-inset-bottom,0px) + 12px),0)!important;opacity:0!important;visibility:hidden!important;pointer-events:none!important}
+html.ds-keyboard-open .app-shell.module-mode .ds-module-context-bar{opacity:0!important;visibility:hidden!important;pointer-events:none!important}
+html.ds-keyboard-open .app-shell.module-mode .main-view{top:0!important;bottom:0!important}
+
+html:has(body.ds-module-active),body.ds-module-active,.app-shell.module-mode,.app-shell.module-mode .main-view,.app-shell.module-mode .module-host,.app-shell.module-mode .module-frame-host{background:#07112b!important}
+
+@media(max-width:420px){.ds-module-context-user{max-width:40%;font-size:8.5px;padding-inline:7px}.ds-module-context-left strong{font-size:11.5px}}
