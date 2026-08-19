@@ -1,10 +1,12 @@
 "use strict";
-const CACHE="ds-app-shell-v1-4-3-20260817";
+const CACHE="ds-app-shell-ios-ux-20260819-r1";
 const STATIC=[
   "./",
   "./index.html",
   "./app.css",
   "./app.js",
+  "./shell-ux.css",
+  "./shell-ux.js",
   "./config.js",
   "./manifest.json",
   "./portal-gate.js",
