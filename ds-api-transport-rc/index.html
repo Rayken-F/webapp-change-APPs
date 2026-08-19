@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+  <meta name="theme-color" content="#101942">
+  <title>DS API Transport Diagnostic RC</title>
+  <style>
+    :root{color-scheme:dark;--bg:#08112e;--panel:#121d4e;--line:rgba(190,205,255,.18);--muted:#aebde8;--ok:#71ddb0;--warn:#ffca76;--bad:#ff8298}
+    *{box-sizing:border-box}html,body{margin:0;min-height:100%;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans TC",sans-serif;background:linear-gradient(160deg,#07112b,#14245f 52%,#281066);color:#fff}
+    body{padding:calc(env(safe-area-inset-top,0px) + 24px) 16px calc(env(safe-area-inset-bottom,0px) + 28px)}
+    .wrap{width:min(720px,100%);margin:auto}.head{margin-bottom:16px}.head small{color:#9fb4f1;font-weight:800;letter-spacing:.08em}.head h1{margin:6px 0 8px;font-size:26px}.head p{margin:0;color:var(--muted);line-height:1.65}
+    .actions{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:18px 0}.actions button{min-height:50px;border:1px solid rgba(142,159,255,.28);border-radius:16px;background:linear-gradient(135deg,#685cff,#4c44d8);color:#fff;font-weight:900;font-size:15px}.actions button.secondary{background:rgba(255,255,255,.08)}
+    .summary{padding:14px 16px;border:1px solid var(--line);border-radius:18px;background:rgba(14,26,71,.76);color:var(--muted);line-height:1.55;margin-bottom:12px}.summary strong{color:#fff}
+    .grid{display:grid;gap:12px}.card{border:1px solid var(--line);border-radius:20px;background:rgba(18,29,78,.88);padding:16px;box-shadow:0 18px 48px rgba(0,0,0,.18)}.card-head{display:flex;align-items:center;justify-content:space-between;gap:10px}.card h2{font-size:18px;margin:0}.badge{padding:5px 9px;border-radius:999px;font-size:11px;font-weight:900;background:rgba(255,255,255,.08);color:var(--muted)}.badge.ok{color:var(--ok);background:rgba(113,221,176,.09)}.badge.warn{color:var(--warn);background:rgba(255,202,118,.09)}.badge.bad{color:var(--bad);background:rgba(255,130,152,.09)}
+    dl{display:grid;grid-template-columns:130px 1fr;gap:8px 12px;margin:14px 0 0;font-size:13px}dt{color:#91a5dc}dd{margin:0;overflow-wrap:anywhere}.prefix{margin-top:12px;padding:10px;border-radius:12px;background:rgba(0,0,0,.18);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px;line-height:1.45;white-space:pre-wrap;word-break:break-word;color:#dfe7ff}.note{margin-top:14px;color:#91a5dc;font-size:12px;line-height:1.6}
+    @media(max-width:520px){.actions{grid-template-columns:1fr}.head h1{font-size:23px}dl{grid-template-columns:104px 1fr}}
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <header class="head">
+      <small>DS P0 TRANSPORT DIAGNOSTIC · RC</small>
+      <h1>IQC / Grinding API 回應檢測</h1>
+      <p>唯讀探測，不寫入日報、IQC 或 Grinding。當現場再出現「JSON / API 回應格式」錯誤時，立即開這頁按「全部檢測」。</p>
+    </header>
+
+    <div class="actions">
+      <button id="runAll" type="button">全部檢測</button>
+      <button id="copyResult" class="secondary" type="button">複製診斷摘要</button>
+    </div>
+
+    <div id="summary" class="summary">尚未執行。網路狀態：<strong id="onlineState">-</strong></div>
+    <section class="grid">
+      <article class="card" id="dailyCard"><div class="card-head"><h2>日報 / IQC API</h2><span class="badge" data-badge>待檢測</span></div><div data-body></div></article>
+      <article class="card" id="grindingCard"><div class="card-head"><h2>Grinding WIP API</h2><span class="badge" data-badge>待檢測</span></div><div data-body></div></article>
+    </section>
+    <div class="note">判讀原則：JSON 且 HTTP 2xx = 傳輸正常；HTML / 空白 / invalid JSON / timeout = 傳輸層異常候選。這個工具不判斷資料是否已寫入，寫入型交易仍以 submission_id 永久收據為準。</div>
+  </main>
+
+  <script src="../ds-report-pwa/api.js"></script>
+  <script src="../ds-report-pwa-beta/api.js"></script>
+  <script>
+  (function(){
+    const $=s=>document.querySelector(s);
+    const results={};
+    function esc(v){return String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
+    function classify(text,contentType,status,error){
+      if(error) return error.name==="AbortError"?"TIMEOUT":"NETWORK_ERROR";
+      if(!text||!text.trim()) return "EMPTY";
+      const lower=text.trim().slice(0,180).toLowerCase();
+      if(lower.startsWith("<!doctype html")||lower.startsWith("<html")||String(contentType||"").toLowerCase().includes("text/html")) return "HTML";
+      try{JSON.parse(text);return status>=200&&status<300?"JSON_OK":"JSON_HTTP_ERROR";}catch(_){return "INVALID_JSON";}
+    }
+    function safePrefix(text){
+      let s=String(text||"").replace(/\s+/g," ").trim().slice(0,180);
+      s=s.replace(/([?&](?:token|session_token|api_key)=)[^&\s]+/ig,"$1[REDACTED]");
+      return s;
+    }
+    async function rawProbe(name,url,timeoutMs){
+      const started=performance.now();
+      const controller=typeof AbortController==="function"?new AbortController():null;
+      const timer=controller?setTimeout(()=>controller.abort(),timeoutMs||15000):0;
+      let response=null,text="",error=null;
+      try{
+        response=await fetch(url,{method:"GET",cache:"no-store",redirect:"follow",signal:controller?controller.signal:undefined});
+        text=await response.text();
+      }catch(err){error=err;}finally{if(timer)clearTimeout(timer);}
+      const elapsed=Math.round(performance.now()-started);
+      const status=response?Number(response.status||0):0;
+      const contentType=response?String(response.headers.get("content-type")||""):"";
+      const cls=classify(text,contentType,status,error);
+      const out={name,time:new Date().toISOString(),online:navigator.onLine,status,contentType,bytes:new Blob([text]).size,classification:cls,elapsedMs:elapsed,prefix:safePrefix(text),error:error?String(error.message||error):""};
+      results[name]=out;return out;
+    }
+    function render(cardId,r){
+      const card=document.getElementById(cardId);const badge=card.querySelector("[data-badge]");const body=card.querySelector("[data-body]");
+      const ok=r.classification==="JSON_OK";const warn=["JSON_HTTP_ERROR"].includes(r.classification);
+      badge.className="badge "+(ok?"ok":warn?"warn":"bad");badge.textContent=r.classification;
+      body.innerHTML=`<dl><dt>時間</dt><dd>${esc(r.time)}</dd><dt>Online</dt><dd>${esc(r.online)}</dd><dt>HTTP</dt><dd>${esc(r.status||"-")}</dd><dt>Content-Type</dt><dd>${esc(r.contentType||"-")}</dd><dt>回應大小</dt><dd>${esc(r.bytes)} bytes</dd><dt>耗時</dt><dd>${esc(r.elapsedMs)} ms</dd><dt>分類</dt><dd>${esc(r.classification)}</dd></dl>${r.prefix?`<div class="prefix">${esc(r.prefix)}</div>`:""}${r.error?`<div class="prefix">ERROR: ${esc(r.error)}</div>`:""}`;
+    }
+    async function runAll(){
+      $("#runAll").disabled=true;$("#summary").innerHTML='正在檢測… 網路狀態：<strong>'+esc(navigator.onLine)+'</strong>';
+      try{
+        const nonce=Date.now();
+        const dailyUrl=API_URL+"?api=iqc_regions&diag_nonce="+nonce;
+        const grindUrl=BETA_API_URL+"?api=health&token="+encodeURIComponent(BETA_API_TOKEN)+"&client_version="+encodeURIComponent(BETA_CLIENT_VERSION)+"&request_nonce="+nonce;
+        const [d,g]=await Promise.all([rawProbe("daily_iqc",dailyUrl,18000),rawProbe("grinding",grindUrl,18000)]);
+        render("dailyCard",d);render("grindingCard",g);
+        const bad=[d,g].filter(x=>x.classification!=="JSON_OK");
+        $("#summary").innerHTML=bad.length?`偵測到 <strong>${bad.length}</strong> 個異常候選。請截圖或按「複製診斷摘要」傳給 G神。`:'兩個 API 本次皆為 <strong>JSON_OK</strong>。若現場剛發作，請隔幾秒連續再測 2～3 次。';
+      }finally{$("#runAll").disabled=false;}
+    }
+    $("#runAll").addEventListener("click",runAll);
+    $("#copyResult").addEventListener("click",async()=>{
+      const text=Object.values(results).map(r=>`${r.name} | ${r.time} | online=${r.online} | HTTP=${r.status} | type=${r.contentType||"-"} | bytes=${r.bytes} | ${r.classification} | ${r.elapsedMs}ms | prefix=${r.prefix||"-"} | error=${r.error||"-"}`).join("\n");
+      if(!text){alert("請先執行檢測");return;}
+      try{await navigator.clipboard.writeText(text);alert("診斷摘要已複製");}catch(_){prompt("請複製以下內容",text);}
+    });
+    $("#onlineState").textContent=String(navigator.onLine);
+    addEventListener("online",()=>$("#onlineState").textContent="true");addEventListener("offline",()=>$("#onlineState").textContent="false");
+  })();
+  </script>
+</body>
+</html>
