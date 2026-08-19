@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+  <meta name="theme-color" content="#07112b">
+  <title>Grinding Lookup Recovery RC</title>
+  <style>
+    *{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#07112b;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans TC",sans-serif}
+    #app{position:absolute;inset:0;width:100%;height:100%;border:0;background:#07112b}
+    #rcBadge{position:fixed;z-index:99999;top:calc(env(safe-area-inset-top,0px) + 8px);left:50%;transform:translateX(-50%);max-width:calc(100vw - 24px);padding:7px 11px;border-radius:999px;background:rgba(7,17,43,.92);border:1px solid rgba(113,221,176,.38);color:#caffdf;font-size:11px;font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;box-shadow:0 10px 28px rgba(0,0,0,.3);pointer-events:none;opacity:.96}
+    #rcBadge.wait{color:#ffe4a3;border-color:rgba(255,202,100,.45)}
+    #rcBadge.bad{color:#ffd0d8;border-color:rgba(255,113,136,.5)}
+  </style>
+</head>
+<body>
+  <iframe id="app" src="../ds-report-pwa-beta/?lookup_recovery_rc=20260819"></iframe>
+  <div id="rcBadge">Lookup Recovery RC｜等待 Grinding 載入</div>
+<script>
+(function(){
+  'use strict';
+  const VERSION='GRINDING_LOOKUP_RECOVERY_RC_V1_20260819';
+  const frame=document.getElementById('app');
+  const badge=document.getElementById('rcBadge');
+  let installed=false;
+  let stats={batches:0,retries:0,recovered:0,failed:0};
+  const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+  function setBadge(text,kind){badge.textContent=text;badge.className=kind||'';}
+  function retryable(err,w){
+    if(!err)return false;
+    if(typeof w.isBetaAmbiguousApiError==='function'&&w.isBetaAmbiguousApiError(err))return true;
+    return ['NETWORK_TIMEOUT','NETWORK_ERROR','RESPONSE_READ_FAILED','EMPTY_RESPONSE','INVALID_JSON_RESPONSE'].includes(String(err.code||''));
+  }
+  function install(){
+    let w;
+    try{w=frame.contentWindow;}catch(_){return false;}
+    if(!w||typeof w.fetchBetaWipLookupBatch!=='function')return false;
+    if(w.__DS_LOOKUP_RECOVERY_RC_INSTALLED)return true;
+    const original=w.fetchBetaWipLookupBatch;
+    w.__DS_LOOKUP_RECOVERY_RC_INSTALLED=true;
+    w.__DS_LOOKUP_RECOVERY_RC={version:VERSION,stats};
+    w.fetchBetaWipLookupBatch=async function(ctns){
+      stats.batches++;
+      const count=Array.isArray(ctns)?ctns.length:0;
+      const delays=[0,850,1800];
+      let lastErr=null;
+      for(let attempt=0;attempt<delays.length;attempt++){
+        if(delays[attempt]){
+          stats.retries++;
+          setBadge(`回應待確認｜${count} 筆｜自動重試 ${attempt+1}/2`,'wait');
+          await sleep(delays[attempt]);
+        }else{
+          setBadge(`辨識中｜${count} 筆｜RC 弱網保護啟用`,'');
+        }
+        try{
+          const result=await original.call(w,ctns);
+          if(attempt>0)stats.recovered++;
+          setBadge(attempt>0?`已恢復｜${count} 筆辨識完成`:`Lookup Recovery RC｜${count} 筆辨識完成`,'');
+          setTimeout(()=>setBadge(`Lookup Recovery RC｜批次 ${stats.batches}｜重試 ${stats.retries}｜恢復 ${stats.recovered}`,'') ,1400);
+          return result;
+        }catch(err){
+          lastErr=err;
+          if(!retryable(err,w)){
+            setBadge(`後端明確拒絕｜不自動重試｜${String(err.message||'').slice(0,42)}`,'bad');
+            throw err;
+          }
+          if(attempt===delays.length-1)break;
+        }
+      }
+      stats.failed++;
+      setBadge(`傳輸仍不穩｜已自動重試 2 次｜請按重新辨識`,'bad');
+      if(lastErr){
+        lastErr.message='辨識回應連續不完整；已自動重試 2 次，資料未寫入，請稍後按「重新辨識」。';
+        lastErr.code=String(lastErr.code||'LOOKUP_TRANSPORT_FAILED');
+      }
+      throw lastErr||new Error('Lookup transport failed');
+    };
+    installed=true;
+    setBadge(`Lookup Recovery RC 已啟用｜${VERSION}`,'');
+    return true;
+  }
+  frame.addEventListener('load',()=>{
+    installed=false;
+    let tries=0;
+    const timer=setInterval(()=>{
+      tries++;
+      if(install()||tries>80)clearInterval(timer);
+      if(tries>80&&!installed)setBadge('RC 注入失敗｜請重整頁面','bad');
+    },100);
+  });
+})();
+</script>
+</body>
+</html>
