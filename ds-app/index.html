@@ -2,7 +2,7 @@
 <html lang="zh-Hant">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
   <meta name="theme-color" content="#101942">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -12,6 +12,7 @@
   <link rel="apple-touch-icon" sizes="180x180" href="./icons/apple-touch-icon.png">
   <link rel="icon" type="image/png" sizes="192x192" href="./icons/icon-192.png">
   <link rel="stylesheet" href="app.css">
+  <link rel="stylesheet" href="shell-ux.css?v=20260819-r1">
 </head>
 <body>
   <div id="loadingOverlay" class="loading-overlay hidden" aria-live="polite">
@@ -67,6 +68,14 @@
         <small id="userRole">-</small>
       </button>
     </header>
+
+    <div id="dsModuleContextBar" class="ds-module-context-bar" aria-hidden="true">
+      <div class="ds-module-context-left">
+        <span id="dsModuleContextIcon" class="ds-module-context-icon">DS</span>
+        <strong id="dsModuleContextTitle">日報系統</strong>
+      </div>
+      <div id="dsModuleContextUser" class="ds-module-context-user">-</div>
+    </div>
 
     <main id="mainView" class="main-view">
       <section id="homeModule" class="module-view">
@@ -216,5 +225,6 @@
 
   <script src="config.js"></script>
   <script src="app.js"></script>
+  <script src="shell-ux.js?v=20260819-r1"></script>
 </body>
 </html>
