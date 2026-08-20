@@ -99,8 +99,7 @@
       return true;
     }
 
-    const previous=w.fetchBetaWipLookupBatch;
-    const original=previous;
+    const original=w.fetchBetaWipLookupBatch;
 
     async function patchedFetchBetaWipLookupBatch(ctns){
       stats.batches++;
@@ -140,9 +139,7 @@
       stats.failed++;
       setBadge("傳輸仍不穩｜已自動重試 2 次｜可按重新辨識","bad");
       if(lastErr){
-        try{
-          lastErr.message="辨識回應連續不完整；已自動重試 2 次。這是傳輸異常，不代表 CTN 資料錯誤，請稍後按『重新辨識』。";
-        }catch(_){ }
+        try{lastErr.message="辨識回應連續不完整；已自動重試 2 次。這是傳輸異常，不代表 CTN 資料錯誤，請稍後按『重新辨識』。";}catch(_){ }
         throw lastErr;
       }
       throw new Error("Grinding lookup transport failed after recovery retries");
@@ -209,4 +206,18 @@
     const frame=document.querySelector("#moduleFrameHost iframe[data-module-key='grinding']");
     return frame?patchGrindingFrame(frame):false;
   }};
+})();
+
+(function loadGrindingRcExtensions(){
+  function load(src,next){
+    const s=document.createElement("script");
+    s.src=src;
+    s.onload=()=>{if(next)next();};
+    s.onerror=()=>console.warn("Grinding RC extension load failed",src);
+    document.head.appendChild(s);
+  }
+  load("./return-rc-config.js?v=20260820-1",()=>{
+    load("./grinding-ui-safe-rc.js?v=20260820-1");
+    load("./return-to-wip-rc-v3.js?v=20260820-1");
+  });
 })();
