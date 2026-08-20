@@ -1,0 +1,5 @@
+"use strict";
+window.DS_GRINDING_RETURN_RC_CONFIG=Object.freeze({
+  VERSION:"GRINDING_RETURN_RC_CONFIG_V1_20260820",
+  API_URL:""
+});
