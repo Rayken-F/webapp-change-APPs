@@ -216,8 +216,8 @@
     s.onerror=()=>console.warn("Grinding RC extension load failed",src);
     document.head.appendChild(s);
   }
-  load("./return-rc-config.js?v=20260820-1",()=>{
-    load("./grinding-ui-safe-rc.js?v=20260820-1");
-    load("./return-to-wip-rc-v3.js?v=20260820-1");
+  load("./return-rc-config.js?v=20260820-2",()=>{
+    load("./grinding-ui-safe-rc.js?v=20260820-2");
+    load("./return-to-wip-rc-v3.js?v=20260820-4");
   });
 })();
