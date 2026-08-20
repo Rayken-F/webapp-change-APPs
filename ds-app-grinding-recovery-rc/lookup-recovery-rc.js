@@ -1,7 +1,7 @@
 "use strict";
 
 (function installGrindingLookupRecoveryRc(){
-  const VERSION="GRINDING_LOOKUP_RECOVERY_RC_V3_1_20260820";
+  const VERSION="GRINDING_LOOKUP_RECOVERY_RC_V3_20260820";
   const badge=document.getElementById("grindingRecoveryBadge");
   const stats={batches:0,retries:0,recovered:0,failed:0,lastError:"",faultsInjected:0};
   const fault={remaining:0,armedMode:""};
@@ -11,48 +11,6 @@
     if(!badge)return;
     badge.textContent=text;
     badge.className="grinding-recovery-badge"+(kind?" "+kind:"");
-  }
-
-  function compactBuildLabel(full){
-    const text=String(full||"").trim();
-    const match=text.match(/V(\d+)_(\d+)_(\d+)/i);
-    return match?`v${match[1]}.${match[2]}.${match[3]}`:(text||"BETA");
-  }
-
-  function patchVersionPill(frame){
-    if(!frame||String(frame.dataset.moduleKey||"")!=="grinding")return;
-    let doc,w;
-    try{doc=frame.contentDocument;w=frame.contentWindow;}catch(_){return;}
-    if(!doc||!doc.body)return;
-    const pill=doc.getElementById("apiPill");
-    if(!pill)return;
-
-    if(!doc.getElementById("dsGrindingRcCompactVersionStyle")){
-      const style=doc.createElement("style");
-      style.id="dsGrindingRcCompactVersionStyle";
-      style.textContent=`
-        #apiPill{max-width:min(52vw,260px);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:inline-block;vertical-align:middle}
-        @media(max-width:620px){#operationInfoCard>.row.between{align-items:center;gap:8px}#apiPill{max-width:46vw}}
-      `;
-      doc.head.appendChild(style);
-    }
-
-    const apply=()=>{
-      const raw=String(pill.dataset.fullBuild||pill.title||pill.textContent||"");
-      const fromWindow=String(w&&w.BETA_CLIENT_VERSION||"");
-      const source=(raw.includes("BETA_GRINDING_WIP_")?raw:fromWindow)||raw;
-      if(source.includes("BETA_GRINDING_WIP_")){
-        pill.dataset.fullBuild=source;
-        pill.title=source;
-        pill.textContent=`已連線｜${compactBuildLabel(source)}`;
-      }
-    };
-    apply();
-    if(!pill.__dsRcVersionObserver){
-      const observer=new MutationObserver(()=>apply());
-      observer.observe(pill,{childList:true,characterData:true,subtree:true});
-      pill.__dsRcVersionObserver=observer;
-    }
   }
 
   function injectControlPanel(){
@@ -136,13 +94,14 @@
     let w;
     try{w=frame.contentWindow;}catch(_){return false;}
     if(!w||typeof w.fetchBetaWipLookupBatch!=="function")return false;
-    patchVersionPill(frame);
     if(w.__DS_LOOKUP_RECOVERY_RC_V3_INSTALLED){
       setBadge(`Grinding Recovery RC 已啟用｜批次 ${stats.batches}｜恢復 ${stats.recovered}`);
       return true;
     }
 
-    const original=w.fetchBetaWipLookupBatch;
+    const previous=w.fetchBetaWipLookupBatch;
+    const original=previous;
+
     async function patchedFetchBetaWipLookupBatch(ctns){
       stats.batches++;
       const count=Array.isArray(ctns)?ctns.length:0;
@@ -181,7 +140,9 @@
       stats.failed++;
       setBadge("傳輸仍不穩｜已自動重試 2 次｜可按重新辨識","bad");
       if(lastErr){
-        try{lastErr.message="辨識回應連續不完整；已自動重試 2 次。這是傳輸異常，不代表 CTN 資料錯誤，請稍後按『重新辨識』。";}catch(_){ }
+        try{
+          lastErr.message="辨識回應連續不完整；已自動重試 2 次。這是傳輸異常，不代表 CTN 資料錯誤，請稍後按『重新辨識』。";
+        }catch(_){ }
         throw lastErr;
       }
       throw new Error("Grinding lookup transport failed after recovery retries");
@@ -206,7 +167,6 @@
       let attempts=0;
       const timer=setInterval(()=>{
         attempts++;
-        patchVersionPill(frame);
         if(patchGrindingFrame(frame)||attempts>=100){
           clearInterval(timer);
           if(attempts>=100){
@@ -238,7 +198,7 @@
     if(!nav)return;
     setTimeout(()=>{
       const frame=document.querySelector("#moduleFrameHost iframe[data-module-key='grinding']");
-      if(frame){patchGrindingFrame(frame);patchVersionPill(frame);}
+      if(frame)patchGrindingFrame(frame);
     },350);
   },true);
 
@@ -247,7 +207,6 @@
   setBadge(`Grinding Recovery RC Shell｜${VERSION}`);
   window.__DS_GRINDING_RECOVERY_RC={version:VERSION,stats:stats,fault:fault,repatch:()=>{
     const frame=document.querySelector("#moduleFrameHost iframe[data-module-key='grinding']");
-    if(frame)patchVersionPill(frame);
     return frame?patchGrindingFrame(frame):false;
   }};
 })();
