@@ -1,11 +1,17 @@
-/* DS RC v11｜home/login stabilization only; modules always full viewport */
+/* DS RC v12｜home/login stabilization only; module frames full viewport + strict single-visible rule */
 html,body{min-height:100%!important;background:#09112f!important}
 body{background:linear-gradient(145deg,#09112f,#182966 44%,#251168)!important}
 #loginView{min-height:var(--ds-rc-home-vh,100dvh)!important}
 #appShell:not(.module-mode){min-height:var(--ds-rc-home-vh,100dvh)!important}
-/* Structural fix: module pages always occupy the full viewport. The bottom nav floats above them. */
+
+/* Modules always occupy the full viewport. Bottom navigation is pure overlay. */
 #appShell.module-mode{position:fixed!important;inset:0!important;width:100%!important;height:100dvh!important;min-height:0!important;overflow:hidden!important;padding:0!important;background:#07112b!important}
 #appShell.module-mode .main-view{position:fixed!important;inset:0!important;top:0!important;right:0!important;bottom:0!important;left:0!important;width:100%!important;height:100%!important;min-height:0!important;margin:0!important;padding:0!important;overflow:hidden!important;background:#07112b!important}
 #appShell.module-mode .module-host,#appShell.module-mode .module-frame-host{position:absolute!important;inset:0!important;width:100%!important;height:100%!important;min-height:0!important;margin:0!important;padding:0!important;overflow:hidden!important;background:#07112b!important}
-#appShell.module-mode .module-frame{position:absolute!important;inset:0!important;width:100%!important;height:100%!important;min-height:0!important;margin:0!important;padding:0!important;border:0!important;display:block!important;background:#07112b!important}
+
+/* P0 v12: never let the full-screen rule override .hidden. Exactly one module iframe may be visible. */
+#appShell.module-mode .module-frame{position:absolute!important;inset:0!important;width:100%!important;height:100%!important;min-height:0!important;margin:0!important;padding:0!important;border:0!important;display:block!important;visibility:visible!important;pointer-events:auto!important;background:#07112b!important}
+#appShell.module-mode .module-frame.hidden{display:none!important;visibility:hidden!important;pointer-events:none!important;z-index:-1!important}
+#appShell.module-mode .module-frame:not(.hidden){display:block!important;visibility:visible!important;pointer-events:auto!important;z-index:2!important}
+
 html.ds-keyboard-open #appShell .bottom-nav{transform:translate3d(0,calc(100% + env(safe-area-inset-bottom,0px) + 28px),0)!important}
