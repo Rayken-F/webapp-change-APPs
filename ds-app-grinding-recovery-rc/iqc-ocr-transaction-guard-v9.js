@@ -1,8 +1,9 @@
 "use strict";
 (function installIqcOcrTransactionGuardV9(){
-  const VERSION="IQC_OCR_TRANSACTION_GUARD_V9_20260823";
+  const VERSION="IQC_OCR_TRANSACTION_GUARD_V9_1_20260823";
   if(window.__DS_IQC_OCR_TX_GUARD_V9)return;
   let ingestBusy=false;
+  let ingestStartedAt=0;
   let ocrBusy=false;
   let settleUntil=0;
   let expectedPhotoCount=0;
@@ -17,7 +18,7 @@
   function baseLooksBusy(){
     const btn=analyzeBtn();
     if(btn&&btn.disabled)return true;
-    if(/辨識中|下載 OCR|初始化/.test(progressText()))return true;
+    if(/第\s*\d+\/\d+\s*張.*辨識中|^OCR\s+.*\d+%/.test(progressText()))return true;
     return Array.from(document.querySelectorAll("#iqcRcPhotoList .iqc-photo .meta small")).some(el=>/辨識中/.test(String(el.textContent||"")));
   }
   function locked(){return ingestBusy||ocrBusy||baseLooksBusy()||Date.now()<settleUntil;}
@@ -32,12 +33,15 @@
     clearTimeout(noticeTimer);noticeTimer=setTimeout(()=>{el.style.display="none";},3600);
   }
   function lockControls(){
-    const btn=analyzeBtn();if(btn)btn.setAttribute("aria-disabled",locked()?"true":"false");
-    ["iqcRcCameraBtn","iqcRcGalleryBtn","iqcRcNewBatch"].forEach(id=>{const el=document.getElementById(id);if(el)el.style.opacity=locked()?".58":"";});
+    const busy=locked();const btn=analyzeBtn();if(btn)btn.setAttribute("aria-disabled",busy?"true":"false");
+    ["iqcRcCameraBtn","iqcRcGalleryBtn","iqcRcNewBatch"].forEach(id=>{const el=document.getElementById(id);if(el)el.style.opacity=busy?".58":"";});
   }
   function beginSettle(ms,msg){
-    ingestBusy=true;settleUntil=Math.max(settleUntil,Date.now()+ms);stableTicks=0;lastObservedCount=photoCount();
+    ingestBusy=true;ingestStartedAt=Date.now();settleUntil=Math.max(settleUntil,Date.now()+ms);stableTicks=0;lastObservedCount=photoCount();
     if(msg)showNotice(msg,false);lockControls();
+  }
+  function finishIngest(message,bad=false){
+    ingestBusy=false;ingestStartedAt=0;expectedPhotoCount=0;stableTicks=0;showNotice(message,bad);lockControls();
   }
   function pollIngest(){
     if(!ingestBusy)return;
@@ -45,7 +49,10 @@
     if(count===lastObservedCount)stableTicks++;else{stableTicks=0;lastObservedCount=count;}
     const enough=expectedPhotoCount<=0||count>=expectedPhotoCount;
     if(enough&&stableTicks>=3&&Date.now()>=settleUntil){
-      ingestBusy=false;expectedPhotoCount=0;showNotice("照片已完成本機整理，可以開始辨識。",false);lockControls();return;
+      finishIngest("照片已完成本機整理，可以開始辨識。",false);return;
+    }
+    if(ingestStartedAt&&Date.now()-ingestStartedAt>12000){
+      finishIngest(`照片整理超過 12 秒，已停止等待。目前可見 ${count} 張；請確認照片數量後再辨識。`,true);return;
     }
     setTimeout(pollIngest,180);
   }
@@ -77,10 +84,10 @@
       deny("辨識尚未完成，這次操作已取消；請勿刪除或重選照片，以免同批資料互相覆寫。");return;
     }
     if(target.matches("[data-photo-delete]")){
-      beginSettle(700,"正在移除照片並重建批次，完成前暫停辨識。");setTimeout(pollIngest,120);
+      expectedPhotoCount=Math.max(0,photoCount()-1);beginSettle(700,"正在移除照片並重建批次，完成前暫停辨識。");setTimeout(pollIngest,120);
     }
     if(target.id==="iqcRcNewBatch"){
-      beginSettle(700,"正在建立新批次，完成前暫停辨識。");expectedPhotoCount=0;setTimeout(pollIngest,120);
+      expectedPhotoCount=0;beginSettle(700,"正在建立新批次，完成前暫停辨識。");setTimeout(pollIngest,120);
     }
   },true);
 
