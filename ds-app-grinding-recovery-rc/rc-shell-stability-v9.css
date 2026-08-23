@@ -1,0 +1,30 @@
+/* DS RC v9｜iOS shell height stabilization + lower LINE-style nav (RC only) */
+html,body{
+  min-height:100%!important;
+  min-height:var(--ds-rc-full-vh,100dvh)!important;
+  background:#09112f!important;
+}
+body{
+  background:linear-gradient(145deg,#09112f,#182966 44%,#251168)!important;
+  background-attachment:fixed!important;
+}
+#loginView{
+  min-height:var(--ds-rc-full-vh,100dvh)!important;
+}
+#appShell:not(.module-mode){
+  min-height:var(--ds-rc-full-vh,100dvh)!important;
+}
+/* v8 was intentionally floating; v9 moves it closer to the physical screen edge. */
+#appShell .bottom-nav{
+  bottom:calc(max(0px, env(safe-area-inset-bottom,0px) - 10px))!important;
+}
+#appShell .main-view{
+  padding-bottom:calc(var(--ds-rc-line-nav-h,78px) + max(6px, env(safe-area-inset-bottom,0px)))!important;
+}
+.app-shell.module-mode .main-view{
+  bottom:calc(var(--ds-rc-line-nav-h,78px) + max(0px, env(safe-area-inset-bottom,0px) - 8px))!important;
+  padding-bottom:0!important;
+}
+html.ds-keyboard-open #appShell .bottom-nav{
+  transform:translate3d(0,calc(100% + env(safe-area-inset-bottom,0px) + 30px),0)!important;
+}
