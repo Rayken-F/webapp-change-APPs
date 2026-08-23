@@ -35,9 +35,12 @@
       .priority-card .ds-demand-metric{color:#fff;font-weight:900}
       .priority-card .ds-process-metric{color:#6fe4ff;font-weight:900}
       .priority-card .ds-loaded-metric{color:#89efb8;font-weight:900}
+      .priority-card .priority-line1{gap:5px}
+      .priority-card .ds-demand-source,.priority-card .ds-plant{font-size:.80em;font-weight:850;white-space:nowrap}
       .priority-card .priority-line3{gap:7px}
       @media(max-width:640px){
-        .priority-card .priority-line1{padding-right:44px}
+        .priority-card .priority-line1{padding-right:40px;font-size:15px;gap:4px;flex-wrap:nowrap}
+        .priority-card .ds-demand-source,.priority-card .ds-plant{font-size:12.5px}
         .priority-card .priority-line3{font-size:12px;gap:6px}
       }
     `;
@@ -63,8 +66,8 @@
             <div class="priority-line1">
               <span>${escapeHtml(item.rtNo)}</span><span class="priority-divider">|</span>
               <span>${escapeHtml(item.capacity||"規格待確認")}</span><span class="priority-divider">|</span>
-              <span>${escapeHtml(item.demandSource)}</span><span class="priority-divider">|</span>
-              <span>廠區：${escapeHtml(item.plantCode)}</span>
+              <span class="ds-demand-source">${escapeHtml(item.demandSource)}</span><span class="priority-divider">|</span>
+              <span class="ds-plant">廠區：${escapeHtml(item.plantCode)}</span>
             </div>
             <div class="priority-desc" title="${escapeHtml(item.description||"")}">${escapeHtml(item.description||"RT敘述待確認")}</div>
             <div class="priority-line3">
