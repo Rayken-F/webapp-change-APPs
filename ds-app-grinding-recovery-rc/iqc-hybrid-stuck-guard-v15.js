@@ -1,10 +1,10 @@
 "use strict";
-(function installIqcHybridStuckGuardV18(){
-  const VERSION="IQC_HYBRID_STUCK_GUARD_RC_V18_20260824";
+(function installIqcHybridStuckGuardV19(){
+  const VERSION="IQC_HYBRID_STUCK_GUARD_RC_V19_20260824";
   const DB="ds_iqc_image_rc_v1";
   const ACTIVE_BATCH_KEY="ds_iqc_image_rc_active_batch";
   const STUCK_MS=15000;
-  if(window.__DS_IQC_HYBRID_STUCK_GUARD_V18)return;
+  if(window.__DS_IQC_HYBRID_STUCK_GUARD_V19)return;
 
   function installStableResultCss(){
     if(document.getElementById("dsIqcResultStableV18"))return;
@@ -15,11 +15,6 @@
       #iqcRcResultList .ds-iqc-v8-group{visibility:visible!important;}
     `;
     document.head.appendChild(s);
-  }
-
-  function markVersion(){
-    const banner=document.querySelector(".rc-login-banner");
-    if(banner)banner.textContent="⚠️ Grinding Recovery / Return / IQC Hybrid Image RC v18｜測試入口";
   }
 
   function photos(batchId){
@@ -56,11 +51,12 @@
     if(navigator.onLine)setTimeout(()=>hybrid.syncAiQueue({manual:false}),500);
   }
 
+  // RC v19: 版本標籤只由 index.html 管理，避免舊 guard 週期性把 v19 改回 v18。
   installStableResultCss();
-  markVersion();
   setInterval(()=>check().catch(()=>{}),1500);
-  setInterval(()=>{installStableResultCss();markVersion();},3000);
+  setInterval(()=>installStableResultCss(),3000);
 
-  window.__DS_IQC_HYBRID_STUCK_GUARD_V18={version:VERSION,check};
-  window.__DS_IQC_HYBRID_STUCK_GUARD_V15=window.__DS_IQC_HYBRID_STUCK_GUARD_V18;
+  window.__DS_IQC_HYBRID_STUCK_GUARD_V19={version:VERSION,check};
+  window.__DS_IQC_HYBRID_STUCK_GUARD_V18=window.__DS_IQC_HYBRID_STUCK_GUARD_V19;
+  window.__DS_IQC_HYBRID_STUCK_GUARD_V15=window.__DS_IQC_HYBRID_STUCK_GUARD_V19;
 })();
