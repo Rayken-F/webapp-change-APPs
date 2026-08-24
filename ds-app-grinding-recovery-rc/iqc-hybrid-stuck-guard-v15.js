@@ -1,25 +1,25 @@
 "use strict";
-(function installIqcHybridStuckGuardV17(){
-  const VERSION="IQC_HYBRID_STUCK_GUARD_RC_V17_20260824";
+(function installIqcHybridStuckGuardV18(){
+  const VERSION="IQC_HYBRID_STUCK_GUARD_RC_V18_20260824";
   const DB="ds_iqc_image_rc_v1";
   const ACTIVE_BATCH_KEY="ds_iqc_image_rc_active_batch";
   const STUCK_MS=15000;
-  if(window.__DS_IQC_HYBRID_STUCK_GUARD_V17)return;
+  if(window.__DS_IQC_HYBRID_STUCK_GUARD_V18)return;
 
-  function installV17RenderOwner(){
-    if(window.__DS_IQC_RESULT_RENDER_OWNER_V17__)return;
-    if(document.querySelector('script[data-ds-iqc-render-owner-v17="1"]'))return;
-    const s=document.createElement("script");
-    s.src="./iqc-result-render-owner-v17.js?v=20260824-1";
-    s.async=false;
-    s.dataset.dsIqcRenderOwnerV17="1";
-    s.onerror=()=>console.warn("[IQC RC V17] result render owner 載入失敗");
+  function installStableResultCss(){
+    if(document.getElementById("dsIqcResultStableV18"))return;
+    const s=document.createElement("style");
+    s.id="dsIqcResultStableV18";
+    s.textContent=`
+      #iqcRcResultList .iqc-rc-field{display:block!important;visibility:visible!important;}
+      #iqcRcResultList .ds-iqc-v8-group{visibility:visible!important;}
+    `;
     document.head.appendChild(s);
   }
 
   function markVersion(){
     const banner=document.querySelector(".rc-login-banner");
-    if(banner)banner.textContent="⚠️ Grinding Recovery / Return / IQC Hybrid Image RC v17｜測試入口";
+    if(banner)banner.textContent="⚠️ Grinding Recovery / Return / IQC Hybrid Image RC v18｜測試入口";
   }
 
   function photos(batchId){
@@ -28,7 +28,9 @@
       req.onsuccess=()=>{
         const db=req.result,tx=db.transaction("photos","readonly");
         const r=tx.objectStore("photos").index("batchId").getAll(batchId);
-        r.onsuccess=()=>resolve(r.result||[]);r.onerror=()=>reject(r.error);tx.oncomplete=()=>db.close();
+        r.onsuccess=()=>resolve(r.result||[]);
+        r.onerror=()=>reject(r.error);
+        tx.oncomplete=()=>db.close();
       };
       req.onerror=()=>reject(req.error);
     });
@@ -54,11 +56,11 @@
     if(navigator.onLine)setTimeout(()=>hybrid.syncAiQueue({manual:false}),500);
   }
 
-  installV17RenderOwner();
+  installStableResultCss();
   markVersion();
   setInterval(()=>check().catch(()=>{}),1500);
-  setInterval(()=>{installV17RenderOwner();markVersion();},3000);
-  window.__DS_IQC_HYBRID_STUCK_GUARD_V17={version:VERSION,check};
-  window.__DS_IQC_HYBRID_STUCK_GUARD_V16=window.__DS_IQC_HYBRID_STUCK_GUARD_V17;
-  window.__DS_IQC_HYBRID_STUCK_GUARD_V15=window.__DS_IQC_HYBRID_STUCK_GUARD_V17;
+  setInterval(()=>{installStableResultCss();markVersion();},3000);
+
+  window.__DS_IQC_HYBRID_STUCK_GUARD_V18={version:VERSION,check};
+  window.__DS_IQC_HYBRID_STUCK_GUARD_V15=window.__DS_IQC_HYBRID_STUCK_GUARD_V18;
 })();
