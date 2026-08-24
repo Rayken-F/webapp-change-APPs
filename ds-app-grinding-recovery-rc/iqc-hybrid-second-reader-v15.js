@@ -1,7 +1,7 @@
 "use strict";
 
-(function installIqcHybridSecondReaderV15(){
-  const VERSION="IQC_HYBRID_SECOND_READER_RC_V15_20260824";
+(function installIqcHybridSecondReaderV20(){
+  const VERSION="IQC_HYBRID_SECOND_READER_RC_V20_20260824";
   const SOURCE_DB="ds_iqc_image_rc_v1";
   const SOURCE_DB_VERSION=1;
   const HYBRID_DB="ds_iqc_hybrid_rc_v15";
@@ -10,6 +10,7 @@
   const STATUS_CACHE_MS=60000;
   const AUTO_RETRY_MS=60000;
   const SEND_GAP_MS=700;
+  const ACTIVE_QUEUE_STATES=new Set(["AI_PENDING","AI_RETRY","AI_SENDING"]);
   if(window.__DS_IQC_HYBRID_V15)return;
 
   let cloudStatus=null;
@@ -18,6 +19,8 @@
   let localAttemptedAt=0;
   let lastEvaluatedSignature="";
   let evaluationTimer=null;
+  let lastHintText="";
+  let lastHintBad=false;
 
   const sleep=ms=>new Promise(r=>setTimeout(r,ms));
   const nowIso=()=>new Date().toISOString();
@@ -27,7 +30,7 @@
 
   function toastHybrid(message,error=false){
     try{if(typeof toast==="function")return toast(message,error);}catch(_){ }
-    console[error?"error":"log"]("[IQC HYBRID V15]",message);
+    console[error?"error":"log"]("[IQC HYBRID V20]",message);
   }
 
   function openSourceDb(){
@@ -149,8 +152,12 @@
   }
 
   function setHint(text,bad=false){
+    const next=String(text||"");
+    if(next===lastHintText&&bad===lastHintBad)return;
+    lastHintText=next;
+    lastHintBad=bad;
     const el=document.getElementById("iqcHybridHint");
-    if(el){el.textContent=text;el.style.color=bad?"#ffd1d8":"#aab8df";}
+    if(el){el.textContent=next;el.style.color=bad?"#ffd1d8":"#aab8df";}
   }
 
   async function getCloudStatus(force=false){
@@ -190,21 +197,27 @@
   async function queueBatchForAi(batchId,reason){
     const photos=await sourcePhotos(batchId);
     if(!photos.length)return 0;
+    const jobs=await getJobs();
+    const byId=new Map(jobs.map(j=>[j.jobId,j]));
     let added=0;
     for(const photo of photos){
       const id=jobId(batchId,photo.id);
-      const jobs=await getJobs();
-      const existing=jobs.find(j=>j.jobId===id);
+      const existing=byId.get(id);
       if(existing&&existing.status==="AI_VERIFIED")continue;
+      if(existing&&ACTIVE_QUEUE_STATES.has(existing.status))continue;
       const job={
         jobId:id,batchId,photoId:photo.id,status:"AI_PENDING",attempts:Number(existing?.attempts||0),
         reason:String(reason||"LOCAL_INCOMPLETE"),lastError:"",nextAttemptAt:0,
         createdAt:existing?.createdAt||nowIso(),updatedAt:nowIso()
       };
-      await putJob(job);added++;
-      photo.aiStatus="AI_PENDING";
-      photo.updatedAt=nowIso();
-      await putSourcePhoto(photo);
+      await putJob(job);
+      byId.set(id,job);
+      added++;
+      if(photo.aiStatus!=="AI_PENDING"){
+        photo.aiStatus="AI_PENDING";
+        photo.updatedAt=nowIso();
+        await putSourcePhoto(photo);
+      }
     }
     await refreshUi();
     return added;
@@ -219,9 +232,14 @@
 
     const photos=await sourcePhotos(batchId).catch(()=>[]);
     if(!photos.length||photos.some(p=>p.status==="PROCESSING"))return;
-    const signature=photos.map(p=>`${p.id}:${p.status}:${p.updatedAt}:${String(p.ocrText||"").length}`).join("|");
+    const signature=photos.map(p=>`${p.id}:${p.status}:${p.aiStatus||""}:${String(p.ocrText||"").length}`).join("|");
     if(!signature||signature===lastEvaluatedSignature)return;
     lastEvaluatedSignature=signature;
+
+    if(localStorage.getItem(evaluatedKey(batchId))==="AI_PENDING"){
+      const active=(await getJobs().catch(()=>[])).some(j=>j.batchId===batchId&&ACTIVE_QUEUE_STATES.has(j.status));
+      if(active)return;
+    }
 
     const pass=await localBatchComplete(batchId).catch(()=>false);
     localStorage.setItem(evaluatedKey(batchId),pass?"LOCAL_PASS":"AI_PENDING");
@@ -229,7 +247,7 @@
       setHint("LOCAL PASS：本批已由本機 OCR + DS 規則完整對帳，不送 Cloud，不產生第二讀者費用。",false);
     }else{
       const n=await queueBatchForAi(batchId,"LOCAL_INCOMPLETE_OR_ENGINE_FAILURE");
-      setHint(`本機結果未完整對帳，已排入 AI_PENDING（${n} 張）。有網路且 Cloud RC 啟用後才會逐張補辨識。`,false);
+      setHint(n?`本機結果未完整對帳，已排入 AI_PENDING（${n} 張）。有網路且 Cloud RC 啟用後才會逐張補辨識。`:`本機結果未完整對帳，AI_PENDING 已在 Queue 中，等待 Cloud 第二讀者處理。`,false);
       if(navigator.onLine)syncAiQueue({manual:false});
     }
     refreshUi();
@@ -240,7 +258,6 @@
     const cloudText=String(text||"").trim();
     photo.localOcrText=localText;
     photo.cloudOcrText=cloudText;
-    // RC 先保留雙讀者文字，meta-grouping 會依 RT+狀態+廠區與 CTN 去重。
     photo.ocrText=[localText,cloudText].filter(Boolean).join("\n");
     photo.status="RECOGNIZED";
     photo.aiStatus="AI_VERIFIED";
@@ -277,7 +294,7 @@
       await applyCloudResult(job,photo,res.text);
       return true;
     } finally {
-      base64=""; // 不在 JS state 長期保留大型 Base64 字串
+      base64="";
     }
   }
 
@@ -296,7 +313,13 @@
         return;
       }
       const jobs=(await pendingJobs()).filter(j=>!j.nextAttemptAt||Number(j.nextAttemptAt)<=Date.now()).sort((a,b)=>String(a.createdAt).localeCompare(String(b.createdAt)));
-      if(!jobs.length){setHint("目前沒有需要 Cloud 補辨識的照片。",false);return;}
+      if(!jobs.length){
+        const batchId=activeBatch();
+        const all=await getJobs().catch(()=>[]);
+        const hasVerified=batchId&&all.some(j=>j.batchId===batchId&&j.status==="AI_VERIFIED");
+        if(!hasVerified)setHint("目前沒有需要 Cloud 補辨識的照片。",false);
+        return;
+      }
       let done=0;
       for(const job of jobs){
         job.status="AI_SENDING";job.attempts=Number(job.attempts||0)+1;job.updatedAt=nowIso();await putJob(job);
@@ -308,7 +331,6 @@
           job.nextAttemptAt=Date.now()+AUTO_RETRY_MS;
           job.updatedAt=nowIso();
           await putJob(job);
-          // backend 尚未整合/停用時不要連續轟 API。
           if(/不支援|尚未|未啟用|configured|API Key/i.test(job.lastError)){
             cloudStatus={ready:false,enabled:false,configured:false,message:job.lastError};cloudStatusAt=Date.now();
             break;
@@ -344,11 +366,10 @@
     }
   }
 
-  // 必須比 meta-grouping v8 更早載入：第二次人工點擊不再重跑 Local OCR。
   document.addEventListener("click",event=>{
     const btn=event.target.closest?.("#iqcRcAnalyze");
     if(!btn)return;
-    if(btn.dataset.dsV8Replay==="1")return; // v8 第一次內部 replay 仍允許
+    if(btn.dataset.dsV8Replay==="1")return;
     const batchId=activeBatch();
     if(!batchId)return;
     if(localStorage.getItem(attemptedKey(batchId))==="1"){
@@ -367,7 +388,7 @@
 
   document.addEventListener("click",event=>{
     if(event.target.closest?.("#iqcRcNewBatch")){
-      setTimeout(()=>{localAttemptedAt=0;lastEvaluatedSignature="";refreshUi();},250);
+      setTimeout(()=>{localAttemptedAt=0;lastEvaluatedSignature="";lastHintText="";refreshUi();},250);
     }
   },true);
 
