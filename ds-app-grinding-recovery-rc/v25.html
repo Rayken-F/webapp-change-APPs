@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+  <meta name="theme-color" content="#101942">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="DS GR RC">
+  <title>鼎世工作台｜Grinding Recovery RC</title>
+  <link rel="apple-touch-icon" sizes="180x180" href="../ds-app/icons/apple-touch-icon.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="../ds-app/icons/icon-192.png">
+  <link rel="stylesheet" href="../ds-app/app.css">
+  <link rel="stylesheet" href="../ds-app-keyboard-rc-v3/rc-v3.css?v=20260819-1">
+  <link rel="stylesheet" href="./rc-line-nav-v8.css?v=20260823-2">
+  <link rel="stylesheet" href="./rc-shell-stability-v9.css?v=20260823-4">
+  <style>
+    .rc-login-banner{margin:0 0 14px;padding:11px 13px;border-radius:14px;border:1px solid rgba(255,202,100,.48);background:rgba(255,202,100,.10);color:#ffe5a6;font-size:13px;font-weight:900;text-align:center}
+    .grinding-recovery-badge{position:fixed;z-index:99990;top:calc(env(safe-area-inset-top,0px) + 48px);left:12px;max-width:calc(100vw - 24px);padding:7px 10px;border-radius:999px;border:1px solid rgba(113,221,176,.45);background:rgba(7,17,43,.94);color:#caffdf;font-size:11px;font-weight:900;box-shadow:0 8px 24px rgba(0,0,0,.28);pointer-events:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .grinding-recovery-badge.wait{color:#ffe4a3;border-color:rgba(255,202,100,.5)}
+    .grinding-recovery-badge.bad{color:#ffd0d8;border-color:rgba(255,113,136,.5)}
+  </style>
+</head>
+<body>
+  <div id="loadingOverlay" class="loading-overlay hidden" aria-live="polite"><div class="loading-card"><div class="spinner"></div><strong id="loadingTitle">正在處理</strong><span id="loadingText">請稍候…</span></div></div>
+
+  <section id="loginView" class="login-view">
+    <div class="login-brand"><div class="brand-mark">DS</div><div><div class="eyebrow">DING SHIH SYSTEM · GRINDING RECOVERY RC</div><h1>鼎世工作台</h1><p>此入口只用於 Grinding 弱網辨識恢復、受控返回與介面測試，正式 DS 工作站不受影響。</p></div></div>
+    <form id="loginForm" class="login-card" autocomplete="on">
+      <div class="rc-login-banner">⚠️ Grinding Recovery / Return / IQC Hybrid Image RC v25｜測試入口</div>
+      <label><span>帳號</span><input id="loginAccount" name="username" autocomplete="username" autocapitalize="characters" required></label>
+      <label><span>密碼</span><div class="password-field"><input id="loginPassword" name="password" type="password" autocomplete="current-password" required><button id="togglePassword" type="button" class="icon-btn" aria-label="顯示或隱藏密碼">👁</button></div></label>
+      <label class="remember-row"><input id="rememberLogin" type="checkbox" checked><span>記住登入</span></label>
+      <button id="loginBtn" class="primary-btn" type="submit">登入 RC</button>
+      <div class="login-note">RC｜Grinding Recovery、返回 Grinding、IQC Honeywell Hybrid 影像建檔皆在隔離測試入口；正式 DS 工作站不受影響。</div>
+    </form>
+  </section>
+
+  <section id="appShell" class="app-shell hidden">
+    <header class="topbar"><div class="topbar-brand"><div class="mini-mark">DS</div><div><div id="pageEyebrow" class="eyebrow">GRINDING RECOVERY RC</div><h1 id="pageTitle">公佈欄</h1></div></div><button id="userButton" class="user-chip" type="button"><span id="userName">-</span><small id="userRole">-</small></button></header>
+
+    <div id="dsModuleContextBar" class="ds-module-context-bar" aria-hidden="true">
+      <div class="ds-module-context-left"><span id="dsModuleContextIcon" class="ds-module-context-icon">DS</span><strong id="dsModuleContextTitle">日報系統</strong></div>
+      <div id="dsModuleContextUser" class="ds-module-context-user">-</div>
+    </div>
+    <div id="grindingRecoveryBadge" class="grinding-recovery-badge">Grinding Recovery RC｜等待登入</div>
+
+    <main id="mainView" class="main-view">
+      <section id="homeModule" class="module-view">
+        <div class="hero-card"><div><span class="hero-kicker">本週現場</span><h2>生產需求與進度</h2><p>RT需求由管理端維護；製程進度會在 Grinding API Bridge 完成後接上即時數據。</p></div><button id="addPriorityBtn" class="secondary-btn hidden" type="button">＋ 新增需求</button></div>
+        <section class="progress-strip" aria-label="製程進度"><div class="progress-item"><span>本週產能</span><strong>待串接</strong></div><div class="progress-item"><span>急單進製程</span><strong>待串接</strong></div><div class="progress-item"><span>待對帳</span><strong>待串接</strong></div></section>
+        <section class="priority-section"><div class="section-head"><div><span class="section-kicker">PRODUCTION REQUIREMENT</span><h3>生產需求</h3></div><button id="refreshPriorityBtn" class="text-btn" type="button">重新整理</button></div><div id="statusFilters" class="filter-row" role="group" aria-label="狀態篩選"><button class="filter-chip active" data-status="ALL" type="button">全部</button><button class="filter-chip" data-status="常態" type="button">常態</button><button class="filter-chip" data-status="緊急" type="button">緊急</button><button class="filter-chip" data-status="中等" type="button">中等</button><button class="filter-chip" data-status="暫緩" type="button">暫緩</button></div><div id="priorityList" class="priority-list"><div class="empty-state">正在載入生產需求…</div></div></section>
+      </section>
+      <section id="moduleModule" class="module-view module-host hidden" aria-live="polite"><div id="moduleFrameHost" class="module-frame-host"></div></section>
+      <section id="moreModule" class="module-view hidden"><div class="section-head"><div><span class="section-kicker">TOOLS</span><h3>更多功能</h3></div></div><div id="moreGrid" class="tool-grid"></div></section>
+    </main>
+
+    <nav class="bottom-nav" aria-label="主要功能"><button id="navHome" class="nav-item active" data-nav="home" type="button"><span class="nav-icon">📢</span><span>公佈欄</span></button><button id="navDaily" class="nav-item" data-nav="daily" type="button"><span class="nav-icon">📝</span><span>日報系統</span></button><button id="navDashboard" class="nav-item" data-nav="dashboard" type="button"><span class="nav-icon">📊</span><span>Dashboard</span></button><button id="navGrinding" class="nav-item hidden" data-nav="grinding" type="button"><span class="nav-icon">⚙️</span><span>Grinding WIP</span></button><button id="navMore" class="nav-item" data-nav="more" type="button"><span class="nav-icon">☰</span><span>更多</span></button></nav>
+  </section>
+
+  <div id="priorityModal" class="modal-backdrop hidden" aria-hidden="true"><section class="modal-sheet" role="dialog" aria-modal="true" aria-labelledby="priorityModalTitle"><div class="modal-head"><div><span class="section-kicker">PRODUCTION REQUIREMENT</span><h3 id="priorityModalTitle">新增需求</h3></div><button id="closePriorityModal" class="icon-btn" type="button" aria-label="關閉">×</button></div><form id="priorityForm" class="priority-form"><input id="priorityId" type="hidden"><label><span>RT</span><input id="priorityRt" inputmode="numeric" autocomplete="off" placeholder="掃描或輸入 RT" required><div id="rtSuggestions" class="rt-suggestions hidden"></div></label><div id="rtPreview" class="rt-preview muted-card">輸入 RT 後，系統會從 RT list 自動帶入 RT敘述、鋼瓶容量及「組／支」單位。</div><label><span>需求量 <small id="demandUnitLabel"></small></span><input id="priorityQty" type="number" min="1" step="1" inputmode="numeric" required></label><label><span>需求來源</span><input id="prioritySource" maxlength="60" placeholder="例如：MRP需求" required></label><label><span>廠區</span><input id="priorityPlant" maxlength="20" autocapitalize="characters" placeholder="例如：7201、7A39" required></label><label><span>狀態</span><select id="priorityStatus" required><option value="常態">常態</option><option value="緊急">緊急</option><option value="中等">中等</option><option value="暫緩">暫緩</option></select></label><div class="modal-actions"><button id="archivePriorityBtn" class="danger-btn hidden" type="button">封存</button><button class="primary-btn" type="submit">儲存</button></div></form></section></div>
+  <div id="userMenu" class="user-menu hidden"><div id="userMenuName" class="user-menu-name">-</div><button id="logoutBtn" type="button">登出</button></div>
+  <div id="toast" class="toast hidden" role="status"></div>
+
+  <script src="./config-rc-v15.js?v=20260824-1"></script>
+  <script src="../ds-app/app.js"></script>
+  <script src="../ds-app-keyboard-rc-v3/rc-v3.js?v=20260819-1"></script>
+  <script src="./rc-nav-visibility-guard-v12.js?v=20260823-1"></script>
+  <script src="./rc-shell-stability-v9.js?v=20260823-3"></script>
+  <script src="./rc-quickbar-keeper-v6.js?v=20260823-2"></script>
+  <script src="./lookup-recovery-rc.js?v=20260820-5"></script>
+  <script src="./grinding-ui-safe-rc.js?v=20260820-4"></script>
+  <script src="./operator-session-rc-v5.js?v=20260822-1"></script>
+  <script src="./home-production-focus-rc-v5.js?v=20260823-2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+  <script src="./iqc-ocr-native-capture-v24.js?v=20260825-1"></script>
+  <script src="./iqc-image-intake-rc-v1.js?v=20260823-4"></script>
+  <script src="./iqc-image-memory-guard-v14.js?v=20260823-1"></script>
+  <script src="./iqc-hybrid-second-reader-v21.js?v=20260825-1"></script>
+  <script src="./iqc-hybrid-button-stability-v19.js?v=20260824-1"></script>
+  <script src="./iqc-hybrid-stuck-guard-v15.js?v=20260824-4"></script>
+  <script src="./iqc-meta-grouping-rc-v8.js?v=20260823-2"></script>
+  <script src="./iqc-intake-runtime-v25.js?v=20260825-1"></script>
+  <script src="./iqc-ocr-transaction-guard-v9.js?v=20260823-3"></script>
+  <script src="./iqc-image-safety-guard-rc-v1.js?v=20260823-1"></script>
+  <script src="./return-admin-loader-rc-v4.js?v=20260820-4"></script>
+  <script src="./return-layout-polish-rc-v4.js?v=20260820-4"></script>
+</body>
+</html>
