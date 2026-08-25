@@ -1,7 +1,7 @@
 "use strict";
 
 (function installIqcLocalLateRetryV27(){
-  const VERSION="IQC_LOCAL_LATE_RETRY_RC_V27_20260825";
+  const VERSION="IQC_LOCAL_LATE_RETRY_RC_V27_1_20260825";
   const DB_NAME="ds_iqc_image_rc_v1";
   const DB_VERSION=1;
   const ACTIVE_BATCH_KEY="ds_iqc_image_rc_active_batch";
@@ -71,28 +71,32 @@
     if(completionKey===lastCompletionKey)return;
     lastCompletionKey=completionKey;
 
-    const retryKey=`ds_iqc_v27_late_retry_${batchId}_${completionKey.length}`;
+    const retryKey=`ds_iqc_v27_late_retry_${batchId}`;
     if(sessionStorage.getItem(retryKey)==="1")return;
     sessionStorage.setItem(retryKey,"1");
 
     retrying=true;
+    if(btn)btn.disabled=true;
+    window.__DS_IQC_LOCAL_RETRY_PENDING_V27=true;
     try{
       setBadge(`Local 尾端補跑 ${failed.length} 張`);
-      setProgress(`第一輪完成；${failed.length} 張 Local 失敗。系統降壓 ${Math.round(RETRY_DELAY_MS/1000)} 秒後，只補跑失敗照片一次。`);
+      setProgress(`第一輪完成；${failed.length} 張 Local 失敗。系統降壓 ${Math.round(RETRY_DELAY_MS/1000)} 秒後，只補跑失敗照片一次；補跑完成前暫不交 Cloud。`);
       await sleep(RETRY_DELAY_MS);
       await runtime.runBatch();
     }catch(err){
       console.warn("[IQC V27 late retry]",err);
     }finally{
+      window.__DS_IQC_LOCAL_RETRY_PENDING_V27=false;
       retrying=false;
+      if(btn)btn.disabled=false;
     }
   }
 
   const observer=new MutationObserver(()=>{
-    setTimeout(()=>maybeLateRetry().catch(()=>{}),100);
+    maybeLateRetry().catch(()=>{});
   });
   observer.observe(document.documentElement,{subtree:true,childList:true,characterData:true,attributes:true,attributeFilter:["disabled"]});
 
-  setInterval(()=>maybeLateRetry().catch(()=>{}),700);
+  setInterval(()=>maybeLateRetry().catch(()=>{}),500);
   window.__DS_IQC_LOCAL_LATE_RETRY_V27={version:VERSION,maybeLateRetry};
 })();
