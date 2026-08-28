@@ -363,3 +363,95 @@ window.addEventListener("DOMContentLoaded", function() {
     };
   }, 0);
 });
+
+/**
+ * 2026-08-28｜Grinding WIP 掃描操作體感修正
+ * 1. barcodeStatus 搬到掃描框上方。
+ * 2. 掃描成功的 CTN 以獨立 chip 列固定顯示在掃描框正下方，直到清除或送出。
+ * 3. barcodeRecent 仍保留成功 / 重複 / 拒絕的最近掃描紀錄。
+ */
+function renderGrindingBarcodeSelectedStrip_() {
+  const target = document.getElementById("barcodeSelectedStrip");
+  if (!target || typeof state === "undefined") return;
+
+  const assets = state.wip && Array.isArray(state.wip.grindingAssets)
+    ? state.wip.grindingAssets
+    : [];
+  const assetByKey = {};
+  assets.forEach(function(asset) {
+    if (asset && asset.assetKey) assetByKey[asset.assetKey] = asset;
+  });
+
+  const grouped = {};
+  Object.keys(state.barcodeSelected || {}).forEach(function(assetKey) {
+    if (!state.selected || !state.selected[assetKey]) return;
+    const asset = assetByKey[assetKey];
+    if (!asset) return;
+
+    const isLot = String(asset.trackingType || "").toUpperCase() === "BUNDLE_LOT";
+    const ctn = String(isLot ? asset.sourceCtn || "" : asset.assetCtn || "")
+      .trim()
+      .toUpperCase();
+    if (!ctn) return;
+
+    const qty = Number(
+      state.selectedQty && state.selectedQty[assetKey] !== undefined
+        ? state.selectedQty[assetKey]
+        : asset.qty || 1
+    );
+    grouped[ctn] = Number(grouped[ctn] || 0) + (Number.isFinite(qty) ? qty : 1);
+  });
+
+  const entries = Object.keys(grouped);
+  target.innerHTML = entries.map(function(ctn) {
+    return `<span class="barcode-chip ok">${escapeHtml(ctn)}｜已選 ${grouped[ctn]} 支</span>`;
+  }).join("");
+  target.style.display = entries.length ? "flex" : "none";
+}
+
+function installGrindingBarcodeUxHotfix_() {
+  const input = document.getElementById("wipBarcodeInput");
+  const scanGrid = input && input.closest ? input.closest(".scan-grid") : null;
+  const statusEl = document.getElementById("barcodeStatus");
+  const recentEl = document.getElementById("barcodeRecent");
+  if (!scanGrid || !statusEl || !recentEl) return;
+
+  // 將「等待掃描／拒絕規則」與後續狀態訊息移到掃描框上方。
+  if (statusEl.nextElementSibling !== scanGrid) {
+    scanGrid.parentNode.insertBefore(statusEl, scanGrid);
+  }
+
+  // 掃描框正下方新增「目前已掃描選取 CTN」固定列。
+  let selectedStrip = document.getElementById("barcodeSelectedStrip");
+  if (!selectedStrip) {
+    selectedStrip = document.createElement("div");
+    selectedStrip.id = "barcodeSelectedStrip";
+    selectedStrip.className = "barcode-recent";
+    selectedStrip.setAttribute("aria-label", "目前已掃描選取 CTN");
+    scanGrid.insertAdjacentElement("afterend", selectedStrip);
+  }
+
+  renderGrindingBarcodeSelectedStrip_();
+
+  // 原本 scanner 每次 render 都會更新 barcodeRecent；監看它即可同步目前已選 CTN。
+  if (!recentEl.dataset.selectedStripObserver) {
+    const observer = new MutationObserver(function() {
+      renderGrindingBarcodeSelectedStrip_();
+    });
+    observer.observe(recentEl, { childList: true, subtree: true, characterData: true });
+    recentEl.dataset.selectedStripObserver = "1";
+  }
+
+  const countEl = document.getElementById("barcodeSelectedText");
+  if (countEl && !countEl.dataset.selectedStripObserver) {
+    const countObserver = new MutationObserver(function() {
+      renderGrindingBarcodeSelectedStrip_();
+    });
+    countObserver.observe(countEl, { childList: true, subtree: true, characterData: true });
+    countEl.dataset.selectedStripObserver = "1";
+  }
+}
+
+window.addEventListener("DOMContentLoaded", function() {
+  setTimeout(installGrindingBarcodeUxHotfix_, 20);
+});
