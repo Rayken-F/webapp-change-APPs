@@ -1,6 +1,6 @@
 "use strict";
 
-const CACHE="ds-app-shell-nav-overlap-hotfix-20260831-r4";
+const CACHE="ds-app-shell-true-overlay-nav-20260831-r5";
 
 const STATIC=[
   "./",

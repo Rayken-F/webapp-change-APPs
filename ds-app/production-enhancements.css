@@ -1,14 +1,15 @@
-/* DS Workstation module viewport / floating navigation hotfix | 2026-08-31 R4
-   The LINE-like bottom navigation stays fixed to the real viewport.
-   Module iframes reserve exactly the occupied navigation area so bottom actions,
-   dashboard rows and side quick controls remain reachable. */
+/* DS Workstation R5 True Overlay Navigation | 2026-08-31
+   The module viewport extends to the physical bottom of the screen.
+   The LINE-like navigation is a real overlay; each module owns its own
+   scroll-tail inset so its final action/data can move above the navigation. */
 :root{
-  --ds-prod-nav-occupied-h:88px;
+  --ds-shell-nav-inset:96px;
 }
 
 #appShell .bottom-nav{
   position:fixed!important;
   bottom:max(8px,calc(env(safe-area-inset-bottom,0px) - 22px))!important;
+  z-index:1400!important;
 }
 
 #appShell.module-mode{
@@ -25,7 +26,7 @@
   position:fixed!important;
   top:var(--ds-module-context-h,34px)!important;
   right:0!important;
-  bottom:var(--ds-prod-nav-occupied-h,88px)!important;
+  bottom:0!important;
   left:0!important;
   width:100%!important;
   height:auto!important;
@@ -34,13 +35,20 @@
   overflow:hidden!important;
 }
 
+/* Until the cross-origin Dashboard installs and acknowledges its receiver,
+   retain the safe R4 reservation only for Dashboard. */
+#appShell.module-mode.ds-dashboard-inset-fallback .main-view{
+  bottom:var(--ds-shell-nav-inset,96px)!important;
+}
+
 #appShell.module-mode .module-host,
 #appShell.module-mode .module-frame-host,
 #appShell.module-mode .module-frame:not(.hidden){
   max-height:100%!important;
 }
 
-html.ds-keyboard-open #appShell.module-mode .main-view{
+html.ds-keyboard-open #appShell.module-mode .main-view,
+html.ds-keyboard-open #appShell.module-mode.ds-dashboard-inset-fallback .main-view{
   top:0!important;
   bottom:0!important;
 }

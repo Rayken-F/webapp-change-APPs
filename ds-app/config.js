@@ -21,7 +21,6 @@
   });
 
   // Production enhancement loader：只在 DS 工作站本體啟用。
-  // 其他模組即使共用 config.js，也不會載入 Shell 專用程式。
   const path=String(global.location&&global.location.pathname||"");
   const isDsShell=/\/ds-app(?:\/index\.html|\/)?$/.test(path);
   if(!isDsShell) return;
@@ -36,23 +35,23 @@
   }
 
   ensureStyle(
-    "dsProductionLineNavR4Css",
-    "../ds-app-grinding-recovery-rc/rc-line-nav-v8.css?v=20260831-prod-r4"
+    "dsProductionLineNavR5Css",
+    "../ds-app-grinding-recovery-rc/rc-line-nav-v8.css?v=20260831-prod-r5"
   );
   ensureStyle(
-    "dsProductionShellStabilityR4Css",
-    "../ds-app-grinding-recovery-rc/rc-shell-stability-v9.css?v=20260831-prod-r4"
+    "dsProductionShellStabilityR5Css",
+    "../ds-app-grinding-recovery-rc/rc-shell-stability-v9.css?v=20260831-prod-r5"
   );
   ensureStyle(
-    "dsProductionEnhancementsR4Css",
-    "./production-enhancements.css?v=20260831-r4"
+    "dsProductionEnhancementsR5Css",
+    "./production-enhancements.css?v=20260831-r5"
   );
 
   function loadProductionEnhancements(){
-    if(document.getElementById("dsProductionEnhancementsR4Js")) return;
+    if(document.getElementById("dsProductionEnhancementsR5Js")) return;
     const script=document.createElement("script");
-    script.id="dsProductionEnhancementsR4Js";
-    script.src="./production-enhancements.js?v=20260831-r4";
+    script.id="dsProductionEnhancementsR5Js";
+    script.src="./production-enhancements.js?v=20260831-r5";
     script.async=false;
     document.body.appendChild(script);
   }
