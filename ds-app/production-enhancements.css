@@ -1,0 +1,10 @@
+/* DS Workstation non-image RC promotion | 2026-08-31 R3
+   Loaded after the field-tested RC styles. Keep the production context bar
+   visible while the LINE-like bottom navigation remains a true overlay. */
+#appShell.module-mode{
+  height:var(--ds-shell-vh,100dvh)!important;
+}
+
+#appShell.module-mode .main-view{
+  top:var(--ds-module-context-h,34px)!important;
+}
