@@ -19,26 +19,34 @@
 <body>
   <main>
     <h1>鼎世工作台安全復原</h1>
-    <p>正在移除故障版本的 Service Worker 與靜態快取。</p>
-    <p>不會清除登入帳號、日報草稿或系統資料。</p>
+    <p>正在移除故障版本的 DS 工作台 Service Worker 與靜態快取。</p>
+    <p>不會主動清除登入帳號、日報草稿、Grinding 資料或其他模組快取。</p>
     <div id="status">開始復原…</div>
   </main>
   <script>
     (async function(){
       const status=document.getElementById('status');
       try{
-        status.textContent='正在解除舊版控制…';
+        status.textContent='正在解除 DS 工作台舊版控制…';
         if('serviceWorker' in navigator){
           const registrations=await navigator.serviceWorker.getRegistrations();
-          await Promise.all(registrations.map(registration=>registration.unregister()));
+          await Promise.all(
+            registrations
+              .filter(registration=>String(registration.scope||'').includes('/webapp-change-APPs/ds-app/'))
+              .map(registration=>registration.unregister())
+          );
         }
-        status.textContent='正在刪除故障快取…';
+        status.textContent='正在刪除 DS 工作台故障快取…';
         if('caches' in window){
           const keys=await caches.keys();
-          await Promise.all(keys.filter(key=>key.indexOf('ds-app-shell-')===0).map(key=>caches.delete(key)));
+          await Promise.all(
+            keys
+              .filter(key=>key.indexOf('ds-app-shell-')===0)
+              .map(key=>caches.delete(key))
+          );
         }
         status.className='ok';
-        status.textContent='復原完成，正在重新開啟工作台…';
+        status.textContent='復原完成，正在重新開啟穩定版工作台…';
         setTimeout(()=>location.replace('./?recovered=409a205b&ts='+Date.now()),700);
       }catch(error){
         status.className='bad';
