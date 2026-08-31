@@ -34,31 +34,62 @@
     document.head.appendChild(link);
   }
 
+  function ensureScript(id,src){
+    return new Promise(function(resolve,reject){
+      const existing=document.getElementById(id);
+      if(existing){
+        resolve();
+        return;
+      }
+
+      const script=document.createElement("script");
+      script.id=id;
+      script.src=src;
+      script.async=false;
+      script.addEventListener("load",function(){
+        script.dataset.loaded="1";
+        resolve();
+      },{once:true});
+      script.addEventListener("error",function(){
+        reject(new Error("DS production script load failed: "+src));
+      },{once:true});
+      document.body.appendChild(script);
+    });
+  }
+
   ensureStyle(
-    "dsProductionLineNavR5Css",
-    "../ds-app-grinding-recovery-rc/rc-line-nav-v8.css?v=20260831-prod-r5"
+    "dsProductionLineNavR6Css",
+    "../ds-app-grinding-recovery-rc/rc-line-nav-v8.css?v=20260831-prod-r6"
   );
   ensureStyle(
-    "dsProductionShellStabilityR5Css",
-    "../ds-app-grinding-recovery-rc/rc-shell-stability-v9.css?v=20260831-prod-r5"
+    "dsProductionShellStabilityR6Css",
+    "../ds-app-grinding-recovery-rc/rc-shell-stability-v9.css?v=20260831-prod-r6"
   );
   ensureStyle(
-    "dsProductionEnhancementsR5Css",
-    "./production-enhancements.css?v=20260831-r5"
+    "dsProductionEnhancementsR6Css",
+    "./production-enhancements.css?v=20260831-r6"
   );
 
-  function loadProductionEnhancements(){
-    if(document.getElementById("dsProductionEnhancementsR5Js")) return;
-    const script=document.createElement("script");
-    script.id="dsProductionEnhancementsR5Js";
-    script.src="./production-enhancements.js?v=20260831-r5";
-    script.async=false;
-    document.body.appendChild(script);
+  async function loadProductionEnhancements(){
+    await ensureScript(
+      "dsProductionEnhancementsR6BaseJs",
+      "./production-enhancements.js?v=20260831-r6"
+    );
+    await ensureScript(
+      "dsKeyboardOverlayHotfixR6Js",
+      "./keyboard-overlay-hotfix-r6.js?v=20260831-r6"
+    );
+  }
+
+  function boot(){
+    loadProductionEnhancements().catch(function(error){
+      console.error("DS production enhancement bootstrap failed",error);
+    });
   }
 
   if(document.readyState==="loading"){
-    document.addEventListener("DOMContentLoaded",loadProductionEnhancements,{once:true});
+    document.addEventListener("DOMContentLoaded",boot,{once:true});
   }else{
-    loadProductionEnhancements();
+    boot();
   }
 })(window);

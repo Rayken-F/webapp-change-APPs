@@ -1,7 +1,7 @@
-/* DS Workstation R5 True Overlay Navigation | 2026-08-31
-   The module viewport extends to the physical bottom of the screen.
-   The LINE-like navigation is a real overlay; each module owns its own
-   scroll-tail inset so its final action/data can move above the navigation. */
+/* DS Workstation R6 True Overlay Correction | 2026-08-31
+   - Dashboard no longer shrinks its iframe as a fallback.
+   - Bottom navigation is hidden immediately while an iframe input owns focus.
+   - Modules remain full-height; each module owns only its internal scroll tail. */
 :root{
   --ds-shell-nav-inset:96px;
 }
@@ -22,7 +22,8 @@
   overflow:hidden!important;
 }
 
-#appShell.module-mode .main-view{
+#appShell.module-mode .main-view,
+#appShell.module-mode.ds-dashboard-inset-fallback .main-view{
   position:fixed!important;
   top:var(--ds-module-context-h,34px)!important;
   right:0!important;
@@ -35,20 +36,24 @@
   overflow:hidden!important;
 }
 
-/* Until the cross-origin Dashboard installs and acknowledges its receiver,
-   retain the safe R4 reservation only for Dashboard. */
-#appShell.module-mode.ds-dashboard-inset-fallback .main-view{
-  bottom:var(--ds-shell-nav-inset,96px)!important;
-}
-
 #appShell.module-mode .module-host,
 #appShell.module-mode .module-frame-host,
 #appShell.module-mode .module-frame:not(.hidden){
   max-height:100%!important;
 }
 
+/* iOS can move fixed elements to the keyboard edge before VisualViewport settles.
+   Direct child-focus signalling therefore hides the navigation immediately. */
+html.ds-keyboard-open #appShell .bottom-nav,
+html.ds-child-input-focused #appShell .bottom-nav{
+  display:none!important;
+  visibility:hidden!important;
+  opacity:0!important;
+  pointer-events:none!important;
+}
+
 html.ds-keyboard-open #appShell.module-mode .main-view,
-html.ds-keyboard-open #appShell.module-mode.ds-dashboard-inset-fallback .main-view{
+html.ds-child-input-focused #appShell.module-mode .main-view{
   top:0!important;
   bottom:0!important;
 }

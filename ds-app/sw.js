@@ -1,6 +1,6 @@
 "use strict";
 
-const CACHE="ds-app-shell-true-overlay-nav-20260831-r5";
+const CACHE="ds-app-shell-overlay-keyboard-dashboard-20260831-r6";
 
 const STATIC=[
   "./",
@@ -11,6 +11,7 @@ const STATIC=[
   "./shell-ux.js",
   "./production-enhancements.css",
   "./production-enhancements.js",
+  "./keyboard-overlay-hotfix-r6.js",
   "../ds-app-grinding-recovery-rc/rc-line-nav-v8.css",
   "../ds-app-grinding-recovery-rc/rc-shell-stability-v9.css",
   "../ds-app-grinding-recovery-rc/rc-nav-visibility-guard-v12.js",
