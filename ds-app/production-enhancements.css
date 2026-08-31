@@ -1,10 +1,46 @@
-/* DS Workstation non-image RC promotion | 2026-08-31 R3
-   Loaded after the field-tested RC styles. Keep the production context bar
-   visible while the LINE-like bottom navigation remains a true overlay. */
+/* DS Workstation module viewport / floating navigation hotfix | 2026-08-31 R4
+   The LINE-like bottom navigation stays fixed to the real viewport.
+   Module iframes reserve exactly the occupied navigation area so bottom actions,
+   dashboard rows and side quick controls remain reachable. */
+:root{
+  --ds-prod-nav-occupied-h:88px;
+}
+
+#appShell .bottom-nav{
+  position:fixed!important;
+  bottom:max(8px,calc(env(safe-area-inset-bottom,0px) - 22px))!important;
+}
+
 #appShell.module-mode{
-  height:var(--ds-shell-vh,100dvh)!important;
+  position:fixed!important;
+  inset:0!important;
+  width:100%!important;
+  height:100dvh!important;
+  min-height:0!important;
+  max-height:none!important;
+  overflow:hidden!important;
 }
 
 #appShell.module-mode .main-view{
+  position:fixed!important;
   top:var(--ds-module-context-h,34px)!important;
+  right:0!important;
+  bottom:var(--ds-prod-nav-occupied-h,88px)!important;
+  left:0!important;
+  width:100%!important;
+  height:auto!important;
+  min-height:0!important;
+  padding:0!important;
+  overflow:hidden!important;
+}
+
+#appShell.module-mode .module-host,
+#appShell.module-mode .module-frame-host,
+#appShell.module-mode .module-frame:not(.hidden){
+  max-height:100%!important;
+}
+
+html.ds-keyboard-open #appShell.module-mode .main-view{
+  top:0!important;
+  bottom:0!important;
 }

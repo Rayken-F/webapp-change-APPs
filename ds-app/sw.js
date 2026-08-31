@@ -1,6 +1,6 @@
 "use strict";
 
-const CACHE="ds-app-shell-non-image-rc-promotion-20260831-r3";
+const CACHE="ds-app-shell-nav-overlap-hotfix-20260831-r4";
 
 const STATIC=[
   "./",

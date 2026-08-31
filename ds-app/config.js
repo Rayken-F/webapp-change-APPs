@@ -36,23 +36,23 @@
   }
 
   ensureStyle(
-    "dsProductionLineNavR3Css",
-    "../ds-app-grinding-recovery-rc/rc-line-nav-v8.css?v=20260831-prod-r3"
+    "dsProductionLineNavR4Css",
+    "../ds-app-grinding-recovery-rc/rc-line-nav-v8.css?v=20260831-prod-r4"
   );
   ensureStyle(
-    "dsProductionShellStabilityR3Css",
-    "../ds-app-grinding-recovery-rc/rc-shell-stability-v9.css?v=20260831-prod-r3"
+    "dsProductionShellStabilityR4Css",
+    "../ds-app-grinding-recovery-rc/rc-shell-stability-v9.css?v=20260831-prod-r4"
   );
   ensureStyle(
-    "dsProductionEnhancementsR3Css",
-    "./production-enhancements.css?v=20260831-r3"
+    "dsProductionEnhancementsR4Css",
+    "./production-enhancements.css?v=20260831-r4"
   );
 
   function loadProductionEnhancements(){
-    if(document.getElementById("dsProductionEnhancementsR3Js")) return;
+    if(document.getElementById("dsProductionEnhancementsR4Js")) return;
     const script=document.createElement("script");
-    script.id="dsProductionEnhancementsR3Js";
-    script.src="./production-enhancements.js?v=20260831-r3";
+    script.id="dsProductionEnhancementsR4Js";
+    script.src="./production-enhancements.js?v=20260831-r4";
     script.async=false;
     document.body.appendChild(script);
   }

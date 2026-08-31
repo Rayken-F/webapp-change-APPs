@@ -1,19 +1,20 @@
 "use strict";
 
-/* DS Workstation Production Enhancements R3 | 2026-08-31
+/* DS Workstation Production Enhancements R4 | 2026-08-31
    Allowlisted non-image RC promotion only.
-   Excludes IQC image/OCR/Cloud Vision, fault injection and Return-to-WIP. */
-(function installDsProductionEnhancementsR3(){
-  const VERSION="DS_PROD_ENH_R3_20260831";
-  if(window.__DS_PROD_ENH_R3__) return;
+   Excludes IQC image/OCR/Cloud Vision, fault injection and Return-to-WIP.
+   R4 fixes floating-nav overlap and iOS nav drift by measuring the real nav footprint. */
+(function installDsProductionEnhancementsR4(){
+  const VERSION="DS_PROD_ENH_R4_20260831";
+  if(window.__DS_PROD_ENH_R4__) return;
 
   const SAFE_RC_SCRIPTS=[
-    ["dsProdRcNavGuard","../ds-app-grinding-recovery-rc/rc-nav-visibility-guard-v12.js?v=20260831-prod-r3"],
-    ["dsProdRcShellStability","../ds-app-grinding-recovery-rc/rc-shell-stability-v9.js?v=20260831-prod-r3"],
-    ["dsProdRcQuickbarKeeper","../ds-app-grinding-recovery-rc/rc-quickbar-keeper-v6.js?v=20260831-prod-r3"],
-    ["dsProdGrindingUiSafe","../ds-app-grinding-recovery-rc/grinding-ui-safe-rc.js?v=20260831-prod-r3"],
-    ["dsProdGrindingOperatorSession","../ds-app-grinding-recovery-rc/operator-session-rc-v5.js?v=20260831-prod-r3"],
-    ["dsProdHomeProductionFocus","../ds-app-grinding-recovery-rc/home-production-focus-rc-v5.js?v=20260831-prod-r3"]
+    ["dsProdRcNavGuard","../ds-app-grinding-recovery-rc/rc-nav-visibility-guard-v12.js?v=20260831-prod-r4"],
+    ["dsProdRcShellStability","../ds-app-grinding-recovery-rc/rc-shell-stability-v9.js?v=20260831-prod-r4"],
+    ["dsProdRcQuickbarKeeper","../ds-app-grinding-recovery-rc/rc-quickbar-keeper-v6.js?v=20260831-prod-r4"],
+    ["dsProdGrindingUiSafe","../ds-app-grinding-recovery-rc/grinding-ui-safe-rc.js?v=20260831-prod-r4"],
+    ["dsProdGrindingOperatorSession","../ds-app-grinding-recovery-rc/operator-session-rc-v5.js?v=20260831-prod-r4"],
+    ["dsProdHomeProductionFocus","../ds-app-grinding-recovery-rc/home-production-focus-rc-v5.js?v=20260831-prod-r4"]
   ];
 
   const RETRYABLE_CODES=new Set([
@@ -26,9 +27,68 @@
 
   const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
   const later=(fn,...delays)=>delays.forEach(delay=>setTimeout(fn,delay));
-  const grindingFrame=()=>document.querySelector(
-    "#moduleFrameHost iframe[data-module-key='grinding']"
-  );
+
+  function syncNavGeometry(){
+    const root=document.documentElement;
+    const nav=document.querySelector("#appShell .bottom-nav");
+    if(!nav) return;
+
+    if(root.classList.contains("ds-keyboard-open")){
+      root.style.setProperty("--ds-prod-nav-occupied-h","0px");
+      return;
+    }
+
+    const rect=nav.getBoundingClientRect();
+    const viewportHeight=Math.max(
+      1,
+      Math.round(Number(window.innerHeight||0)),
+      Math.round(Number(document.documentElement.clientHeight||0))
+    );
+
+    if(!Number.isFinite(rect.top)||rect.height<=0) return;
+
+    const occupied=Math.max(
+      Math.ceil(rect.height+12),
+      Math.ceil(viewportHeight-rect.top+6),
+      82
+    );
+
+    root.style.setProperty("--ds-prod-nav-occupied-h",`${occupied}px`);
+    root.style.setProperty("--ds-nav-real-h",`${Math.ceil(rect.height)}px`);
+  }
+
+  function scheduleNavGeometry(){
+    later(syncNavGeometry,0,40,120,260,520,900);
+  }
+
+  function installNavGeometryObserver(){
+    const nav=document.querySelector("#appShell .bottom-nav");
+    if(nav&&typeof ResizeObserver!=="undefined"){
+      const observer=new ResizeObserver(scheduleNavGeometry);
+      observer.observe(nav);
+      window.__DS_PROD_NAV_R4_RESIZE_OBSERVER=observer;
+    }
+
+    window.addEventListener("resize",scheduleNavGeometry,{passive:true});
+    window.addEventListener("orientationchange",()=>later(syncNavGeometry,120,360,720),{passive:true});
+    window.addEventListener("pageshow",scheduleNavGeometry,{passive:true});
+    document.addEventListener("visibilitychange",()=>{
+      if(!document.hidden) scheduleNavGeometry();
+    },{passive:true});
+    document.addEventListener("focusout",()=>later(syncNavGeometry,80,260,620),true);
+    if(window.visualViewport){
+      window.visualViewport.addEventListener("resize",scheduleNavGeometry,{passive:true});
+      window.visualViewport.addEventListener("scroll",scheduleNavGeometry,{passive:true});
+    }
+
+    const shell=document.getElementById("appShell");
+    if(shell){
+      const observer=new MutationObserver(scheduleNavGeometry);
+      observer.observe(shell,{attributes:true,attributeFilter:["class"]});
+      window.__DS_PROD_NAV_R4_SHELL_OBSERVER=observer;
+    }
+    scheduleNavGeometry();
+  }
 
   function loadScript(id,src){
     return new Promise((resolve,reject)=>{
@@ -75,7 +135,7 @@
     if(!frameWindow || typeof frameWindow.fetchBetaWipLookupBatch!=="function"){
       return false;
     }
-    if(frameWindow.__DS_GRINDING_LOOKUP_RETRY_PROD_R3) return true;
+    if(frameWindow.__DS_GRINDING_LOOKUP_RETRY_PROD_R4) return true;
 
     const original=frameWindow.fetchBetaWipLookupBatch;
     const patched=async function(ctns){
@@ -117,9 +177,9 @@
       throw new Error("Grinding lookup transport failed after recovery retries");
     };
 
-    patched.__dsProdR3=true;
+    patched.__dsProdR4=true;
     frameWindow.fetchBetaWipLookupBatch=patched;
-    frameWindow.__DS_GRINDING_LOOKUP_RETRY_PROD_R3={
+    frameWindow.__DS_GRINDING_LOOKUP_RETRY_PROD_R4={
       version:VERSION,
       original
     };
@@ -153,29 +213,37 @@
         mutation.addedNodes.forEach(attachGrindingFrame);
       });
       scanFrames();
+      scheduleNavGeometry();
     });
     observer.observe(host,{childList:true,subtree:false});
-    window.__DS_PROD_ENH_R3_FRAME_OBSERVER=observer;
+    window.__DS_PROD_ENH_R4_FRAME_OBSERVER=observer;
   }
 
   document.addEventListener("click",event=>{
+    if(event.target.closest&&event.target.closest("[data-nav]")){
+      scheduleNavGeometry();
+    }
     if(event.target.closest&&event.target.closest("[data-nav='grinding']")){
       later(scanFrames,0,120,400,900,1800);
     }
   },true);
 
+  installNavGeometryObserver();
+
   loadSafeRcModules()
     .then(()=>{
       scanFrames();
+      scheduleNavGeometry();
       later(scanFrames,200,700,1500,3000);
     })
     .catch(error=>{
       console.error("DS production enhancement bootstrap failed",error);
     });
 
-  window.__DS_PROD_ENH_R3__={
+  window.__DS_PROD_ENH_R4__={
     version:VERSION,
     reloadSafeModules:loadSafeRcModules,
-    repatchGrinding:scanFrames
+    repatchGrinding:scanFrames,
+    syncNavGeometry
   };
 })();
