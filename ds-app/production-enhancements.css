@@ -1,7 +1,7 @@
-/* DS Workstation R5 True Overlay Navigation | 2026-08-31
-   The module viewport extends to the physical bottom of the screen.
-   The LINE-like navigation is a real overlay; each module owns its own
-   scroll-tail inset so its final action/data can move above the navigation. */
+/* DS Workstation R5K1 Keyboard Stability Hotfix | 2026-09-01
+   Keep the module viewport tied to the stable shell height instead of iOS
+   dynamic viewport height. The LINE-like navigation is hidden immediately
+   while a text control is focused, so Safari cannot park it above the keyboard. */
 :root{
   --ds-shell-nav-inset:96px;
 }
@@ -14,16 +14,19 @@
 
 #appShell.module-mode{
   position:fixed!important;
-  inset:0!important;
+  top:0!important;
+  right:0!important;
+  bottom:auto!important;
+  left:0!important;
   width:100%!important;
-  height:100dvh!important;
+  height:var(--ds-shell-vh,100dvh)!important;
   min-height:0!important;
   max-height:none!important;
   overflow:hidden!important;
 }
 
 #appShell.module-mode .main-view{
-  position:fixed!important;
+  position:absolute!important;
   top:var(--ds-module-context-h,34px)!important;
   right:0!important;
   bottom:0!important;
@@ -35,8 +38,8 @@
   overflow:hidden!important;
 }
 
-/* Until the cross-origin Dashboard installs and acknowledges its receiver,
-   retain the safe R4 reservation only for Dashboard. */
+/* Until the cross-origin Dashboard acknowledges its receiver,
+   retain the safe reservation only for Dashboard. */
 #appShell.module-mode.ds-dashboard-inset-fallback .main-view{
   bottom:var(--ds-shell-nav-inset,96px)!important;
 }
@@ -47,8 +50,24 @@
   max-height:100%!important;
 }
 
+/* Do not move the module viewport to top:0 when the keyboard opens.
+   That old override caused the entire typing view to jump upward. */
 html.ds-keyboard-open #appShell.module-mode .main-view,
-html.ds-keyboard-open #appShell.module-mode.ds-dashboard-inset-fallback .main-view{
-  top:0!important;
+html.ds-child-input-focus #appShell.module-mode .main-view,
+html.ds-keyboard-open #appShell.module-mode.ds-dashboard-inset-fallback .main-view,
+html.ds-child-input-focus #appShell.module-mode.ds-dashboard-inset-fallback .main-view{
+  top:var(--ds-module-context-h,34px)!important;
   bottom:0!important;
+}
+
+/* iOS treats fixed elements as visual-viewport fixed while the keyboard is open.
+   Hide the navigation synchronously on child-input focus instead of allowing it
+   to ride on top of the keyboard. */
+html.ds-keyboard-open #appShell .bottom-nav,
+html.ds-child-input-focus #appShell .bottom-nav{
+  opacity:0!important;
+  visibility:hidden!important;
+  pointer-events:none!important;
+  transform:translate3d(0,calc(100% + 72px),0)!important;
+  transition:none!important;
 }

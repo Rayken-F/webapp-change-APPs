@@ -34,26 +34,37 @@
     document.head.appendChild(link);
   }
 
+  function ensureScript(id,src){
+    if(document.getElementById(id)) return;
+    const script=document.createElement("script");
+    script.id=id;
+    script.src=src;
+    script.async=false;
+    document.body.appendChild(script);
+  }
+
   ensureStyle(
-    "dsProductionLineNavR5Css",
-    "../ds-app-grinding-recovery-rc/rc-line-nav-v8.css?v=20260831-prod-r5"
+    "dsProductionLineNavR5K1Css",
+    "../ds-app-grinding-recovery-rc/rc-line-nav-v8.css?v=20260901-prod-k1"
   );
   ensureStyle(
-    "dsProductionShellStabilityR5Css",
-    "../ds-app-grinding-recovery-rc/rc-shell-stability-v9.css?v=20260831-prod-r5"
+    "dsProductionShellStabilityR5K1Css",
+    "../ds-app-grinding-recovery-rc/rc-shell-stability-v9.css?v=20260901-prod-k1"
   );
   ensureStyle(
-    "dsProductionEnhancementsR5Css",
-    "./production-enhancements.css?v=20260831-r5"
+    "dsProductionEnhancementsR5K1Css",
+    "./production-enhancements.css?v=20260901-k1"
   );
 
   function loadProductionEnhancements(){
-    if(document.getElementById("dsProductionEnhancementsR5Js")) return;
-    const script=document.createElement("script");
-    script.id="dsProductionEnhancementsR5Js";
-    script.src="./production-enhancements.js?v=20260831-r5";
-    script.async=false;
-    document.body.appendChild(script);
+    ensureScript(
+      "dsProductionEnhancementsR5K1Js",
+      "./production-enhancements.js?v=20260901-k1"
+    );
+    ensureScript(
+      "dsProductionKeyboardFocusGuardK1Js",
+      "./production-keyboard-guard.js?v=20260901-k1"
+    );
   }
 
   if(document.readyState==="loading"){
