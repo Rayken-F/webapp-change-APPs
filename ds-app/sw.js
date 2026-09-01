@@ -1,6 +1,6 @@
 "use strict";
 
-const CACHE="ds-app-shell-keyboard-stability-20260901-k1";
+const CACHE="ds-app-shell-keyboard-stability-20260901-k1-1";
 
 const STATIC=[
   "./",

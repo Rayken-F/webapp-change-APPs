@@ -44,26 +44,26 @@
   }
 
   ensureStyle(
-    "dsProductionLineNavR5K1Css",
-    "../ds-app-grinding-recovery-rc/rc-line-nav-v8.css?v=20260901-prod-k1"
+    "dsProductionLineNavR5K11Css",
+    "../ds-app-grinding-recovery-rc/rc-line-nav-v8.css?v=20260901-prod-k1-1"
   );
   ensureStyle(
-    "dsProductionShellStabilityR5K1Css",
-    "../ds-app-grinding-recovery-rc/rc-shell-stability-v9.css?v=20260901-prod-k1"
+    "dsProductionShellStabilityR5K11Css",
+    "../ds-app-grinding-recovery-rc/rc-shell-stability-v9.css?v=20260901-prod-k1-1"
   );
   ensureStyle(
-    "dsProductionEnhancementsR5K1Css",
-    "./production-enhancements.css?v=20260901-k1"
+    "dsProductionEnhancementsR5K11Css",
+    "./production-enhancements.css?v=20260901-k1-1"
   );
 
   function loadProductionEnhancements(){
     ensureScript(
-      "dsProductionEnhancementsR5K1Js",
-      "./production-enhancements.js?v=20260901-k1"
+      "dsProductionEnhancementsR5K11Js",
+      "./production-enhancements.js?v=20260901-k1-1"
     );
     ensureScript(
-      "dsProductionKeyboardFocusGuardK1Js",
-      "./production-keyboard-guard.js?v=20260901-k1"
+      "dsProductionKeyboardFocusGuardK11Js",
+      "./production-keyboard-guard.js?v=20260901-k1-1"
     );
   }
 
