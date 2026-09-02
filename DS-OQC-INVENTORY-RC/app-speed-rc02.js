@@ -1,13 +1,14 @@
-(function installOqcRtLookupSpeedRc02(){
+(function installOqcRtLookupSpeedRc03(){
   "use strict";
 
-  const VERSION="OQC_RT_LOOKUP_SPEED_RC02_20260902";
-  const MAX_RT_LOOKUP_CONCURRENCY=3;
+  const VERSION="OQC_RT_LOOKUP_SPEED_RC03_20260902";
+  const MAX_RT_LOOKUP_CONCURRENCY=2;
+  const RT_CACHE_TTL_MS=10*60*1000;
 
-  if(window.__OQC_RT_LOOKUP_SPEED_RC02__) return;
+  if(window.__OQC_RT_LOOKUP_SPEED_RC03__) return;
 
   const style=document.createElement("style");
-  style.id="oqcRtLookupSpeedRc02Style";
+  style.id="oqcRtLookupSpeedRc03Style";
   style.textContent=`
     .queue-item.queued .queue-spinner{
       border:0;
@@ -27,6 +28,7 @@
 
   state.rtLookupWorkers=0;
   state.persistChain=Promise.resolve();
+  state.rtLookupCache=new Map();
   state.processing=false;
 
   function queueLabel(entry){
@@ -36,6 +38,66 @@
     if(entry.status==="duplicate") return "未重複";
     return "未加入";
   }
+
+  function cachedLookup(ctn){
+    const row=state.rtLookupCache.get(ctn);
+    if(!row) return null;
+    if(Date.now()>row.expiresAt){
+      state.rtLookupCache.delete(ctn);
+      return null;
+    }
+    return {...row.value,cacheHit:true};
+  }
+
+  function saveLookupCache(value){
+    if(!value?.ctn||!value?.rt) return;
+    state.rtLookupCache.set(normalizeCtn(value.ctn),{
+      value:{...value,cacheHit:false},
+      expiresAt:Date.now()+RT_CACHE_TTL_MS
+    });
+  }
+
+  function cacheWholeLookupResult(result){
+    const ctns=new Set();
+    const iqc=result?.iqc||{};
+
+    (iqc.transportCards||[]).forEach(card=>{
+      (card.rows||[]).forEach(row=>{
+        const ctn=normalizeCtn(row?.ctn);
+        if(ctn) ctns.add(ctn);
+      });
+    });
+    (iqc.bottleRows||[]).forEach(row=>{
+      const ctn=normalizeCtn(row?.ctn);
+      if(ctn) ctns.add(ctn);
+    });
+    (iqc.submissionRows||[]).forEach(row=>{
+      const ctn=normalizeCtn(row?.ctn);
+      if(ctn) ctns.add(ctn);
+    });
+
+    ctns.forEach(ctn=>{
+      try{saveLookupCache(resolveLookup(result,ctn))}catch(_){ }
+    });
+  }
+
+  lookupBottle=async function(ctn){
+    if(!state.authReady&&!getStoredToken()) throw new Error("請先登入 DS 工作台");
+
+    const normalized=normalizeCtn(ctn);
+    const cached=cachedLookup(normalized);
+    if(cached) return cached;
+
+    const response=await Api.post("lookup",{query:normalized});
+    cacheWholeLookupResult(response.result);
+
+    const afterCache=cachedLookup(normalized);
+    if(afterCache) return {...afterCache,cacheHit:false};
+
+    const resolved=resolveLookup(response.result,normalized);
+    saveLookupCache(resolved);
+    return {...resolved,cacheHit:false};
+  };
 
   renderQueue=function(){
     const box=$("scanQueue");
@@ -105,7 +167,9 @@
       renderQueue();
 
       const lookup=await lookupBottle(entry.ctn);
-      entry.message=`RT ${lookup.rt} 查詢完成，正在加入 OQC…`;
+      entry.message=lookup.cacheHit
+        ? `RT ${lookup.rt} 已取得，正在加入 OQC…`
+        : `RT ${lookup.rt} 查詢完成，正在加入 OQC…`;
       renderQueue();
 
       // RT 查詢可並行；IndexedDB 寫入與批次建立保持單一路徑，避免同 RT 競態建立重複批次。
@@ -124,7 +188,7 @@
       let message=String(err?.message||"掃描失敗");
 
       if(code==="NETWORK_TIMEOUT"){
-        message="RT查詢超過 15 秒，已停止等待；請確認網路後重新掃描。";
+        message="RT查詢逾時，已停止等待；請確認網路後重新掃描。";
       }else if(code==="NETWORK_ERROR"){
         message="RT查詢連線失敗；請確認網路後重新掃描。";
       }
@@ -195,10 +259,12 @@
   };
 
   const rcPill=document.querySelector(".rc-pill");
-  if(rcPill) rcPill.textContent="RC V0.1.1";
+  if(rcPill) rcPill.textContent="RC V0.1.2";
 
-  window.__OQC_RT_LOOKUP_SPEED_RC02__=Object.freeze({
+  window.__OQC_RT_LOOKUP_SPEED_RC03__=Object.freeze({
     version:VERSION,
-    maxConcurrency:MAX_RT_LOOKUP_CONCURRENCY
+    maxConcurrency:MAX_RT_LOOKUP_CONCURRENCY,
+    cacheTtlMs:RT_CACHE_TTL_MS,
+    cacheSize:()=>state.rtLookupCache.size
   });
 })(window);
