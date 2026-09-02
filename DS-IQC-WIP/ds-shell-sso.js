@@ -34,10 +34,14 @@
   document.documentElement.classList.add("ds-iqc-shell-sso");
 
   const style = document.createElement("style");
+  style.id = "dsIqcShellSsoStyle20260902";
   style.textContent = [
     "html.ds-iqc-shell-sso #loginView{display:none!important}",
     "html.ds-iqc-shell-sso #logoutBtn{display:none!important}",
-    "html.ds-iqc-shell-sso body.view-login #loadingOverlay{display:none!important}"
+    "html.ds-iqc-shell-sso body.view-login #loadingOverlay{display:none!important}",
+    // DS 工作台底部導覽是真浮層；手機異常單本身又是獨立 fixed 捲動容器，
+    // 不能只靠 body padding。將導覽列高度加在抽屜內容尾端，讓最後按鈕可滑到導覽列上方。
+    "@media(max-width:680px){html.ds-iqc-shell-sso body.mobile-request-open #requestPanel{padding-bottom:calc(15px + var(--ds-shell-nav-inset,96px))!important;scroll-padding-bottom:calc(var(--ds-shell-nav-inset,96px) + 20px)!important}html.ds-iqc-shell-sso body.mobile-request-open #requestPanel #requestReceipt{margin-bottom:8px}}"
   ].join("");
   document.head.appendChild(style);
 
