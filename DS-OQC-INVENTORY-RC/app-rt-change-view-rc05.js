@@ -10,9 +10,14 @@
     return String(item?.bottleStatus||"無狀態").trim()||"無狀態";
   }
 
-  function latestChange(item){
+  // Display only: never mutate the IQC source, OQC effective RT, or history.
+  function displayRts(item){
+    const text=value=>String(value??"").trim();
     const history=Array.isArray(item?.rtChangeHistory)?item.rtChangeHistory:[];
-    return history.length?history[history.length-1]:null;
+    const firstChange=history.find(change=>text(change?.oldRt));
+    const current=text(item?.rt);
+    const original=text(item?.originalRt)||text(firstChange?.oldRt)||current;
+    return {original,current,changed:!!original&&!!current&&original!==current};
   }
 
   function toolbar(batch){
@@ -37,23 +42,23 @@
 
   itemRowHtml=function(item,index,voidable){
     const status=statusOf(item);
-    const change=latestChange(item);
+    const values=displayRts(item);
     const selectable=rt.isModeFor(item.batchId)&&voidable;
     const checked=rt.mode.selected.has(item.itemId);
     const leading=selectable
       ? `<label class="rt-select-check" aria-label="選取 ${escapeHtml(item.ctn)}"><input type="checkbox" data-rt-select-item="${escapeHtml(item.itemId)}" ${checked?"checked":""}><span></span></label>`
       : `<div class="item-no">${index}</div>`;
 
-    const detail=change
-      ? `<div class="item-main-top"><div class="item-ctn">${escapeHtml(item.ctn)}</div><span class="item-status-inline">狀態 ${escapeHtml(status)}</span></div>
-         <div class="item-rt-history"><span class="rt-old">RT ${escapeHtml(change.oldRt)}</span><b>→</b><span class="rt-new">${escapeHtml(change.newRt)}</span></div>`
-      : `<div class="item-ctn">${escapeHtml(item.ctn)}</div>
-         <div class="item-sub item-sub-inline"><span class="item-rt">RT ${escapeHtml(item.rt)}</span><span class="item-bottle-status">狀態 ${escapeHtml(status)}</span></div>`;
+    const rtLine=values.changed
+      ? `<span class="oqc-rt-source">RT ${escapeHtml(values.original)}</span> <b class="oqc-rt-arrow">→</b> <span class="oqc-rt-current">RT ${escapeHtml(values.current)}</span>`
+      : `<span class="oqc-rt-single">RT ${escapeHtml(values.current||"—")}</span>`;
+    const detail=`<div class="item-main-top"><div class="item-ctn">${escapeHtml(item.ctn)}</div> <span class="item-status-inline">狀態 ${escapeHtml(status)}</span></div>
+         <div class="oqc-rt-line">${rtLine}</div>`;
 
     return `
       <div class="swipe-shell ${selectable?"rt-change-selection":""}" data-item-shell="${escapeHtml(item.itemId)}">
         <div class="swipe-actions"><button class="void-btn" type="button" data-void-item="${escapeHtml(item.itemId)}">作廢誤掃</button></div>
-        <div class="scan-item" data-swipe-item="${escapeHtml(item.itemId)}" data-voidable="${voidable&&!selectable?"1":"0"}">
+        <div class="scan-item oqc-two-line" data-swipe-item="${escapeHtml(item.itemId)}" data-voidable="${voidable&&!selectable?"1":"0"}">
           ${leading}
           <div class="item-main">${detail}</div>
           <div class="item-state"><strong>OQC 待檢</strong><small>${escapeHtml(shortTime(item.scannedAt))}</small></div>
@@ -130,8 +135,47 @@
     document.querySelectorAll("[data-rt-change-apply]").forEach(btn=>btn.addEventListener("click",()=>rt.apply(btn.dataset.rtChangeApply)));
   };
 
-  const pill=document.querySelector(".rc-pill");
-  if(pill) pill.textContent="RC V0.1.5";
+  // Keep both primary lines compact without changing the shared workstation CSS.
+  const style=document.createElement("style");
+  style.id="oqcRtTwoLineStyle0151";
+  style.textContent=`
+    .scan-item.oqc-two-line{
+      grid-template-columns:24px minmax(0,1fr) auto!important;
+      column-gap:6px;row-gap:3px;padding:9px 8px;
+    }
+    .oqc-two-line .item-main{display:contents}
+    .oqc-two-line .item-no,.oqc-two-line .rt-select-check{
+      grid-column:1;grid-row:1/3;width:24px;align-self:center;
+    }
+    .oqc-two-line .item-no{height:28px}
+    .oqc-two-line .item-main-top{
+      grid-column:2;grid-row:1;display:flex;align-items:baseline;
+      gap:6px;flex-wrap:wrap;min-width:0;
+    }
+    .oqc-two-line .item-ctn{font-size:17px!important;line-height:1.25;white-space:nowrap}
+    .oqc-two-line .item-status-inline{font-size:13px!important;line-height:1.25;white-space:nowrap}
+    .oqc-two-line .oqc-rt-line{
+      grid-column:2/-1;grid-row:2;display:flex;align-items:baseline;
+      gap:5px;flex-wrap:wrap;min-width:0;margin:0;
+      font-size:13px;line-height:1.3;font-weight:750;font-variant-numeric:tabular-nums;
+    }
+    .oqc-two-line .oqc-rt-line span{white-space:nowrap}
+    .oqc-two-line .oqc-rt-source{color:#b9c8ee}
+    .oqc-two-line .oqc-rt-arrow{color:#73dded;font-size:14px}
+    .oqc-two-line .oqc-rt-current{color:#86f0c9}
+    .oqc-two-line .oqc-rt-single{color:#c8d4f4}
+    .oqc-two-line .item-state{grid-column:3;grid-row:1;align-self:start}
+    .oqc-two-line .item-state strong{font-size:12px!important;white-space:nowrap}
+    .oqc-two-line .item-state small{font-size:10px!important;margin-top:2px}
+    @media(max-width:360px){
+      .scan-item.oqc-two-line{grid-template-columns:24px minmax(0,1fr)!important}
+      .oqc-two-line .item-state{display:none}
+    }
+  `;
+  document.head.appendChild(style);
 
-  global.__OQC_INVENTORY_RT_CHANGE_VIEW_RC05__=Object.freeze({version:rt.VERSION});
+  const pill=document.querySelector(".rc-pill");
+  if(pill) pill.textContent="RC V0.1.5.1";
+
+  global.__OQC_INVENTORY_RT_CHANGE_VIEW_RC05__=Object.freeze({version:"OQC_RT_TWO_LINE_V0_1_5_1_20260908",rtStateVersion:rt.VERSION});
 })(window);
