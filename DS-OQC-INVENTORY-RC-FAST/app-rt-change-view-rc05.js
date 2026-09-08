@@ -33,10 +33,9 @@
           <button class="secondary-btn compact" type="button" data-rt-select-clear="${escapeHtml(batch.batchId)}">清除</button>
         </div>
         <div class="rt-change-input-row">
-          <label><span>新 RT</span><input type="text" inputmode="numeric" autocomplete="off" maxlength="10" placeholder="輸入新 RT" data-rt-change-input="${escapeHtml(batch.batchId)}"></label>
+          <label><input aria-label="新 RT" type="text" inputmode="numeric" autocomplete="off" maxlength="10" placeholder="輸入新 RT" data-rt-change-input="${escapeHtml(batch.batchId)}"></label>
           <button class="primary-btn rt-change-apply" type="button" data-rt-change-apply="${escapeHtml(batch.batchId)}" ${rt.selectedCount()?"":"disabled"}>套用更改</button>
         </div>
-        <p>新 RT 會成為有效資料；原 RT 與每次轉換紀錄仍保留於 RC Event Log。</p>
       </section>`;
   }
 
