@@ -2,9 +2,21 @@
 <html lang="zh-Hant">
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#101942"><title>庫存掃描｜第一階段 DEMO</title><link rel="stylesheet" href="style.css?v=20260909-demo01"></head>
 <body>
-<header><a href="../ds-app/" aria-label="返回工作台">‹</a><div><small>OQC INVENTORY</small><h1>庫存掃描</h1></div><span class="pill">DEMO V0.2.1</span></header>
+<header><a href="../ds-app/" aria-label="返回工作台">‹</a><div><small>OQC INVENTORY</small><h1>庫存掃描</h1></div><span class="pill">DEMO V0.2.2</span></header>
 <main>
- <div id="environment" class="notice">本機模擬驗收・非正式出貨紀錄</div>
+ <div id="entryLabel" class="notice">實際 CTN 驗收（非正式上線）</div>
+ <div id="environment" class="notice">正在確認實際驗收連線；不使用模擬資料。</div>
+ <details class="panel" id="realConnection" open><summary>連接實際 CTN 驗收</summary><div class="tools">
+   <input id="endpoint" type="url" aria-label="獨立 DEMO 後端網址" placeholder="貼上獨立 OQC DEMO /exec 網址">
+   <div class="row"><button id="connect">連接實際驗收</button></div>
+   <p class="subtext">貼上你先前新建的 OQC Shipping DEMO 網頁應用程式 /exec；不必重建、不更換正式 IQC／ERP 網址。驗證成功才查詢真實 IQC。</p>
+ </div></details>
+ <section id="recoverPanel" class="panel hidden">
+  <h2>取回先前誤留在模擬清單的 CTN</h2>
+  <p id="recoverInfo" class="subtext"></p>
+  <button id="recoverSim" disabled>帶入實連查詢</button>
+  <p class="subtext">連線後由你確認帶入。只帶 CTN 與原掃描時間；不帶入模擬 RT 或收據，原紀錄不刪除。</p>
+ </section>
  <section class="panel">
   <div class="batch-picker"><select id="batchSelect" aria-label="出貨批次"></select><button id="newBatch">＋新批次</button></div>
   <div id="batchMeta" class="subtext"></div>
@@ -17,20 +29,17 @@
  <div id="list"></div>
  <section id="receiptPanel" class="panel hidden"><h2>送出收據</h2><div id="receiptText"></div><button id="checkReceipt">查詢原收據</button></section>
  <details class="panel"><summary>DEMO 測試工具</summary><div class="tools">
-   <div class="row"><button id="samples">加入 3 支範例</button><button id="loadTest">連續加入 20 支</button><button id="retryIqc">重試待查 IQC</button></div>
-   <p class="subtext">範例為合成資料：QA10AA1／QA10AA3 有 IQC，QA10AA2 未建 IQC。其他 CTN 在模擬模式不會查詢正式 IQC。</p>
-   <label class="check"><input type="checkbox" id="offline">模擬斷網</label><label class="check"><input type="checkbox" id="lostReply">下次模擬「已寫入、回應遺失」</label>
+   <div class="row"><span id="simOnly" class="hidden"><button id="samples">加入 3 支範例</button><button id="loadTest">連續加入 20 支</button></span><button id="retryIqc">重試待查 IQC</button></div>
+   <p id="simExamples" class="subtext hidden">範例為合成資料：QA10AA1／QA10AA3 有 IQC，QA10AA2 未建 IQC。其他 CTN 在模擬模式不會查詢正式 IQC。</p>
+   <label class="check"><input type="checkbox" id="offline">模擬斷網</label><label id="simLostReply" class="check hidden"><input type="checkbox" id="lostReply">下次模擬「已寫入、回應遺失」</label>
    <div class="row"><button id="export">匯出驗收紀錄</button><button id="refreshRemote">讀取接收端資料</button></div>
+   <button id="simulation" class="hidden">回到實際 CTN 驗收</button>
    <p id="simulationHelp" class="subtext">本機模擬接收端也位於這個瀏覽器，不是後端或備份。切換 RC 實連後才使用獨立測試 Sheet。</p>
  </div></details>
- <details class="panel"><summary>RC 實連設定</summary><div class="tools">
-   <input id="endpoint" type="url" aria-label="獨立 DEMO 後端網址" placeholder="貼上獨立 OQC DEMO /exec 網址">
-   <div class="row"><button id="connect">驗證並接上測試後端</button><button id="simulation">返回本機模擬</button></div>
-   <p class="subtext">只接受環境識別 OQC_SHIPPING_DEMO_V02。沿用 DS 登入，不另設帳密；實連資料與本機模擬、舊 RC 分別存放。正式工作台選單不變。</p>
- </div></details>
+
 </main>
 <dialog id="settings"><form method="dialog"><h2>設定總量／備註</h2><label>裝框／出貨識別<input id="shippingRef" maxlength="80" placeholder="例如：出貨單號或本次裝框編號" required></label><label>標籤總量（可留空）<input id="target" type="number" min="1" max="9999" inputmode="numeric"></label><label>備註<textarea id="note" maxlength="120" rows="2"></textarea></label><div class="row"><button value="cancel">取消</button><button id="saveSettings" type="button" class="primary">儲存</button></div></form></dialog>
 <dialog id="closeDialog"><h2>完成前確認</h2><div id="closeSummary"></div><p class="subtext">完成的是 CTN 蒐集，不等於 OQC 合格或出貨放行。送出後鎖定本批次。</p><div class="row"><button id="cancelClose">取消</button><button id="confirmClose" class="primary">確認並送出測試</button></div></dialog>
 <div id="toast" role="status" class="hidden"></div><div id="undo" class="hidden"><span id="undoText"></span><button id="undoBtn">復原</button></div>
-<script src="domain.js?v=20260909-demo01"></script><script src="storage.js?v=20260909-demo01"></script><script src="app.js?v=20260910-recovery01"></script>
+<script src="domain.js?v=20260909-demo01"></script><script src="storage.js?v=20260909-demo01"></script><script src="app.js?v=20260910-real-entry01"></script>
 </body></html>

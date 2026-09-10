@@ -2,8 +2,18 @@
 (function(){
 'use strict';
 const D=window.OqcDomain,S=window.OqcStore,$=id=>document.getElementById(id);
-const BUILD='20260910-recovery01',ENV=D.VERSION;
-const cfg=JSON.parse(localStorage.getItem('oqc_stage1_config')||'{"mode":"SIM","endpoint":""}');
+const BUILD='20260910-real-entry01',ENV=D.VERSION;
+// Actual CTN acceptance is the default, including old unqualified links.
+// A remembered SIM preference can never silently redirect real acceptance.
+function loadConfig(){
+ let saved={};try{saved=JSON.parse(localStorage.getItem('oqc_stage1_config')||'{}')||{};}catch(_){}
+ const explicitSim=new URLSearchParams(window.location.search).get('mode')==='sim';
+ return {mode:explicitSim?'SIM':'RC',endpoint:typeof saved.endpoint==='string'?saved.endpoint.trim():''};
+}
+const cfg=loadConfig();
+const endpointValid=value=>/^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec$/.test(value||'');
+const isFixture=ctn=>/^QA10(?:AA|AB)[A-Z0-9]$/.test(ctn);
+let simCandidates=[],importing=false,healthEndpoint='';
 let key=environmentKey(),root=S.blank(),editRt=false,selected=new Set(),syncing=false,lookupRunning=0;
 let timer,toastTimer,undoAction=null,closingSignature='',sessionReady=cfg.mode==='SIM';
 const inLookup=new Set(),attempted=new Set();
@@ -19,6 +29,7 @@ function rememberIssue(e,apiName){
  render();
 }
 function connectionText(){
+ if(cfg.mode==='RC'&&!endpointValid(cfg.endpoint))return '實際 CTN 驗收尚未連接：請在上方貼入先前建立的 OQC DEMO /exec，按「連接實際驗收」。不會改用模擬資料。';
  if(offline())return '已暫停：模擬斷網／離線；CTN 已保存在本機，連線恢復後繼續。';
  if(profilePromise||connecting)return '正在驗證 DS 連線；既有 CTN 保留，驗證後自動續查／續傳。';
  if(cfg.mode==='RC'&&!sessionReady){
@@ -34,11 +45,13 @@ async function verifySession(){
  const sourceKey=key,sourceEndpoint=cfg.endpoint;
  const work=Promise.resolve().then(async()=>{
   try{
+   if(!endpointValid(sourceEndpoint))throw errorWith('ENDPOINT_REQUIRED','請貼入先前建立的獨立 OQC DEMO /exec 網址；不是正式 IQC 或 ERP 網址');
+   if(healthEndpoint!==sourceEndpoint){await api('health',{},false);healthEndpoint=sourceEndpoint;}
    const profile=await api('profile');
    if(key!==sourceKey||cfg.endpoint!==sourceEndpoint)return;
    if(typeof profile.actor!=='string'||!profile.actor.trim())throw errorWith('INVALID_PROFILE','測試後端未回傳有效 DS 身分');
    await S.change(sourceKey,v=>{v.actor=profile.actor;v.lastVerified=now();});
-   sessionReady=true;connectionIssue=null;await reload();
+   sessionReady=true;connectionIssue=null;$('realConnection').open=false;await reload();
   }catch(e){if(key===sourceKey&&cfg.endpoint===sourceEndpoint){sessionReady=false;rememberIssue(e,'profile');}throw e;}
  });
  profilePromise=work;render();
@@ -85,10 +98,24 @@ function token(){
  }catch(_){return '';}
 }
 function toast(message,error=false){$('toast').textContent=message;$('toast').className=error?'danger':'';clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('toast').classList.add('hidden'),5000);}
-async function reload(){root=await S.read(key);render();}
+async function reload(){
+ root=await S.read(key);
+ if(cfg.mode==='RC'){
+  const sim=await S.read('client-sim'),seen=new Set();simCandidates=[];
+  Object.values(sim.docs||{}).forEach(doc=>D.active(doc).forEach(item=>{
+   if(!D.ctnPattern.test(item.ctn)||isFixture(item.ctn)||seen.has(item.ctn))return;
+   const sourceId=doc.id+':'+item.scanId;
+   if(root.simRecovery&&root.simRecovery[sourceId])return;
+   if(Object.values(root.docs).some(d=>D.active(d).some(i=>i.ctn===item.ctn)))return;
+   seen.add(item.ctn);simCandidates.push({sourceId,sourceBatch:doc.number,ctn:item.ctn,capturedAt:item.capturedAt||item.scannedAt});
+  }));
+ }
+ render();
+}
 function current(){return root.docs[root.active]||null;}
 function localNumber(value){const prefix='OQC-'+dateKey()+'-';const used=Object.values(value.docs).map(x=>x.number).filter(n=>n.startsWith(prefix)).map(n=>Number(n.slice(-2)));const next=Math.max(0,...used)+1;if(next>99)D.fail('LIMIT','DEMO 當日最多 99 批');return prefix+String(next).padStart(2,'0');}
 async function newBatch(){
+ if(cfg.mode==='RC'&&(!endpointValid(cfg.endpoint)||!sessionReady&&!root.lastVerified))throw errorWith('CONNECTION_REQUIRED','先連接實際驗收，再建立批次');
  const id=uid('b');
  await S.change(key,v=>{const cmd={id:uid('op'),batchId:id,base:0,type:'CREATE',data:{number:localNumber(v)},at:now()};v.docs[id]=D.run(null,cmd,{actor:v.actor,simulated:cfg.mode==='SIM'});v.pending.push(cmd);v.active=id;});
  editRt=false;selected.clear();await reload();scheduleSync();return id;
@@ -105,7 +132,8 @@ async function action(type,data,batchId){
 async function scan(raw){
  const ctn=D.norm(raw).replace(/\s+/g,'');
  if(!D.ctnPattern.test(ctn))throw new Error('CTN 格式錯誤，本次未收錄；不會截斷長條碼冒充有效 CTN');
- if(cfg.mode==='RC'&&!sessionReady&&!root.lastVerified)throw new Error('請先由 DS 工作台登入並驗證測試後端');
+ if(cfg.mode==='SIM'&&!isFixture(ctn))throw errorWith('REAL_CTN_IN_SIM','此頁只供合成範例演練；真實 CTN 請按「回到實際 CTN 驗收」，本次未放入模擬批次');
+ if(cfg.mode==='RC'&&(!endpointValid(cfg.endpoint)||!sessionReady&&!root.lastVerified))throw errorWith('CONNECTION_REQUIRED','請先連接實際驗收；缺少設定不會改用模擬資料');
  if(!current())await newBatch();
  await action('SCAN',{ctn});
  $('scanInput').value='';
@@ -116,6 +144,7 @@ function scheduleSync(){clearTimeout(timer);timer=setTimeout(()=>syncPending().c
 async function api(apiName,payload,auth=true){
  if(offline())throw errorWith('OFFLINE','目前離線；已保存的 CTN 留在待傳清單');
  if(cfg.mode==='SIM')return mockApi(apiName,payload||{});
+ if(!endpointValid(cfg.endpoint))throw errorWith('ENDPOINT_REQUIRED','尚未設定獨立 OQC DEMO /exec，請在頁首連接實際驗收');
  const sourceKey=key,sourceEndpoint=cfg.endpoint;
  const body=Object.assign({},payload||{},{api:apiName,environment:ENV,client_version:ENV});
  lastCall={api:apiName,at:now(),code:'RUNNING'};
@@ -145,7 +174,7 @@ async function api(apiName,payload,auth=true){
  }finally{clearTimeout(t);}
 }
 function fixture(ctn){
- const match=/^QA10(?:AA|AB)[A-Z0-9]$/.test(ctn);
+ const match=isFixture(ctn);
  if(!match)return {state:'ERROR',rt:'',status:'',message:'模擬資料沒有此 CTN；不代表未建IQC',checkedAt:now()};
  if(ctn==='QA10AA2')return {state:'NOT_FOUND',rt:'',status:'',message:'',checkedAt:now()};
  return {state:'FOUND',rt:ctn==='QA10AA3'?'113407':'113399',status:ctn==='QA10AA3'?'VCYL':'OCYL',message:'',checkedAt:now()};
@@ -258,7 +287,7 @@ function render(){
  $('environment').classList.toggle('connected',cfg.mode==='RC'&&sessionReady);
  $('batchMeta').textContent=doc?(doc.shippingRef?'裝框／出貨：'+doc.shippingRef:'尚未填寫裝框／出貨識別')+(doc.targetQty?'｜標籤總量 '+doc.targetQty:'')+'｜'+(cfg.mode==='SIM'?'DEMO測試人員':root.actor):'先建立批次，或直接掃描第一支 CTN';
  $('total').textContent=info.total;$('missing').textContent=info.missing;$('pending').textContent=info.pending;$('outbox').textContent=root.pending.length;
- $('scanInput').disabled=!!doc&&!isOpen||cfg.mode==='RC'&&!sessionReady&&!root.lastVerified;
+ $('scanInput').disabled=!!doc&&!isOpen||cfg.mode==='RC'&&(!endpointValid(cfg.endpoint)||!sessionReady&&!root.lastVerified);
  $('scanBtn').disabled=$('scanInput').disabled;
  ['settingsBtn','rtBtn','closeBtn'].forEach(id=>$(id).disabled=!isOpen);
  $('syncBtn').disabled=syncing||!!profilePromise||connecting;
@@ -274,7 +303,7 @@ function render(){
   if(failed.length)$('syncState').textContent+='｜'+failed.length+' 支查詢失敗：'+String(failed[0].iqc.message||'請重試待查 IQC').slice(0,160);
  }
  $('syncState').classList.toggle('danger',!!root.blocked||!!root.lastError||!!connectionIssue);
- const pill=document.querySelector('.pill');if(pill)pill.textContent='DEMO V0.2.1';
+ const pill=document.querySelector('.pill');if(pill)pill.textContent='DEMO V0.2.2';
  $('rtPanel').classList.toggle('hidden',!editRt||!isOpen);
  $('selectionCount').textContent='已選 '+selected.size+' 支';$('applyRt').disabled=!selected.size;
  $('rtBtn').textContent=editRt?'取消 RT 更改':'RT 更改';
@@ -284,8 +313,52 @@ function render(){
  $('receiptPanel').classList.toggle('hidden',!doc||doc.phase!=='CLOSED');
  $('receiptText').innerHTML=receipt?'<b>'+escape(receipt.id)+'</b><br>裝框／出貨：'+escape(receipt.shippingRef)+'<br>收錄 '+receipt.total+' 支｜未建IQC '+receipt.missing+' 支｜待查 '+receipt.pending+' 支<br>'+escape(receipt.at)+'<br><b class="warning">'+(receipt.environment==='LOCAL_SIMULATION'?'本機模擬收據，不是後端入帳':'DEMO 後端收據，不是正式出貨放行')+'</b>':'已封存本機待送版本，尚未取得接收端收據。請連線後同步或查詢原收據。';
  $('samples').disabled=cfg.mode!=='SIM';$('loadTest').disabled=cfg.mode!=='SIM';$('lostReply').disabled=cfg.mode!=='SIM';
+ $('realConnection').classList.toggle('hidden',cfg.mode==='SIM');
+ if(cfg.mode==='RC'&&!sessionReady)$('realConnection').open=true;
+ $('simOnly').classList.toggle('hidden',cfg.mode!=='SIM');
+ $('simExamples').classList.toggle('hidden',cfg.mode!=='SIM');
+ $('simLostReply').classList.toggle('hidden',cfg.mode!=='SIM');
+ $('simulation').classList.toggle('hidden',cfg.mode!=='SIM');
+ $('simulationHelp').textContent=cfg.mode==='RC'?'目前使用真實 CTN／IQC 查詢；資料只進獨立驗收後端，不是正式出貨入帳。':'僅合成範例演練，SIM 收據不代表後端入帳；真實 CTN 不會放入此模式。';
+ $('entryLabel').textContent=cfg.mode==='RC'?'實際 CTN 驗收（非正式上線）':'合成範例演練（不查真實 CTN）';
+ $('newBatch').disabled=cfg.mode==='RC'&&(!endpointValid(cfg.endpoint)||!sessionReady&&!root.lastVerified);
+ $('recoverPanel').classList.toggle('hidden',cfg.mode!=='RC'||!simCandidates.length);
+ $('recoverInfo').textContent=simCandidates.length+' 支非範例 CTN：'+simCandidates.map(x=>x.ctn).join('、');
+ $('recoverSim').disabled=!sessionReady||!!profilePromise||!!recoveryPromise||syncing||connecting||lookupRunning>0||importing;
  bindSwipes();
 }
+
+async function recoverSimCaptures(){
+ if(importing)return;
+ if(cfg.mode!=='RC'||!sessionReady||!endpointValid(cfg.endpoint))throw errorWith('CONNECTION_REQUIRED','先連接實際驗收，才能取回先前誤留在模擬清單的 CTN');
+ if(syncing||lookupRunning||profilePromise||recoveryPromise||connecting)throw new Error('請稍候目前連線作業完成');
+ if(root.blocked)throw new Error('先處理現有批次的同步衝突；原紀錄保留');
+ await reload();
+ const rows=simCandidates.slice(0,500);if(!rows.length)return;
+ if(!confirm('將 '+rows.length+' 支非範例 CTN 帶入新的實連驗收批次，重新查詢真實 IQC？只帶入 CTN 與原掃描時間，不帶入模擬 RT、修改、收據；舊紀錄保留。'))return;
+ const destKey=key;importing=true;render();let count=0;
+ try{
+  await S.change(destKey,v=>{
+   const present=new Set(Object.values(v.docs).flatMap(d=>D.active(d).map(i=>i.ctn)));
+   v.simRecovery=v.simRecovery||{};v.recoveryAudit=v.recoveryAudit||[];
+   const todo=rows.filter(r=>!present.has(r.ctn)&&!v.simRecovery[r.sourceId]);if(!todo.length)return;
+   const batchId=uid('b'),created={id:uid('op'),batchId,base:0,type:'CREATE',data:{number:localNumber(v)},at:now()};
+   let doc=D.run(null,created,{actor:v.actor,simulated:false});const commands=[created];
+   todo.forEach(row=>{
+    const at=Number.isFinite(Date.parse(row.capturedAt))?row.capturedAt:now();
+    const cmd={id:uid('op'),batchId,base:doc.revision,type:'SCAN',data:{ctn:row.ctn},at};
+    doc=D.run(doc,cmd,{actor:v.actor,simulated:false});commands.push(cmd);
+    v.simRecovery[row.sourceId]={batchId,ctn:row.ctn,operationId:cmd.id};
+    v.recoveryAudit.push({source:'client-sim',sourceId:row.sourceId,sourceBatch:row.sourceBatch,ctn:row.ctn,originalCapturedAt:row.capturedAt,recoveredAt:now(),batchId,operationId:cmd.id});
+   });
+   v.docs[batchId]=doc;v.pending.push(...commands);v.active=batchId;count=todo.length;
+  });
+  editRt=false;selected.clear();await reload();
+  toast(count+' 支 CTN 已帶入實連待傳／待查；原模擬紀錄完整保留');
+ }finally{importing=false;render();}
+ if(count)await resumeWork(true);
+}
+
 function bindSwipes(){
  if(editRt||!current()||current().phase!=='OPEN')return;
  document.querySelectorAll('[data-swipe]').forEach(el=>{
@@ -306,20 +379,25 @@ async function connect(){
  if(cfg.mode==='RC'&&endpoint===cfg.endpoint){sessionReady=false;await resumeWork(true);return;}
  if(cfg.mode==='RC'&&(root.pending.length||root.inflight))throw new Error('原 DEMO 後端還有待傳資料，請先恢復原連線；不移轉或刪除待傳 CTN');
  if(!confirm('確認這是你新建立的「OQC DEMO」後端？驗證通過後才傳送 DS Session；不修改原有後端。'))return;
- const old={...cfg},oldKey=key,oldReady=sessionReady;let verified=false;
- connecting=true;clearTimeout(recoveryTimer);cfg.mode='RC';cfg.endpoint=endpoint;render();
+ const old={...cfg},oldKey=key,oldReady=sessionReady;let verified=false,endpointAccepted=false;
+ connecting=true;sessionReady=false;clearTimeout(recoveryTimer);cfg.mode='RC';cfg.endpoint=endpoint;render();
  try{
-  await api('health',{},false);const profile=await api('profile');
+  await api('health',{},false);healthEndpoint=endpoint;
+  // Keep only the environment-verified endpoint if DS login has expired.
+  // Saving a URL is not authentication; scanning stays gated until profile verifies.
+  key=environmentKey();localStorage.setItem('oqc_stage1_config',JSON.stringify(cfg));endpointAccepted=true;
+  await reload();const profile=await api('profile');
   if(typeof profile.actor!=='string'||!profile.actor.trim())throw errorWith('INVALID_PROFILE','測試後端未回傳有效 DS 身分');
   key=environmentKey();localStorage.setItem('oqc_stage1_config',JSON.stringify(cfg));
-  sessionReady=true;connectionIssue=null;verified=true;
+  sessionReady=true;connectionIssue=null;verified=true;$('realConnection').open=false;
   await S.change(key,v=>{v.actor=profile.actor;v.lastVerified=now();});await reload();
   // Reconnecting an existing endpoint with an outbox is valid. Do not roll back
   // authentication merely because fetchRemote deliberately rejects pending edits.
   if(!root.pending.length&&!root.inflight)await fetchRemote();
   toast('已接上獨立 DEMO 後端；將續查／續傳既有 CTN');
  }catch(e){
-  if(!verified){Object.assign(cfg,old);key=oldKey;sessionReady=oldReady;}
+  if(!endpointAccepted){Object.assign(cfg,old);key=oldKey;sessionReady=oldReady;}
+  else if(!verified){sessionReady=false;}
   rememberIssue(e,e.api||'connect');showError(e);
  }finally{connecting=false;render();}
  if(verified)await resumeWork(true);
@@ -347,7 +425,12 @@ $('samples').onclick=safe(async()=>{if(cfg.mode!=='SIM')return;for(const ctn of 
 $('loadTest').onclick=safe(async()=>{if(cfg.mode!=='SIM')return;for(const ch of '0123456789ABCDEFGHIJ')await scan('QA10AB'+ch);});
 $('offline').onchange=()=>{render();if(!offline())resumeWork(true,1);};
 $('refreshRemote').onclick=safe(fetchRemote);$('connect').onclick=safe(connect);
-$('simulation').onclick=safe(async()=>{if(syncing||lookupRunning||profilePromise||recoveryPromise||connecting)throw new Error('請先等目前測試完成');connectionIssue=null;clearTimeout(recoveryTimer);cfg.mode='SIM';sessionReady=true;key=environmentKey();localStorage.setItem('oqc_stage1_config',JSON.stringify(cfg));editRt=false;selected.clear();await reload();scheduleSync();pumpLookup(true);});
+// Mode changes require a separate, explicit entry; real acceptance never falls back to SIM.
+$('simulation').onclick=safe(async()=>{
+ if(syncing||lookupRunning||profilePromise||recoveryPromise||connecting)throw new Error('請稍候目前演練作業完成');
+ const url=new URL(window.location.href);url.searchParams.set('mode','rc');url.searchParams.set('v',BUILD);window.location.assign(url.href);
+});
+$('recoverSim').onclick=safe(recoverSimCaptures);
 $('export').onclick=safe(async()=>{const data=await S.read(key);const blob=new Blob([JSON.stringify({version:ENV,build:BUILD,mode:cfg.mode,diagnostic:diagnostic(),exportedAt:now(),data},null,2)],{type:'text/plain;charset=utf-8'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='OQC_DEMO_'+dateKey()+'.txt';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),2000);});
 window.addEventListener('online',()=>resumeWork(true,1));
 window.addEventListener('offline',()=>render());
@@ -369,6 +452,6 @@ async function start(){
  await resumeWork(true,1);
  if('serviceWorker' in navigator)navigator.serviceWorker.register('./sw.js',{scope:'./'}).catch(()=>{});
 }
-window.OqcDemoTest={getRoot:()=>S.read(key),scan,newBatch,action,syncPending,fetchRemote,pumpLookup,fixture,reload,resumeWork,diagnostic,getKey:()=>key};
+window.OqcDemoTest={getRoot:()=>S.read(key),scan,newBatch,action,syncPending,fetchRemote,pumpLookup,fixture,reload,resumeWork,diagnostic,recoverSimCaptures,getKey:()=>key};
 start().catch(e=>{showError(e);$('scanBtn').disabled=true;$('scanInput').disabled=true;});
 })();
