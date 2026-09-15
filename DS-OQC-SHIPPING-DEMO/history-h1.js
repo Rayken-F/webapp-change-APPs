@@ -104,3 +104,127 @@ function render(r){
 }
 g.OqcHistory={receipt,archived,working,preferred,filter,label,render};
 })(window);
+/* DAILY-D1-20260916: daily PACK setup and reminders, using the unchanged 0.2.3 commands. */
+(function(g){
+'use strict';
+const BUILD='DAILY-D1-20260916',D=g.OqcDomain,S=g.OqcStore,H=g.OqcHistory;
+const today=(ms=Date.now())=>new Date(ms+28800000).toISOString().slice(0,10);
+function batchDay(d){
+ const m=/^OQC-(\d{4})(\d{2})(\d{2})-\d{2}$/.exec(d.number||'');
+ return m?m[1]+'-'+m[2]+'-'+m[3]:Number.isFinite(Date.parse(d.createdAt))?today(Date.parse(d.createdAt)):'';
+}
+function dailyDocs(r,date){return Object.values(r.docs||{}).filter(d=>batchDay(d)===date).sort((a,b)=>String(b.number).localeCompare(String(a.number)));}
+function oldDocs(r,date){return H.working(r).filter(d=>batchDay(d)&&batchDay(d)<date).sort((a,b)=>String(a.number).localeCompare(String(b.number)));}
+function reminderKey(r,date){return date+'|'+oldDocs(r,date).map(d=>d.id+':'+d.phase).join('|');}
+// Called inside the existing IndexedDB read/write transaction. Refreshes and tabs
+// in the same browser cannot each insert another daily first batch.
+function ensureIn(r,date,at,id){
+ if(r.dailyOpenedDate===date)return {created:false,id:r.active};
+ if(r.dailyOpenedDate&&r.dailyOpenedDate>date)throw Error('裝置日期比上次作業日早，請先確認手機日期');
+ let rows=dailyDocs(r,date),created=false,target=rows.find(d=>d.phase==='OPEN'&&d.id===r.active)||rows.find(d=>d.phase==='OPEN');
+ if(!rows.length){
+  const batchId=id('b'),cmd={id:id('op'),batchId,base:0,type:'CREATE',data:{number:'OQC-'+date.replace(/-/g,'')+'-01'},at,ruleset:D.RULE};
+  r.docs[batchId]=D.run(null,cmd,{actor:r.actor,simulated:false});r.pending.push(cmd);target=r.docs[batchId];created=true;
+ }
+ // If today's batches are already completed, do not generate 02 on every reopen.
+ if(target)r.active=target.id;
+ r.dailyOpenedDate=date;
+ return {created,id:target?.id||'',number:target?.number||''};
+}
+function install(){
+ const T=g.OqcDemoTest,$=id=>document.getElementById(id),host=$('packOnly');
+ if(!T||!S||!H||!host||$('oqcDailyD1'))return;
+ const panel=document.createElement('section');panel.id='oqcDailyD1';panel.dataset.build=BUILD;
+ panel.innerHTML='<div class="daily-title"><b id="dailyDateD1"></b><small>每日批次 D1</small></div><div id="dailyStateD1" class="subtext" aria-live="polite"></div><button id="dailyRetryD1" type="button" class="hidden">準備今日批次</button><details id="dailyOldD1" class="hidden"><summary id="dailyOldSummaryD1"></summary><p class="subtext">要先確認舊批次是否送出嗎？不會自動完成或刪除。</p><select id="dailyOldSelectD1" aria-label="待確認舊批次"></select><div class="daily-actions"><button id="dailyReviewD1" type="button">前往確認</button><button id="dailyLaterD1" type="button">稍後處理</button></div></details>';
+ host.prepend(panel);
+ const style=document.createElement('style');style.textContent='#oqcDailyD1{margin:8px 0 12px;padding:10px;border:1px solid var(--line);border-radius:12px;min-width:0}#oqcDailyD1 .daily-title{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:14px}#oqcDailyD1 small{font-size:10px;color:var(--muted);white-space:nowrap}#oqcDailyD1 select{display:block;width:100%;max-width:100%;min-width:0;margin:8px 0;font-size:14px}#oqcDailyD1 .daily-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}#oqcDailyD1 summary{font-size:13px;color:#ffd078}#oqcDailyD1 button{min-width:0}#dailyRetryD1{margin-bottom:8px}';
+ document.head.appendChild(style);
+ let busy=null,queued=0,retryAfter=0,problem='',lastRoot=null,lastKey='',lastDay='',paintSignature='';
+ const pack=()=>$('packMode').classList.contains('active');
+ const verified=()=>/後端已驗證/.test($('environment').textContent)||new URLSearchParams(location.search).get('mode')==='sim';
+ const offline=()=>$('offline').checked;
+ const editing=allowInput=>!!document.querySelector('dialog[open]')||!$('rtPanel').classList.contains('hidden')||(!allowInput&&!!$('scanInput').value.trim());
+ const id=p=>p+'_'+(crypto.randomUUID?crypto.randomUUID().replace(/-/g,''):Array.from(crypto.getRandomValues(new Uint8Array(16)),n=>n.toString(16).padStart(2,'0')).join(''));
+ function paint(r){
+  const date=today(),old=oldDocs(r,date),rows=dailyDocs(r,date),current=r.docs[r.active];
+  const done=r.dailyOpenedDate===date,asOf=date.replace(/-/g,'/');
+  $('dailyDateD1').textContent='今日 '+asOf;
+  let msg=problem|| (busy?'正在確認今日批次，原資料保留…':!verified()?'登入並連接後，自動準備今日第一批。':offline()&&!done?'離線中：今日批次尚未確認，連線後接續。':!done?'今日批次待準備；正在輸入時不會強制切換。':current&&batchDay(current)<date?'目前查看舊批次；日期與資料維持原樣。':rows.some(d=>d.phase==='OPEN')?'今日批次已準備；重新整理不會另建一批。':'今日已有完成紀錄；需要再作業請按「＋新批次」。');
+  if($('dailyStateD1').textContent!==msg)$('dailyStateD1').textContent=msg;
+  $('dailyRetryD1').classList.toggle('hidden',done&&!problem);$('dailyRetryD1').disabled=!!busy||!verified()||offline();
+  $('dailyOldD1').classList.toggle('hidden',!old.length);
+  const key=reminderKey(r,date),signature=JSON.stringify([date,key,old.map(d=>[d.id,d.revision]),r.dailyReminderDismissed]);
+  if(signature!==paintSignature){
+   const selected=$('dailyOldSelectD1').value;paintSignature=signature;
+   $('dailyOldSummaryD1').textContent='舊批次 '+old.length+' 批尚待處理';
+   $('dailyOldSelectD1').replaceChildren(...old.map(d=>{
+    const option=document.createElement('option');option.value=d.id;
+    const n=D.active(d).length;option.textContent=d.number+'｜'+(d.phase==='OPEN'?(n?n+' 件未完成':'空批次，尚未掃描'):'待確認收據');return option;
+   }));
+   if(old.some(d=>d.id===selected))$('dailyOldSelectD1').value=selected;
+   $('dailyOldD1').open=r.dailyReminderDismissed!==key;
+  }
+  $('dailyReviewD1').disabled=!!busy;$('dailyLaterD1').disabled=!!busy;
+ }
+ async function check(force=false,allowInput=false){
+  if(busy)return busy;
+  if(!pack()||document.hidden)return false;
+  const k=T.getKey(),date=today();
+  busy=Promise.resolve().then(async()=>{
+   let r=await T.getRoot();lastRoot=r;lastKey=k;lastDay=date;
+   if(r.dailyOpenedDate===date){problem='';return true;}
+   if(!verified()||offline()||editing(allowInput)||(!force&&Date.now()<retryAfter))return false;
+   problem='';paint(r);
+   if(!dailyDocs(r,date).length){
+    // Reuse already-created server batches before creating locally. Do not overwrite
+    // unsent operations; the existing sync/read guards remain in force.
+    await T.sync();r=await T.getRoot();
+    if(r.blocked||r.pending.length||r.inflight)throw Error('舊資料仍待同步，先按「同步／重試」；今日批次不會重複建立');
+    if(!dailyDocs(r,date).length)await T.readRemote();
+   }
+   if(k!==T.getKey()||date!==today()||!pack()||editing(allowInput))return false;
+   const result=await S.change(k,v=>ensureIn(v,date,new Date().toISOString(),id));
+   await T.reload();lastRoot=await T.getRoot();retryAfter=0;
+   // Only the original CREATE command is queued. This never sends CLOSE.
+   if(result.created)T.sync().catch(e=>{problem='今日批次已保留，但尚待同步：'+e.message;request();});
+   return true;
+  }).catch(e=>{problem=e.message||String(e);retryAfter=Date.now()+60000;return false;});
+  try{return await busy;}finally{busy=null;if(k===T.getKey()){lastRoot=await T.getRoot();paint(lastRoot);}}
+ }
+ function request(){clearTimeout(queued);queued=setTimeout(()=>check().catch(()=>{}),80);}
+ $('dailyRetryD1').onclick=()=>check(true);
+ $('dailyReviewD1').onclick=async()=>{
+  if(busy)return;const r=await T.getRoot(),selected=$('dailyOldSelectD1').value;
+  if(!oldDocs(r,today()).some(d=>d.id===selected))return request();
+  const select=$('batchSelect');select.value=selected;
+  if(select.value!==selected){await T.reload();select.value=selected;}
+  select.dispatchEvent(new Event('change',{bubbles:true}));
+  // Switch only. The operator must still review the existing completion dialog.
+  $('batchSelect').scrollIntoView({block:'center',behavior:'smooth'});
+ };
+ $('dailyLaterD1').onclick=async()=>{await S.change(T.getKey(),r=>{r.dailyReminderDismissed=reminderKey(r,today());});lastRoot=await T.getRoot();paint(lastRoot);};
+ // Wait for date preparation when the operator submits a scan across midnight.
+ // Preserve their input; do not silently add it to yesterday's batch.
+ $('scanForm').addEventListener('submit',event=>{
+  if(!pack()||(lastKey===T.getKey()&&lastDay===today()&&lastRoot?.dailyOpenedDate===today()&&!busy))return;
+  event.preventDefault();event.stopImmediatePropagation();const raw=$('scanInput').value;
+  check(true,true).then(async ok=>{if(ok&&pack()&&$('scanInput').value===raw)await T.capture(raw);}).catch(e=>{problem=e.message;request();});
+ },true);
+ for(const node of [$('newBatch'),$('connect')])node.addEventListener('click',e=>{if(busy){e.preventDefault();e.stopImmediatePropagation();}},true);
+ const observer=new MutationObserver(request);
+ observer.observe($('environment'),{childList:true,characterData:true,subtree:true});
+ observer.observe($('batchSelect'),{childList:true});
+ observer.observe($('packMode'),{attributes:true,attributeFilter:['class']});
+ observer.observe($('rtPanel'),{attributes:true,attributeFilter:['class']});
+ for(const node of document.querySelectorAll('dialog'))node.addEventListener('close',request);
+ $('scanInput').addEventListener('blur',request);
+ document.addEventListener('visibilitychange',()=>{if(!document.hidden)request();});
+ g.addEventListener('pageshow',request);g.addEventListener('online',request);
+ const timer=setInterval(()=>{if(!document.hidden&&pack())request();},60000);
+ g.OqcDailyBatchD1={BUILD,today,batchDay,dailyDocs,oldDocs,ensureIn,reminderKey,check,
+  dispose:()=>{clearInterval(timer);clearTimeout(queued);observer.disconnect();}};
+ request();
+}
+g.OqcDailyBatchLogicD1={today,batchDay,dailyDocs,oldDocs,ensureIn,reminderKey};
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install,{once:true});else install();
+})(window);
