@@ -2,6 +2,58 @@
 (function(g){
 'use strict';
 const D=g.OqcDomain;
+// H1-LAYOUT-R1-20260916: only the history filter controls, not data or API rules.
+const LAYOUT_BUILD='H1-LAYOUT-R1-20260916';
+function installFilterLayout(){
+ const panel=document.getElementById('historyPanel');
+ const input=document.getElementById('historyDate');
+ const search=document.getElementById('historySearch');
+ const field=input&&input.parentElement, row=field&&field.parentElement;
+ if(!panel||!input||!search||!row||row.parentElement!==panel||search.parentElement!==row)return;
+ row.classList.add('history-filter-fields');
+ field.classList.add('history-date-field');
+ panel.dataset.layoutBuild=LAYOUT_BUILD;
+ if(!document.getElementById('oqcHistoryFilterLayoutR1')){
+  const style=document.createElement('style');style.id='oqcHistoryFilterLayoutR1';
+  style.textContent=`
+#historyPanel > .history-filter-fields{
+ display:grid;grid-template-columns:minmax(0,1fr);align-items:end;
+ gap:10px;width:100%;min-width:0;max-width:100%;margin:0 0 10px;
+}
+#historyPanel > .history-filter-fields > *{
+ min-width:0;max-width:100%;width:100%;box-sizing:border-box;
+}
+#historyPanel .history-date-field{
+ display:block;margin:0;min-width:0;line-height:1.55;
+}
+#historyPanel #historyDate,#historyPanel #historySearch{
+ display:block;box-sizing:border-box;width:100%;min-width:0;max-width:100%;
+ height:46px;min-height:46px;margin:0;font-size:16px;
+}
+#historyPanel #historyDate{
+ margin-top:5px;appearance:none;-webkit-appearance:none;
+}
+#historyPanel #historyDate::-webkit-date-and-time-value{
+ min-width:0;text-align:left;
+}
+#historyPanel .history-layout-build{
+ display:inline-block;margin-left:8px;font-size:11px;font-weight:400;
+ color:var(--muted);vertical-align:middle;white-space:nowrap;
+}
+@media(min-width:641px){
+ #historyPanel > .history-filter-fields{grid-template-columns:repeat(2,minmax(0,1fr));}
+}`;
+  document.head.appendChild(style);
+ }
+ const heading=panel.querySelector('h2');
+ if(heading&&!document.getElementById('historyLayoutBuild')){
+  const badge=document.createElement('span');badge.id='historyLayoutBuild';
+  badge.className='history-layout-build';badge.textContent='排版 R1';badge.title=LAYOUT_BUILD;
+  heading.appendChild(badge);
+ }
+}
+installFilterLayout();
+
 const esc=v=>String(v==null?'':v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 function receipt(d,r){return r.receipts?.[d.id]||d.receipt||null;}
 function archived(d,r){
