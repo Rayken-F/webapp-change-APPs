@@ -99,7 +99,7 @@ function render(r){
  document.getElementById('historyCount').textContent='已完成 '+docs.length+' 批｜日期以完成時間為準';
  host.innerHTML=docs.map(d=>{
   const x=receipt(d,r);
-  return '<details class="panel" data-history="'+esc(d.id)+'" '+(open.has(d.id)?'open':'')+'><summary>'+esc(d.number)+'<span class="subtext">｜'+esc(date(x.at||d.closedAt))+'｜'+esc(x.total)+' 件</span></summary><div class="tools"><b>已完成裝框｜出貨狀態未確認</b><p class="subtext">裝框識別：'+esc(d.shippingRef||'—')+'<br>作業日期：'+esc(d.workDate||x.workDate||'—')+'<br>作業人員：'+esc(d.workers||x.workers||x.actor||'—')+'<br>完成時間：'+esc(stamp(x.at||d.closedAt))+'<br>收據：'+esc(x.id)+'<br>散支 '+esc(x.bottles??'—')+' 支／集束 '+esc(x.bundles??'—')+' 組'+(x.unknownType?'／型態待確認 '+esc(x.unknownType)+' 件':'')+'<br>備註：'+esc(d.note||'—')+'</p>'+(d.items||[]).map((i,n)=>item(i,n+1)).join('')+'</div></details>';
+  return '<details class="panel" data-history="'+esc(d.id)+'" '+(open.has(d.id)?'open':'')+'><summary>'+esc(d.number)+'<span class="subtext">｜'+esc(date(x.at||d.closedAt))+'｜'+esc(x.total)+' 件</span></summary><div class="tools"><b>已完成裝框｜出貨狀態未確認</b><p class="subtext">裝框識別：'+esc(d.shippingRef||'—')+'<br>作業日期：'+esc(d.workDate||x.workDate||'—')+'<br>作業人員：'+esc(d.workers||x.workers||x.actor||'—')+'<br>完成時間：'+esc(x.at?stamp(x.at):stamp(d.closedAt))+'<br>收據：'+esc(x.id)+'<br>散支 '+esc(x.bottles??'—')+' 支／集束 '+esc(x.bundles??'—')+' 組'+(x.unknownType?'／型態待確認 '+esc(x.unknownType)+' 件':'')+'<br>備註：'+esc(d.note||'—')+'</p>'+(d.items||[]).map((i,n)=>item(i,n+1)).join('')+'</div></details>';
  }).join('')||'<div class="empty">這個範圍尚無已確認完成的装框紀錄。</div>';
 }
 g.OqcHistory={receipt,archived,working,preferred,filter,label,render};
@@ -149,7 +149,7 @@ function install(){
   const date=today(),old=oldDocs(r,date),rows=dailyDocs(r,date),current=r.docs[r.active];
   const done=r.dailyOpenedDate===date,asOf=date.replace(/-/g,'/');
   $('dailyDateD1').textContent='今日 '+asOf;
-  let msg=problem|| (busy?'正在確認今日批次，原資料保留…':!verified()?'登入並連接後，自動準備今日第一批。':offline()&&!done?'離線中：今日批次尚未確認，連線後接續。':!done?'今日批次待準備；正在輸入時不會強制切換。':current&&batchDay(current)<date?'目前查看舊批次；日期與資料維持原樣。':rows.some(d=>d.phase==='OPEN')?'今日批次已準備；重新整理不會另建一批。':'今日已有完成紀錄；需要再作業請按「＋新批次」。');
+  let msg=problem|| (busy?'正在確認今日批次，原資料保留…':!verified()?'登入並連接後，自動準備今日第一批。':offline()&&!done?'離線中：今日批次尚未確認，連線後接續。':!done?'今日批次待準備；正在輸入時不會強制切換。':current&&batchDay(current)<date?'目前查看舊批次；日期與資料維持原樣。':rows.some(d=>d.phase==='OPEN')?'今日批次已準備；重新整理不會另建一批。':'今日批次已使用或移除；需要再作業請按「＋新批次」。');
   if($('dailyStateD1').textContent!==msg)$('dailyStateD1').textContent=msg;
   $('dailyRetryD1').classList.toggle('hidden',done&&!problem);$('dailyRetryD1').disabled=!!busy||!verified()||offline();
   $('dailyOldD1').classList.toggle('hidden',!old.length);
@@ -159,7 +159,7 @@ function install(){
    $('dailyOldSummaryD1').textContent='舊批次 '+old.length+' 批尚待處理';
    $('dailyOldSelectD1').replaceChildren(...old.map(d=>{
     const option=document.createElement('option');option.value=d.id;
-    const n=D.active(d).length;option.textContent=d.number+'｜'+(d.phase==='OPEN'?(n?n+' 件未完成':'空批次，尚未掃描'):'待確認收據');return option;
+    const n=D.active(d).length;option.textContent=d.number+'｜'+(d.phase==='OPEN'?(n?n+' 件未完成':'空批次，尚未掃描'):H.label(d,r));return option;
    }));
    if(old.some(d=>d.id===selected))$('dailyOldSelectD1').value=selected;
    $('dailyOldD1').open=r.dailyReminderDismissed!==key;
@@ -228,3 +228,6 @@ function install(){
 g.OqcDailyBatchLogicD1={today,batchDay,dailyDocs,oldDocs,ensureIn,reminderKey};
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install,{once:true});else install();
 })(window);
+
+/* Load batch removal independently; existing IQC/daily/history contracts stay intact. */
+(function(){const script=document.createElement('script');script.src=new URL('batch-removal-rm1.js?v=20260916-rm1',document.currentScript.src).href;document.head.appendChild(script);})();
