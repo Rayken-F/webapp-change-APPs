@@ -30,7 +30,7 @@ D.run=run;D.batchRemovalPatch=PATCH;
 g.OqcBatchRemovalDomain={PATCH,confirmed};
 })(typeof globalThis!=='undefined'?globalThis:this);
 
-/* Batch removal RM1: current/old OPEN batches, two confirmations, same outbox. */
+/* RM1-H2-UI-20260916-01: OPEN batches, two confirmations, same outbox. */
 (function(g){
 'use strict';
 const D=g.OqcDomain,S=g.OqcStore,H=g.OqcHistory,R=g.OqcBatchRemovalDomain;
@@ -55,7 +55,9 @@ function install(){
  if(!T||!$('packOnly')||$('removeBatchRM1'))return;
  const actions=document.createElement('div');actions.className='batch-removal-actions';
  actions.innerHTML='<button id="removeBatchRM1" type="button">移除目前批次</button><small>批次管理 RM1</small>';
- $('packOnly').appendChild(actions);
+ const batchMeta=$('batchMeta');
+ if(batchMeta&&batchMeta.parentElement===$('packOnly'))batchMeta.insertAdjacentElement('afterend',actions);
+ else $('packOnly').appendChild(actions);
  auditHost=document.createElement('details');auditHost.id='removedBatchesRM1';
  auditHost.innerHTML='<summary>已移除批次（0）</summary><div class="removed-entries"></div>';
  $('historyPanel').appendChild(auditHost);
@@ -78,7 +80,7 @@ function install(){
   const ctrl=new AbortController();let timer;
   try{
    const reply=await Promise.race([(async()=>{const res=await fetch(endpoint,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({api:'health',environment:D.VERSION,client_version:D.VERSION}),cache:'no-store',redirect:'follow',signal:ctrl.signal});if(!res.ok)throw Error('無法確認移除功能：HTTP '+res.status);return res.json();})(),new Promise((_,reject)=>{timer=setTimeout(()=>{ctrl.abort();reject(Error('移除功能驗證逾時，未移除任何批次'));},25000);})]);
-   if(!reply.ok||reply.environment!==D.VERSION||reply.batchRemovalPatch!==R.PATCH)throw Error('請先套用 RM1 配套後端並更新原部署；目前未移除任何批次');
+   if(!reply.ok||reply.environment!==D.VERSION||reply.batchRemovalPatch!==R.PATCH||reply.rtMasterPatch!=='20260915-rtlist-h2')throw Error('請套用「現行H2合併RM1 完整覆蓋版」並更新原 DEMO 部署；目前未移除任何批次，不要改用不含 H2 的舊 RM1。');
    capabilityKey=k;
   }finally{clearTimeout(timer);}
  }
