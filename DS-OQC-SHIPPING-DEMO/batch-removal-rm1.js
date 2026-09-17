@@ -13,7 +13,8 @@ function run(input,cmd,ctx){
  if(input.applied?.[cmd.id]){if(input.applied[cmd.id]!==fp)D.fail('IDEMPOTENCY_CONFLICT','同一移除操作編號的內容不同');return D.clone(input);}
  if(input.phase!=='OPEN'||input.receipt||input.packingStatus==='PACKED')D.fail('REMOVE_NOT_OPEN','僅能移除未完成的批次；已完成裝框的收據保留於歷史');
  if(!Number.isInteger(cmd.base)||cmd.base!==input.revision)D.fail('REVISION_CONFLICT','批次已在其他裝置更新；移除未完成，請先核對最新資料');
- if(cmd.ruleset!=='0.2.3'||p.patch!==PATCH||p.confirmed!==true||p.number!==input.number||p.signature!==D.signature(input))D.fail('REMOVE_CONFIRMATION_CHANGED','移除確認資料已改變，請重新核對批次與件數');
+ const contract=cmd.ruleset===D.RULE?D:cmd.ruleset==='0.2.3'?D.legacy023:null;
+ if(!contract||p.patch!==PATCH||p.confirmed!==true||p.number!==input.number||p.signature!==contract.signature(input))D.fail('REMOVE_CONFIRMATION_CHANGED','移除確認資料已改變，請重新核對批次與件數');
  if(!Number.isFinite(Date.parse(at)))D.fail('INVALID_TIME','移除時間不正確');
  const reason=String(p.reason||'不再使用此批次').trim();
  if(!reason||reason.length>120)D.fail('INVALID_REASON','移除原因需為 1～120 字');
