@@ -1,7 +1,7 @@
 /* RT-G1-20260917: validation and atomic reconciliation of fenced RT requests. */
 (function(g){
 'use strict';
-const D=g.OqcDomain,PATCH='RT-G1-20260916',BUILD='RT-G1-20260917-01';
+const D=g.OqcDomain,PATCH='RT-G1-20260916',BUILD='RT-G1-20260917-02';
 const fail=message=>D.fail('RT_RECOVERY_UNSAFE',message+'；原請求及資料保留');
 function normalizeRt(value){return String(value||'').trim().replace(/^RT\s*/i,'');}
 function validateReply(rt,items,response){
@@ -10,6 +10,52 @@ function validateReply(rt,items,response){
  if(!items.length)D.fail('EMPTY_SELECTION','請先選取項目');
  items.forEach(i=>{if(!D.canRt(i))D.fail('STALE_SELECTION','選取項目已改變');D.validateRtType(i,meta);});
  return {rtMaster:meta,proof:response.proof};
+}
+// A brief, memory-only reuse of authenticated proofs; batch_sync still checks
+// the current master and permission before accepting any RT operation.
+function createRtLookup({lookup,scope,now=Date.now,maxAgeMs=30000,maxEntries=32}){
+ let identity,epoch=0;const entries=new Map();
+ function clear(){entries.clear();identity=scope();epoch++;}
+ function align(){if(identity!==scope())clear();return epoch;}
+ function peek(rt){align();const hit=entries.get(rt);return hit?.value&&now()-hit.at<maxAgeMs?D.clone(hit.value):null;}
+ async function get(rt){
+  const generation=align(),cached=peek(rt);if(cached)return cached;
+  const old=entries.get(rt);if(old?.promise)return D.clone(await old.promise);
+  const entry={};entries.set(rt,entry);
+  while(entries.size>maxEntries)entries.delete(entries.keys().next().value);
+  entry.promise=Promise.resolve().then(()=>lookup(rt)).then(response=>{
+   if(generation!==align())D.fail('RT_CHECK_CONTEXT_CHANGED','登入或連線已改變，請重新查驗 RT');
+   D.validRtMeta(response?.entry,rt);
+   if(typeof response.proof!=='string'||!response.proof)D.fail('RT_PROOF_MISSING','RT list 回應缺少驗證資料，未套用');
+   entry.value=D.clone(response);entry.at=now();entry.promise=null;return response;
+  }).catch(e=>{if(entries.get(rt)===entry)entries.delete(rt);throw e;});
+  return D.clone(await entry.promise);
+ }
+ return {get,peek,clear};
+}
+function isRtRejection(error){
+ const codes=['INVALID_RT','RT_NOT_FOUND','RT_MASTER_CONFLICT','RT_NOT_CYLINDER','RT_QUEUE_REJECTED'];
+ return !!error&&(error.code?codes.includes(error.code):/^RT\s+\d+\s+不存在於 RT list|^此無效 RT 原請求已封存/.test(error.message||''));
+}
+function rtQueueProblem(root){
+ if(!root.lastError||!(root.pending||[]).length)return null;
+ const failure=root.syncFailure||{message:root.lastMessage};
+ if(!isRtRejection(failure))return null;
+ if(failure.requestId&&failure.requestId!==root.inflight?.requestId)return null;
+ const commands=root.inflight?.operations||root.pending,rt=commands.find(c=>c.type==='RT_CHANGE');
+ if(!rt)return null;
+ const batchId=root.inflight?.batchId||rt.batchId,count=root.pending.filter(c=>c.batchId===batchId).length;
+ if(!count)return null;
+ return {batchId,count,number:root.docs[batchId]?.number||batchId,message:failure.message||root.lastMessage};
+}
+function syncNotice(root,issue='',busy=false){
+ const problem=rtQueueProblem(root),queued=!!((root.pending||[]).length||root.inflight);
+ if(busy)return {text:'資料同步中；尚未代表裝框完成',danger:false,problem};
+ if(problem)return {text:'舊待傳 RT 尚未修復｜'+problem.number+'（'+problem.count+' 筆待傳）：'+problem.message+'。請按「修復待傳 RT」核對原請求。',danger:true,problem};
+ // An acknowledged queue must not keep showing its old error as current state.
+ const transient=issue&&issue!==root.lastMessage?issue:'',persistent=queued&&(root.blocked||root.lastError&&root.lastMessage);
+ const text=transient||persistent||((root.pending||[]).length?'本機已保存，待傳 '+root.pending.length+' 項操作':!root.lastError&&root.lastMessage||'目前沒有待傳操作');
+ return {text,danger:!!(transient||persistent),problem:null};
 }
 function closeProblems(doc){
  const errors=[];
@@ -75,9 +121,9 @@ function reconcile(root,packet,reply,expected,id,at){
  root.docs[packet.batchId]=doc;
  if(reply.doc?.receipt)root.receipts[packet.batchId]=D.clone(reply.doc.receipt);
  root.rtRepairs=root.rtRepairs||[];root.rtRepairs.push(audit);
- root.inflight=null;root.blocked='';root.lastError=false;
+ root.inflight=null;root.blocked='';root.lastError=false;root.syncFailure=null;
  root.lastMessage=reply.accepted?'原請求已由後端接受，已取回確認，未撤銷交易':'已復原被拒絕的 RT；CTN、其他操作及修復紀錄保留，合法操作接續同步';
  return audit;
 }
-g.OqcRtGateG1={PATCH,BUILD,normalizeRt,validateReply,closeProblems,recoveryState,reconcile};
+g.OqcRtGateG1={PATCH,BUILD,normalizeRt,validateReply,createRtLookup,isRtRejection,rtQueueProblem,syncNotice,closeProblems,recoveryState,reconcile};
 })(typeof globalThis!=='undefined'?globalThis:this);
