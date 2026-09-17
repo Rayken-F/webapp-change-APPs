@@ -99,7 +99,8 @@ function gateHarness(){
  const s=scenario();scanned(s);const calls=[],writes=[];
  const elements={newRt:{value:'113407'},applyRt:{disabled:true},rtGateStatus:{textContent:'',classList:{toggle(){}}}};
  const c=vm.createContext({D,G,root:{actor,active:s.doc.id,docs:{[s.doc.id]:clone(s.doc)}},key:'fixture-key',ready:true,authEpoch:0,workMode:'PACK',editRt:true,selected:new Set(['QA10AA1']),rtGate:{stamp:'',status:'idle',message:''},rtTimer:0,rtSeq:0,rtApplying:false,repairingRt:false,closing:false,disconnected:false,session:'fixture-token',
-  $:id=>elements[id],hash:s=>s,token:()=>c.session,offline:()=>c.disconnected,isOpen:()=>true,setTimeout:()=>1,clearTimeout(){},verify:async()=>{},api:()=>new Promise((resolve,reject)=>calls.push({resolve,reject})),confirm:()=>true,mutate:async(...args)=>writes.push(args),issue:''});
+  $:id=>elements[id],hash:s=>s,token:()=>c.session,offline:()=>c.disconnected,isOpen:()=>true,setTimeout:()=>1,clearTimeout(){},verify:async()=>{},api:()=>new Promise((resolve,reject)=>calls.push({resolve,reject})),confirm:()=>true,mutate:async(...args)=>writes.push(args),issue:'',time:0});
+ c.rtLookups=G.createRtLookup({lookup:rt=>c.api('rt_lookup',{rt}),scope:()=>D.canonical([c.key,c.session,c.authEpoch,c.ready,c.disconnected]),now:()=>c.time});
  vm.runInContext(html.slice(html.indexOf('function rtSnapshot('),html.indexOf('async function repairRtQueueG1(')),c);c.render=()=>c.paintRtGate();
  async function start(){const promise=c.checkRt(c.rtSnapshot(),c.rtSeq);await new Promise(setImmediate);return {promise,call:calls.at(-1)};}
  return {c,e:elements,calls,writes,start};
@@ -113,12 +114,53 @@ for(const [name,changeContext] of Object.entries({selection:h=>h.c.selected.clea
  const h=gateHarness(),first=await h.start();changeContext(h);h.c.invalidateRt();h.c.paintRtGate();first.call.resolve({entry:bottle,proof:'fixture'});await first.promise;
  assert.equal(h.e.applyRt.disabled,true);assert.equal(h.writes.length,0);
 });
-test('apply performs a fresh lookup and never queues a failed recheck',async()=>{
+test('expired RT proof is rechecked and never queued on failure',async()=>{
  const h=gateHarness(),first=await h.start();first.call.resolve({entry:bottle,proof:'old-proof'});await first.promise;assert.equal(h.e.applyRt.disabled,false);
+ h.c.time=30001;
  const applying=h.c.applyRtG1();await new Promise(setImmediate);h.calls.at(-1).reject(Error('RT_MASTER_CHANGED'));await assert.rejects(applying,/RT_MASTER_CHANGED/);
  assert.equal(h.writes.length,0);assert.equal(h.e.applyRt.disabled,true);assert.equal(h.c.rtApplying,false);
 });
 test('offline -> online forces RT validation again',async()=>{
  const h=gateHarness(),first=await h.start();first.call.resolve({entry:bottle,proof:'fixture'});await first.promise;
  h.c.disconnected=true;h.c.paintRtGate();assert.equal(h.e.applyRt.disabled,true);h.c.disconnected=false;h.c.paintRtGate();assert.equal(h.e.applyRt.disabled,true);assert.equal(h.c.rtGate.status,'checking');
+});
+test('recent authenticated RT proof is reused at Apply without a second request',async()=>{
+ const h=gateHarness(),first=await h.start();first.call.resolve({entry:bottle,proof:'server-proof'});await first.promise;
+ await h.c.applyRtG1();assert.equal(h.calls.length,1);assert.equal(h.writes.length,1);assert.equal(h.writes[0][1].proof,'server-proof');assert.equal(h.writes[0][1].rt,'113407');
+});
+test('changed selection uses cached master but still checks the new IQC type',async()=>{
+ const h=gateHarness(),first=await h.start();first.call.resolve({entry:bottle,proof:'fixture'});await first.promise;
+ h.c.root.docs[h.c.root.active].items[0].iqc.assetType='BUNDLE';h.c.invalidateRt();const second=await h.start();await second.promise;
+ assert.equal(h.calls.length,1);assert.equal(h.e.applyRt.disabled,true);assert.match(h.e.rtGateStatus.textContent,/型態.*不符/);
+});
+test('identical concurrent RT requests share one network call',async()=>{
+ const h=gateHarness(),first=await h.start();h.c.root.docs[h.c.root.active].revision++;h.c.invalidateRt();const second=await h.start();
+ assert.equal(h.calls.length,1);first.call.resolve({entry:bottle,proof:'fixture'});await Promise.all([first.promise,second.promise]);assert.equal(h.e.applyRt.disabled,false);
+});
+test('failed and malformed RT responses are never cached as valid',async()=>{
+ let calls=0;const cache=G.createRtLookup({scope:()=>'',lookup:async()=>{calls++;if(calls===1)throw Error('timeout');if(calls===2)return {entry:bottle};return {entry:bottle,proof:'fixture'};}});
+ await assert.rejects(cache.get('113407'),/timeout/);assert.equal(cache.peek('113407'),null);
+ await assert.rejects(cache.get('113407'),{code:'RT_PROOF_MISSING'});assert.equal(cache.peek('113407'),null);
+ await cache.get('113407');assert.equal(calls,3);
+});
+test('cache expires and clears on identity/endpoint changes and network reset',async()=>{
+ let scope='endpoint-A:user-A',time=0,calls=0;const cache=G.createRtLookup({scope:()=>scope,now:()=>time,lookup:async()=>{calls++;return {entry:bottle,proof:'fixture-'+calls};}});
+ const original=await cache.get('113407');original.entry.description='mutated caller';assert.notEqual((await cache.get('113407')).entry.description,'mutated caller');assert.equal(calls,1);
+ time=30000;await cache.get('113407');assert.equal(calls,2);scope='endpoint-A:user-B';await cache.get('113407');assert.equal(calls,3);
+ scope='endpoint-B:user-B';await cache.get('113407');assert.equal(calls,4);cache.clear();await cache.get('113407');assert.equal(calls,5);
+});
+test('repair notice names the actual old request, not the current input/batch',()=>{
+ const f=fixture();f.root.lastError=true;f.root.lastMessage='RT 11333333 不存在於 RT list，本次未套用';f.root.active=f.other.batchId;
+ const notice=G.syncNotice(f.root,f.root.lastMessage);assert.equal(notice.problem.batchId,f.packet.batchId);assert.match(notice.text,/舊待傳 RT 尚未修復/);assert.match(notice.text,/修復待傳 RT/);assert.equal(notice.danger,true);
+});
+test('resolved queue hides stale error even after reload without deleting audit',()=>{
+ const f=fixture();f.root.lastError=true;f.root.lastMessage='RT 11333333 不存在於 RT list，本次未套用';const old=f.root.lastMessage;
+ repair(f);assert.equal(G.syncNotice(f.root,old).problem,null); // no rejected packet remains
+ const settled={...f.root,pending:[],inflight:null,lastError:true,lastMessage:old};const before=D.canonical(settled);
+ const notice=G.syncNotice(settled,old);assert.doesNotMatch(notice.text,/11333333/);assert.equal(notice.danger,false);assert.equal(D.canonical(settled),before);assert.equal(settled.rtRepairs.length,1);
+});
+test('a transient RT field error expires, while queue failures remain actionable',()=>{
+ const clean={docs:{},pending:[],inflight:null,lastError:false};assert.equal(G.syncNotice(clean,'field error').text,'field error');assert.equal(G.syncNotice(clean,'').danger,false);
+ const f=fixture();f.root.lastError=true;f.root.syncFailure={code:'RT_NOT_FOUND',message:'RT unavailable',requestId:f.packet.requestId};
+ assert.ok(G.rtQueueProblem(f.root));f.root.syncFailure.requestId='req_other';assert.equal(G.rtQueueProblem(f.root),null);
 });
