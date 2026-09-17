@@ -7,6 +7,7 @@ const ctx=vm.createContext({});
 vm.runInContext(scripts[0],ctx);vm.runInContext(read('domain-h2-g1.js'),ctx);
 vm.runInContext(read('batch-removal-rm1.js').split('/* RM1-H2-UI')[0],ctx);
 vm.runInContext(read('rt-gate-g1.js'),ctx);
+vm.runInContext(read('rt-catalog-g12.js'),ctx);
 const D=ctx.OqcDomain,G=ctx.OqcRtGateG1,L=D.legacy023,clone=x=>JSON.parse(JSON.stringify(x));
 const at='2026-09-17T04:00:00.000Z',actor='G1 automated fixture';let seq=0;
 const id=p=>p+'_'+String(++seq).padStart(12,'0');
@@ -95,12 +96,14 @@ test('late recovery response cannot overwrite new local work or changed identity
 test('close guidance identifies blocking CTNs and next steps',()=>{const s=scenario();scanned(s,'NON_CYLINDER','QA10AA1');scanned(s,'CONFLICT','QA10AA2');const msg=G.closeProblems(s.doc).join('\n');assert.match(msg,/QA10AA1.*核對/);assert.match(msg,/QA10AA2.*確認來源/);assert.match(msg,/設定總量／備註/);assert.match(G.closeProblems(scenario().doc).join(''),/空批次/);});
 
 // Exercise the shipped asynchronous controller, with deferred API responses.
-function gateHarness(){
+function gateHarness(catalogSupported=false){
  const s=scenario();scanned(s);const calls=[],writes=[];
- const elements={newRt:{value:'113407'},applyRt:{disabled:true},rtGateStatus:{textContent:'',classList:{toggle(){}}}};
+ const elements={newRt:{value:'113407'},applyRt:{disabled:true},rtRetry:{disabled:false},rtGateStatus:{textContent:'',classList:{toggle(){}}}};
  const c=vm.createContext({D,G,root:{actor,active:s.doc.id,docs:{[s.doc.id]:clone(s.doc)}},key:'fixture-key',ready:true,authEpoch:0,workMode:'PACK',editRt:true,selected:new Set(['QA10AA1']),rtGate:{stamp:'',status:'idle',message:''},rtTimer:0,rtSeq:0,rtApplying:false,repairingRt:false,closing:false,disconnected:false,session:'fixture-token',
-  $:id=>elements[id],hash:s=>s,token:()=>c.session,offline:()=>c.disconnected,isOpen:()=>true,setTimeout:()=>1,clearTimeout(){},verify:async()=>{},api:()=>new Promise((resolve,reject)=>calls.push({resolve,reject})),confirm:()=>true,mutate:async(...args)=>writes.push(args),issue:'',time:0});
+  $:id=>elements[id],hash:s=>s,token:()=>c.session,offline:()=>c.disconnected,isOpen:()=>true,setTimeout:()=>1,clearTimeout(){},verify:async()=>{},api:()=>new Promise((resolve,reject)=>calls.push({resolve,reject})),confirm:()=>true,mutate:async(...args)=>writes.push(args),issue:'',time:0,catalogSupported,rtMeasurements:[],now:()=>at});
  c.rtLookups=G.createRtLookup({lookup:rt=>c.api('rt_lookup',{rt}),scope:()=>D.canonical([c.key,c.session,c.authEpoch,c.ready,c.disconnected]),now:()=>c.time});
+ c.rtCatalog=ctx.OqcRtCatalogG12.create({fetchCatalog:()=>c.api('rt_catalog'),scope:()=>D.canonical([c.key,c.session,c.authEpoch,c.ready,c.disconnected]),now:()=>c.time});
+ c.cachedRt=rt=>catalogSupported?c.rtCatalog.peek(rt):c.rtLookups.peek(rt);
  vm.runInContext(html.slice(html.indexOf('function rtSnapshot('),html.indexOf('async function repairRtQueueG1(')),c);c.render=()=>c.paintRtGate();
  async function start(){const promise=c.checkRt(c.rtSnapshot(),c.rtSeq);await new Promise(setImmediate);return {promise,call:calls.at(-1)};}
  return {c,e:elements,calls,writes,start};
@@ -136,6 +139,22 @@ test('changed selection uses cached master but still checks the new IQC type',as
 test('identical concurrent RT requests share one network call',async()=>{
  const h=gateHarness(),first=await h.start();h.c.root.docs[h.c.root.active].revision++;h.c.invalidateRt();const second=await h.start();
  assert.equal(h.calls.length,1);first.call.resolve({entry:bottle,proof:'fixture'});await Promise.all([first.promise,second.promise]);assert.equal(h.e.applyRt.disabled,false);
+});
+function preload(h){h.c.rtCatalog.prime({schema:ctx.OqcRtCatalogG12.SCHEMA,complete:true,validForMs:30000,entries:[{entry:bottle,proof:'catalog-proof'},{entry:bundle,proof:'bundle-proof'}],errors:[]});}
+test('catalog-backed controller validates new RT and Apply without a server round trip',async()=>{
+ const h=gateHarness(true);preload(h);const first=await h.start();await first.promise;assert.equal(h.e.applyRt.disabled,false);assert.match(h.e.rtGateStatus.textContent,/可套用.*秒/);
+ await h.c.applyRtG1();assert.equal(h.calls.length,0);assert.equal(h.writes.length,1);assert.equal(h.writes[0][1].proof,'catalog-proof');assert.equal(h.c.rtMeasurements[0].source,'catalog');
+});
+test('catalog-backed controller rejects unknown RT and selected cylinder type mismatch locally',async()=>{
+ const h=gateHarness(true);preload(h);h.e.newRt.value='111111';let check=await h.start();await check.promise;assert.equal(h.e.applyRt.disabled,true);assert.match(h.e.rtGateStatus.textContent,/不存在/);
+ h.e.newRt.value='6016995';h.c.invalidateRt();check=await h.start();await check.promise;assert.equal(h.e.applyRt.disabled,true);assert.match(h.e.rtGateStatus.textContent,/型態.*不符/);assert.equal(h.calls.length,0);assert.equal(h.writes.length,0);
+});
+test('long confirmation cannot queue an expired catalog proof when revalidation fails',async()=>{
+ const h=gateHarness(true);preload(h);const check=await h.start();await check.promise;h.c.confirm=()=>{h.c.time=30001;return true;};const applying=h.c.applyRtG1();await new Promise(setImmediate);h.calls.at(-1).reject(Error('catalog refresh failed'));
+ await assert.rejects(applying,/catalog refresh failed/);assert.equal(h.writes.length,0);assert.equal(h.e.applyRt.disabled,true);
+});
+test('a late catalog response cannot authorize a newer input or changed login',async()=>{
+ const h=gateHarness(true),first=await h.start();h.e.newRt.value='111111';h.c.session='next-user';h.c.invalidateRt();h.c.paintRtGate();first.call.resolve({rtCatalog:{schema:ctx.OqcRtCatalogG12.SCHEMA,complete:true,validForMs:30000,entries:[{entry:bottle,proof:'old-user'}],errors:[]}});await first.promise;assert.equal(h.e.applyRt.disabled,true);assert.equal(h.writes.length,0);
 });
 test('failed and malformed RT responses are never cached as valid',async()=>{
  let calls=0;const cache=G.createRtLookup({scope:()=>'',lookup:async()=>{calls++;if(calls===1)throw Error('timeout');if(calls===2)return {entry:bottle};return {entry:bottle,proof:'fixture'};}});

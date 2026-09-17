@@ -1,7 +1,7 @@
 'use strict';
-const CACHE='oqc-shipping-demo-20260917-g1-02';
+const CACHE='oqc-shipping-demo-20260917-g1-03';
 const BASE=new URL('./',self.location.href).href;
-const FILES=['./','index.html','domain-h2-g1.js?v=20260917-g1-01','rt-gate-g1.js?v=20260917-g1-02','history-h1.js?v=20260917-g1-01','batch-removal-rm1.js?v=20260917-g1-01','domain.js?v=20260909-demo01','storage.js?v=20260909-demo01','app.js?v=20260910-real-entry01','style.css?v=20260909-demo01'];
+const FILES=['./','index.html','domain-h2-g1.js?v=20260917-g1-01','rt-gate-g1.js?v=20260917-g1-02','rt-catalog-g12.js?v=20260917-g1-03','history-h1.js?v=20260917-g1-01','batch-removal-rm1.js?v=20260917-g1-01','domain.js?v=20260909-demo01','storage.js?v=20260909-demo01','app.js?v=20260910-real-entry01','style.css?v=20260909-demo01'];
 self.addEventListener('install',event=>event.waitUntil(caches.open(CACHE).then(c=>c.addAll(FILES)).then(()=>self.skipWaiting())));
 self.addEventListener('activate',event=>event.waitUntil(self.clients.claim()));
 self.addEventListener('fetch',event=>{
