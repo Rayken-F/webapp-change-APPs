@@ -83,7 +83,7 @@ function item(i,n){
  const src=D.source(i),rt=String(i.rt||''),changed=!!rt&&(rt!==src.rt||(!src.rt&&i.rtChanges?.length));
  const line=rt?'<div class="rtline">'+(src.rt&&src.rt!==rt?'RT '+esc(src.rt)+' <span class="arrow">→</span> ':'')+'<span class="'+(changed?'newrt':'')+'">RT '+esc(rt)+'</span></div>':'';
  const flag=i.voided?'已作廢':i.iqc.state==='NOT_FOUND'?'未建IQC':i.iqc.state==='ERROR'||i.iqc.state==='PENDING'?'完成時待查':'已完成裝框';
- const type=D.kind(i)==='BUNDLE'?'<div class="type">集束 1 組'+(i.iqc.cylinderQty?'／'+esc(i.iqc.cylinderQty)+' 支':'／內含支數未確認')+'</div>':'';
+ const type=D.kind(i)==='BUNDLE'?'<div class="type">集束 1 組'+(D.quantity(i)?'／'+esc(D.quantity(i))+' 支':'／內含支數未確認')+'</div>':'';
  const changes=i.rtChanges||[];
  const trail=changes.map(x=>'<div class="subtext">'+esc(stamp(x.at))+'｜'+esc(x.by)+'｜'+esc(x.oldRt||'空白')+' → '+esc(x.newRt)+'</div>').join('');
  return '<div class="history-item"><div class="item"><span class="number">'+n+'</span><div class="mainline"><b class="ctn">'+esc(i.ctn)+'</b>'+(src.status?'<span class="status">狀態 '+esc(src.status)+'</span>':'')+'</div>'+line+type+'<span class="flag '+(flag==='未建IQC'?'danger':'')+'">'+flag+'</span></div>'+(trail?'<details><summary class="subtext">RT 轉換紀錄（'+changes.length+'）</summary>'+trail+'</details>':'')+'</div>';
@@ -230,4 +230,4 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
 })(window);
 
 /* Load batch removal independently; existing IQC/daily/history contracts stay intact. */
-(function(){const script=document.createElement('script');script.src=new URL('batch-removal-rm1.js?v=20260916-rm1',document.currentScript.src).href;document.head.appendChild(script);})();
+(function(){const script=document.createElement('script');script.src=new URL('batch-removal-rm1.js?v=20260917-g1-01',document.currentScript.src).href;document.head.appendChild(script);})();
