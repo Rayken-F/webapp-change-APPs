@@ -5,6 +5,7 @@
 
   const path=location.pathname;
   const MODULES=[
+    {match:"/DS-OQC-SHIPPING/",permission:"stamp_shipping_enabled",name:"OQC 庫存掃描／裝框"},
     {match:"/ds-report-pwa-beta/",permission:"grinding_enabled",name:"Grinding WIP"},
     {match:"/ds-report-pwa/",permission:"daily_report_enabled",name:"日報系統"},
     {match:"/DS-IQC-WIP/",permission:"iqc_correction_enabled",name:"IQC 異常處理"}

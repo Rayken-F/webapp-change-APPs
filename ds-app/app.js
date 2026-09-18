@@ -258,6 +258,10 @@ function routeAfterAuth(){
     openModule("iqc",CFG.IQC_CORRECTION_URL,"IQC 異常處理","more");
     return true;
   }
+  if(target.includes("/DS-OQC-SHIPPING/") && permission("stamp_shipping_enabled")){
+    openModule("oqc",CFG.OQC_SHIPPING_URL,"OQC 庫存掃描／裝框","more");
+    return true;
+  }
   return false;
 }
 async function completeLogin(authResult,remember){
@@ -369,7 +373,7 @@ function renderMore(){
   const tools=[];
   // Grinding WIP 已有固定底部入口，不在「更多」重複顯示。
   if(permission("iqc_correction_enabled")) tools.push({key:"iqc",title:"IQC 異常處理",desc:"補建、修正、轉框與異常單",url:CFG.IQC_CORRECTION_URL,nav:"more"});
-  if(permission("stamp_shipping_enabled")) tools.push({title:"鋼印鎖瓶／裝框",desc:"中期模組：庫存、裝框、出貨",disabled:true});
+  if(permission("stamp_shipping_enabled")) tools.push({key:"oqc",title:"OQC 庫存掃描／裝框",desc:"CTN 收錄、RT 更改與裝框歷史",url:CFG.OQC_SHIPPING_URL,nav:"more"});
   if(permission("inventory_enabled")) tools.push({title:"庫存盤點",desc:"中長期模組：現場實體庫存與盤點",disabled:true});
   if(permission("hr_enabled")) tools.push({title:"人事系統",desc:"已保留權限欄位，URL於整併時接入",disabled:true});
   if(!tools.length) tools.push({title:"尚無其他功能",desc:"System_Access_Master 勾選權限後會自動出現。",disabled:true});
