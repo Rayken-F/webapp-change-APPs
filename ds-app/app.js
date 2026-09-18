@@ -190,6 +190,7 @@ function openModule(key,url,title,navKey){
   // iOS PWA 在切換 iframe 時偶爾會延後重算 safe-area；下一個 frame 再校正一次。
   requestAnimationFrame(syncShellViewport);
   setActiveNav(navKey||key);
+  if(key==="oqc") window.__DS_SHELL_UX__?.repatch();
 }
 function leaveModuleMode(){
   $("moduleModule").classList.add("hidden");

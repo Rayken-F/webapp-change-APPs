@@ -34,7 +34,7 @@ const SYSTEM_NOTIFIED_KEY="ds_iqcc_system_notified_v095";
 
 const REQUEST_TYPES = [
   {code:"ADD_MISSING_BOTTLE",label:"新增漏建鋼瓶"},
-  {code:"CORRECT_BOTTLE_CTN_RT",label:"修改鋼瓶CTN/RT"},
+  {code:"CORRECT_BOTTLE_CTN_RT",label:"修改鋼瓶、集束CTN/RT"},
   {code:"MISSING_TRANSPORT_FRAME",label:"修改運輸框CTN"},
   {code:"TRANSFER_BOTTLE_FRAME",label:"鋼瓶轉移運輸框"},
   {code:"VOID_INCORRECT_RECORD",label:"作廢錯誤紀錄"}
@@ -196,7 +196,7 @@ function hydrateUiFromLogin(result){
     }
   };
 
-  $("versionPill").textContent=result.version||Api.CLIENT_VERSION;
+  $("versionPill").textContent=(result.version||Api.CLIENT_VERSION)+" · RT1";
   $("userPill").textContent=`${result.user.displayName}｜${result.user.role}`;
   $("reviewTabBtn").classList.toggle(
     "hidden",
@@ -234,7 +234,7 @@ async function bootstrap(){
   const result=await Api.post("bootstrap",{});
   state.bootstrap=result;
   state.user=result.user;
-  $("versionPill").textContent=result.version;
+  $("versionPill").textContent=result.version+" · RT1";
   $("userPill").textContent=`${result.user.displayName}｜${result.user.role}`;
   $("reviewTabBtn").classList.toggle("hidden",!result.permissions.canReview);
   $("requestType").innerHTML=REQUEST_TYPES.map(item=>
@@ -510,6 +510,12 @@ function applySelectionStyles(){
 }
 
 function bindLookupInteractions(){
+  document.querySelectorAll(".js-select-bundle").forEach(btn=>{
+    btn.addEventListener("click",()=>{
+      setSelection({targetCtn:normalizeCtn(btn.dataset.ctn),targetKind:"bundle",sourceFrameCtn:normalizeCtn(btn.dataset.frame||""),rt:btn.dataset.rt||""});
+      if(isMobileRequestDrawer()) openMobileRequestPanel();
+    });
+  });
   document.querySelectorAll(".js-select-frame").forEach(btn=>{
     btn.addEventListener("click",()=>{
       setSelection({
@@ -619,6 +625,7 @@ function renderBundleCard(card){
       <div class="lookup-section-title">
         <span>集束 ${escapeHtml(displayValue(card.rows?.[0]?.ctn||card.transportFrameCtn))}</span>
         <span class="state-badge">集束</span>
+        ${(card.rows||[]).map(row=>`<button type="button" class="mini-btn js-select-bundle" data-ctn="${escapeHtml(row.ctn||'')}" data-frame="${escapeHtml(card.transportFrameCtn||row.transportFrameCtn||'')}" data-rt="${escapeHtml(row.rt||'')}">選用集束 ${escapeHtml(row.ctn||'')}</button>`).join('')}
       </div>
       <div class="lookup-info-grid">
         ${infoCell("IQC建立時間",card.createdAt||card.date)}
@@ -777,7 +784,7 @@ function renderLookup(result){
         <div>
           <div class="lookup-section-title">
             <span>IQC 資料</span>
-            <small>可點選鋼瓶帶入右側</small>
+            <small>可點選鋼瓶或集束帶入右側</small>
           </div>
           ${iqcHtml}
         </div>
@@ -876,7 +883,7 @@ function renderRequestTargetField(type){
   genericField.classList.remove("hidden");
 
   if(type==="CORRECT_BOTTLE_CTN_RT"){
-    label.textContent="原鋼瓶 CTN";
+    label.textContent="原鋼瓶／集束 CTN";
   }else if(type==="TRANSFER_BOTTLE_FRAME"){
     label.textContent="待轉移鋼瓶 CTN";
   }else{
@@ -888,7 +895,7 @@ function renderRequestTargetField(type){
     display.classList.remove("muted");
 
     if(type==="CORRECT_BOTTLE_CTN_RT"){
-      hint.textContent="原鋼瓶 CTN 由左側點選鋼瓶帶入，不需手動填寫。";
+      hint.textContent="原鋼瓶／集束 CTN 由左側點選帶入，不需手動填寫。";
     }else if(type==="TRANSFER_BOTTLE_FRAME"){
       hint.textContent="待轉移鋼瓶 CTN 由左側點選鋼瓶帶入。";
     }else{
@@ -897,7 +904,7 @@ function renderRequestTargetField(type){
   }else{
     display.textContent=type==="TRANSFER_BOTTLE_FRAME"
       ? "請先在左側點選待轉移鋼瓶"
-      : "請先在左側點選鋼瓶";
+      : "請先在左側點選鋼瓶或集束";
     display.classList.add("muted");
     hint.textContent="此欄由查詢結果帶入，不需手動輸入。";
   }
@@ -928,7 +935,7 @@ function renderRequestDynamicFields(){
   const needBottleHint=
     (
       type==="CORRECT_BOTTLE_CTN_RT" &&
-      selection.targetKind!=="bottle"
+      !["bottle","bundle"].includes(selection.targetKind)
     ) ||
     (
       type==="TRANSFER_BOTTLE_FRAME" &&
@@ -936,7 +943,7 @@ function renderRequestDynamicFields(){
     );
 
   const hint=needBottleHint
-    ? '<div class="field-hint">請先在左側鋼瓶清單點選要處理的鋼瓶。</div>'
+    ? '<div class="field-hint">請先在左側清單點選要處理的鋼瓶或集束。</div>'
     : '';
 
   let html="";
@@ -971,20 +978,20 @@ function renderRequestDynamicFields(){
       html=`
         ${hint}
         <div class="field">
-          <label>原鋼瓶 RT</label>
-          <div class="static-display ${selection.rt?"":"muted"}">${escapeHtml(selection.rt || "請先點選鋼瓶")}</div>
+          <label>原鋼瓶／集束 RT</label>
+          <div class="static-display ${selection.rt?"":"muted"}">${escapeHtml(selection.rt || "請先點選鋼瓶或集束")}</div>
         </div>
         <div class="row">
           <div class="field">
-            <label for="requestNewBottleCtn">待修改鋼瓶 CTN</label>
+            <label for="requestNewBottleCtn">待修改鋼瓶／集束 CTN</label>
             <input id="requestNewBottleCtn" maxlength="7" placeholder="空白＝沿用原 CTN">
           </div>
           <div class="field">
-            <label for="requestNewBottleRt">待修改鋼瓶 RT</label>
+            <label for="requestNewBottleRt">待修改鋼瓶／集束 RT</label>
             <input id="requestNewBottleRt" inputmode="numeric" placeholder="空白＝沿用原 RT">
           </div>
         </div>
-        <div class="field-hint">CTN 或 RT 可只改其中一項；另一項留白時會沿用目前資料。</div>`;
+        <div class="field-hint">CTN 或 RT 可只改其中一項；另一項留白時會沿用目前資料。散支與集束 RT 不可互相轉換，建立及核准時由後端查驗。</div>`;
       break;
 
     case "MISSING_TRANSPORT_FRAME":
@@ -1072,8 +1079,8 @@ function renderRequestDynamicFields(){
 
   attachFieldValidation($("requestAddBottleCtn"),"CTN","待新增鋼瓶 CTN",false);
   attachFieldValidation($("requestAddBottleRt"),"RT","待新增鋼瓶 RT",false);
-  attachFieldValidation($("requestNewBottleCtn"),"CTN","待修改鋼瓶 CTN",true);
-  attachFieldValidation($("requestNewBottleRt"),"RT","待修改鋼瓶 RT",true);
+  attachFieldValidation($("requestNewBottleCtn"),"CTN","待修改鋼瓶／集束 CTN",true);
+  attachFieldValidation($("requestNewBottleRt"),"RT","待修改鋼瓶／集束 RT",true);
   attachFieldValidation($("requestNewFrameCtn"),"CTN","待修改運輸框 CTN",false);
   attachFieldValidation($("requestMoveFrameCtn"),"CTN","待轉移運輸框 CTN",false);
 
@@ -1171,25 +1178,25 @@ function collectRequestPayload(){
     };
 
   }else if(requestType==="CORRECT_BOTTLE_CTN_RT"){
-    if(selection.targetKind!=="bottle") {
-      throw new Error("請先在左側點選要修改的鋼瓶");
+    if(!["bottle","bundle"].includes(selection.targetKind)) {
+      throw new Error("請先在左側點選要修改的鋼瓶或集束");
     }
 
     const newCtn=assertValidCtn(
       $("requestNewBottleCtn")?.value,
-      "待修改鋼瓶 CTN",
+      "待修改鋼瓶／集束 CTN",
       true
     );
     const newRt=assertValidRt(
       $("requestNewBottleRt")?.value,
-      "待修改鋼瓶 RT",
+      "待修改鋼瓶／集束 RT",
       true
     );
     if(!newCtn && !newRt) {
-      throw new Error("待修改鋼瓶 CTN / RT 至少填寫其中一項");
+      throw new Error("待修改鋼瓶／集束 CTN / RT 至少填寫其中一項");
     }
     if(!newRt && !isValidRt(selection.rt||"")){
-      throw new Error("原鋼瓶 RT 不符合規格，請填入正確的待修改鋼瓶 RT");
+      throw new Error("原鋼瓶／集束 RT 不符合規格，請填入正確的待修改鋼瓶／集束 RT");
     }
 
     oldValue={ctn:targetCtn,rt:String(selection.rt || "").trim()};
@@ -1346,12 +1353,12 @@ function requestCard(request,reviewMode,isUnread=false){
       `<br>鋼瓶狀態：${escapeHtml(newData.bottle_status||"-")}` +
       `<br>${detailLine}`;
 
-  }else if(typeLabel==="修改鋼瓶CTN/RT"){
+  }else if(typeLabel==="修改鋼瓶、集束CTN/RT"){
     detailLine =
-      `原鋼瓶 CTN：${escapeHtml(request.targetCtn||oldData.ctn||"-")}` +
+      `原鋼瓶／集束 CTN：${escapeHtml(request.targetCtn||oldData.ctn||"-")}` +
       `｜原 RT：${escapeHtml(oldData.rt||"-")}` +
-      `<br>待修改鋼瓶 CTN：${escapeHtml(newData.ctn||"沿用原 CTN")}` +
-      `｜待修改鋼瓶 RT：${escapeHtml(newData.rt||"沿用原 RT")}` +
+      `<br>待修改鋼瓶／集束 CTN：${escapeHtml(newData.ctn||"沿用原 CTN")}` +
+      `｜待修改鋼瓶／集束 RT：${escapeHtml(newData.rt||"沿用原 RT")}` +
       `<br>${detailLine}`;
 
   }else if(typeLabel==="鋼瓶轉移運輸框"){
