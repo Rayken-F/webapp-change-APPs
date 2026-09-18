@@ -1,6 +1,6 @@
 "use strict";
 
-const CACHE="ds-app-shell-auth-k3-20260918-04";
+const CACHE="ds-app-shell-auth-layout-k4-20260918-05";
 
 const STATIC=[
   "./",
@@ -8,6 +8,7 @@ const STATIC=[
   "./app.css",
   "./app.js",
   "./auth-transport.js",
+  "./auth-bridge.js",
   "./shell-ux.css",
   "./shell-ux.js",
   "./production-enhancements.css",
