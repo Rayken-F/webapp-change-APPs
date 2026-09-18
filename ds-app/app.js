@@ -75,12 +75,12 @@ async function portalPublicPost(api,payload={}){
 function assertPortalConfigured(){
   if(!CFG.PORTAL_API_URL||CFG.PORTAL_API_URL.includes("PASTE_")) throw new Error("尚未設定 DS Portal Apps Script /exec URL");
 }
-async function portalPost(api,payload={}){
+async function portalPost(api,payload={},control={}){
   assertPortalConfigured();
   const token=getToken();
   if(!token) throw new Error("登入狀態已失效");
   const body={...payload,api,client_version:CFG.CLIENT_VERSION,session_token:token};
-  const r=await fetch(CFG.PORTAL_API_URL,{method:"POST",headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify(body),redirect:"follow",cache:"no-store"});
+  const r=await fetch(CFG.PORTAL_API_URL,{method:"POST",headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify(body),redirect:"follow",cache:"no-store",signal:control.signal});
   const text=await r.text();
   let data;
   try{data=JSON.parse(text)}catch(_){throw new Error("Portal API 回傳格式錯誤")}
@@ -285,6 +285,7 @@ async function loadHomeDataSafe(){
   try{
     await loadHomeData();
   }catch(err){
+    if(err.name==="AbortError")return;
     console.warn("DS Portal home data load failed",err);
     toast(`公佈欄資料暫時無法載入：${err.message||err}`,true);
   }
@@ -292,19 +293,46 @@ async function loadHomeDataSafe(){
 let authTask=null;
 let authEpoch=0;
 let resumeValidationNeeded=false;
-const authTransport=window.DsAuthTransport.create({url:CFG.AUTH_API_URL,clientVersion:CFG.AUTH_CLIENT_VERSION});
+let authController=null;
+let restoreViewPending=false;
+const authRecords=[];
+function renderAuthDiagnostics(){
+  $("authDiagnosticText").textContent=JSON.stringify({build:"AUTH-K3",attempts:authRecords},null,2);
+  $("authDiagnostics").classList.toggle("hidden",authRecords.length===0);
+}
+function authStatus(message){
+  $("authStatus").textContent=message||"";$("authStatus").classList.toggle("hidden",!message);
+}
+function markAuthApplied(result){
+  const record=authRecords.find(r=>r.requestId===result.authDiagnostic?.requestId);
+  if(record){record.appliedMs=Date.now()-Date.parse(record.startedAt);renderAuthDiagnostics();}
+}
+const authTransport=window.DsAuthTransport.create({url:CFG.AUTH_API_URL,clientVersion:CFG.AUTH_CLIENT_VERSION,
+  onDiagnostic:record=>{authRecords.push(record);if(authRecords.length>5)authRecords.shift();renderAuthDiagnostics();}});
+function cancelAuthentication(){
+  authEpoch++;authController?.abort();authController=null;authTask=null;
+  $("loginBtn").disabled=false;$("retrySessionBtn").disabled=false;
+  $("cancelAuthBtn").classList.add("hidden");hideLoading();
+}
+function authControl(epoch,signal){
+  return {signal,onSlow:()=>{if(epoch===authEpoch)$("loadingText").textContent="網路較慢，仍在等待登入結果；不必重新輸入，最長等待 45 秒。";}};
+}
 
 function runAuthentication(work){
   if(authTask) return authTask;
+  cancelHomeData();authStatus("");
   const epoch=++authEpoch;
+  const controller=new AbortController();authController=controller;
   $("loginBtn").disabled=true;
   $("retrySessionBtn").disabled=true;
-  const slow=setTimeout(()=>{if(epoch===authEpoch) $("loadingText").textContent="網路較慢，仍在驗證中；最長等待 15 秒，可稍後重試。";},4000);
-  authTask=Promise.resolve().then(()=>work(epoch)).finally(()=>{
-    clearTimeout(slow);authTask=null;
-    $("loginBtn").disabled=false;$("retrySessionBtn").disabled=false;
+  $("cancelAuthBtn").classList.remove("hidden");
+  const pending=Promise.resolve().then(()=>{if(epoch===authEpoch)return work(epoch,controller.signal);}).finally(()=>{
+    if(authTask!==pending)return;
+    authTask=null;authController=null;
+    $("loginBtn").disabled=false;$("retrySessionBtn").disabled=false;$("cancelAuthBtn").classList.add("hidden");
     if(epoch===authEpoch)hideLoading();
   });
+  authTask=pending;
   return authTask;
 }
 function applyAuthentication(result,preserveView){
@@ -330,42 +358,46 @@ function applyAuthentication(result,preserveView){
   loadHomeDataSafe();
 }
 function login(account,password,remember){
-  return runAuthentication(async epoch=>{
+  return runAuthentication(async(epoch,signal)=>{
     const normalized=String(account||"").trim();
     saveRememberedAccount(normalized,remember);
     showLoading("正在登入","正在驗證帳號、密碼與最新權限…");
-    const result=await authTransport.post("workstation_login",{user_id:normalized,password:String(password||"")});
+    const result=await authTransport.post("workstation_login",{user_id:normalized,password:String(password||"")},authControl(epoch,signal));
     if(epoch!==authEpoch)return;
     if(!result.sessionToken||!result.user||!result.permissions)throw new Error("登入服務回應不完整，請重試。");
     // Credentials login starts a fresh module context; old forms must not leak to another account.
     $("moduleFrameHost").replaceChildren();
+    restoreViewPending=false;
     saveToken(result.sessionToken,remember);
     applyAuthentication(result,false);
+    markAuthApplied(result);
     toast(`登入成功，${result.user.displayName||""}`);
   });
 }
 function tryRestore(preserveView=false){
-  return runAuthentication(async epoch=>{
+  return runAuthentication(async(epoch,signal)=>{
     hydrateRememberedLogin();
     const token=getToken();
     if(!token){showLogin();return;}
     const previousUser=state.authUser;
-    const hadProfile=!!state.profile;
+    restoreViewPending=restoreViewPending||(preserveView&&!!state.profile);
     state.profile=null;
     showLoading("驗證登入狀態","正在確認登入有效性與最新權限…");
     try{
-      const result=await authTransport.post("workstation_bootstrap",{session_token:token});
+      const result=await authTransport.post("workstation_bootstrap",{session_token:token},authControl(epoch,signal));
       if(epoch!==authEpoch||getToken()!==token)return;
       if(!result.user||!result.permissions)throw new Error("登入服務回應不完整，請重試。");
       const sameUser=previousUser?.account===result.user.account;
-      applyAuthentication(result,preserveView&&hadProfile&&sameUser);
+      applyAuthentication(result,preserveView&&restoreViewPending&&sameUser);
+      restoreViewPending=false;markAuthApplied(result);
     }catch(err){
       if(epoch!==authEpoch||getToken()!==token)return;
       if(isExplicitAuthInvalidMessage(err.message)){
+        restoreViewPending=false;
         clearToken();state.authUser=null;$("moduleFrameHost").replaceChildren();
-        toast("登入已失效，請重新登入",true);
+        authStatus("登入已失效，請重新登入。");
       }else{
-        toast((err.message||"無法確認登入")+"；已保留登入資訊，請按「重試登入驗證」。",true);
+        authStatus((err.message||"無法確認登入")+"；已保留登入資訊，請按「重試登入驗證」。");
       }
       showLogin();
     }
@@ -424,17 +456,28 @@ function renderMore(){
     });
   });
 }
-async function loadHomeData(){
+let homeTask=null;
+function cancelHomeData(){
+  if(homeTask){homeTask.controller.abort();homeTask=null;}
+}
+function loadHomeData(){
   if(!permission("home_enabled")) return;
   const requestedToken=getToken();
-  const result=await portalPost("portal_home_data",{include_rt_master:!state.rtMaster.length});
-  if(getToken()!==requestedToken||!state.profile)return;
-  state.priorities=Array.isArray(result.priorities)?result.priorities:[];
-  if(!state.rtMaster.length&&Array.isArray(result.rtMaster)){
-    state.rtMaster=result.rtMaster;
-    state.rtMap=new Map(state.rtMaster.map(item=>[String(item.rtNo),item]));
-  }
-  renderPriorities();
+  if(homeTask?.token===requestedToken)return homeTask.promise;
+  cancelHomeData();
+  const task={token:requestedToken,controller:new AbortController()};homeTask=task;
+  const timer=setTimeout(()=>task.controller.abort(),30000);
+  task.promise=(async()=>{
+    const result=await portalPost("portal_home_data",{include_rt_master:!state.rtMaster.length},{signal:task.controller.signal});
+    if(task.controller.signal.aborted||getToken()!==requestedToken||!state.profile)return;
+    state.priorities=Array.isArray(result.priorities)?result.priorities:[];
+    if(!state.rtMaster.length&&Array.isArray(result.rtMaster)){
+      state.rtMaster=result.rtMaster;
+      state.rtMap=new Map(state.rtMaster.map(item=>[String(item.rtNo),item]));
+    }
+    renderPriorities();
+  })().finally(()=>{clearTimeout(timer);if(homeTask===task)homeTask=null;});
+  return task.promise;
 }
 function renderPriorities(){
   const list=state.priorities.filter(item=>state.filter==="ALL"||item.status===state.filter);
@@ -548,8 +591,10 @@ async function archivePriority(){
 function bind(){
   $("loginForm").addEventListener("submit",async e=>{
     e.preventDefault();
-    try{await login($("loginAccount").value,$("loginPassword").value,$("rememberLogin").checked)}catch(err){hideLoading();toast(err.message||"登入失敗",true)}
+    try{await login($("loginAccount").value,$("loginPassword").value,$("rememberLogin").checked)}catch(err){if(err.code!=="AUTH_CANCELLED")authStatus(err.message||"登入失敗");}
   });
+  $("cancelAuthBtn").addEventListener("click",()=>{cancelAuthentication();authStatus("已取消等待。可重新登入；原登入資訊有效時，也可按「重試登入驗證」。");showLogin();});
+  $("copyAuthDiagnosticBtn").addEventListener("click",async()=>{try{await navigator.clipboard.writeText($("authDiagnosticText").textContent);toast("連線紀錄已複製");}catch(_){toast("無法複製，可展開連線資訊截圖。",true);}});
   $("retrySessionBtn").addEventListener("click",()=>tryRestore(true));
   $("togglePassword").addEventListener("click",()=>{$("loginPassword").type=$("loginPassword").type==="password"?"text":"password"});
   document.querySelectorAll("[data-nav]").forEach(btn=>{
@@ -558,7 +603,7 @@ function bind(){
     btn.addEventListener("click",()=>handleNav(btn.dataset.nav));
   });
   $("userButton").addEventListener("click",()=>$("userMenu").classList.toggle("hidden"));
-  $("logoutBtn").addEventListener("click",()=>{authEpoch++;clearToken();state.authUser=null;state.profile=null;$("moduleFrameHost").replaceChildren();hideLoading();$("userMenu").classList.add("hidden");hydrateRememberedLogin();showLogin()});
+  $("logoutBtn").addEventListener("click",()=>{cancelAuthentication();cancelHomeData();restoreViewPending=false;resumeValidationNeeded=false;clearToken();state.authUser=null;state.profile=null;$("moduleFrameHost").replaceChildren();authStatus("");$("userMenu").classList.add("hidden");hydrateRememberedLogin();showLogin()});
   $("addPriorityBtn").addEventListener("click",()=>openPriorityModal());
   $("refreshPriorityBtn").addEventListener("click",async()=>{try{showLoading("重新整理","正在取得最新需求…");await loadHomeData();toast("已更新")}catch(err){toast(err.message,true)}finally{hideLoading()}});
   $("statusFilters").querySelectorAll("[data-status]").forEach(btn=>btn.addEventListener("click",()=>{state.filter=btn.dataset.status;$("statusFilters").querySelectorAll("[data-status]").forEach(x=>x.classList.toggle("active",x===btn));renderPriorities()}));
