@@ -15,6 +15,7 @@
     DAILY_REPORT_URL: "../ds-report-pwa/",
     GRINDING_URL: "../ds-report-pwa-beta/",
     IQC_CORRECTION_URL: "../DS-IQC-WIP/",
+    OQC_SHIPPING_URL: "../DS-OQC-SHIPPING/",
 
     // Dashboard 是唯一 public 例外；客戶仍可直接開此 URL，不需 DS 登入。
     DASHBOARD_PUBLIC_URL: "https://script.google.com/macros/s/AKfycbzoy2GnMHbPmOLB-jDIs-N4PPx38oc5dcQ7F0J0MH4oP-lB13vFKkRCHMiBNtScaXKH/exec"

@@ -1,0 +1,558 @@
+<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#101942"><title>庫存掃描｜OQC V1.0</title><style>:root{color-scheme:dark;--line:#536398;--muted:#b4c1df;--cyan:#67dce8;--red:#ff777f;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans TC',sans-serif;color:#f4f6ff;background:#121b45}*{box-sizing:border-box}body{margin:0;background:linear-gradient(145deg,#102440,#29175a);min-height:100dvh}button,input,textarea,select{font:inherit}button,a{touch-action:manipulation;-webkit-tap-highlight-color:transparent}button{border:1px solid var(--line);background:#303d78;color:inherit;border-radius:13px;min-height:44px;padding:10px 12px;font-size:14px;font-weight:700;cursor:pointer}button:disabled{opacity:.45;cursor:default}.primary,.modeNav .active{background:#6656f6;border-color:transparent}.hidden{display:none!important}header{position:sticky;top:0;z-index:10;display:flex;align-items:center;gap:12px;padding:calc(12px + env(safe-area-inset-top,0px)) 16px 12px;background:#09132ef5;border-bottom:1px solid var(--line)}header a{color:inherit;text-decoration:none;font-size:34px;width:36px;text-align:center}header small{color:var(--cyan);font-size:10px;font-weight:800;letter-spacing:.15em}h1{font-size:21px;margin:3px 0 0}h2{font-size:17px;margin:0 0 12px}.pill{margin-left:auto;border:1px solid #a88b4a;color:#ffd482;border-radius:20px;padding:5px 8px;font-size:10px;white-space:nowrap}main{max-width:840px;margin:auto;padding:12px 12px calc(95px + env(safe-area-inset-bottom,0px))}.notice{border:1px solid #b39753;background:#302c35;border-radius:13px;padding:10px 12px;font-size:12px;line-height:1.5;margin-bottom:12px}.panel{background:#14234fdb;border:1px solid var(--line);border-radius:19px;padding:13px;margin-bottom:12px}.batch-picker,.row,#scanForm,.modeNav{display:flex;gap:8px;align-items:center}.modeNav button{flex:1}.batch-picker select{flex:1;min-width:0}.batch-picker button{flex-shrink:0}input,textarea,select{border:1px solid #536990;background:#07192c;color:inherit;border-radius:12px;padding:10px;width:100%;font-size:16px;outline:none}input:focus,textarea:focus,select:focus{border-color:var(--cyan);box-shadow:0 0 0 2px #67dce81a}#scanForm{margin:12px 0}#scanInput{min-width:0;font-size:20px;letter-spacing:.05em;text-transform:uppercase;height:52px}#scanBtn{white-space:nowrap;height:52px}.subtext{color:var(--muted);font-size:12px;line-height:1.55;margin:8px 0;overflow-wrap:anywhere}.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:5px;font-size:11px;color:var(--muted);margin:10px 0}.stats span{padding:8px 4px;text-align:center;border-radius:10px;background:#08182eaa}.stats b{color:#fff;display:block;font-size:20px;margin-top:2px}.actions{display:grid;grid-template-columns:1fr 1fr;gap:8px}.edit-panel{margin-top:12px;border:1px solid #56c9db;border-radius:14px;padding:11px}.edit-panel .row{margin-bottom:8px}.edit-panel .row:last-child{margin-bottom:0}#rtCancel{margin-left:auto}#selectionCount{color:var(--muted);font-size:12px}.group{padding:11px;border:1px solid #516aa0;border-radius:17px;background:#15214fe8;margin:10px 0}.group-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}.group-head b{font-size:18px}.group-head small{font-size:12px;color:var(--muted)}.swipe{position:relative;overflow:hidden;touch-action:pan-y;border-radius:13px;margin:7px 0;background:#c34554}.delete{position:absolute;right:0;top:0;bottom:0;width:88px;background:#c34554;border:0;border-radius:0}.item{position:relative;display:grid;grid-template-columns:24px minmax(0,1fr) auto;gap:3px 6px;padding:10px 8px;border:1px solid #445784;border-radius:13px;background:#13224c;transition:transform .16s ease;min-height:58px}.number{grid-row:1/4;align-self:center;font-size:12px;color:#c7c8ff;background:#393b80;border-radius:8px;padding:5px 0;text-align:center}.pick{grid-column:1;grid-row:1/4;width:22px;height:24px;margin:0;align-self:center}.mainline{display:flex;gap:6px;align-items:baseline;flex-wrap:wrap;grid-column:2}.ctn{font-size:17px;font-weight:800;white-space:nowrap}.status{font-size:13px;font-weight:650;color:#b9c8e5}.rtline{grid-row:2;grid-column:2/-1;font-size:13px;font-weight:650;color:#ccd7ef;line-height:1.35}.type{grid-column:2/-1;grid-row:3;color:var(--muted);font-size:11px}.arrow{color:var(--cyan)}.newrt{color:#88e6c3}.flag{grid-row:1;grid-column:3;text-align:right;font-size:12px;white-space:nowrap;color:#7be2ba;font-weight:700}.flag small{display:block;color:var(--muted);font-weight:400;font-size:10px;margin-top:3px}.danger{color:var(--red)!important}.warning{color:#ffd078!important}.empty{padding:25px 12px;text-align:center;color:var(--muted);font-size:14px}details summary{font-size:15px;font-weight:700;cursor:pointer}.tools{padding-top:12px}.tools .row{flex-wrap:wrap;margin:8px 0}.tools .row button{flex:1}.check{display:flex;align-items:center;gap:8px;font-size:13px;margin:13px 0}.check input{width:22px;height:22px;margin:0}dialog{width:min(92%,480px);max-height:85dvh;overflow:auto;color:#fff;background:#14213a;border:1px solid var(--line);border-radius:18px;padding:18px}dialog::backdrop{background:#000b}dialog label{display:block;color:var(--muted);font-size:12px;margin:12px 0}dialog label input,dialog label textarea{display:block;margin-top:6px}dialog .row{justify-content:flex-end;margin-top:12px}#closeSummary,#receiptText{font-size:13px;line-height:1.8;overflow-wrap:anywhere}#toast,#undo{position:fixed;bottom:calc(16px + env(safe-area-inset-bottom,0px));left:50%;transform:translateX(-50%);width:min(92%,680px);z-index:50;background:#08172d;border:1px solid var(--line);border-radius:15px;padding:13px;font-size:14px;box-shadow:0 10px 35px #0007}#undo{display:flex;align-items:center;justify-content:space-between;border-color:#b49859}#undo button{background:#e9c66e;color:#15213d}#receiptPanel button{margin-top:12px}@media(max-width:360px){.item{grid-template-columns:22px minmax(0,1fr) auto;column-gap:4px}.ctn{font-size:16px}.status{font-size:12px}.flag{font-size:11px}.pill{font-size:9px}.stats{font-size:10px}button{font-size:13px;padding:9px}main{padding-left:8px;padding-right:8px}}@media(prefers-reduced-motion:reduce){*{transition:none!important}}
+.history-item{margin:8px 0}#historyPanel input{min-width:0}#historyPanel .row{flex-wrap:wrap}#historyPanel .row>*{flex:1}#historyDate{max-width:100%}#historyList summary{overflow-wrap:anywhere}.modeNav button{padding:10px 6px;min-width:0}</style><script src="../ds-app/config.js"></script><script src="../ds-app/portal-gate.js"></script></head><body>
+<header><a href="../ds-app/" aria-label="返回 DS 工作台">‹</a><div><small>OQC INVENTORY</small><h1>庫存掃描</h1></div><span class="pill" id="version">OQC V1.0</span></header><main>
+<div class="notice" id="environment">正在核對正式 OQC 連線與權限。</div>
+<details class="panel" id="realConnection" open><summary>連接實際 CTN 驗收</summary><div class="tools"><input id="endpoint" type="url" placeholder="OQC 後端網址" aria-label="DEMO 後端網址"><div class="row"><button id="connect">連接實際驗收</button></div><p class="subtext">前後端都必須更新到 0.2.3。沿用原 DEMO 專案、網址、資料與 DS 登入。</p></div></details>
+<section class="panel hidden" id="recovery"><h2>取回先前的有效 CTN</h2><p class="subtext" id="recoveryInfo"></p><button id="recoverBtn">帶入實連查詢</button><p class="subtext">只帶 CTN 與原掃描時間，不帶模擬 RT／收據；原資料及作廢紀錄保留。</p></section>
+<section class="panel"><div class="modeNav"><button id="packMode" class="active">裝框紀錄</button><button id="queryMode">僅查詢</button><button id="historyMode">歷史紀錄</button></div><p class="subtext" id="modeHint"></p>
+<div id="packOnly"><div class="batch-picker"><select id="batchSelect" aria-label="裝框批次"></select><button id="newBatch">＋新批次</button></div><p id="batchMeta" class="subtext"></p><div class="stats"><span>已收錄 <b id="total">0</b></span><span>未建IQC <b id="missing">0</b></span><span>待查 <b id="pending">0</b></span><span>待傳 <b id="outbox">0</b></span></div><p class="subtext" id="unitSummary"></p></div>
+<form id="scanForm" autocomplete="off"><input id="scanInput" placeholder="掃描 CTN" aria-label="CTN" autocapitalize="characters" autocomplete="off" spellcheck="false" maxlength="40"><button id="scanBtn" class="primary">掃描加入</button></form>
+<div id="packActions" class="actions"><button id="settingsBtn">設定總量／備註</button><button id="rtBtn">RT 更改</button><button id="syncBtn">同步／重試</button><button id="closeBtn" class="primary">完成裝框批次</button></div>
+<div class="edit-panel hidden" id="rtPanel"><div class="row"><b>RT 更改</b><span id="selectionCount"></span><button id="rtCancel">×</button></div><div class="row"><button id="selectAll">全選</button><button id="selectNone">清除</button><button id="rtRetry" type="button">重新查驗</button></div><div class="row"><input id="newRt" inputmode="numeric" maxlength="40" placeholder="輸入新 RT" aria-label="輸入新 RT"><button id="applyRt" class="primary" disabled>套用更改</button></div><p id="rtGateStatus" class="subtext" role="status" aria-live="polite"></p></div><div class="subtext" id="syncState" aria-live="polite"></div><button id="repairRtInlineG1" type="button" class="hidden">修復待傳 RT</button></section>
+<div id="list"></div>
+<section id="historyPanel" class="panel hidden"><h2>歷史紀錄</h2><div class="row"><label class="subtext">完成日期<input id="historyDate" type="date" aria-label="完成日期"></label><input id="historySearch" placeholder="搜尋批次編號／CTN" aria-label="搜尋歷史"></div><div class="row"><button id="historyClear">清除篩選</button><button id="historyRefresh">更新歷史</button></div><p id="historyCount" class="subtext"></p><div id="historyList"></div></section>
+<section class="panel hidden" id="receiptPanel"><h2>完成確認</h2><div id="receiptText"></div><button id="checkReceipt">查詢原收據</button></section>
+<details class="panel"><summary>資料與同步工具</summary><div class="tools"><div class="row"><button id="retryIqc">重試待查 IQC</button><button id="refreshRemote">讀取後端</button><button id="export">匯出操作紀錄</button><button id="repairRtG1" type="button">修復未套用 RT</button></div><label class="check hidden"><input type="checkbox" id="offline" disabled>模擬斷網</label><div id="simTools" class="hidden"><button id="samples">加入合成範例</button><label class="check"><input type="checkbox" id="lostReply">模擬已寫入但回應遺失</label></div></div></details>
+</main>
+<dialog id="settings"><form method="dialog"><h2>裝框資料</h2><label>裝框識別<input id="shippingRef" maxlength="80" placeholder="框號或本次作業識別"></label><label>作業日期<input id="workDate" type="date"></label><label>實際作業人員<input id="workers" maxlength="120" placeholder="填寫本次實際作業人員"></label><label>標籤總量（CTN 件數，可留空）<input id="target" type="number" inputmode="numeric" min="1" max="9999"></label><label>備註<textarea id="note" maxlength="120" rows="2"></textarea></label><div class="row"><button value="cancel">取消</button><button class="primary" id="saveSettings" type="button">儲存</button></div></form></dialog>
+<dialog id="closeDialog"><h2>確認完成裝框</h2><div id="closeSummary"></div><p class="subtext">確認下列未建 IQC／待查項目與數量後，提交裝框完成。出貨狀態仍為未確認，不等於品質放行。</p><p id="closeError" class="subtext" role="alert" style="white-space:pre-line"></p><div class="row"><button id="cancelClose">取消</button><button id="confirmClose" class="primary">確認完成裝框</button></div></dialog>
+<div id="toast" class="hidden" role="status"></div><div id="undo" class="hidden"><span id="undoText"></span><button id="undoBtn">復原</button></div>
+<script>/* OQC shipping DEMO V0.2.0. Pure command reducer shared by browser and RC backend. */
+(function(g){
+  'use strict';
+  const VERSION='OQC_SHIPPING_PROD_V1_20260918';
+  const clone=x=>JSON.parse(JSON.stringify(x));
+  const norm=x=>String(x==null?'':x).trim().toUpperCase();
+  const ctnPattern=/^[A-Z]{2}\d{2}[A-Z]{2}[A-Z0-9]$/;
+  const rtPattern=/^\d{5,10}$/;
+  const fail=(code,message)=>{const e=new Error(message);e.code=code;throw e;};
+  function canonical(x){
+    if(Array.isArray(x)) return '['+x.map(canonical).join(',')+']';
+    if(x&&typeof x==='object') return '{'+Object.keys(x).sort().map(k=>JSON.stringify(k)+':'+canonical(x[k])).join(',')+'}';
+    return JSON.stringify(x);
+  }
+  function active(doc){return (doc&&doc.items||[]).filter(i=>!i.voided);}
+  // Compact non-secret UI snapshot checksum. Revision checks and server SHA-256
+  // idempotency hashes remain authoritative; this is not an authentication primitive.
+  function fingerprint(value){
+    const s=canonical(value);let a=2166136261,b=2246822507;
+    for(let n=0;n<s.length;n++){a=Math.imul(a^s.charCodeAt(n),16777619);b=Math.imul(b^s.charCodeAt(n),3266489909);}
+    return 'view-'+(a>>>0).toString(16).padStart(8,'0')+(b>>>0).toString(16).padStart(8,'0');
+  }
+  function signature(doc){
+    return fingerprint({ref:doc.shippingRef,target:doc.targetQty,items:active(doc).map(i=>({ctn:i.ctn,rt:i.rt,iqc:i.iqc.state,status:i.iqc.status,changes:i.rtChanges.map(c=>[c.oldRt,c.newRt,c.operationId])})).sort((a,b)=>a.ctn.localeCompare(b.ctn))});
+  }
+  function summary(doc){
+    const items=active(doc);
+    return {total:items.length,found:items.filter(i=>i.iqc.state==='FOUND').length,
+      missing:items.filter(i=>i.iqc.state==='NOT_FOUND').length,
+      pending:items.filter(i=>['PENDING','ERROR'].includes(i.iqc.state)).length,
+      conflicts:items.filter(i=>['CONFLICT','NON_CYLINDER'].includes(i.iqc.state)).length,
+      voided:(doc&&doc.items||[]).filter(i=>i.voided).length};
+  }
+  function groups(doc){
+    const map=new Map();
+    active(doc).forEach(i=>{
+      const key=i.iqc.state==='FOUND'?'RT '+i.rt:i.iqc.state==='NOT_FOUND'?'未建IQC':'待確認';
+      if(!map.has(key))map.set(key,[]);
+      map.get(key).push(i);
+    });
+    return Array.from(map.entries()).map(([title,items])=>({title,items}));
+  }
+  function text(value,max,name){
+    const s=String(value==null?'':value).trim();
+    if(s.length>max)fail('FIELD_TOO_LONG',name+'過長');return s;
+  }
+  function run(input,command,context){
+    const cmd=clone(command),ctx=context||{},p=cmd.data||{},when=ctx.time||cmd.at,actor=ctx.actor||'DEMO';
+    if(!/^op_[a-z0-9_-]{8,100}$/i.test(cmd.id||'')||!/^b_[a-z0-9_-]{8,100}$/i.test(cmd.batchId||''))fail('INVALID_ID','操作編號不正確');
+    if(!when||!Number.isFinite(Date.parse(when)))fail('INVALID_TIME','操作時間不正確');
+    let doc=input?clone(input):null;
+    if(doc&&doc.applied[cmd.id]){
+      if(doc.applied[cmd.id]!==canonical(cmd))fail('IDEMPOTENCY_CONFLICT','同一操作編號的內容不同');
+      return doc;
+    }
+    if(Number(cmd.base)!==Number(doc?doc.revision:0))fail('REVISION_CONFLICT','資料已在其他裝置更新；請先更新並檢查待送資料');
+    if(cmd.type==='CREATE'){
+      if(doc)fail('EXISTS','此批次已存在');
+      doc={id:cmd.batchId,number:ctx.number||p.number||'',revision:0,phase:'OPEN',shippingRef:'',note:'',targetQty:null,
+        createdAt:when,createdBy:actor,items:[],applied:{},history:[],receipt:null};
+    }else{
+      if(!doc)fail('NOT_FOUND','批次不存在');
+      if(doc.phase!=='OPEN')fail('CLOSED','已完成的批次不能直接修改');
+      switch(cmd.type){
+        case 'SCAN':{
+          const ctn=norm(p.ctn);
+          if(!ctnPattern.test(ctn))fail('INVALID_CTN','CTN 格式錯誤，本次未收錄');
+          let item=doc.items.find(i=>i.ctn===ctn);
+          if(item&&!item.voided)fail('DUPLICATE_CTN','CTN 已在本批次，不重複計數');
+          if(item){item.voided=false;item.voidId='';item.scannedAt=when;item.capturedAt=cmd.at;item.scanId=cmd.id;}
+          else{
+            if(doc.items.length>=500)fail('BATCH_LIMIT','每批最多 500 件 CTN');
+            item={ctn,scanId:cmd.id,scannedAt:when,capturedAt:cmd.at,scannedBy:actor,voided:false,voidId:'',rt:'',rtChanges:[],
+              iqc:{state:'PENDING',rt:'',status:'',checkedAt:'',message:''}};
+            doc.items.push(item);
+          }break;
+        }
+        case 'IQC_RESULT':{
+          const item=doc.items.find(i=>i.ctn===norm(p.ctn));
+          if(!item||item.voided||item.scanId!==p.scanId)fail('STALE_LOOKUP','查詢對象已變更，不套用舊回應');
+          const info=p.result||{};
+          if(!['FOUND','NOT_FOUND','ERROR','CONFLICT','NON_CYLINDER'].includes(info.state))fail('INVALID_LOOKUP','查詢結果不完整');
+          if(info.state==='FOUND'&&!rtPattern.test(String(info.rt||'')))fail('INVALID_LOOKUP','IQC 回應的 RT 不正確');
+          // Once a source snapshot is accepted, neither retries nor OQC edits rewrite it.
+          if(item.iqc.state==='FOUND')break;
+          item.iqc={state:info.state,rt:info.state==='FOUND'?String(info.rt):'',status:info.state==='FOUND'?text(info.status,50,'狀態').toUpperCase():'',
+            checkedAt:info.checkedAt||when,message:text(info.message,200,'訊息')};
+          if(!item.rtChanges.length)item.rt=item.iqc.rt;
+          break;
+        }
+        case 'RT_CHANGE':{
+          const next=text(p.rt,10,'RT');
+          if(!rtPattern.test(next))fail('INVALID_RT','RT 必須是 5～10 碼數字');
+          if(!Array.isArray(p.items)||!p.items.length||p.items.length>500)fail('EMPTY_SELECTION','請先勾選鋼瓶');
+          const unique=new Set();
+          p.items.forEach(sel=>{
+            const item=doc.items.find(i=>i.ctn===norm(sel.ctn));
+            if(unique.has(sel.ctn))fail('DUPLICATE_SELECTION','選取重複');unique.add(sel.ctn);
+            if(!item||item.voided||item.iqc.state!=='FOUND'||item.rt!==String(sel.fromRt))fail('STALE_SELECTION','選取的鋼瓶或 RT 已變更');
+            if(item.rt!==next){item.rtChanges.push({oldRt:item.rt,newRt:next,at:when,by:actor,operationId:cmd.id});item.rt=next;}
+          });break;
+        }
+        case 'VOID':{
+          const item=doc.items.find(i=>i.ctn===norm(p.ctn));
+          if(!item||item.voided||item.scanId!==p.scanId)fail('STALE_SELECTION','鋼瓶資料已變更');
+          item.voided=true;item.voidId=cmd.id;break;
+        }
+        case 'RESTORE':{
+          const item=doc.items.find(i=>i.ctn===norm(p.ctn));
+          if(!item||!item.voided||item.voidId!==p.voidId)fail('STALE_SELECTION','作廢紀錄已變更，不能套用舊復原');
+          item.voided=false;item.voidId='';break;
+        }
+        case 'SETTINGS':{
+          doc.shippingRef=text(p.shippingRef,80,'裝框／出貨識別');doc.note=text(p.note,120,'備註');
+          const n=p.targetQty===''||p.targetQty==null?null:Number(p.targetQty);
+          if(n!==null&&(!Number.isInteger(n)||n<1||n>9999))fail('INVALID_QUANTITY','標籤總量必須是 1～9999');
+          doc.targetQty=n;break;
+        }
+        case 'CLOSE':{
+          const s=summary(doc);
+          if(!doc.shippingRef)fail('SHIPPING_REF_REQUIRED','請先填寫裝框／出貨識別');
+          if(!s.total)fail('EMPTY_BATCH','空批次不能送出');
+          if(s.conflicts)fail('UNRESOLVED_CONFLICT','有資料衝突或非鋼瓶項目，請確認後先作廢誤掃');
+          if(p.signature!==signature(doc))fail('STALE_CLOSE','清單已變更，請重新確認完成摘要');
+          if((s.pending||s.missing||doc.targetQty&&doc.targetQty!==s.total)&&p.acknowledge!==true)fail('CONFIRM_REQUIRED','請確認缺 IQC／待查項目與數量差異');
+          doc.phase='CLOSED';doc.closedAt=when;doc.closedBy=actor;
+          doc.receipt={id:(ctx.simulated?'SIM-':'OQC-')+doc.number+'-'+cmd.id.slice(-8),operationId:cmd.id,
+            environment:ctx.simulated?'LOCAL_SIMULATION':VERSION,batchId:doc.id,number:doc.number,shippingRef:doc.shippingRef,
+            total:s.total,missing:s.missing,pending:s.pending,at:when,actor,notQualityRelease:true};break;
+        }
+        default:fail('UNKNOWN_ACTION','不支援的操作');
+      }
+    }
+    doc.revision++;
+    doc.applied[cmd.id]=canonical(cmd);
+    doc.history.push({id:cmd.id,type:cmd.type,at:when,by:actor});
+    return doc;
+  }
+  function resolveIqc(response,rawCtn){
+    const ctn=norm(rawCtn),r=response&&response.result,iqc=r&&r.iqc;
+    if(!response||response.ok!==true||!r||norm(r.normalizedQuery||r.query)!==ctn||r.queryType!=='CTN'||
+       !iqc||!['bottleRows','transportCards','bundleCards','submissionRows'].every(k=>Array.isArray(iqc[k])))fail('INVALID_RESPONSE','IQC 回應不完整，不能判為未建IQC');
+    const rows=[...iqc.bottleRows,...iqc.submissionRows];
+    iqc.transportCards.forEach(c=>rows.push(...(c.rows||[])));
+    const found=rows.filter(x=>norm(x.ctn)===ctn);
+    if(!found.length){
+      const bundle=iqc.bundleCards.some(c=>norm(c.ctn||c.bundleCtn)===ctn||(c.rows||[]).some(x=>norm(x.ctn)===ctn));
+      const frame=iqc.transportCards.some(c=>norm(c.transportFrameCtn)===ctn);
+      return {state:bundle||frame?'NON_CYLINDER':'NOT_FOUND',rt:'',status:'',message:bundle||frame?'這是框架／集束 CTN，請確認誤掃':'',checkedAt:new Date().toISOString()};
+    }
+    const rts=Array.from(new Set(found.map(x=>String(x.rt||'').trim().replace(/^RT/i,''))));
+    if(rts.length!==1||!rtPattern.test(rts[0]))return {state:'CONFLICT',rt:'',status:'',message:'IQC RT 資料衝突',checkedAt:new Date().toISOString()};
+    const row=found.slice().sort((a,b)=>(Date.parse(b.date||b.createdAt)||0)-(Date.parse(a.date||a.createdAt)||0))[0];
+    return {state:'FOUND',rt:rts[0],status:String(row.bottleStatus||row.status||'').trim().toUpperCase(),message:'',checkedAt:new Date().toISOString()};
+  }
+  const api={VERSION,clone,norm,ctnPattern,rtPattern,canonical,fail,run,active,summary,signature,groups,resolveIqc};
+  g.OqcDomain=api;if(typeof module!=='undefined'&&module.exports)module.exports=api;
+})(typeof globalThis!=='undefined'?globalThis:this);
+
+/* V0.2.3 extension. Old commands are replayed by the original reducer unchanged. */
+(function(g){
+'use strict';
+const L=g.OqcDomain, RULE='0.2.3';
+const copy=L.clone, fail=L.fail, norm=L.norm;
+function kind(i){return i.iqc.assetType || (i.iqc.state==='FOUND'?'BOTTLE':'UNKNOWN');}
+function source(i){return i.iqcSource || {rt:i.iqc.rt||'',status:i.iqc.status||'',state:i.iqc.state};}
+function canRt(i){return !i.voided && ['FOUND','NOT_FOUND'].includes(i.iqc.state);}
+function counts(doc){
+ const items=L.active(doc), s=L.summary(doc);
+ s.bottles=items.filter(i=>kind(i)==='BOTTLE').length;
+ s.bundles=items.filter(i=>kind(i)==='BUNDLE').length;
+ s.unknownType=items.filter(i=>!['BOTTLE','BUNDLE'].includes(kind(i))).length;
+ s.bundleQtyUnknown=items.filter(i=>kind(i)==='BUNDLE'&&!Number.isInteger(i.iqc.cylinderQty)).length;
+ s.bundleCylinders=items.filter(i=>kind(i)==='BUNDLE'&&Number.isInteger(i.iqc.cylinderQty)).reduce((n,i)=>n+i.iqc.cylinderQty,0);
+ return s;
+}
+function countText(doc){const s=counts(doc);return s.bottles+' 支散支／'+s.bundles+' 組集束'+(s.unknownType?'／'+s.unknownType+' 件型態待確認':'');}
+function groups(doc){const m=new Map();L.active(doc).forEach(i=>{const k=i.rt?'RT '+i.rt:i.iqc.state==='NOT_FOUND'?'未建IQC':'待確認';if(!m.has(k))m.set(k,[]);m.get(k).push(i);});return Array.from(m,([title,items])=>({title,items}));}
+function signature(doc){return L.canonical({legacy:L.signature(doc),workDate:doc.workDate||'',workers:doc.workers||'',items:L.active(doc).map(i=>[i.ctn,kind(i),i.iqc.cylinderQty??null]).sort((a,b)=>a[0].localeCompare(b[0]))});}
+function dateOf(at){return new Date(Date.parse(at)+28800000).toISOString().slice(0,10);}
+function run(input,cmd,ctx){
+ if(cmd.ruleset!==RULE)return L.run(input,cmd,ctx); // immutable legacy journal contract
+ ctx=ctx||{};const p=cmd.data||{},at=ctx.time||cmd.at,actor=ctx.actor||'DEMO';
+ if(input&&input.applied[cmd.id]){
+  if(input.applied[cmd.id]!==L.canonical(cmd))fail('IDEMPOTENCY_CONFLICT','同一操作編號內容不同');
+  return copy(input);
+ }
+ if(!['IQC_RESULT','RT_CHANGE','CLOSE'].includes(cmd.type)){
+  const out=L.run(input,cmd,ctx);
+  if(cmd.type==='CREATE'){out.workDate=dateOf(at);out.workers=actor;out.packingStatus='IN_PROGRESS';out.shippingStatus='UNCONFIRMED';}
+  if(cmd.type==='SETTINGS'){
+   if(p.workDate!==undefined){const d=String(p.workDate);if(!/^\d{4}-\d{2}-\d{2}$/.test(d)||!Number.isFinite(Date.parse(d))||new Date(d).toISOString().slice(0,10)!==d)fail('INVALID_WORK_DATE','作業日期不正確');out.workDate=d;}
+   if(p.workers!==undefined){out.workers=String(p.workers).trim();if(!out.workers||out.workers.length>120)fail('INVALID_WORKERS','請填寫作業人員，最多 120 字');}
+  }
+  return out;
+ }
+ if(!/^op_[a-z0-9_-]{8,100}$/i.test(cmd.id||'')||!/^b_[a-z0-9_-]{8,100}$/i.test(cmd.batchId||''))fail('INVALID_ID','操作編號不正確');
+ if(!Number.isFinite(Date.parse(at)))fail('INVALID_TIME','操作時間不正確');
+ if(!input)fail('NOT_FOUND','批次不存在');
+ if(input.id!==cmd.batchId)fail('BATCH_MISMATCH','批次不一致');
+ if(Number(cmd.base)!==input.revision)fail('REVISION_CONFLICT','批次已更新，原操作保留，請確認最新資料');
+ if(input.phase!=='OPEN')fail('CLOSED','批次已完成，不能直接修改');
+ const doc=copy(input);
+ if(cmd.type==='IQC_RESULT'){
+  const i=doc.items.find(x=>x.ctn===norm(p.ctn)),r=p.result||{};
+  if(!i||i.voided||i.scanId!==p.scanId)fail('STALE_LOOKUP','查詢對象已改變');
+  if(!['FOUND','NOT_FOUND','ERROR','CONFLICT','NON_CYLINDER'].includes(r.state))fail('INVALID_LOOKUP','IQC 回應不完整');
+  if(r.state==='FOUND'&&(!L.rtPattern.test(String(r.rt||''))||!['BOTTLE','BUNDLE'].includes(r.assetType)))fail('INVALID_LOOKUP','IQC 回應缺少有效 RT 或型態');
+  if(r.state!=='FOUND'&&(r.rt||r.status))fail('INVALID_LOOKUP','未確認 IQC 不可附带 RT 或狀態');
+  const q=r.cylinderQty==null?null:Number(r.cylinderQty);
+  if(q!==null&&(!Number.isInteger(q)||q<1||q>9999))fail('INVALID_LOOKUP','集束支數不正確');
+  const old=copy(i.iqc);
+  if(!i.iqcSource&&['FOUND','NOT_FOUND'].includes(old.state))i.iqcSource={rt:old.rt||'',status:old.status||'',state:old.state,checkedAt:old.checkedAt||''};
+  if(old.state==='FOUND'){
+   // Preserve accepted IQC reference. A changed source is not silently applied.
+   if(r.state==='FOUND'&&r.rt===old.rt){i.iqc.assetType=r.assetType;i.iqc.cylinderQty=q;i.iqc.lookupRuleset=RULE;}
+   else {i.sourceReview={state:r.state,rt:r.rt||'',checkedAt:r.checkedAt||at};}
+  }else{
+   i.iqc={state:r.state,rt:r.state==='FOUND'?String(r.rt):'',status:r.state==='FOUND'?String(r.status||'').trim().toUpperCase().slice(0,50):'',
+    assetType:r.state==='FOUND'?r.assetType:r.assetType||'UNKNOWN',cylinderQty:r.state==='FOUND'?q:null,checkedAt:r.checkedAt||at,message:String(r.message||'').slice(0,200),lookupRuleset:RULE};
+   if(!i.iqcSource&&['FOUND','NOT_FOUND'].includes(r.state))i.iqcSource={rt:i.iqc.rt,status:i.iqc.status,state:r.state,checkedAt:i.iqc.checkedAt};
+   if(!i.rtChanges.length)i.rt=i.iqc.rt;
+  }
+ }else if(cmd.type==='RT_CHANGE'){
+  const rt=String(p.rt||'').trim();if(!L.rtPattern.test(rt))fail('INVALID_RT','RT 必須是 5～10 碼數字');
+  if(!Array.isArray(p.items)||!p.items.length||p.items.length>500)fail('EMPTY_SELECTION','請先選取鋼瓶');
+  const seen=new Set();
+  p.items.forEach(s=>{
+   const ctn=norm(s.ctn),i=doc.items.find(x=>x.ctn===ctn);
+   if(seen.has(ctn))fail('DUPLICATE_SELECTION','重複選取');seen.add(ctn);
+   if(!i||!canRt(i)||i.rt!==String(s.fromRt))fail('STALE_SELECTION','選取項目的 RT 或查詢結果已改變');
+   if(i.rt!==rt){i.rtChanges.push({oldRt:i.rt,newRt:rt,at,by:actor,operationId:cmd.id,source:i.iqc.state==='NOT_FOUND'?'MANUAL_WITHOUT_IQC':'OQC_OVERRIDE'});i.rt=rt;}
+  });
+ }else if(cmd.type==='CLOSE'){
+  const s=counts(doc),bad=L.active(doc).filter(i=>['CONFLICT','NON_CYLINDER'].includes(i.iqc.state));
+  if(!doc.shippingRef)fail('SHIPPING_REF_REQUIRED','請填寫裝框識別');
+  if(!s.total)fail('EMPTY_BATCH','空批次不能完成');
+  if(bad.length)fail('UNRESOLVED_CONFLICT','尚不能完成：'+bad.map(i=>i.ctn+'（'+(i.iqc.state==='NON_CYLINDER'?'運輸框／型態需確認':'IQC 資料衝突')+'）').join('、'));
+  if(p.signature!==signature(doc))fail('STALE_CLOSE','清單已更新，請重新核對完成摘要');
+  if((s.pending||s.missing||(doc.targetQty&&doc.targetQty!==s.total))&&!p.acknowledge)fail('CONFIRM_REQUIRED','請確認未建 IQC、待查項目與數量');
+  doc.phase='CLOSED';doc.closedAt=at;doc.closedBy=actor;
+  doc.workDate=doc.workDate||dateOf(at);doc.workers=doc.workers||actor;
+  doc.packingStatus=ctx.authoritative?'PACKED':'PENDING_CONFIRMATION';doc.shippingStatus='UNCONFIRMED';
+  doc.receipt={id:(ctx.simulated?'SIM-':'OQC-')+doc.number+'-'+cmd.id.slice(-8),operationId:cmd.id,
+   environment:ctx.simulated?'LOCAL_SIMULATION':L.VERSION,batchId:doc.id,number:doc.number,shippingRef:doc.shippingRef,
+   total:s.total,missing:s.missing,pending:s.pending,at,actor,notQualityRelease:true,packingStatus:doc.packingStatus,
+   shippingStatus:'UNCONFIRMED',eventType:'PACKING_COMPLETED',workDate:doc.workDate,workers:doc.workers,
+   bottles:s.bottles,bundles:s.bundles,unknownType:s.unknownType,bundleCylinders:s.bundleCylinders,bundleQtyUnknown:s.bundleQtyUnknown};
+ }
+ doc.revision++;doc.applied[cmd.id]=L.canonical(cmd);doc.history.push({id:cmd.id,type:cmd.type,at,by:actor});return doc;
+}
+function resolveIqc(response,raw){
+ const ctn=norm(raw),r=response&&response.result,iqc=r&&r.iqc;
+ if(!response||response.ok!==true||!r||norm(r.normalizedQuery||r.query)!==ctn||r.queryType!=='CTN'||!iqc||!['bottleRows','transportCards','bundleCards','submissionRows'].every(k=>Array.isArray(iqc[k])))fail('INVALID_RESPONSE','IQC 回應不完整，不能當作未建IQC');
+ const bottles=[],bundles=[],frames=[];
+ const exact=x=>norm(x&&x.ctn)===ctn;
+ iqc.bottleRows.filter(exact).forEach(x=>bottles.push(x));
+ iqc.transportCards.forEach(c=>{if(norm(c.transportFrameCtn)===ctn)frames.push(c);(c.rows||[]).filter(exact).forEach(x=>bottles.push(x));});
+ iqc.bundleCards.forEach(c=>{const rows=(c.rows||[]).filter(exact);if(rows.length)rows.forEach(x=>bundles.push(Object.assign({},c,x)));else if(norm(c.bundleCtn||c.ctn)===ctn)bundles.push(c);});
+ iqc.submissionRows.filter(exact).forEach(x=>{
+  const t=String(x.iqcType||x.type||x.kind||'').toUpperCase();
+  if(['BUNDLE','集束'].includes(t)){if(!bundles.length)bundles.push(x);}
+  else if(['CYLINDER','BOTTLE','散支'].includes(t)){if(!bottles.length)bottles.push(x);}
+  else if(!bottles.length&&!bundles.length&&!frames.length)bottles.push(x);
+ });
+ const at=new Date().toISOString(),out=(state,message='',assetType='UNKNOWN')=>({state,rt:'',status:'',message,assetType,cylinderQty:null,checkedAt:at,lookupRuleset:RULE});
+ if([bottles.length,bundles.length,frames.length].filter(Boolean).length>1)return out('CONFLICT','同一 CTN 同時有多種角色，請確認');
+ if(frames.length)return out('NON_CYLINDER','這是運輸框 CTN，不能當成散支或集束數量','TRANSPORT_FRAME');
+ const rows=bundles.length?bundles:bottles,assetType=bundles.length?'BUNDLE':'BOTTLE';
+ if(!rows.length)return out('NOT_FOUND');
+ const rtValues=Array.from(new Set(rows.map(x=>String(x.rt||'').trim().replace(/^RT/i,''))));
+ if(rtValues.length!==1||!L.rtPattern.test(rtValues[0]))return out('CONFLICT','IQC RT 不完整或存在衝突',assetType);
+ rows.sort((a,b)=>(Date.parse(b.date||b.createdAt)||0)-(Date.parse(a.date||a.createdAt)||0));
+ const row=rows[0];
+ const status=assetType==='BUNDLE'?(row.bundleStatus??row.status??''):(row.bottleStatus??row.status??'');
+ // Do not infer a bundle's bottle count from the number of rows or RT digits.
+ const qs=Array.from(new Set(rows.map(x=>x.bundleCylinderCount??x.cylinderCount??null).filter(x=>x!=null&&x!=='').map(Number).filter(x=>Number.isInteger(x)&&x>0&&x<=9999)));
+ return {state:'FOUND',rt:rtValues[0],status:String(status).trim().toUpperCase().slice(0,50),message:'',assetType,
+  cylinderQty:assetType==='BOTTLE'?1:qs.length===1?qs[0]:null,checkedAt:at,lookupRuleset:RULE};
+}
+const api=Object.assign({},L,{RULE,source,kind,canRt,summary:counts,countText,groups,signature,run,resolveIqc,legacy:L});
+g.OqcDomain=api;if(typeof module!=='undefined'&&module.exports)module.exports=api;
+})(typeof globalThis!=='undefined'?globalThis:this);
+</script><script src="domain-h2-g1.js?v=20260917-g1-01"></script><script src="rt-gate-g1.js?v=20260917-g1-02"></script><script src="rt-catalog-g12.js?v=20260917-g1-03"></script><script>/* Same V02 database and store. Upgrade never clears scans or pending request IDs. */
+(function(g){'use strict';let opening;const name='ds_oqc_shipping_production_v1';
+function blank(){return {docs:{},pending:[],inflight:null,receipts:{},active:'',actor:'DEMO測試人員',blocked:'',lastMessage:''};}
+function open(){if(!opening)opening=new Promise((resolve,reject)=>{const r=indexedDB.open(name,1);r.onupgradeneeded=()=>{if(!r.result.objectStoreNames.contains('kv'))r.result.createObjectStore('kv');};r.onsuccess=()=>{r.result.onversionchange=()=>r.result.close();resolve(r.result);};r.onerror=()=>reject(r.error);r.onblocked=()=>reject(new Error('請關閉另一個舊 DEMO 頁面'));});return opening;}
+function checkUnique(docs){const seen=new Map();Object.values(docs||{}).forEach(d=>(d.items||[]).filter(i=>!i.voided).forEach(i=>{if(seen.has(i.ctn)&&seen.get(i.ctn)!==d.id){const e=new Error('CTN '+i.ctn+' 已在其他批次');e.code='DUPLICATE_CTN';throw e;}seen.set(i.ctn,d.id);}));}
+async function change(key,fn){const db=await open();return new Promise((resolve,reject)=>{let tx;try{tx=db.transaction(['kv'],'readwrite',{durability:'strict'});}catch(_){tx=db.transaction(['kv'],'readwrite');}let result,failure;tx.oncomplete=()=>resolve(result);tx.onabort=()=>reject(failure||tx.error||new Error('本機保存未完成，請重試'));tx.onerror=()=>{};const store=tx.objectStore('kv'),r=store.get(key);r.onsuccess=()=>{try{const v=r.result||blank();result=fn(v);checkUnique(v.docs);store.put(v,key);}catch(e){failure=e;tx.abort();}};});}
+async function read(key){const db=await open();return new Promise((resolve,reject)=>{const r=db.transaction('kv').objectStore('kv').get(key);r.onsuccess=()=>resolve(r.result||blank());r.onerror=()=>reject(r.error);});}
+g.OqcStore={name,blank,open,change,read};})(window);
+</script><script src="history-h1.js?v=20260917-g1-01"></script><script>/* OQC V0.2.3: compatible outbox, readonly queries, signed bundle enrichment. */
+(function(){'use strict';
+const D=window.OqcDomain,S=window.OqcStore,$=id=>document.getElementById(id),ENV=D.VERSION,BUILD='OQC-PROD-20260918-01';
+const params=new URLSearchParams(location.search);let pref={};try{pref=JSON.parse(localStorage.getItem('oqc_production_config_v1')||'{}')||{};}catch(_){}
+const cfg=Object.freeze({mode:'RC',endpoint:'https://script.google.com/macros/s/AKfycby6gxD2dSO1GuP2v-zIVKQR9M5d3lI-2P48icrPoE-qAOskWK8rrtc7cVnFvh347NDTIw/exec'});
+const validUrl=v=>/^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec$/.test(v||'');
+const uid=p=>p+'_'+(crypto.randomUUID?crypto.randomUUID().replace(/-/g,''):Array.from(crypto.getRandomValues(new Uint8Array(16)),b=>b.toString(16).padStart(2,'0')).join('')),now=()=>new Date().toISOString();
+const hash=s=>{let n=2166136261;for(const c of s)n=Math.imul(n^c.charCodeAt(0),16777619);return(n>>>0).toString(16);};
+const envKey=()=>'client-production-20260918-'+hash(cfg.endpoint);
+const day=()=>new Date(Date.now()+28800000).toISOString().slice(0,10);
+const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const clock=v=>Number.isFinite(Date.parse(v))?new Intl.DateTimeFormat('zh-TW',{timeZone:'Asia/Taipei',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false}).format(new Date(v)):'—';
+let key=envKey(),root=S.blank(),ready=false,compatible=cfg.mode==='SIM',connecting=false,profileTask=null,syncTask=null,serialTimer=0;
+let workMode='PACK',editRt=false,selected=new Set(),queryItems=[],querySequence=0,undo=null,closeSig='',closing=false;
+let heldCompletion='';const H=window.OqcHistory,G=window.OqcRtGateG1;
+let rtGate={stamp:'',status:'idle',message:''},rtTimer=0,rtSeq=0,rtApplying=false,repairingRt=false,authEpoch=0,closeTarget=null;
+let catalogSupported=false,catalogTimer=0;const rtMeasurements=[],rtRequestTimings=[];
+let issue='',issueTimer=0,queryRunning=0,attempted=new Set(),inLookup=new Set(),candidates=[],recovering=false,loadSerial=0;
+const offline=()=>navigator.onLine===false;
+const rtLookups=G.createRtLookup({lookup:rt=>api('rt_lookup',{rt}),scope:()=>D.canonical([cfg.endpoint,root.actor,token(),authEpoch,ready,offline()])});
+const rtCatalog=window.OqcRtCatalogG12.create({fetchCatalog:()=>api('rt_catalog'),scope:()=>D.canonical([cfg.endpoint,root.actor,token(),authEpoch,ready,offline()])});
+function cachedRt(rt){return catalogSupported?rtCatalog.peek(rt):rtLookups.peek(rt);}
+function clearRtCaches(){rtLookups.clear();rtCatalog.clear();clearTimeout(catalogTimer);}
+function prepareRtCatalog(){
+ clearTimeout(catalogTimer);
+ if(!catalogSupported||!ready||offline()||document.hidden||!editRt||workMode!=='PACK')return;
+ const state=rtCatalog.status();
+ if(state.fresh&&state.remainingMs>10000){catalogTimer=setTimeout(prepareRtCatalog,state.remainingMs-10000);return;}
+ rtCatalog.refresh().catch(()=>{}).finally(()=>{paintRtGate();if(catalogSupported&&ready&&!offline()&&!document.hidden&&editRt&&workMode==='PACK')catalogTimer=setTimeout(prepareRtCatalog,5000);});
+}
+const active=()=>root.docs[root.active]||null;
+const isOpen=()=>active()&&active().phase==='OPEN';
+function token(){try{return sessionStorage.getItem('ds_iqcc_session_v2')||localStorage.getItem('ds_iqcc_session_v2')||'';}catch(_){return '';}}
+function toast(msg,bad=false){$('toast').textContent=msg;$('toast').className=bad?'danger':'';clearTimeout(toast.timer);toast.timer=setTimeout(()=>$('toast').classList.add('hidden'),6500);}
+function error(e){const message=e.message||String(e);if(!['sync','rt'].includes(e.oqcScope)){issue=message;clearTimeout(issueTimer);issueTimer=setTimeout(()=>{if(issue===message){issue='';render();}},6500);}if($('closeDialog').open){$('closeError').textContent=message;$('closeError').classList.add('danger');}toast(message,true);render();}
+const safe=fn=>(...a)=>Promise.resolve().then(()=>fn(...a)).catch(error);
+function localNumber(v){const p='OQC-'+day().replace(/-/g,'')+'-';const n=Math.max(0,...Object.values(v.docs).map(d=>String(d.number)).filter(n=>n.startsWith(p)).map(n=>Number(n.slice(-2))))+1;if(n>99)throw Error('當日已達 99 批');return p+String(n).padStart(2,'0');}
+function command(doc,type,data){return{id:uid('op'),batchId:doc.id,base:doc.revision,type,data,at:now(),ruleset:D.RULE};}
+function context(){return {actor:root.actor,simulated:cfg.mode==='SIM'};}
+function createIn(v){const id=uid('b'),c={id:uid('op'),batchId:id,base:0,type:'CREATE',data:{number:localNumber(v)},at:now(),ruleset:D.RULE};v.docs[id]=D.run(null,c,{actor:v.actor,simulated:cfg.mode==='SIM'});v.pending.push(c);v.active=id;return id;}
+async function reload(){const n=++loadSerial,k=key;const v=await S.read(k);if(k!==key||n!==loadSerial)return;root=v;const next=H.preferred(root,heldCompletion);if(root.active!==next){await S.change(k,x=>{x.active=H.preferred(x,heldCompletion);});if(k!==key||n!==loadSerial)return;root=await S.read(k);}render();}
+async function mutate(type,data,batchId,expectedRt){const k=key,id=batchId||root.active;let c;await S.change(k,v=>{const d=v.docs[id];if(!d)throw Error('找不到批次');if(expectedRt&&(rtSnapshot(v).stamp!==expectedRt||!ready||offline()))throw Error('RT 輸入、選取或批次已改變，未套用，請重新驗證');c=command(d,type,data);v.docs[id]=D.run(d,c,{actor:v.actor,simulated:cfg.mode==='SIM'});v.pending.push(c);});await reload();scheduleSync();return c;}
+function writeAllowed(){return compatible&&(ready||root.lastVerified)&&validUrl(cfg.endpoint)||cfg.mode==='SIM';}
+async function newBatch(){if(!writeAllowed())throw Error('請先完成正式 OQC 連線驗證');await S.change(key,createIn);heldCompletion='';editRt=false;selected.clear();await reload();scheduleSync();}
+async function capture(raw){const ctn=D.norm(raw).replace(/\s+/g,'');if(!D.ctnPattern.test(ctn))throw Error('CTN 格式錯誤，不截斷長條碼');
+ if(cfg.mode==='SIM'&&!/^QA10(?:AA|AB)[A-Z0-9]$/.test(ctn))throw Error('真實 CTN 請使用實連驗收，不能送入合成範例');
+ if(workMode==='HISTORY')throw Error('歷史紀錄僅供查閱，不建立掃描資料');
+ if(workMode==='QUERY')return queryOnly(ctn);
+ if(!writeAllowed())throw Error('請先連接 0.2.3 後端；既有 CTN 保留');
+ const k=key;await S.change(k,v=>{if(!v.active||!v.docs[v.active])createIn(v);const d=v.docs[v.active];const c=command(d,'SCAN',{ctn});v.docs[d.id]=D.run(d,c,{actor:v.actor,simulated:cfg.mode==='SIM'});v.pending.push(c);});
+ $('scanInput').value='';await reload();toast(ctn+' 已保存，RT查詢中');scheduleSync();pump();
+}
+function synthetic(ctn){if(ctn==='QA10AA2')return {state:'NOT_FOUND',rt:'',status:'',assetType:'UNKNOWN',cylinderQty:null,checkedAt:now(),lookupRuleset:D.RULE};if(ctn==='QA10AA3')return {state:'FOUND',rt:'6016995',status:'OCYL',assetType:'BUNDLE',cylinderQty:12,checkedAt:now(),lookupRuleset:D.RULE};if(/^QA10(?:AA|AB)[A-Z0-9]$/.test(ctn))return {state:'FOUND',rt:'113399',status:'VCYL',assetType:'BOTTLE',cylinderQty:1,checkedAt:now(),lookupRuleset:D.RULE};throw Error('合成範例沒有此 CTN');}
+async function mockApi(name,p){if(offline())throw Error('模擬斷網');await new Promise(r=>setTimeout(r,80));if(['health','profile'].includes(name))return{ok:true,environment:ENV,backendVersion:'0.2.3',rtMasterPatch:D.RT_PATCH,batchRemovalPatch:'RM1-20260916',rtGatePatch:G.PATCH,actor:'DEMO測試人員'};if(name==='rt_lookup'){const entry=D.parseRtRows([['6016995','12X40S','','113399','X40S'],['','','','113407','X44S']])[p.rt];if(!entry)D.fail('RT_NOT_FOUND','合成範例主檔沒有此 RT（非真實 RT list）');return{ok:true,entry,proof:'SIM'};}if(name==='iqc_lookup')return{ok:true,environment:ENV,result:synthetic(p.ctn),proof:'SIM'};
+ return S.change('simulated-receiver',v=>{v.requests=v.requests||{};if(name==='batches')return{ok:true,docs:Object.values(v.docs)};if(name==='receipt')return{ok:true,receipt:v.docs[p.batchId]?.receipt||null};if(name!=='batch_sync')throw Error('不支援的模擬路由');const fp=D.canonical(p),old=v.requests[p.requestId];if(old){if(old.fingerprint!==fp)throw Error('重送內容不同');return old.response;}let d=v.docs[p.batchId]||null;p.operations.forEach(c=>{d=D.run(d,c,{actor:'DEMO測試人員',time:c.at,simulated:true,authoritative:true,number:c.type==='CREATE'?localNumber(v):undefined});});v.docs[d.id]=d;const result={ok:true,doc:d,ackIds:p.operations.map(c=>c.id),requestId:p.requestId,simulated:true};v.requests[p.requestId]={fingerprint:fp,response:D.clone(result)};return result;});
+}
+async function api(name,p={},auth=true){if(offline()){const e=Error('目前離線，CTN 與原請求保留');e.code='OFFLINE';throw e;}if(cfg.mode!=='RC')throw Error('正式版不支援模擬模式');if(!validUrl(cfg.endpoint))throw Error('請貼上OQC 後端網址');
+ const body={...p,api:name,environment:ENV,client_version:ENV,client_features:D.RULE};if(auth){body.session_token=token();if(!body.session_token){ready=false;throw Error('請在同一瀏覽器登入 DS 工作台，再按同步／重試');}}
+ const ctrl=new AbortController(),requestStarted=Date.now();let timer,serverTiming=null,outcome='ok';const timeout=['batch_sync','recover_rt_queue'].includes(name)?45000:25000;
+ try{const task=(async()=>{const r=await fetch(cfg.endpoint,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(body),signal:ctrl.signal,cache:'no-store',redirect:'follow'});if(!r.ok)throw Error('後端 HTTP '+r.status);let v;try{v=await r.json();}catch(_){throw Error('後端不是 JSON，請核對原 DEMO 部署網址');}if(v.environment!==ENV)throw Error('OQC 後端環境不符，停止串接');if(v.rtTiming){serverTiming={};for(const k of ['authMs','masterMs','proofMs','totalMs'])if(Number.isFinite(v.rtTiming[k])&&v.rtTiming[k]>=0)serverTiming[k]=v.rtTiming[k];}if(!v.ok){const e=Error(v.message||'後端拒絕操作');e.code=v.code;throw e;}return v;})();
+  return await Promise.race([task,new Promise((_,reject)=>{timer=setTimeout(()=>{const e=Error(['batch_sync','recover_rt_queue'].includes(name)?'回應逾時：結果待確認，原請求編號保留，請重試原操作。':name==='rt_lookup'?'RT list 查驗逾時，未套用；請重新查驗':'RT查詢逾時：CTN 保留，尚不能判定未建IQC');e.code='TIMEOUT';reject(e);ctrl.abort();},timeout);})]);
+ }catch(e){outcome=e.code||'ERROR';if(['SESSION_REQUIRED','SESSION_EXPIRED','UNAUTHORIZED','ACCOUNT_DISABLED','FORBIDDEN'].includes(e.code))ready=false;throw e;}finally{clearTimeout(timer);if(['profile','rt_lookup','rt_catalog'].includes(name)){rtRequestTimings.push({api:name,elapsedMs:Date.now()-requestStarted,outcome,serverTiming});if(rtRequestTimings.length>30)rtRequestTimings.shift();}}
+}
+function checkBackend(v){if(v.productionEnabled!==true||v.productionBuild!=='OQC-PROD-20260918-01')throw Error('正式 OQC 尚未啟用或版本不符');if(v.backendVersion!=='0.2.3'||v.rtMasterPatch!==D.RT_PATCH||v.batchRemovalPatch!=='RM1-20260916'||v.rtGatePatch!==G.PATCH){compatible=false;ready=false;throw Error('目前後端未確認 H2／RM1／G1 配套，停止新操作；請核對原 DEMO 部署，既有資料保留。');}compatible=true;}
+async function verify(){if(ready)return;if(profileTask)return profileTask;profileTask=(async()=>{const h=await api('health',{},false);checkBackend(h);const started=Date.now(),p=await api('profile',{rt_catalog_requested:true});checkBackend(p);if(!p.actor)throw Error('後端沒有傳回使用者身分');await S.change(key,v=>{v.actor=p.actor;v.lastVerified=now();});ready=true;catalogSupported=p.rtCatalogPatch===window.OqcRtCatalogG12.PATCH&&p.rtCatalogError?.code!=='RT_CATALOG_LIMIT';issue='';$('realConnection').open=false;await reload();if(catalogSupported&&p.rtCatalog){try{rtCatalog.prime(p.rtCatalog,undefined,started);}catch(_){} }prepareRtCatalog();})();render();try{await profileTask;}finally{profileTask=null;render();}}
+async function connect(){if(profileTask||syncTask||queryRunning||connecting||rtApplying||repairingRt||closing)throw Error('目前作業進行中，請稍候');const endpoint=$('endpoint').value.trim();if(!validUrl(endpoint))throw Error('請填原 DEMO 網頁應用程式 /exec 網址');if(endpoint!==cfg.endpoint&&(root.pending.length||root.inflight))throw Error('原後端還有待傳資料，請恢復原網址，不能丟棄待傳操作');connecting=true;const old=cfg.endpoint,oldKey=key;
+ try{cfg.endpoint=endpoint;key=envKey();ready=false;compatible=false;const h=await api('health',{},false);checkBackend(h);localStorage.setItem('oqc_production_config_v1',JSON.stringify(cfg));await reload();await verify();await findRecovery();}catch(e){if(!compatible){cfg.endpoint=old;key=oldKey;await reload();}throw e;}finally{connecting=false;render();}await resume();}
+function scheduleSync(){clearTimeout(serialTimer);serialTimer=setTimeout(()=>sync().catch(error),650);}
+async function sync(retryRejected=false){if(syncTask)return syncTask;if(!ready||offline()||repairingRt)return;clearTimeout(serialTimer);const k=key;
+ syncTask=(async()=>{for(let n=0;n<20;n++){const packet=await S.change(k,v=>{if(v.blocked||(!retryRejected&&G.rtQueueProblem(v)))return null;if(v.inflight)return D.clone(v.inflight);if(!v.pending.length)return null;const id=v.pending[0].batchId;v.inflight={requestId:uid('req'),batchId:id,operations:v.pending.filter(c=>c.batchId===id).slice(0,12)};return D.clone(v.inflight);});if(!packet)break;
+  const reply=await api('batch_sync',packet);if(cfg.mode==='SIM'&&$('lostReply').checked){$('lostReply').checked=false;throw Error('模擬回應遺失：已保存，按同步／重試查回同一請求');}
+  if(reply.requestId!==packet.requestId||!reply.doc||!Array.isArray(reply.ackIds)||packet.operations.some(c=>!reply.ackIds.includes(c.id)))throw Error('後端確認不完整；原請求保留');
+  if(reply.doc.receipt?.packingStatus==='PACKED'&&root.active===reply.doc.id)heldCompletion=reply.doc.id;
+  await S.change(k,v=>{const ack=new Set(reply.ackIds);v.pending=v.pending.filter(c=>!ack.has(c.id));let d=D.clone(reply.doc);for(const c of v.pending.filter(c=>c.batchId===packet.batchId))d=D.run(d,c,{actor:v.actor,simulated:cfg.mode==='SIM'});v.docs[d.id]=d;if(reply.doc.receipt)v.receipts[d.id]=reply.doc.receipt;v.inflight=null;v.lastError=false;v.syncFailure=null;v.lastMessage=reply.projectionWarning|| (cfg.mode==='SIM'?'模擬接收完成（非後端入帳）':'已保存至 OQC 後端');});issue='';await reload();
+ }} )();render();try{await syncTask;}catch(e){e.oqcScope='sync';if(String(e.code||'').startsWith('RT_'))clearRtCaches();await S.change(k,v=>{v.lastError=true;v.lastMessage=e.message;v.syncFailure={code:e.code||'',message:e.message,requestId:v.inflight?.requestId||'',batchId:v.inflight?.batchId||''};if(['REVISION_CONFLICT','IDEMPOTENCY_CONFLICT','CLOSED','STALE_SELECTION','DUPLICATE_CTN','STALE_CLOSE'].includes(e.code))v.blocked=e.message;});issue='';throw e;}finally{syncTask=null;await reload();}}
+async function resume(retryRejected=false){await verify();await sync(retryRejected);pump(true);}
+async function readRemote(){await verify();if(syncTask||root.pending.length||root.inflight)throw Error('先同步既有待傳操作，不覆蓋本機資料');const r=await api('batches');await S.change(key,v=>{for(const d of r.docs||[]){v.docs[d.id]=d;if(d.receipt)v.receipts[d.id]=d.receipt;}if(!v.active)v.active=r.docs?.[0]?.id||'';});await reload();pump();}
+function requiresLookup(i){return ['PENDING','ERROR'].includes(i.iqc.state)||(!i.iqc.lookupRuleset&&['NON_CYLINDER','FOUND'].includes(i.iqc.state));}
+function pump(retry=false){if(retry)attempted.clear();if(!ready||offline()||closing||repairingRt)return;const tasks=[];Object.values(root.docs).filter(d=>d.phase==='OPEN').forEach(d=>D.active(d).filter(requiresLookup).forEach(i=>{const id=d.id+':'+i.scanId;if(!attempted.has(id)&&!inLookup.has(id))tasks.push({d,i,id});}));
+ while(queryRunning<2&&tasks.length){const t=tasks.shift(),k=key;attempted.add(t.id);inLookup.add(t.id);queryRunning++;(async()=>{let info;try{const r=await api('iqc_lookup',{ctn:t.i.ctn});info={result:r.result,proof:r.proof||''};}catch(e){info={result:{state:'ERROR',rt:'',status:'',checkedAt:now(),message:e.message},proof:''};}if(k!==key)return;const v=await S.read(k),d=v.docs[t.d.id],i=d?.items.find(i=>i.ctn===t.i.ctn);if(!d||d.phase!=='OPEN'||!i||i.voided||i.scanId!==t.i.scanId)return;await mutate('IQC_RESULT',{ctn:i.ctn,scanId:i.scanId,...info},d.id);})().catch(error).finally(()=>{queryRunning--;inLookup.delete(t.id);render();pump();});}render();}
+async function queryOnly(ctn){await verify();const id=++querySequence;queryItems.unshift({ctn,id,iqc:{state:'PENDING',rt:'',status:''},rt:'',rtChanges:[],capturedAt:now()});queryItems=queryItems.slice(0,100);$('scanInput').value='';render();try{const r=await api('iqc_lookup',{ctn});const item=queryItems.find(i=>i.id===id);if(item){item.iqc=r.result;item.rt=r.result.rt||'';if(r.result.rtMaster?.state==='VALID')item.rtMaster=D.clone(r.result.rtMaster);}}catch(e){const i=queryItems.find(i=>i.id===id);if(i)i.iqc={state:'ERROR',message:e.message,rt:'',status:''};issue=e.message;}render();}
+function itemHtml(i,n,query=false){const src=D.source(i),found=i.iqc.state==='FOUND',rt=i.rt||'',changed=!!rt&&(rt!==src.rt||(!src.rt&&i.rtChanges?.length));
+ const status=src.status?'<span class="status">狀態 '+esc(src.status)+'</span>':'';
+ const rtHtml=rt?'<div class="rtline">'+(src.rt&&rt!==src.rt?'RT '+esc(src.rt)+' <span class="arrow">→</span> ':'')+'<span class="'+(changed?'newrt':'')+'">RT '+esc(rt)+'</span></div>':'';
+ const labels={FOUND:query?'IQC 參考':'OQC 待檢',NOT_FOUND:'未建IQC',NON_CYLINDER:'運輸框／需確認',CONFLICT:'IQC 衝突',ERROR:'查詢失敗',PENDING:'RT查詢中'};
+ const badge=labels[i.iqc.state]||'待查IQC',bad=['NOT_FOUND','NON_CYLINDER','CONFLICT'].includes(i.iqc.state);
+ const pick=!query&&isOpen()&&editRt&&D.canRt(i)?'<input type="checkbox" class="pick" aria-label="選取 '+esc(i.ctn)+'" data-pick="'+esc(i.ctn)+'" '+(selected.has(i.ctn)?'checked':'')+'>':'<span class="number">'+n+'</span>';
+ const type=D.kind(i)==='BUNDLE'?'<div class="type">集束 1 組'+(D.quantity(i)?'／'+D.quantity(i)+' 支':'／內含支數未確認')+'</div>':'';
+ return '<div class="swipe">'+(!query&&isOpen()?'<button class="delete" data-void="'+esc(i.ctn)+'" tabindex="-1">作廢誤掃</button>':'')+'<div class="item" '+(!query&&isOpen()?'data-swipe="'+esc(i.ctn)+'"':'')+'>'+pick+'<div class="mainline"><b class="ctn">'+esc(i.ctn)+'</b>'+status+'</div>'+rtHtml+type+'<div class="flag '+(bad?'danger':found?'':'warning')+'">'+badge+'<small>'+esc(clock(i.capturedAt||i.scannedAt))+'</small></div></div></div>';
+}
+function render(){const history=workMode==='HISTORY',query=workMode==='QUERY',d=active(),open=isOpen(),s=D.summary(d);$('version').textContent='OQC V1.0';$('version').title=BUILD;
+ $('environment').textContent=ready?'正式 OQC｜完成裝框不等於出貨或品質放行':(profileTask||connecting?'正在驗證 DS 權限與 OQC 連線':'等待正式 OQC 連線');
+ $('queryMode').classList.toggle('active',query);$('packMode').classList.toggle('active',!query&&!history);$('historyMode').classList.toggle('active',history);$('historyPanel').classList.toggle('hidden',!history);$('scanForm').classList.toggle('hidden',history);$('list').classList.toggle('hidden',history);$('modeHint').textContent=history?'已確認完成的裝框紀錄，只供查閱；出貨狀態未確認。':query?'僅查詢 IQC 參考，不建立批次、不增加裝框產量':'先保存 CTN；確認完成並收到後端收據，才算已完成裝框。';
+ $('realConnection').classList.add('hidden');
+ $('packOnly').classList.toggle('hidden',query||history);$('packActions').classList.toggle('hidden',query||history);$('rtPanel').classList.toggle('hidden',query||history||!editRt||!open);
+ $('batchSelect').innerHTML=H.working(root,heldCompletion).map(x=>'<option value="'+x.id+'">'+esc(x.number)+'｜'+H.label(x,root)+'</option>').join('')||'<option value="">目前沒有進行中的批次</option>';$('batchSelect').value=root.active;
+ $('batchMeta').textContent=d?(d.shippingRef?'裝框：'+d.shippingRef:'尚未填寫裝框識別')+'｜'+(d.workDate||'')+'｜'+(d.workers||root.actor):'掃描第一個 CTN 後建立批次';
+ $('total').textContent=s.total;$('missing').textContent=s.missing;$('pending').textContent=s.pending;$('outbox').textContent=root.pending.length;$('unitSummary').textContent=D.countText(d);
+ $('scanInput').disabled=history||closing||connecting||profileTask||(query?!ready:!writeAllowed()||!!d&&!open);$('scanBtn').disabled=$('scanInput').disabled;$('scanBtn').textContent=query?'查詢':'掃描加入';
+ ['settingsBtn','rtBtn','closeBtn'].forEach(id=>$(id).disabled=!open||!writeAllowed()||closing);if(d?.phase==='CLOSED'&&(root.pending.some(c=>c.batchId===d.id)||root.inflight?.batchId===d.id))$('closeBtn').disabled=closing||!writeAllowed();$('newBatch').disabled=!writeAllowed()||closing||connecting;$('batchSelect').disabled=closing;
+ $('connect').disabled=connecting||!!profileTask||!!syncTask||queryRunning>0;$('syncBtn').disabled=!!syncTask||!!profileTask||connecting;$('retryIqc').disabled=!!profileTask||connecting;
+ $('rtBtn').textContent=editRt?'取消 RT 更改':'RT 更改';$('selectionCount').textContent='已選 '+selected.size+' 件';paintRtGate();
+ const failure=D.active(d).find(i=>i.iqc.state==='ERROR'),notice=G.syncNotice(root,issue,!!syncTask);$('syncState').textContent=query?(issue||'查詢結果只供參考，不回寫 IQC'):repairingRt?'正在查核原待傳請求；CTN 與原資料保留…':notice.text+(failure?'｜'+(failure.iqc.message||'IQC 查詢失敗'):'');$('syncState').classList.toggle('danger',!repairingRt&&(query?!!issue:notice.danger));$('repairRtInlineG1').classList.toggle('hidden',query||history||!notice.problem);$('repairRtInlineG1').disabled=repairingRt||closing||rtApplying||!!syncTask;
+ let n=0;$('list').innerHTML=query?(queryItems.map(i=>itemHtml(i,++n,true)).join('')||'<div class="empty">掃描 CTN 查詢，不增加裝框紀錄。</div>'):(D.groups(d).map(g=>'<section class="group"><div class="group-head"><b>'+esc(g.title)+'</b><small>'+g.items.length+' 件</small></div>'+g.items.map(i=>itemHtml(i,++n)).join('')+'</section>').join('')||'<div class="empty">尚未收錄 CTN，空 RT 清單不顯示。</div>');
+ const r=d&&root.receipts[d.id];$('receiptPanel').classList.toggle('hidden',query||history||!d||d.phase!=='CLOSED');$('receiptText').innerHTML=r?'<b>'+esc(r.id)+'</b><br>'+ (r.packingStatus==='PACKED'?'已完成裝框；出貨狀態未確認':'舊版完成紀錄；不能追認為已出貨')+'<br>'+esc(r.at)+'<br>'+esc(d.workers||r.actor)+'<br><span class="warning">'+(r.environment==='LOCAL_SIMULATION'?'模擬收據，不是後端入帳':'裝框收據，非出貨或品質放行')+'</span>':'裝框完成請求已保存，等待後端確認；請同步／重試，不能當成已完成裝框。';
+ $('simTools').classList.toggle('hidden',cfg.mode!=='SIM');$('recovery').classList.toggle('hidden',cfg.mode!=='RC'||!candidates.length);$('recoveryInfo').textContent=candidates.map(i=>i.ctn).join('、');$('recoverBtn').disabled=!ready||recovering||!!syncTask;
+ if(history)H.render(root);$('historyRefresh').disabled=!!syncTask||!!profileTask||connecting||repairingRt;
+ $('confirmClose').disabled=closing||repairingRt;$('cancelClose').disabled=closing;
+ $('confirmClose').textContent=closing?'處理中…':d?.phase==='CLOSED'?'查詢原完成結果':'確認完成裝框';
+ $('repairRtG1').disabled=repairingRt||closing||rtApplying||!root.pending.some(c=>c.batchId===root.active&&c.type==='RT_CHANGE');
+ if(repairingRt||rtApplying){for(const id of ['scanInput','scanBtn','newBatch','batchSelect','settingsBtn','rtBtn','closeBtn','connect','syncBtn','refreshRemote','retryIqc','newRt','selectAll','selectNone','rtCancel'])$(id).disabled=true;}
+ else{for(const id of ['newRt','selectAll','selectNone','rtCancel'])$(id).disabled=false;$('refreshRemote').disabled=!!syncTask||!!profileTask||connecting;}
+ bindSwipes();}
+function bindSwipes(){if(workMode!=='PACK'||editRt||!isOpen())return;document.querySelectorAll('[data-swipe]').forEach(el=>{let start=null,dx=0,h=false;const reset=x=>{el.style.transform=x?'translateX(-88px)':'';if(el.previousElementSibling)el.previousElementSibling.tabIndex=x?0:-1;};el.onpointerdown=e=>{if(e.target.closest('input'))return;start=[e.clientX,e.clientY];dx=0;h=false;};el.onpointermove=e=>{if(!start)return;dx=e.clientX-start[0];const dy=e.clientY-start[1];if(!h&&Math.abs(dy)>Math.abs(dx)+7){start=null;reset(false);return;}if(Math.abs(dx)>8&&Math.abs(dx)>Math.abs(dy)){h=true;try{el.setPointerCapture(e.pointerId);}catch(_){}}if(h)el.style.transform='translateX('+Math.min(0,Math.max(-88,dx))+'px)';};el.onpointerup=()=>{if(start)reset(h&&dx< -35);start=null;};el.onpointercancel=()=>{start=null;reset(false);};});}
+async function findRecovery(){candidates=[];}
+async function recover(){if(!ready||recovering)return;await findRecovery();const rows=candidates.slice(0,500);if(!rows.length||!confirm('帶入 '+rows.length+' 件有效 CTN？不搬模擬 RT、收據；不復活已作廢項目。'))return;recovering=true;try{await S.change(key,v=>{v.simRecovery=v.simRecovery||{};const todo=rows.filter(i=>!v.simRecovery[i.sourceId]&&!Object.values(v.docs).some(d=>D.active(d).some(x=>x.ctn===i.ctn)));if(!todo.length)return;const id=createIn(v);todo.forEach(i=>{const c=command(v.docs[id],'SCAN',{ctn:i.ctn});c.at=i.capturedAt;v.docs[id]=D.run(v.docs[id],c,{actor:v.actor});v.pending.push(c);v.simRecovery[i.sourceId]={batchId:id,ctn:i.ctn,operationId:c.id};});});await reload();await findRecovery();scheduleSync();pump();}finally{recovering=false;render();}}
+function rtSnapshot(v=root){
+ const d=v.docs[v.active],items=D.active(d).filter(i=>selected.has(i.ctn)&&D.canRt(i)),raw=$('newRt').value;
+ const rt=G.normalizeRt(raw);
+ return {rt,items,key,id:d?.id,stamp:D.canonical({key,actor:v.actor,auth:hash(token()),authEpoch,ready,offline:offline(),mode:workMode,edit:editRt,id:d?.id||'',revision:d?.revision||0,phase:d?.phase||'',raw,selected:Array.from(selected).sort(),items:items.map(i=>[i.ctn,i.scanId,i.rt,i.iqc.state,D.kind(i)])})};
+}
+function invalidateRt(){clearTimeout(rtTimer);rtSeq++;rtGate={stamp:'',status:'idle',message:''};$('applyRt').disabled=true;}
+function paintRtGate(){
+ const snap=rtSnapshot();
+ if(snap.stamp!==rtGate.stamp){
+  clearTimeout(rtTimer);const seq=++rtSeq;rtGate={stamp:snap.stamp,status:'idle',message:'',startedAt:Date.now()};
+  if(editRt&&workMode==='PACK'&&isOpen()){
+   if(!snap.items.length)rtGate.message='請先勾選項目';
+   else if(!D.rtPattern.test(snap.rt))rtGate.message=snap.rt?'請輸入完整的 5～10 碼 RT 數字':'請輸入要套用的 RT';
+   else if(offline())rtGate.message='目前離線，RT 尚未驗證，未套用';
+   else{rtGate.status='checking';rtGate.message=catalogSupported&&!rtCatalog.status().fresh?'RT 主檔載入中，尚未套用…':'RT list 查驗中…';rtTimer=setTimeout(()=>checkRt(snap,seq),cachedRt(snap.rt)?0:200);}
+  }
+ }
+ $('rtGateStatus').textContent=rtApplying?'正在確認並套用…':rtGate.message;
+ $('rtGateStatus').classList.toggle('danger',rtGate.status==='invalid');
+ $('applyRt').disabled=rtApplying||repairingRt||closing||offline()||rtGate.status!=='valid'||!ready||snap.stamp!==rtGate.stamp;
+ $('rtRetry').disabled=rtApplying||repairingRt||closing||offline()||rtGate.status==='checking';
+}
+async function lookupRt(snap){
+ await verify();const r=await (catalogSupported?rtCatalog.get(snap.rt):rtLookups.get(snap.rt));
+ if(rtSnapshot().stamp!==snap.stamp||offline()||!ready)throw Error('RT 輸入、選取或批次已改變，請重新查驗');
+ return G.validateReply(snap.rt,snap.items,r);
+}
+async function checkRt(snap,seq){
+ const startedAt=rtGate.startedAt||Date.now(),source=catalogSupported?(rtCatalog.status().fresh?'catalog':'catalog-load'):(rtLookups.peek(snap.rt)?'recent-lookup':'single-lookup');let outcome='ok';
+ try{
+  const data=await lookupRt(snap);
+  if(seq!==rtSeq||rtSnapshot().stamp!==snap.stamp)return;
+  rtGate={stamp:snap.stamp,status:'valid',...data,message:'RT '+snap.rt+'｜'+data.rtMaster.section+'｜'+data.rtMaster.description+'｜可套用｜'+((Date.now()-startedAt)/1000).toFixed(1)+' 秒'};
+ }catch(e){if(seq!==rtSeq||rtSnapshot().stamp!==snap.stamp)return;outcome=e.code||'ERROR';rtGate={stamp:snap.stamp,status:'invalid',message:e.message.includes('未套用')?e.message:e.message+'（未套用）'};}
+ rtMeasurements.push({rt:snap.rt,at:now(),elapsedMs:Date.now()-startedAt,source,outcome});if(rtMeasurements.length>30)rtMeasurements.shift();
+ paintRtGate();
+}
+async function applyRtG1(){
+ const snap=rtSnapshot();
+ if(rtApplying||repairingRt||closing||offline()||rtGate.status!=='valid'||snap.stamp!==rtGate.stamp)return;
+ rtApplying=true;render();
+ try{
+  let checked=await lookupRt(snap);
+  if(!confirm('將 '+snap.items.length+' 件的 OQC RT 改為 '+snap.rt+'？IQC 原始資料不變。'))return;
+  if(rtSnapshot().stamp!==snap.stamp)throw Error('資料已更新，未套用，請重新查驗');
+  if(!cachedRt(snap.rt))checked=await lookupRt(snap);
+  await mutate('RT_CHANGE',{rt:snap.rt,items:snap.items.map(i=>({ctn:i.ctn,fromRt:i.rt})),...checked},snap.id,snap.stamp);
+  editRt=false;selected.clear();invalidateRt();issue='';
+ }catch(e){e.oqcScope='rt';invalidateRt();rtGate={stamp:rtSnapshot().stamp,status:'invalid',message:e.message+'（未套用）'};throw e;}
+ finally{rtApplying=false;render();}
+}
+async function repairRtQueueG1(batchId=root.active){
+ if(repairingRt||closing||rtApplying)return;
+ if(cfg.mode==='SIM')throw Error('合成範例不操作真實 RT 修復；請在正式 OQC 使用此功能');
+ const target={key,id:batchId};
+ if(!confirm('查核 '+(root.docs[batchId]?.number||batchId)+' 的原待傳請求，僅復原後端明確拒絕的錯誤 RT？CTN、合法操作與修復紀錄均保留。'))return;
+ repairingRt=true;clearTimeout(serialTimer);invalidateRt();render();
+ try{
+  if(syncTask)try{await syncTask;}catch(_){}
+  await verify();if(key!==target.key)throw Error('後端連線已變更，未修復');
+  const packet=await S.change(target.key,v=>{
+   if(v.inflight){if(v.inflight.batchId!==target.id)throw Error('另一批次的原請求仍待確認，請先處理該批次');return D.clone(v.inflight);}
+   const ops=v.pending.filter(c=>c.batchId===target.id).slice(0,12);
+   if(!ops.some(c=>c.type==='RT_CHANGE'))throw Error('前段沒有 RT 更改，請先按「同步／重試」傳送既有操作');
+   v.inflight={requestId:uid('req'),batchId:target.id,operations:ops};return D.clone(v.inflight);
+  });
+  const before=await S.read(target.key),expected=G.recoveryState(before,packet.batchId);
+  const reply=await api('recover_rt_queue',{packet,confirmed:true});
+  if(key!==target.key)throw Error('後端連線已變更，原請求保留');
+  await S.change(target.key,v=>G.reconcile(v,packet,reply,expected,uid,now()));
+  issue='';await reload();toast(root.lastMessage);
+ }finally{repairingRt=false;await reload();}
+ scheduleSync();pump();
+}
+async function validateCloseRt(doc){
+ const changed=D.active(doc).filter(i=>i.rtChanges?.length);
+ for(const rt of new Set(changed.map(i=>i.rt))){
+  try{const response=await api('rt_lookup',{rt});G.validateReply(rt,changed.filter(i=>i.rt===rt),response);}
+  catch(e){throw Error(changed.filter(i=>i.rt===rt).map(i=>i.ctn).join('、')+'：'+e.message+'。尚未提交完成；請先核對 RT，必要時使用「修復未套用 RT」。');}
+ }
+}
+async function finish(){
+ if(closing||repairingRt)return;const target=closeTarget;if(!target)return;
+ closing=true;$('closeError').classList.remove('danger');$('closeError').textContent='正在同步與查核，取得後端收據才算完成…';render();
+ try{
+  await verify();await sync();await reload();
+  if(key!==target.key||root.active!==target.id)throw Error('批次已切換，請重新確認');
+  const d=root.docs[target.id];
+  if(d?.phase==='CLOSED'){
+   if(root.receipts[d.id]?.packingStatus==='PACKED'&&!root.pending.some(c=>c.batchId===d.id)&&root.inflight?.batchId!==d.id){$('closeDialog').close();toast('已取回原完成收據；出貨狀態未確認');return;}
+   throw Error('完成結果待確認；原請求保留，請按「查詢原完成結果」或「同步／重試」，不會建立另一筆完成操作');
+  }
+  if(!d||d.phase!=='OPEN')throw Error('批次已非開放中，請核對歷史紀錄');
+  const problems=G.closeProblems(d);if(problems.length)throw Error(problems.join('\n'));
+  if(root.pending.length||root.inflight||root.blocked)throw Error('仍有待同步操作，尚未提交裝框完成；請先同步／重試，錯誤 RT 可從 資料與同步工具修復');
+  await validateCloseRt(d);
+  if(key!==target.key||root.active!==target.id||D.signature(active())!==closeSig)throw Error('清單已更新，請取消後重新核對完成摘要');
+  heldCompletion=d.id;await mutate('CLOSE',{signature:closeSig,acknowledge:true},d.id);await sync();await reload();
+  if(root.receipts[d.id]?.packingStatus!=='PACKED'||root.pending.some(c=>c.batchId===d.id)||root.inflight?.batchId===d.id)throw Error('完成結果待確認；原請求保留，請查詢原完成結果');
+  $('closeDialog').close();toast('已取得裝框完成收據；出貨狀態未確認');
+ }finally{closing=false;render();}
+}
+
+$('scanForm').onsubmit=e=>{e.preventDefault();safe(()=>capture($('scanInput').value))();};$('scanInput').oninput=e=>{if(!e.isComposing)e.target.value=e.target.value.toUpperCase();};
+$('newBatch').onclick=safe(newBatch);$('connect').onclick=safe(connect);$('syncBtn').onclick=safe(()=>resume(true));$('retryIqc').onclick=safe(async()=>{if(workMode==='QUERY'){for(const i of queryItems.filter(i=>i.iqc.state==='ERROR'))await queryOnly(i.ctn);}else{await verify();pump(true);}});
+$('packMode').onclick=safe(async()=>{workMode='PACK';issue='';await reload();});$('queryMode').onclick=safe(async()=>{heldCompletion='';workMode='QUERY';editRt=false;selected.clear();issue='';await reload();});
+$('historyMode').onclick=safe(async()=>{heldCompletion='';workMode='HISTORY';editRt=false;selected.clear();issue='';await reload();});
+$('historyDate').onchange=()=>H.render(root);$('historySearch').oninput=()=>H.render(root);$('historyClear').onclick=()=>{$('historyDate').value='';$('historySearch').value='';H.render(root);};$('historyRefresh').onclick=safe(readRemote);
+$('batchSelect').onchange=safe(async e=>{const id=e.target.value;heldCompletion='';await S.change(key,v=>{v.active=id;});editRt=false;selected.clear();await reload();});
+$('settingsBtn').onclick=()=>{const d=active();$('shippingRef').value=d.shippingRef;$('target').value=d.targetQty||'';$('note').value=d.note;$('workDate').value=d.workDate||day();$('workers').value=d.workers||root.actor;$('settings').showModal();};
+$('saveSettings').onclick=safe(async()=>{await mutate('SETTINGS',{shippingRef:$('shippingRef').value,targetQty:$('target').value,note:$('note').value,workDate:$('workDate').value,workers:$('workers').value});$('settings').close();});
+$('rtBtn').onclick=()=>{editRt=!editRt;selected.clear();render();prepareRtCatalog();};$('rtCancel').onclick=()=>{editRt=false;selected.clear();clearTimeout(catalogTimer);render();};$('selectAll').onclick=()=>{selected=new Set(D.active(active()).filter(D.canRt).map(i=>i.ctn));render();};$('selectNone').onclick=()=>{selected.clear();render();};
+$('rtRetry').onclick=()=>{clearRtCaches();invalidateRt();paintRtGate();prepareRtCatalog();};
+$('list').onchange=e=>{if(e.target.dataset.pick){e.target.checked?selected.add(e.target.dataset.pick):selected.delete(e.target.dataset.pick);$('selectionCount').textContent='已選 '+selected.size+' 件';invalidateRt();paintRtGate();}};
+$('newRt').oninput=()=>{invalidateRt();paintRtGate();};$('applyRt').onclick=safe(applyRtG1);$('repairRtG1').onclick=safe(()=>repairRtQueueG1());$('repairRtInlineG1').onclick=safe(()=>repairRtQueueG1(G.rtQueueProblem(root)?.batchId||root.active));
+$('list').onclick=safe(async e=>{const ctn=e.target.dataset.void;if(!ctn||workMode!=='PACK'||editRt||!isOpen())return;const d=active(),i=d.items.find(i=>i.ctn===ctn),c=await mutate('VOID',{ctn,scanId:i.scanId});undo={ctn,voidId:c.id,batchId:d.id,until:Date.now()+5000};$('undoText').textContent=ctn+' 已作廢';$('undo').classList.remove('hidden');setTimeout(()=>{if(undo&&Date.now()>=undo.until){undo=null;$('undo').classList.add('hidden');}},5100);});
+$('undoBtn').onclick=safe(async()=>{if(!undo||Date.now()>undo.until)return;const u=undo;await mutate('RESTORE',{ctn:u.ctn,voidId:u.voidId},u.batchId);undo=null;$('undo').classList.add('hidden');});
+$('closeBtn').onclick=()=>{const d=active();if(!d)return;const s=D.summary(d);closeSig=D.signature(d);closeTarget={key,id:d.id};$('closeSummary').innerHTML=esc(d.number)+'<br>'+esc(D.countText(d))+'<br>未建IQC '+s.missing+' 件；待查 '+s.pending+' 件'+(d.targetQty?'<br>標籤 '+d.targetQty+' 件；差額 '+(s.total-d.targetQty):'')+'<br>作業日 '+esc(d.workDate||day())+'｜'+esc(d.workers||root.actor);$('closeError').textContent=G.closeProblems(d).join('\n')||(root.pending.length||root.inflight?'尚有待同步操作；確認時會先同步，取得後端收據才算完成。':'');$('closeError').classList.toggle('danger',G.closeProblems(d).length>0);$('closeDialog').showModal();};
+$('confirmClose').onclick=safe(finish);$('cancelClose').onclick=()=>{if(!closing)$('closeDialog').close();};$('closeDialog').addEventListener('cancel',e=>{if(closing)e.preventDefault();});
+$('checkReceipt').onclick=safe(async()=>{await verify();const d=active(),r=await api('receipt',{batchId:d.id});if(!r.receipt)throw Error('此批次尚無完成收據；原請求保留，請同步／重試');await S.change(key,v=>{v.receipts[d.id]=r.receipt;});await reload();});
+$('refreshRemote').onclick=safe(readRemote);$('recoverBtn').onclick=safe(recover);
+$('export').onclick=safe(async()=>{const data=await S.read(key),blob=new Blob([JSON.stringify({version:ENV,build:BUILD,mode:cfg.mode,workMode,diagnostic:{ready,compatible,endpointConfigured:validUrl(cfg.endpoint),tokenPresent:!!token(),issue,rtCatalogSupported:catalogSupported,rtMeasurements,rtRequestTimings},data},null,2)],{type:'text/plain;charset=utf-8'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='OQC_'+day().replace(/-/g,'')+'.txt';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),2000);});
+$('offline').onchange=()=>{clearRtCaches();invalidateRt();render();if(!offline())safe(resume)();};$('samples').onclick=safe(async()=>{for(const ctn of ['QA10AA1','QA10AA2','QA10AA3'])await capture(ctn);});
+window.addEventListener('online',()=>{clearRtCaches();invalidateRt();render();safe(resume)();});window.addEventListener('offline',()=>{clearRtCaches();invalidateRt();render();});document.addEventListener('visibilitychange',()=>{clearTimeout(catalogTimer);if(!document.hidden)safe(async()=>{await reload();await resume();prepareRtCatalog();})();});
+window.addEventListener('storage',e=>{if(e.key==='ds_iqcc_session_v2'){ready=false;authEpoch++;clearRtCaches();invalidateRt();safe(resume)();}});
+window.addEventListener('beforeunload',e=>{if(syncTask){e.preventDefault();e.returnValue='';}});
+window.OqcDemoTest={capture,newBatch,mutate,sync,resume,pump,queryOnly,readRemote,reload,getRoot:()=>S.read(key),getKey:()=>key,getQueryItems:()=>queryItems,getHistory:()=>H.filter(root),getWorking:()=>H.working(root,heldCompletion)};
+if('serviceWorker' in navigator&&location.protocol==='https:')navigator.serviceWorker.register('./sw.js',{scope:'./'}).catch(()=>{});
+safe(async()=>{if(!window.DS_PORTAL_CONTEXT){await new Promise(resolve=>window.addEventListener('ds-portal-authorized',resolve,{once:true}));}if(window.DS_PORTAL_CONTEXT.profile?.permissions?.stamp_shipping_enabled!==true)throw Error('此帳號未開啟 OQC 權限');localStorage.setItem('oqc_production_config_v1',JSON.stringify({endpoint:cfg.endpoint}));await S.open();$('endpoint').value=cfg.endpoint;await reload();await findRecovery();await verify();await sync();pump(true);})();
+})();
+</script>
+</body></html>
