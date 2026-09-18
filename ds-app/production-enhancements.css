@@ -1,16 +1,20 @@
-/* DS Workstation R5K1 Keyboard Stability Hotfix | 2026-09-01
-   Keep the module viewport tied to the stable shell height instead of iOS
-   dynamic viewport height. The LINE-like navigation is hidden immediately
-   while a text control is focused, so Safari cannot park it above the keyboard. */
+/* DS Workstation LAYOUT-K4 | 2026-09-18
+   Reserve navigation space in the parent viewport, including for nested
+   scrollers and dialogs. Keep this geometry unchanged during text input. */
 :root{
   --ds-shell-nav-inset:96px;
+  --ds-shell-nav-bottom:max(8px,calc(env(safe-area-inset-bottom,0px) - 22px));
 }
 
 #appShell .bottom-nav{
   position:fixed!important;
-  bottom:max(8px,calc(env(safe-area-inset-bottom,0px) - 22px))!important;
+  top:calc(var(--ds-shell-nav-viewport,var(--ds-shell-vh,100dvh)) - var(--ds-nav-real-h,66px) - var(--ds-shell-nav-bottom))!important;
+  bottom:auto!important;
   z-index:1400!important;
 }
+
+#appShell:not(.module-mode){min-height:var(--ds-shell-vh,100dvh)!important}
+#appShell:not(.module-mode) .main-view{padding-bottom:var(--ds-shell-nav-inset,96px)!important}
 
 #appShell.module-mode{
   position:fixed!important;
@@ -29,19 +33,13 @@
   position:absolute!important;
   top:var(--ds-module-context-h,34px)!important;
   right:0!important;
-  bottom:0!important;
+  bottom:var(--ds-shell-nav-inset,96px)!important;
   left:0!important;
   width:100%!important;
   height:auto!important;
   min-height:0!important;
   padding:0!important;
   overflow:hidden!important;
-}
-
-/* Until the cross-origin Dashboard acknowledges its receiver,
-   retain the safe reservation only for Dashboard. */
-#appShell.module-mode.ds-dashboard-inset-fallback .main-view{
-  bottom:var(--ds-shell-nav-inset,96px)!important;
 }
 
 #appShell.module-mode .module-host,
@@ -53,11 +51,9 @@
 /* Do not move the module viewport to top:0 when the keyboard opens.
    That old override caused the entire typing view to jump upward. */
 html.ds-keyboard-open #appShell.module-mode .main-view,
-html.ds-child-input-focus #appShell.module-mode .main-view,
-html.ds-keyboard-open #appShell.module-mode.ds-dashboard-inset-fallback .main-view,
-html.ds-child-input-focus #appShell.module-mode.ds-dashboard-inset-fallback .main-view{
+html.ds-child-input-focus #appShell.module-mode .main-view{
   top:var(--ds-module-context-h,34px)!important;
-  bottom:0!important;
+  bottom:var(--ds-shell-nav-inset,96px)!important;
 }
 
 /* iOS treats fixed elements as visual-viewport fixed while the keyboard is open.

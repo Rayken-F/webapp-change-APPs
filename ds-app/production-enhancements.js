@@ -1,14 +1,13 @@
 "use strict";
 
 /* DS Workstation Production Enhancements R5 | 2026-08-31
-   True overlay navigation:
-   - shell iframe remains full-height;
-   - same-origin modules receive an internal scroll-tail inset;
-   - cross-origin Dashboard receives the inset by postMessage and ACKs;
-   - Dashboard alone keeps the R4 fallback until its receiver is deployed.
+   Parent-owned navigation reservation (LAYOUT-K4):
+   - all module viewports stop above the shell navigation;
+   - child insets stay at zero, including while typing;
+   - cross-origin receivers do not determine the safe viewport.
    Explicitly excludes IQC image/OCR/Cloud Vision, fault injection and Return-to-WIP. */
 (function installDsProductionEnhancementsR5(){
-  const VERSION="DS_PROD_ENH_R5_20260831";
+  const VERSION="DS_PROD_LAYOUT_K4_20260918";
   const MESSAGE_CHANNEL="DS_SHELL_LAYOUT_V1";
   if(window.__DS_PROD_ENH_R5__) return;
 
@@ -49,34 +48,20 @@
     return root.classList.contains("ds-keyboard-open") || root.classList.contains("ds-child-input-focus");
   }
 
-  function visibleViewportBottom(){
-    const vv=window.visualViewport;
-    if(vv){
-      return Math.max(1,Math.round(Number(vv.offsetTop||0)+Number(vv.height||0)));
-    }
-    return Math.max(
-      1,
-      Math.round(Number(window.innerHeight||0)),
-      Math.round(Number(document.documentElement.clientHeight||0))
-    );
-  }
-
-  function activeFrame(){
-    return host&&host.querySelector(".module-frame:not(.hidden)")||null;
-  }
-
   function navInset(){
     const nav=document.querySelector("#appShell .bottom-nav");
-    if(!nav || keyboardOpen()) return 0;
+    if(!nav || keyboardOpen()) return currentInset;
 
     const rect=nav.getBoundingClientRect();
     if(!Number.isFinite(rect.top)||!Number.isFinite(rect.height)||rect.height<=0){
       return currentInset||96;
     }
 
-    const occupiedByTop=Math.ceil(visibleViewportBottom()-rect.top+8);
-    const occupiedByHeight=Math.ceil(rect.height+18);
-    return Math.max(82,occupiedByTop,occupiedByHeight);
+    // Measure layout dimensions, not an iOS visual viewport shifted by the keyboard.
+    const style=getComputedStyle(nav);
+    const shellHeight=parseFloat(getComputedStyle(root).getPropertyValue("--ds-shell-vh"))||window.innerHeight;
+    const bottom=Math.max(8,shellHeight-(parseFloat(style.top)||0)-rect.height);
+    return Math.max(82,Math.ceil(rect.height+bottom+8));
   }
 
   function ensureFrameInsetStyle(doc){
@@ -155,14 +140,8 @@
   }
 
   function syncDashboardFallback(){
-    if(!shell) return;
-    const frame=activeFrame();
-    const isDashboard=!!(frame&&String(frame.dataset.moduleKey||"")==="dashboard");
-    const acknowledged=!!(frame&&frame.dataset.dsInsetAck==="1");
-    shell.classList.toggle(
-      "ds-dashboard-inset-fallback",
-      isDashboard&&!acknowledged&&!keyboardOpen()
-    );
+    // All modules now reserve space in the parent, even without a receiver.
+    if(shell?.classList.contains("ds-dashboard-inset-fallback"))shell.classList.remove("ds-dashboard-inset-fallback");
   }
 
   function syncFrame(frame,inset){
@@ -172,7 +151,7 @@
   }
 
   function syncAllFrames(){
-    const inset=keyboardOpen()?0:currentInset;
+    const inset=0;
     if(host){
       host.querySelectorAll("iframe.module-frame").forEach(frame=>syncFrame(frame,inset));
     }
@@ -180,6 +159,11 @@
   }
 
   function syncNavGeometry(){
+    if(!keyboardOpen()){
+      const vv=window.visualViewport;
+      const bottom=vv?Number(vv.height)+Number(vv.offsetTop||0):window.innerHeight;
+      if(Number.isFinite(bottom)&&bottom>0)root.style.setProperty("--ds-shell-nav-viewport",`${Math.round(bottom)}px`);
+    }
     currentInset=navInset();
     root.style.setProperty("--ds-shell-nav-inset",`${currentInset}px`);
 
@@ -204,7 +188,7 @@
   function attachFrame(frame){
     if(!frame||String(frame.tagName||"").toUpperCase()!=="IFRAME") return;
     if(watchedFrames.has(frame)){
-      syncFrame(frame,keyboardOpen()?0:currentInset);
+      syncFrame(frame,0);
       return;
     }
 
@@ -212,12 +196,12 @@
     frame.addEventListener("load",()=>{
       frame.dataset.dsInsetAck="";
       later(()=>{
-        syncFrame(frame,keyboardOpen()?0:currentInset);
+        syncFrame(frame,0);
         syncDashboardFallback();
       },40,160,420,900,1800);
     });
 
-    later(()=>syncFrame(frame,keyboardOpen()?0:currentInset),0,100,300,800);
+    later(()=>syncFrame(frame,0),0,100,300,800);
   }
 
   function scanFrames(){
@@ -243,7 +227,8 @@
       frame.dataset.dsInsetReceiverVersion=String(data.version||"");
       syncDashboardFallback();
     }
-    postInset(frame,keyboardOpen()?0:currentInset);
+    // An ACK completes the exchange; replying to ACK would create a message loop.
+    if(data.type==="DS_SHELL_NAV_INSET_READY")postInset(frame,0);
   });
 
   function installNavGeometryObserver(){

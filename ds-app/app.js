@@ -297,7 +297,7 @@ let authController=null;
 let restoreViewPending=false;
 const authRecords=[];
 function renderAuthDiagnostics(){
-  $("authDiagnosticText").textContent=JSON.stringify({build:"AUTH-K3",attempts:authRecords},null,2);
+  $("authDiagnosticText").textContent=JSON.stringify({build:"AUTH-K4",attempts:authRecords},null,2);
   $("authDiagnostics").classList.toggle("hidden",authRecords.length===0);
 }
 function authStatus(message){
@@ -307,7 +307,8 @@ function markAuthApplied(result){
   const record=authRecords.find(r=>r.requestId===result.authDiagnostic?.requestId);
   if(record){record.appliedMs=Date.now()-Date.parse(record.startedAt);renderAuthDiagnostics();}
 }
-const authTransport=window.DsAuthTransport.create({url:CFG.AUTH_API_URL,clientVersion:CFG.AUTH_CLIENT_VERSION,
+const authBridge=window.DsAuthBridge?.create({url:CFG.AUTH_API_URL});
+const authTransport=window.DsAuthTransport.create({url:CFG.AUTH_API_URL,clientVersion:CFG.AUTH_CLIENT_VERSION,bridge:authBridge,
   onDiagnostic:record=>{authRecords.push(record);if(authRecords.length>5)authRecords.shift();renderAuthDiagnostics();}});
 function cancelAuthentication(){
   authEpoch++;authController?.abort();authController=null;authTask=null;
@@ -315,7 +316,7 @@ function cancelAuthentication(){
   $("cancelAuthBtn").classList.add("hidden");hideLoading();
 }
 function authControl(epoch,signal){
-  return {signal,onSlow:()=>{if(epoch===authEpoch)$("loadingText").textContent="網路較慢，仍在等待登入結果；不必重新輸入，最長等待 45 秒。";}};
+  return {signal,onSlow:()=>{if(epoch===authEpoch)$("loadingText").textContent="登入服務仍在回應中；不必重新輸入，最長等待 45 秒。";}};
 }
 
 function runAuthentication(work){
