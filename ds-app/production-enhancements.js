@@ -15,7 +15,7 @@
   const SAFE_RC_SCRIPTS=[
     ["dsProdRcNavGuard","../ds-app-grinding-recovery-rc/rc-nav-visibility-guard-v12.js?v=20260831-prod-r5"],
     ["dsProdRcShellStability","../ds-app-grinding-recovery-rc/rc-shell-stability-v9.js?v=20260831-prod-r5"],
-    ["dsProdRcQuickbarKeeper","../ds-app-grinding-recovery-rc/rc-quickbar-keeper-v6.js?v=20260831-prod-r5"],
+    ["dsProdRcQuickbarKeeper","../ds-app-grinding-recovery-rc/rc-quickbar-keeper-v6.js?v=20260918-k2"],
     ["dsProdGrindingUiSafe","../ds-app-grinding-recovery-rc/grinding-ui-safe-rc.js?v=20260831-prod-r5"],
     ["dsProdGrindingOperatorSession","../ds-app-grinding-recovery-rc/operator-session-rc-v5.js?v=20260831-prod-r5"],
     ["dsProdHomeProductionFocus","../ds-app-grinding-recovery-rc/home-production-focus-rc-v5.js?v=20260831-prod-r5"]
@@ -46,7 +46,7 @@
   let geometryTimer=0;
 
   function keyboardOpen(){
-    return root.classList.contains("ds-keyboard-open");
+    return root.classList.contains("ds-keyboard-open") || root.classList.contains("ds-child-input-focus");
   }
 
   function visibleViewportBottom(){
@@ -128,6 +128,9 @@
     const key=String(frame.dataset.moduleKey||"");
     const tail=Number(MODULE_TAIL_PX[key]||40);
     ensureFrameInsetStyle(doc);
+    const geometryKey=`${Math.max(0,inset)}:${tail}`;
+    if(doc.body.dataset.dsShellInsetGeometry===geometryKey)return true;
+    doc.body.dataset.dsShellInsetGeometry=geometryKey;
     doc.documentElement.style.setProperty("--ds-shell-nav-inset",`${Math.max(0,inset)}px`);
     doc.documentElement.style.setProperty("--ds-shell-content-tail",`${tail}px`);
     doc.body.classList.add("ds-shell-overlay-inset-r5");

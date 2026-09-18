@@ -60,7 +60,7 @@ function hydrateRememberedLogin(){
 }
 function isExplicitAuthInvalidMessage(message){
   const text=String(message||"").toLowerCase();
-  return text.includes("登入狀態已失效")||text.includes("session invalid")||text.includes("session expired")||text.includes("帳號已停用")||text.includes("此帳號已停用");
+  return /登入狀態無效|登入簽章無效|登入資訊損壞|登入已逾時|帳號不存在或已停用/.test(text)||text.includes("登入狀態已失效")||text.includes("session invalid")||text.includes("session expired")||text.includes("帳號已停用")||text.includes("此帳號已停用");
 }
 async function portalPublicPost(api,payload={}){
   assertPortalConfigured();
@@ -216,6 +216,7 @@ function syncShellPermissions(){
 function showLogin(){
   $("appShell").classList.add("hidden");
   $("loginView").classList.remove("hidden");
+  $("retrySessionBtn").classList.toggle("hidden",!getToken());
 }
 function showApp(){
   $("loginView").classList.add("hidden");
@@ -288,58 +289,89 @@ async function loadHomeDataSafe(){
     toast(`公佈欄資料暫時無法載入：${err.message||err}`,true);
   }
 }
-async function login(account,password,remember){
-  const normalized=String(account||"").trim();
-  saveRememberedAccount(normalized,remember);
-  showLoading("正在登入","正在驗證帳號、密碼、使用者權限");
-  try{
-    const result=await portalPublicPost("portal_login",{user_id:normalized,password:String(password||"")});
-    if(result.sessionToken) saveToken(result.sessionToken,remember);
-    state.authUser=result.user||null;
-    state.profile={user:result.user||null,permissions:result.permissions||{}};
-    hydrateUser();
-    syncShellPermissions();
-    showApp();
-    scheduleCorePrewarm();
-    if(routeAfterAuth()) return;
-    if(permission("home_enabled")) switchView("home"); else switchView("more");
-    hideLoading();
-    toast(`登入成功，${result.user?.displayName||""}`);
-    loadHomeDataSafe();
-  }catch(err){
-    hideLoading();
-    throw err;
-  }
+let authTask=null;
+let authEpoch=0;
+let resumeValidationNeeded=false;
+const authTransport=window.DsAuthTransport.create({url:CFG.AUTH_API_URL,clientVersion:CFG.AUTH_CLIENT_VERSION});
+
+function runAuthentication(work){
+  if(authTask) return authTask;
+  const epoch=++authEpoch;
+  $("loginBtn").disabled=true;
+  $("retrySessionBtn").disabled=true;
+  const slow=setTimeout(()=>{if(epoch===authEpoch) $("loadingText").textContent="網路較慢，仍在驗證中；最長等待 15 秒，可稍後重試。";},4000);
+  authTask=Promise.resolve().then(()=>work(epoch)).finally(()=>{
+    clearTimeout(slow);authTask=null;
+    $("loginBtn").disabled=false;$("retrySessionBtn").disabled=false;
+    if(epoch===authEpoch)hideLoading();
+  });
+  return authTask;
 }
-async function tryRestore(){
-  hydrateRememberedLogin();
-  if(!getToken()) return showLogin();
-  showLoading("恢復登入","正在驗證使用者登入狀態與最新權限…");
-  try{
-    const result=await portalPost("portal_bootstrap",{});
-    state.authUser=result.user||null;
-    state.profile={user:result.user||null,permissions:result.permissions||{}};
-    hydrateUser();
-    syncShellPermissions();
-    showApp();
-    scheduleCorePrewarm();
-    if(routeAfterAuth()){ hideLoading(); return; }
-    if(permission("home_enabled")) switchView("home"); else switchView("more");
-    hideLoading();
-    loadHomeDataSafe();
-  }catch(err){
-    hideLoading();
-    // 只有後端明確判定 session 無效才清除；網路失敗、RT主檔錯誤等都不得把「記住登入」洗掉。
-    if(isExplicitAuthInvalidMessage(err.message)){
-      clearToken();
+function applyAuthentication(result,preserveView){
+  state.authUser=result.user||null;
+  state.profile={user:result.user||null,permissions:result.permissions||{}};
+  hydrateUser();syncShellPermissions();showApp();hideLoading();
+  // Remove frames whose permission was revoked while the app was suspended.
+  const modulePermissions={daily:"daily_report_enabled",grinding:"grinding_enabled",iqc:"iqc_correction_enabled",oqc:"stamp_shipping_enabled"};
+  let activeRevoked=false;
+  $("moduleFrameHost").querySelectorAll(".module-frame").forEach(frame=>{
+    const key=modulePermissions[frame.dataset.moduleKey];
+    if(key&&!permission(key)){if(!frame.classList.contains("hidden"))activeRevoked=true;frame.remove();}
+  });
+  if(preserveView&&!activeRevoked){
+    $("moduleFrameHost").querySelectorAll(".module-frame").forEach(frame=>{
+      try{const win=frame.contentWindow;win.dispatchEvent(new win.CustomEvent("ds-iqc-session-restored"));}catch(_){ }
+    });
+    window.dispatchEvent(new CustomEvent("ds-session-restored"));
+    return;
+  }
+  if(routeAfterAuth())return;
+  switchView(permission("home_enabled")?"home":"more");
+  loadHomeDataSafe();
+}
+function login(account,password,remember){
+  return runAuthentication(async epoch=>{
+    const normalized=String(account||"").trim();
+    saveRememberedAccount(normalized,remember);
+    showLoading("正在登入","正在驗證帳號、密碼與最新權限…");
+    const result=await authTransport.post("workstation_login",{user_id:normalized,password:String(password||"")});
+    if(epoch!==authEpoch)return;
+    if(!result.sessionToken||!result.user||!result.permissions)throw new Error("登入服務回應不完整，請重試。");
+    // Credentials login starts a fresh module context; old forms must not leak to another account.
+    $("moduleFrameHost").replaceChildren();
+    saveToken(result.sessionToken,remember);
+    applyAuthentication(result,false);
+    toast(`登入成功，${result.user.displayName||""}`);
+  });
+}
+function tryRestore(preserveView=false){
+  return runAuthentication(async epoch=>{
+    hydrateRememberedLogin();
+    const token=getToken();
+    if(!token){showLogin();return;}
+    const previousUser=state.authUser;
+    const hadProfile=!!state.profile;
+    state.profile=null;
+    showLoading("驗證登入狀態","正在確認登入有效性與最新權限…");
+    try{
+      const result=await authTransport.post("workstation_bootstrap",{session_token:token});
+      if(epoch!==authEpoch||getToken()!==token)return;
+      if(!result.user||!result.permissions)throw new Error("登入服務回應不完整，請重試。");
+      const sameUser=previousUser?.account===result.user.account;
+      applyAuthentication(result,preserveView&&hadProfile&&sameUser);
+    }catch(err){
+      if(epoch!==authEpoch||getToken()!==token)return;
+      if(isExplicitAuthInvalidMessage(err.message)){
+        clearToken();state.authUser=null;$("moduleFrameHost").replaceChildren();
+        toast("登入已失效，請重新登入",true);
+      }else{
+        toast((err.message||"無法確認登入")+"；已保留登入資訊，請按「重試登入驗證」。",true);
+      }
       showLogin();
-      toast("登入已失效，請重新登入",true);
-    }else{
-      showLogin();
-      toast("目前網路或登入服務無法確認，已保留登入狀態，請稍後再試",true);
     }
-  }
+  });
 }
+
 function switchView(view){
   leaveModuleMode();
   $("homeModule").classList.toggle("hidden",view!=="home");
@@ -394,7 +426,9 @@ function renderMore(){
 }
 async function loadHomeData(){
   if(!permission("home_enabled")) return;
+  const requestedToken=getToken();
   const result=await portalPost("portal_home_data",{include_rt_master:!state.rtMaster.length});
+  if(getToken()!==requestedToken||!state.profile)return;
   state.priorities=Array.isArray(result.priorities)?result.priorities:[];
   if(!state.rtMaster.length&&Array.isArray(result.rtMaster)){
     state.rtMaster=result.rtMaster;
@@ -516,6 +550,7 @@ function bind(){
     e.preventDefault();
     try{await login($("loginAccount").value,$("loginPassword").value,$("rememberLogin").checked)}catch(err){hideLoading();toast(err.message||"登入失敗",true)}
   });
+  $("retrySessionBtn").addEventListener("click",()=>tryRestore(true));
   $("togglePassword").addEventListener("click",()=>{$("loginPassword").type=$("loginPassword").type==="password"?"text":"password"});
   document.querySelectorAll("[data-nav]").forEach(btn=>{
     btn.addEventListener("pointerdown",()=>prewarmForNav(btn.dataset.nav),{passive:true});
@@ -523,7 +558,7 @@ function bind(){
     btn.addEventListener("click",()=>handleNav(btn.dataset.nav));
   });
   $("userButton").addEventListener("click",()=>$("userMenu").classList.toggle("hidden"));
-  $("logoutBtn").addEventListener("click",()=>{clearToken();state.authUser=null;state.profile=null;$("userMenu").classList.add("hidden");hydrateRememberedLogin();showLogin()});
+  $("logoutBtn").addEventListener("click",()=>{authEpoch++;clearToken();state.authUser=null;state.profile=null;$("moduleFrameHost").replaceChildren();hideLoading();$("userMenu").classList.add("hidden");hydrateRememberedLogin();showLogin()});
   $("addPriorityBtn").addEventListener("click",()=>openPriorityModal());
   $("refreshPriorityBtn").addEventListener("click",async()=>{try{showLoading("重新整理","正在取得最新需求…");await loadHomeData();toast("已更新")}catch(err){toast(err.message,true)}finally{hideLoading()}});
   $("statusFilters").querySelectorAll("[data-status]").forEach(btn=>btn.addEventListener("click",()=>{state.filter=btn.dataset.status;$("statusFilters").querySelectorAll("[data-status]").forEach(x=>x.classList.toggle("active",x===btn));renderPriorities()}));
@@ -535,6 +570,7 @@ function bind(){
   document.addEventListener("click",e=>{if(!$("userMenu").contains(e.target)&&!$("userButton").contains(e.target)) $("userMenu").classList.add("hidden")});
 }
 window.DS_PORTAL_BRIDGE=Object.freeze({
+  reauthenticate:()=>tryRestore(true),
   getToken:()=>getToken(),
   getProfile:()=>state.profile,
   getClientVersion:()=>CFG.CLIENT_VERSION,
@@ -555,6 +591,11 @@ async function init(){
   if(handlePublicRoute()) return;
   if("serviceWorker" in navigator){navigator.serviceWorker.register("sw.js").catch(()=>{})}
   await installBottomNavHeightObserver();
+  document.addEventListener("visibilitychange",()=>{
+    if(document.hidden){resumeValidationNeeded=!!getToken();return;}
+    if(resumeValidationNeeded&&getToken()){resumeValidationNeeded=false;tryRestore(true);}
+  });
+  window.addEventListener("pageshow",event=>{if(event.persisted&&getToken())tryRestore(true);});
   tryRestore();
 }
 init();

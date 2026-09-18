@@ -13,56 +13,12 @@
   <!-- Frontend production: 2026-08-08 MODULAR v7 -->
   <link rel="stylesheet" href="./style.css?v=20260812-0976">
 </head>
-<body class="view-login">
-  <section id="loginView" class="login-wrap">
+<body>
+  <section id="portalStatus" class="login-wrap">
     <div class="login-card">
-      <div class="logo">IQC</div>
       <h1>IQC 異常處理台</h1>
-      <p class="panel-note">帳號與權限由人事後台 System_Access_Master 管理；IQC_Log 僅能經異常單核准後受控修改，所有修正永久留痕。</p>
-      <form id="loginForm">
-        <div class="field">
-          <label for="loginUser">帳號</label>
-          <input id="loginUser" autocomplete="username" maxlength="40" required>
-        </div>
-        <div class="field">
-          <label for="loginPassword">密碼</label>
-          <div class="password-wrap">
-            <input id="loginPassword" type="password" autocomplete="current-password" maxlength="64" required>
-            <button
-              id="passwordToggleBtn"
-              class="password-toggle"
-              type="button"
-              aria-label="顯示密碼"
-              aria-pressed="false"
-              title="顯示密碼"
-            >
-              <svg id="eyeOpenIcon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                <path d="M2.5 12s3.4-6 9.5-6 9.5 6 9.5 6-3.4 6-9.5 6-9.5-6-9.5-6Z"
-                  stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
-                <circle cx="12" cy="12" r="2.8"
-                  stroke="currentColor" stroke-width="1.8"/>
-              </svg>
-              <svg id="eyeClosedIcon" class="hidden" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                <path d="M3 3l18 18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
-                <path d="M10.6 6.1A10.7 10.7 0 0 1 12 6c6.1 0 9.5 6 9.5 6a16 16 0 0 1-2.5 3.2M6.2 7.2C3.8 9 2.5 12 2.5 12s3.4 6 9.5 6c1.7 0 3.2-.5 4.5-1.2"
-                  stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
-                <path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"
-                  stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
-              </svg>
-            </button>
-          </div>
-          <div id="passwordHint" class="password-hint">
-            <span id="capsLockWarning" class="caps-warning hidden">
-              <span class="caps-dot"></span>
-              Caps Lock 大寫鎖定已開啟
-            </span>
-          </div>
-        </div>
-        <label class="check"><input id="rememberLogin" type="checkbox">記住此裝置登入</label>
-        <div class="actions">
-          <button id="loginSubmitBtn" class="btn" type="submit">登入異常處理台</button>
-        </div>
-      </form>
+      <p id="portalStatusText">正在取得 DS 工作台登入狀態…</p>
+      <a href="../ds-app/" target="_top">開啟 DS 工作台</a>
     </div>
   </section>
 
@@ -79,7 +35,6 @@
         <span id="versionPill" class="pill"></span>
         <span id="userPill" class="pill ok"></span>
         <button id="notifyBtn" class="btn secondary notify-btn" type="button" title="開啟系統通知">🔔 通知</button>
-        <button id="logoutBtn" class="btn secondary" type="button">登出</button>
       </div>
     </header>
 
@@ -177,8 +132,8 @@
   </div>
 
   <div id="toast" class="toast hidden"></div>
-  <script src="./api.js?v=20260816-0130"></script>
-  <script src="./ds-shell-sso.js?v=20260816-0130"></script>
-  <script src="./app.js?v=20260918-rt-type-01"></script>
+  <script src="./api.js?v=20260918-auth-k2"></script>
+  <script src="./ds-shell-sso.js?v=20260918-auth-k2"></script>
+  <script src="./app.js?v=20260918-auth-k2"></script>
 </body>
 </html>
