@@ -33,9 +33,11 @@
               body:JSON.stringify(body),redirect:"follow",cache:"no-store",signal:controller.signal});
             record.headersMs=now()-started;
             const text=await response.text();record.bodyMs=now()-started;
-            try{data=JSON.parse(text);}catch(_){throw new Error("登入服務回應不完整，請稍後重試。");}
+            record.httpStatus=response.status;
+            try{data=JSON.parse(text);}catch(_){throw Object.assign(new Error("登入服務回應不完整，請稍後重試。"),{code:"AUTH_INVALID_RESPONSE"});}
             httpOk=response.ok;
           }else{record.rpcMs=now()-started;}
+          if(!data||typeof data!=="object")throw Object.assign(new Error("登入服務回應不完整，請稍後重試。"),{code:"AUTH_INVALID_RESPONSE"});
           const server=data.authDiagnostic;
           if(server?.requestId===requestId){
             record.server={totalMs:Number(server.totalMs)||0,phases:{}};
@@ -48,6 +50,10 @@
         })()]);
       }catch(error){
         record.outcome=error.code==="NETWORK_TIMEOUT"?"timeout":error.code==="AUTH_CANCELLED"?"cancelled":"error";
+        // Fixed categories only: never copy raw server error text into diagnostics.
+        const codes=["AUTH_BUSY","AUTH_BRIDGE_FAILED","AUTH_INVALID_RESPONSE","AUTH_CANCELLED","NETWORK_TIMEOUT","NETWORK_ERROR","CLIENT_VERSION_MISMATCH","API_ROUTE_NOT_FOUND","IQCC_ERROR","AUTH_ERROR"];
+        record.errorCode=codes.includes(error.code)?error.code:error.name==="TypeError"?"NETWORK_ERROR":"AUTH_ERROR";
+        record.errorSource=record.server?"auth_handler":record.transport==="google_rpc"?"rpc_response":"http_response";
         if(error.name==="TypeError"){const offline=new Error("目前網路無法連接登入服務，請確認連線後重試。");offline.code="NETWORK_ERROR";throw offline;}
         throw error;
       }finally{

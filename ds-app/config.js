@@ -54,13 +54,13 @@
   );
   ensureStyle(
     "dsProductionEnhancementsR5K11Css",
-    "./production-enhancements.css?v=20260918-k4"
+    "./production-enhancements.css?v=20260919-k5"
   );
 
   function loadProductionEnhancements(){
     ensureScript(
       "dsProductionEnhancementsR5K11Js",
-      "./production-enhancements.js?v=20260918-k4"
+      "./production-enhancements.js?v=20260919-k5"
     );
     ensureScript(
       "dsProductionKeyboardFocusGuardK11Js",

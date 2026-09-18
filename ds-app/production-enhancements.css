@@ -1,10 +1,13 @@
-/* DS Workstation LAYOUT-K4 | 2026-09-18
-   Reserve navigation space in the parent viewport, including for nested
-   scrollers and dialogs. Keep this geometry unchanged during text input. */
+/* DS Workstation LAYOUT-K5 | 2026-09-19
+   Floating navigation overlays the full module. Scroll clearance belongs
+   inside each content scroller and stays unchanged during text input. */
 :root{
   --ds-shell-nav-inset:96px;
   --ds-shell-nav-bottom:max(8px,calc(env(safe-area-inset-bottom,0px) - 22px));
 }
+
+/* Authentication must cover the floating navigation while access is locked. */
+#loadingOverlay{z-index:2100}
 
 #appShell .bottom-nav{
   position:fixed!important;
@@ -33,7 +36,7 @@
   position:absolute!important;
   top:var(--ds-module-context-h,34px)!important;
   right:0!important;
-  bottom:var(--ds-shell-nav-inset,96px)!important;
+  bottom:0!important;
   left:0!important;
   width:100%!important;
   height:auto!important;
@@ -53,7 +56,7 @@
 html.ds-keyboard-open #appShell.module-mode .main-view,
 html.ds-child-input-focus #appShell.module-mode .main-view{
   top:var(--ds-module-context-h,34px)!important;
-  bottom:var(--ds-shell-nav-inset,96px)!important;
+  bottom:0!important;
 }
 
 /* iOS treats fixed elements as visual-viewport fixed while the keyboard is open.
