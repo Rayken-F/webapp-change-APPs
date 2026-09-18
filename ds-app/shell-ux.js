@@ -101,7 +101,7 @@
     const frame=visibleModuleFrame();
     const key=String(frame&&frame.dataset.moduleKey||"");
     const title=String(frame&&frame.title||"")||({daily:"日報系統",dashboard:"Dashboard",grinding:"Grinding WIP",iqc:"IQC 異常處理"}[key]||"DS 功能");
-    const icon={daily:"📝",dashboard:"📊",grinding:"⚙️",iqc:"📥"}[key]||"DS";
+    const icon={daily:"📝",dashboard:"📊",grinding:"⚙️",iqc:"📥",oqc:"📦"}[key]||"DS";
     const titleEl=document.getElementById("dsModuleContextTitle");
     const iconEl=document.getElementById("dsModuleContextIcon");
     const userEl=document.getElementById("dsModuleContextUser");
