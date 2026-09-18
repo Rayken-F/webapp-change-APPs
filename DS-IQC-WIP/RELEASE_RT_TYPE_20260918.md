@@ -1,6 +1,6 @@
 # OQC V1.0.1 / IQC RT type validation
 
-Status: tested candidate; deployment evidence is recorded separately.
+Status: IQC backend version 16 deployed and verified on the original URL (patch `IQC-RT-TYPE-20260918-01`); frontend publication is tracked by this release PR. Field acceptance remains pending. Deployment evidence is recorded separately.
 
 - OQC: remove duplicate top safe-area padding inside the workstation iframe, reduce the inventory title from 21px to 17px, remove only the OQC return link, and refresh the workstation context label when opening OQC.
 - IQC: rename the existing correction action to 修改鋼瓶、集束CTN/RT and allow bundle selection. The existing request code, login/session protocol, permission checks, deployment URL and manifest remain compatible.
