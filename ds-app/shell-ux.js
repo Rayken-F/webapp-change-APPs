@@ -35,7 +35,8 @@
   }
   function keyboardThreshold(){return Math.max(130,Math.round(stableHeight*0.17));}
   function writeGeometry(){
-    root.style.setProperty("--ds-shell-vh",`${Math.max(1,Math.round(stableHeight))}px`);
+    const height=`${Math.max(1,Math.round(stableHeight))}px`;
+    if(root.style.getPropertyValue("--ds-shell-vh")!==height)root.style.setProperty("--ds-shell-vh",height);
     if(typeof window.syncBottomNavHeight==="function") window.syncBottomNavHeight();
   }
   function setKeyboard(open){

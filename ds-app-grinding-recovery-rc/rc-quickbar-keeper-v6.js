@@ -5,7 +5,7 @@
   if(window.__DS_RC_QUICKBAR_KEEPER_V6)return;
 
   function shellState(){
-    try{return window.__DS_RC_V3__&&window.__DS_RC_V3__.getState?window.__DS_RC_V3__.getState():null;}catch(_){return null;}
+    try{const owner=window.__DS_SHELL_UX__||window.__DS_RC_V3__;return owner&&owner.getState?owner.getState():null;}catch(_){return null;}
   }
   function focusLooksEditable(doc){
     const el=doc&&doc.activeElement;
@@ -19,7 +19,9 @@
     const vv=window.visualViewport;
     const full=Math.max(Number(window.innerHeight||0),Number(document.documentElement.clientHeight||0),1);
     const visual=Number(vv&&vv.height||full);
-    return focusLooksEditable(document)&&full-visual>Math.max(120,full*.15);
+    let focused=focusLooksEditable(document);
+    try{const frame=document.querySelector("#moduleFrameHost .module-frame:not(.hidden)");focused=focused||focusLooksEditable(frame&&frame.contentDocument);}catch(_){ }
+    return focused&&full-visual>Math.max(120,full*.15);
   }
 
   function healShellNav(){

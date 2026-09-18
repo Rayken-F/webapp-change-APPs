@@ -4,7 +4,7 @@ function setup(){
  const nodes=new Map();
  const node=id=>{if(!nodes.has(id))nodes.set(id,{value:'',textContent:'',innerHTML:'',classList:{add(){},remove(){},toggle(){}},addEventListener(){},setCustomValidity(){}});return nodes.get(id);};
  const c=vm.createContext({window:{IqcCorrectionApi:{post(){throw Error('No backend writes in unit tests');}}},document:{getElementById:node},setTimeout,clearTimeout});
- vm.runInContext(source.slice(0,source.indexOf('$("passwordToggleBtn").addEventListener'))+';this.testState=state;',c);
+ vm.runInContext(source.slice(0,source.indexOf('function isMobileRequestDrawer()'))+';this.testState=state;',c);
  node('requestType').value='CORRECT_BOTTLE_CTN_RT';node('requestReason').value='fixture correction';
  return {c,node};
 }

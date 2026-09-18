@@ -181,60 +181,19 @@ function requestLabelByCode(code,fallback){
   return REQUEST_TYPE_MAP[code] || fallback || "-";
 }
 
-function hydrateUiFromLogin(result){
-  state.user=result.user;
-  state.bootstrap={
-    version:result.version,
-    user:result.user,
-    requestTypes:REQUEST_TYPES,
-    permissions:{
-      canReview:Array.isArray(result.user.allowedActions) &&
-        result.user.allowedActions.includes("REVIEW"),
-      canClose:Array.isArray(result.user.allowedActions) &&
-        result.user.allowedActions.includes("CLOSE"),
-      iqcLogWritable:true
-    }
-  };
-
-  $("versionPill").textContent=(result.version||Api.CLIENT_VERSION)+" · RT1";
-  $("userPill").textContent=`${result.user.displayName}｜${result.user.role}`;
-  $("reviewTabBtn").classList.toggle(
-    "hidden",
-    !state.bootstrap.permissions.canReview
-  );
-  $("requestType").innerHTML=REQUEST_TYPES.map(item=>
-    `<option value="${escapeHtml(item.code)}">${escapeHtml(item.label)}</option>`
-  ).join("");
-  renderRequestDynamicFields();
-}
-
-
 function activateAuthenticatedSession(){
   showApp();
   updateNotificationButton();
 
   // 立即抓一次，不等 45 秒；手機 PWA 自動恢復登入也會走這裡。
   startNotificationPolling();
-  refreshNotificationSummary(true);
-}
-
-async function login(userId,password,remember){
-  showLoading("正在登入","正在驗證帳號、密碼與系統權限…");
-  const result=await Api.post("login",{user_id:userId,password});
-
-  updateLoading("登入成功","正在開啟 IQC 異常處理台…");
-  Api.saveToken(result.sessionToken,remember);
-  hydrateUiFromLogin(result);
-  activateAuthenticatedSession();
-  hideLoading();
-  toast(`登入成功，${result.user.displayName}`);
 }
 
 async function bootstrap(){
   const result=await Api.post("bootstrap",{});
   state.bootstrap=result;
   state.user=result.user;
-  $("versionPill").textContent=result.version+" · RT1";
+  $("versionPill").textContent=result.version+" · RT1 / AUTH-K2";
   $("userPill").textContent=`${result.user.displayName}｜${result.user.role}`;
   $("reviewTabBtn").classList.toggle("hidden",!result.permissions.canReview);
   $("requestType").innerHTML=REQUEST_TYPES.map(item=>
@@ -244,35 +203,29 @@ async function bootstrap(){
 }
 
 function showApp(){
-  document.body.classList.remove("view-login");
   document.body.classList.add("view-app");
-  $("loginView").classList.add("hidden");
-  $("loginView").hidden=true;
+  $("portalStatus").hidden=true;
+  $("portalStatus").classList.add("hidden");
   $("appView").hidden=false;
   $("appView").classList.remove("hidden");
 }
-
-function showLogin(){
+function showPortalStatus(message){
   document.body.classList.remove("view-app");
-  document.body.classList.add("view-login");
-  $("appView").classList.add("hidden");
   $("appView").hidden=true;
-  $("loginView").hidden=false;
-  $("loginView").classList.remove("hidden");
+  $("appView").classList.add("hidden");
+  $("portalStatus").hidden=false;
+  $("portalStatus").classList.remove("hidden");
+  $("portalStatusText").textContent=message||"請由 DS 工作台完成登入後開啟此功能。";
 }
-
-async function tryRestore(){
-  if(!Api.hasToken()) return;
-  showLoading("恢復登入","正在確認此裝置的登入狀態與最新權限…");
-  try{
-    await bootstrap();
-    activateAuthenticatedSession();
-  }catch(err){
-    Api.clearToken();
-    showLogin();
-  }finally{
-    hideLoading();
-  }
+let restoreTask=null;
+function tryRestore(){
+  if(restoreTask)return restoreTask;
+  restoreTask=(async()=>{
+    try{await bootstrap();activateAuthenticatedSession();}
+    catch(err){stopNotificationPolling();state.user=null;showPortalStatus(err.message);}
+    finally{hideLoading();}
+  })().finally(()=>{restoreTask=null;});
+  return restoreTask;
 }
 
 function deriveSelectionFromResult(result){
@@ -1626,8 +1579,17 @@ async function notifyNewUnreadItems(items){
   saveSystemNotifiedIds(Array.from(known));
 }
 
+let notificationTask=null;
+let lastNotificationAt=0;
 async function refreshNotificationSummary(showSystem=false){
-  if(!Api.hasToken() || !state.user) return;
+  if(document.hidden||!Api.hasToken()||!state.user) return;
+  if(notificationTask)return notificationTask;
+  if(Date.now()-lastNotificationAt<3000)return;
+  lastNotificationAt=Date.now();
+  notificationTask=fetchNotificationSummary(showSystem).finally(()=>{notificationTask=null;});
+  return notificationTask;
+}
+async function fetchNotificationSummary(showSystem){
   try{
     const response=await Api.post("notification_summary",{});
     updateUnreadBadges(response);
@@ -1786,41 +1748,6 @@ async function closeRequest(requestId){
 }
 window.closeRequest=closeRequest;
 
-function updateCapsLockState(event){
-  const warning=$("capsLockWarning");
-  if(!warning || typeof event.getModifierState!=="function") return;
-  warning.classList.toggle("hidden",!event.getModifierState("CapsLock"));
-}
-
-function updateCapsLockState(event){
-  const warning=$("capsLockWarning");
-  if(!warning || typeof event.getModifierState!=="function") return;
-  warning.classList.toggle("hidden",!event.getModifierState("CapsLock"));
-}
-
-$("passwordToggleBtn").addEventListener("click",()=>{
-  const input=$("loginPassword");
-  const show=input.type==="password";
-  input.type=show?"text":"password";
-  $("eyeOpenIcon").classList.toggle("hidden",show);
-  $("eyeClosedIcon").classList.toggle("hidden",!show);
-  $("passwordToggleBtn").setAttribute("aria-pressed",String(show));
-  $("passwordToggleBtn").setAttribute("aria-label",show?"隱藏密碼":"顯示密碼");
-  $("passwordToggleBtn").title=show?"隱藏密碼":"顯示密碼";
-  input.focus({preventScroll:true});
-});
-
-["keydown","keyup"].forEach(type=>{
-  $("loginPassword").addEventListener(type,updateCapsLockState);
-});
-$("loginPassword").addEventListener("blur",()=>{
-  $("capsLockWarning").classList.add("hidden");
-});
-$("loginPassword").addEventListener("focus",event=>{
-  updateCapsLockState(event);
-});
-
-
 function isMobileRequestDrawer(){
   return window.matchMedia("(max-width:680px)").matches;
 }
@@ -1854,41 +1781,6 @@ document.addEventListener("keydown",event=>{
 
 $("notifyBtn").addEventListener("click",enableSystemNotifications);
 
-$("loginForm").addEventListener("submit",async event=>{
-  event.preventDefault();
-  const btn=$("loginSubmitBtn");
-  btn.disabled=true;
-  btn.textContent="登入中…";
-  try{
-    await login(
-      $("loginUser").value.trim(),
-      $("loginPassword").value,
-      $("rememberLogin").checked
-    );
-  }catch(err){
-    hideLoading();
-    toast(err.message,true);
-  }finally{
-    btn.disabled=false;
-    btn.textContent="登入異常處理台";
-  }
-});
-$("logoutBtn").addEventListener("click",()=>{
-  stopNotificationPolling();
-  Api.clearToken();
-  state.user=null;
-  state.unread={own:0,review:0};
-  state.unreadIds={
-    own:new Set(),
-    review:new Set()
-  };
-  state.transferSelection={
-    sourceFrameCtn:"",
-    bottles:[]
-  };
-  updateUnreadBadges();
-  showLogin();
-});
 $("lookupBtn").addEventListener("click",lookup);
 $("clearLookupBtn").addEventListener("click",()=>{
   $("lookupQuery").value="";
@@ -1932,14 +1824,14 @@ document.querySelectorAll(".tab").forEach(btn=>
 // 先強制回到單一畫面，避免部分 Android / PWA 從快照恢復時同時看到登入與主畫面
 updateNotificationButton();
 ensureServiceWorker();
-showLogin();
+showPortalStatus();
 
 window.addEventListener("pageshow",()=>{
   if(state.user){
     showApp();
     refreshNotificationSummary(true);
   }else if(!Api.hasToken()){
-    showLogin();
+    showPortalStatus();
   }
 });
 
@@ -1959,4 +1851,6 @@ window.addEventListener("focus",()=>{
   }
 });
 
+window.addEventListener("ds-portal-authorized",tryRestore);
+window.addEventListener("ds-iqc-session-restored",tryRestore);
 tryRestore();
