@@ -31,6 +31,7 @@ const crossServer=http.createServer(server.listeners('request')[0]);
  const page=await context.newPage();await page.route('**/*',route=>{
   const url=new URL(route.request().url());
   if(dashboardReceiver&&url.href.startsWith('https://script.google.com/dashboard-fixture'))return route.fulfill({contentType:'text/html',body:'<style>html,body{margin:0;height:100%}iframe{width:100%;height:100%;border:0}</style><iframe src="https://k5-fixture-script.googleusercontent.com/userCodeAppPanel"></iframe>'});
+  if(dashboardReceiver&&url.hostname==='k5-fixture-script.googleusercontent.com'&&url.pathname==='/userCodeAppPanel')return route.fulfill({contentType:'text/html',body:'<style>html,body{margin:0;height:100%}iframe{width:100%;height:100%;border:0}</style><iframe src="https://k5-fixture-script.googleusercontent.com/dashboard-content"></iframe>'});
   if(dashboardReceiver&&url.hostname==='k5-fixture-script.googleusercontent.com')return route.fulfill({contentType:'text/html',body:fixture.replace('<main>','<main class="app-shell">')+'<script>window.receivedInsets=0;window.addEventListener("message",e=>{if(e.data?.type==="DS_SHELL_NAV_INSET")window.receivedInsets++;});</script>'+dashboardReceiver});
   return url.hostname==='127.0.0.1'?route.continue():route.abort();
  });
@@ -62,7 +63,7 @@ const crossServer=http.createServer(server.listeners('request')[0]);
  if(dashboardReceiver){
   await page.evaluate(()=>openModule('dashboard','https://script.google.com/dashboard-fixture','Dashboard','dashboard'));
   await page.waitForFunction(()=>document.querySelector('.module-frame:not(.hidden)').dataset.dsInsetAck==='1');
-  const dash=page.frames().find(f=>f.url().includes('k5-fixture-script.googleusercontent.com'));
+  const dash=page.frames().find(f=>f.url().includes('k5-fixture-script.googleusercontent.com/dashboard-content'));
   await dash.evaluate(()=>scrollTo(0,document.documentElement.scrollHeight));
   const last=await dash.locator('#last').boundingBox(),nav=await rect('.bottom-nav'),fr=await rect('.module-frame:not(.hidden)');
   results.push({check:'nested-dashboard-last',button:last,nav,visible:last.y+last.height<=nav.top});

@@ -238,8 +238,17 @@
         try{
           if(item.contentWindow===event.source)return true;
           if(item.dataset.moduleKey!=="dashboard"||!/^https:\/\/[a-z0-9-]+\.googleusercontent\.com$/.test(event.origin))return false;
-          // Access only cross-origin WindowProxy frame references, never DOM/data.
-          for(let i=0;i<Math.min(item.contentWindow.length,8);i++)if(item.contentWindow[i]===event.source)return true;
+          // HtmlService can nest a second userCodeAppPanel inside its sandbox.
+          // Match bounded descendants by WindowProxy only, never DOM/data.
+          const pending=[{win:item.contentWindow,depth:0}];let visited=0;
+          while(pending.length&&visited<32){
+            const {win,depth}=pending.shift();if(depth>=4)continue;
+            for(let i=0;i<Math.min(win.length,8)&&visited<32;i++){
+              const child=win[i];visited++;
+              if(child===event.source)return true;
+              pending.push({win:child,depth:depth+1});
+            }
+          }
         }catch(_){ }
         return false;
       });
