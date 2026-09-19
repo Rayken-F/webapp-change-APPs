@@ -11,8 +11,8 @@ const server=http.createServer(async(req,res)=>{
  if(u.pathname==='/fixture'){res.setHeader('Content-Type','text/html;charset=utf-8');res.end(fixture);return;}
  if(u.pathname==='/fixture-api'){
   let raw='';for await(const c of req)raw+=c;const b=JSON.parse(raw||'{}');
-  if(b.api?.startsWith('workstation_')){authCalls++;if(failNextAuth){failNextAuth=false;res.setHeader('Content-Type','application/json');res.end(JSON.stringify({ok:false,code:'AUTH_BRIDGE_FAILED',message:'登入通道未能完成回應，請重試。'}));return;}}
-  const data=b.api?.startsWith('workstation_')?{ok:true,sessionToken:'fixture-only',user:{account:'FIXTURE',displayName:'本機測試',role:'ADMIN',allowedActions:['CREATE_REQUEST','VIEW']},permissions:{home_enabled:true,daily_report_enabled:true,grinding_enabled:true,iqc_correction_enabled:true}}:{ok:true,priorities:[],rtMaster:[]};
+  if(['workstation_login','workstation_bootstrap'].includes(b.api)){authCalls++;if(failNextAuth){failNextAuth=false;res.setHeader('Content-Type','application/json');res.end(JSON.stringify({ok:false,code:'AUTH_BRIDGE_FAILED',message:'登入通道未能完成回應，請重試。'}));return;}}
+  const data=['workstation_login','workstation_bootstrap'].includes(b.api)?{ok:true,sessionToken:'fixture-only',user:{account:'FIXTURE',displayName:'本機測試',role:'ADMIN',allowedActions:['CREATE_REQUEST','VIEW']},permissions:{home_enabled:true,daily_report_enabled:true,grinding_enabled:true,iqc_correction_enabled:true}}:{ok:true,priorities:[],rtMaster:[]};
   res.setHeader('Content-Type','application/json');res.end(JSON.stringify(data));return;
  }
  let rel=decodeURIComponent(u.pathname).slice(1);if(!rel||rel.endsWith('/'))rel+='index.html';const file=path.resolve(root,rel);

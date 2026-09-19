@@ -16,7 +16,8 @@
   z-index:1400!important;
 }
 
-#appShell:not(.module-mode){min-height:var(--ds-shell-vh,100dvh)!important}
+body:not(.ds-module-active){min-height:max(100dvh,var(--ds-shell-vh,100dvh))!important}
+#appShell:not(.module-mode){min-height:max(100dvh,var(--ds-shell-vh,100dvh))!important}
 #appShell:not(.module-mode) .main-view{padding-bottom:var(--ds-shell-nav-inset,96px)!important}
 
 #appShell.module-mode{
