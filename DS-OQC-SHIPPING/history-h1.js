@@ -135,21 +135,23 @@ function install(){
  const T=g.OqcDemoTest,$=id=>document.getElementById(id),host=$('packOnly');
  if(!T||!S||!H||!host||$('oqcDailyD1'))return;
  const panel=document.createElement('section');panel.id='oqcDailyD1';panel.dataset.build=BUILD;
- panel.innerHTML='<div class="daily-title"><b id="dailyDateD1"></b><small>每日批次 D1</small></div><div id="dailyStateD1" class="subtext" aria-live="polite"></div><button id="dailyRetryD1" type="button" class="hidden">準備今日批次</button><details id="dailyOldD1" class="hidden"><summary id="dailyOldSummaryD1"></summary><p class="subtext">要先確認舊批次是否送出嗎？不會自動完成或刪除。</p><select id="dailyOldSelectD1" aria-label="待確認舊批次"></select><div class="daily-actions"><button id="dailyReviewD1" type="button">前往確認</button><button id="dailyLaterD1" type="button">稍後處理</button></div></details>';
+ panel.innerHTML='<div class="daily-title"><b id="dailyDateD1"></b></div><div id="dailyStateD1" class="subtext" aria-live="polite"></div><button id="dailyRetryD1" type="button" class="hidden">準備今日批次</button><details id="dailyOldD1" class="hidden"><summary id="dailyOldSummaryD1"></summary><p class="subtext">要先確認舊批次是否送出嗎？不會自動完成或刪除。</p><select id="dailyOldSelectD1" aria-label="待確認舊批次"></select><div class="daily-actions"><button id="dailyReviewD1" type="button">前往確認</button><button id="dailyLaterD1" type="button">稍後處理</button></div></details>';
  host.prepend(panel);
  const style=document.createElement('style');style.textContent='#oqcDailyD1{margin:8px 0 12px;padding:10px;border:1px solid var(--line);border-radius:12px;min-width:0}#oqcDailyD1 .daily-title{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:14px}#oqcDailyD1 small{font-size:10px;color:var(--muted);white-space:nowrap}#oqcDailyD1 select{display:block;width:100%;max-width:100%;min-width:0;margin:8px 0;font-size:14px}#oqcDailyD1 .daily-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}#oqcDailyD1 summary{font-size:13px;color:#ffd078}#oqcDailyD1 button{min-width:0}#dailyRetryD1{margin-bottom:8px}';
  document.head.appendChild(style);
  let busy=null,queued=0,retryAfter=0,problem='',lastRoot=null,lastKey='',lastDay='',paintSignature='';
  const pack=()=>$('packMode').classList.contains('active');
- const verified=()=>/後端已驗證/.test($('environment').textContent)||new URLSearchParams(location.search).get('mode')==='sim';
- const offline=()=>$('offline').checked;
+ const verified=()=>T.getConnectionState().ready;
+ const offline=()=>T.getConnectionState().offline;
  const editing=allowInput=>!!document.querySelector('dialog[open]')||!$('rtPanel').classList.contains('hidden')||(!allowInput&&!!$('scanInput').value.trim());
  const id=p=>p+'_'+(crypto.randomUUID?crypto.randomUUID().replace(/-/g,''):Array.from(crypto.getRandomValues(new Uint8Array(16)),n=>n.toString(16).padStart(2,'0')).join(''));
  function paint(r){
   const date=today(),old=oldDocs(r,date),rows=dailyDocs(r,date),current=r.docs[r.active];
   const done=r.dailyOpenedDate===date,asOf=date.replace(/-/g,'/');
   $('dailyDateD1').textContent='今日 '+asOf;
-  let msg=problem|| (busy?'正在確認今日批次，原資料保留…':!verified()?'登入並連接後，自動準備今日第一批。':offline()&&!done?'離線中：今日批次尚未確認，連線後接續。':!done?'今日批次待準備；正在輸入時不會強制切換。':current&&batchDay(current)<date?'目前查看舊批次；日期與資料維持原樣。':rows.some(d=>d.phase==='OPEN')?'今日批次已準備；重新整理不會另建一批。':'今日批次已使用或移除；需要再作業請按「＋新批次」。');
+  // Daily preparation is automatic. Show only an actionable error or old-batch reminder.
+  panel.hidden=!problem&&!old.length;
+  let msg=problem||'舊批次資料保留；請依實際作業確認。';
   if($('dailyStateD1').textContent!==msg)$('dailyStateD1').textContent=msg;
   $('dailyRetryD1').classList.toggle('hidden',done&&!problem);$('dailyRetryD1').disabled=!!busy||!verified()||offline();
   $('dailyOldD1').classList.toggle('hidden',!old.length);
@@ -173,7 +175,16 @@ function install(){
   busy=Promise.resolve().then(async()=>{
    let r=await T.getRoot();lastRoot=r;lastKey=k;lastDay=date;
    if(r.dailyOpenedDate===date){problem='';return true;}
-   if(!verified()||offline()||editing(allowInput)||(!force&&Date.now()<retryAfter))return false;
+   if(!verified()||offline()){
+    // A current-day batch already on this device remains usable offline after
+    // prior verification. Never create a new day's batch without connection.
+    if(offline()&&dailyDocs(r,date).some(d=>d.id===r.active&&d.phase==='OPEN')&&T.getConnectionState().canWrite){
+     await S.change(k,v=>{v.dailyOpenedDate=date;});await T.reload();return true;
+    }
+    if(force)problem=offline()?'目前離線，今日批次尚未確認；CTN 已保留在輸入框，恢復連線後請再按「掃描加入」。':'OQC 連線尚未完成；CTN 已保留在輸入框，請按「同步／重試」後再掃描。';
+    return false;
+   }
+   if(editing(allowInput)||(!force&&Date.now()<retryAfter))return false;
    problem='';paint(r);
    if(!dailyDocs(r,date).length){
     // Reuse already-created server batches before creating locally. Do not overwrite
@@ -208,7 +219,9 @@ function install(){
  $('scanForm').addEventListener('submit',event=>{
   if(!pack()||(lastKey===T.getKey()&&lastDay===today()&&lastRoot?.dailyOpenedDate===today()&&!busy))return;
   event.preventDefault();event.stopImmediatePropagation();const raw=$('scanInput').value;
-  check(true,true).then(async ok=>{if(ok&&pack()&&$('scanInput').value===raw)await T.capture(raw);}).catch(e=>{problem=e.message;request();});
+  // An automatic check may have started before the operator typed. Recheck
+  // once with this explicit scan after that shared task has settled.
+  check(true,true).then(async ok=>{if(!ok&&pack()&&$('scanInput').value===raw)ok=await check(true,true);if(ok&&pack()&&$('scanInput').value===raw)await T.capture(raw);}).catch(e=>{problem=e.message;request();});
  },true);
  for(const node of [$('newBatch'),$('connect')])node.addEventListener('click',e=>{if(busy){e.preventDefault();e.stopImmediatePropagation();}},true);
  const observer=new MutationObserver(request);

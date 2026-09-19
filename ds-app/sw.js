@@ -1,6 +1,6 @@
 "use strict";
 
-const CACHE="ds-app-shell-home-iqc-k6-20260919-09";
+const CACHE="ds-app-shell-layout-oqc-k7-20260919-10";
 
 const STATIC=[
   "./",
