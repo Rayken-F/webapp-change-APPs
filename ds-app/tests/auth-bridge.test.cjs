@@ -8,7 +8,7 @@ function fixture(){
  const bridge=window.DsAuthBridge.create({url:'https://script.google.com/macros/s/fixture/exec'}),nonce=new URL(frame.src).searchParams.get('bridge_nonce');
  const respond=(source,type,id,data,extra={})=>receive({origin,source,data:{channel:'DS_AUTH_BRIDGE_K4',nonce,type,id,data},...extra});
  const peer={postMessage(m,target){assert.equal(target,origin);calls.push(m);queueMicrotask(()=>{if(m.type==='PING')respond(peer,'PONG',m.id);else respond(peer,'RESULT',m.id,{ok:true,authDiagnostic:{requestId:m.payload.request_id,totalMs:10,phases:{session:10}}});});}};
- return {bridge,calls,peer,respond,ready:()=>respond(peer,'READY',''),nonce};
+ return {bridge,calls,peer,respond,ready:()=>respond(peer,'READY',''),nonce,currentNonce:()=>new URL(frame.src).searchParams.get('bridge_nonce')};
 }
 test('a ready connection handles consecutive authentications with no HTTP credential resubmission',async()=>{
  const f=fixture();f.ready();let fetches=0;const records=[];
@@ -54,4 +54,13 @@ test('an RPC timeout leaves no hidden fetch retry',async()=>{
  const f=fixture();f.ready();let sent=0;f.peer.postMessage=m=>{if(m.type==='PING')f.respond(f.peer,'PONG',m.id);else sent++;};
  let fetches=0;const t=create({url:'fixture',bridge:f.bridge,timeoutMs:20,fetch:()=>{fetches++;}});
  await assert.rejects(t.post('workstation_login'),e=>e.code==='NETWORK_TIMEOUT');assert.equal(sent,1);assert.equal(fetches,0);
+});
+
+test('a failed Google RPC session creates a new bridge for the next explicit attempt without replaying credentials',async()=>{
+ const f=fixture();f.ready();let authentications=0;
+ f.peer.postMessage=m=>{if(m.type==='PING')f.respond(f.peer,'PONG',m.id);else{authentications++;f.respond(f.peer,'RESULT',m.id,{ok:false,code:'AUTH_BRIDGE_FAILED'});}};
+ const result=await f.bridge.send({api:'workstation_login',password:'fixture'},new AbortController().signal,{});
+ assert.equal(result.code,'AUTH_BRIDGE_FAILED');assert.notEqual(f.currentNonce(),f.nonce);assert.equal(authentications,1);
+ // A stale success from the old connection cannot attach to the fresh nonce.
+ f.ready();assert.equal(await f.bridge.send({},new AbortController().signal,{}),null);
 });

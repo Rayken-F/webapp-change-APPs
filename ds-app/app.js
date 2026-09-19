@@ -14,11 +14,12 @@ const state={
 const $=id=>document.getElementById(id);
 
 function showLoading(title,text){
+  $("authFailureDialog").classList.add("hidden");
   $("loadingTitle").textContent=title||"正在處理";
   $("loadingText").textContent=text||"請稍候…";
   $("loadingOverlay").classList.remove("hidden");
 }
-function hideLoading(){ $("loadingOverlay").classList.add("hidden"); }
+function hideLoading(){ if(!authTask)$("loadingOverlay").classList.add("hidden"); }
 function toast(message,error=false){
   const el=$("toast");
   el.textContent=message;
@@ -297,11 +298,20 @@ let authController=null;
 let restoreViewPending=false;
 const authRecords=[];
 function renderAuthDiagnostics(){
-  $("authDiagnosticText").textContent=JSON.stringify({build:"AUTH-K4",attempts:authRecords},null,2);
+  $("authDiagnosticText").textContent=JSON.stringify({build:"AUTH-K5",attempts:authRecords},null,2);
   $("authDiagnostics").classList.toggle("hidden",authRecords.length===0);
 }
 function authStatus(message){
   $("authStatus").textContent=message||"";$("authStatus").classList.toggle("hidden",!message);
+}
+function showAuthFailure(error,message){
+  const explanation=message||error.message||"登入服務暫時無法使用，請重試。";
+  authStatus(explanation);
+  $("authFailureText").textContent=explanation;
+  const last=authRecords.at(-1);
+  $("authFailureCode").textContent=last?.errorCode?`連線代碼：${last.errorCode} · ${last.requestId.slice(0,8)}`:"";
+  $("authFailureDialog").classList.remove("hidden");
+  $("closeAuthFailureBtn").focus({preventScroll:true});
 }
 function markAuthApplied(result){
   const record=authRecords.find(r=>r.requestId===result.authDiagnostic?.requestId);
@@ -314,6 +324,7 @@ function cancelAuthentication(){
   authEpoch++;authController?.abort();authController=null;authTask=null;
   $("loginBtn").disabled=false;$("retrySessionBtn").disabled=false;
   $("cancelAuthBtn").classList.add("hidden");hideLoading();
+  $("authFailureDialog").classList.add("hidden");
 }
 function authControl(epoch,signal){
   return {signal,onSlow:()=>{if(epoch===authEpoch)$("loadingText").textContent="登入服務仍在回應中；不必重新輸入，最長等待 45 秒。";}};
@@ -327,7 +338,10 @@ function runAuthentication(work){
   $("loginBtn").disabled=true;
   $("retrySessionBtn").disabled=true;
   $("cancelAuthBtn").classList.remove("hidden");
-  const pending=Promise.resolve().then(()=>{if(epoch===authEpoch)return work(epoch,controller.signal);}).finally(()=>{
+  const pending=Promise.resolve().then(()=>{if(epoch===authEpoch)return work(epoch,controller.signal);}).catch(error=>{
+    if(epoch===authEpoch&&error.code!=="AUTH_CANCELLED")showAuthFailure(error);
+    throw error;
+  }).finally(()=>{
     if(authTask!==pending)return;
     authTask=null;authController=null;
     $("loginBtn").disabled=false;$("retrySessionBtn").disabled=false;$("cancelAuthBtn").classList.add("hidden");
@@ -401,6 +415,7 @@ function tryRestore(preserveView=false){
         authStatus((err.message||"無法確認登入")+"；已保留登入資訊，請按「重試登入驗證」。");
       }
       showLogin();
+      if(err.code!=="AUTH_CANCELLED")showAuthFailure(err,$("authStatus").textContent);
     }
   });
 }
@@ -592,8 +607,9 @@ async function archivePriority(){
 function bind(){
   $("loginForm").addEventListener("submit",async e=>{
     e.preventDefault();
-    try{await login($("loginAccount").value,$("loginPassword").value,$("rememberLogin").checked)}catch(err){if(err.code!=="AUTH_CANCELLED")authStatus(err.message||"登入失敗");}
+    try{await login($("loginAccount").value,$("loginPassword").value,$("rememberLogin").checked)}catch(_){/* The active authentication task presents its error. */}
   });
+  $("closeAuthFailureBtn").addEventListener("click",()=>{$("authFailureDialog").classList.add("hidden");$("loginBtn").focus({preventScroll:true});});
   $("cancelAuthBtn").addEventListener("click",()=>{cancelAuthentication();authStatus("已取消等待。可重新登入；原登入資訊有效時，也可按「重試登入驗證」。");showLogin();});
   $("copyAuthDiagnosticBtn").addEventListener("click",async()=>{try{await navigator.clipboard.writeText($("authDiagnosticText").textContent);toast("連線紀錄已複製");}catch(_){toast("無法複製，可展開連線資訊截圖。",true);}});
   $("retrySessionBtn").addEventListener("click",()=>tryRestore(true));

@@ -54,6 +54,9 @@
       if(alive===false){record.bridge="unresponsive";reconnect();return null;}
       record.transport="google_rpc";
       const data=await exchange("AUTH",payload,signal);
+      // A PONG only proves the frame is alive, not that Google's RPC session
+      // remains usable. Prepare a fresh connection for the next explicit try.
+      if(!data||data.code==="AUTH_BRIDGE_FAILED")reconnect();
       if(!data)throw Object.assign(new Error("登入通道中斷，請重試。"),{code:"AUTH_BRIDGE_FAILED"});
       return data;
     }

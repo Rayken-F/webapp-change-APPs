@@ -1,13 +1,11 @@
 "use strict";
 
 /* DS Workstation Production Enhancements R5 | 2026-08-31
-   Parent-owned navigation reservation (LAYOUT-K4):
-   - all module viewports stop above the shell navigation;
-   - child insets stay at zero, including while typing;
-   - cross-origin receivers do not determine the safe viewport.
+   Floating navigation (LAYOUT-K5): full-height modules with clearance
+   inside document/dialog scrollers, held stable while typing.
    Explicitly excludes IQC image/OCR/Cloud Vision, fault injection and Return-to-WIP. */
 (function installDsProductionEnhancementsR5(){
-  const VERSION="DS_PROD_LAYOUT_K4_20260918";
+  const VERSION="DS_PROD_LAYOUT_K5_20260919";
   const MESSAGE_CHANNEL="DS_SHELL_LAYOUT_V1";
   if(window.__DS_PROD_ENH_R5__) return;
 
@@ -87,6 +85,19 @@
       body.ds-shell-overlay-inset-r5 #dsJumpReconcileBtn{
         bottom:calc(var(--ds-shell-nav-inset,0px) + 14px)!important;
       }
+      body[data-ds-shell-module="grinding"] .modal-panel{
+        padding-bottom:calc(18px + var(--ds-shell-nav-inset,0px))!important;
+        scroll-padding-bottom:var(--ds-shell-nav-inset,0px)!important;
+      }
+      body[data-ds-shell-module="daily"] .iqc-quick-dock,
+      body[data-ds-shell-module="daily"] .iqc-quick-bulk-panel{
+        bottom:calc(12px + var(--ds-shell-nav-inset,0px))!important;
+      }
+      body[data-ds-shell-module="oqc"] main{padding-bottom:12px!important}
+      body[data-ds-shell-module="oqc"] #toast,
+      body[data-ds-shell-module="oqc"] #undo{
+        bottom:calc(12px + var(--ds-shell-nav-inset,0px))!important;
+      }
       @supports selector(body:has(.sticky-actions:not(.hidden))){
         body.ds-shell-overlay-inset-r5:has(.sticky-actions:not(.hidden)){
           padding-bottom:
@@ -119,6 +130,7 @@
     doc.documentElement.style.setProperty("--ds-shell-nav-inset",`${Math.max(0,inset)}px`);
     doc.documentElement.style.setProperty("--ds-shell-content-tail",`${tail}px`);
     doc.body.classList.add("ds-shell-overlay-inset-r5");
+    doc.body.dataset.dsShellModule=key;
     doc.body.dataset.dsShellInsetVersion=VERSION;
     frame.dataset.dsInsetMode="same-origin";
     return true;
@@ -127,20 +139,24 @@
   function postInset(frame,inset){
     if(!frame||!frame.contentWindow) return;
     try{
-      frame.contentWindow.postMessage({
+      const message={
         channel:MESSAGE_CHANNEL,
         type:"DS_SHELL_NAV_INSET",
         version:VERSION,
         inset:Math.max(0,Math.round(inset)),
-        keyboardOpen:keyboardOpen(),
+        // Keep scroll geometry stable while an input/IME is active.
+        keyboardOpen:false,
         moduleKey:String(frame.dataset.moduleKey||""),
         shellOrigin:location.origin
-      },"*");
+      };
+      frame.contentWindow.postMessage(message,"*");
+      // HtmlService places the receiver inside its sandbox iframe.
+      if(frame.dataset.dsInsetPeer)frame.__dsInsetPeer?.postMessage(message,frame.dataset.dsInsetPeer);
     }catch(_){ }
   }
 
   function syncDashboardFallback(){
-    // All modules now reserve space in the parent, even without a receiver.
+    // Never replace the floating capsule with an opaque parent reservation.
     if(shell?.classList.contains("ds-dashboard-inset-fallback"))shell.classList.remove("ds-dashboard-inset-fallback");
   }
 
@@ -151,7 +167,7 @@
   }
 
   function syncAllFrames(){
-    const inset=0;
+    const inset=currentInset;
     if(host){
       host.querySelectorAll("iframe.module-frame").forEach(frame=>syncFrame(frame,inset));
     }
@@ -188,20 +204,21 @@
   function attachFrame(frame){
     if(!frame||String(frame.tagName||"").toUpperCase()!=="IFRAME") return;
     if(watchedFrames.has(frame)){
-      syncFrame(frame,0);
+      syncFrame(frame,currentInset);
       return;
     }
 
     watchedFrames.add(frame);
     frame.addEventListener("load",()=>{
       frame.dataset.dsInsetAck="";
+      syncFrame(frame,currentInset);
       later(()=>{
-        syncFrame(frame,0);
+        syncFrame(frame,currentInset);
         syncDashboardFallback();
       },40,160,420,900,1800);
     });
 
-    later(()=>syncFrame(frame,0),0,100,300,800);
+    later(()=>syncFrame(frame,currentInset),0,100,300,800);
   }
 
   function scanFrames(){
@@ -218,9 +235,27 @@
 
     const frame=Array.from(host?host.querySelectorAll("iframe.module-frame"):[])
       .find(item=>{
-        try{return item.contentWindow===event.source}catch(_){return false}
+        try{
+          if(item.contentWindow===event.source)return true;
+          if(item.dataset.moduleKey!=="dashboard"||!/^https:\/\/[a-z0-9-]+\.googleusercontent\.com$/.test(event.origin))return false;
+          // HtmlService can nest a second userCodeAppPanel inside its sandbox.
+          // Match bounded descendants by WindowProxy only, never DOM/data.
+          const pending=[{win:item.contentWindow,depth:0}];let visited=0;
+          while(pending.length&&visited<32){
+            const {win,depth}=pending.shift();if(depth>=4)continue;
+            for(let i=0;i<Math.min(win.length,8)&&visited<32;i++){
+              const child=win[i];visited++;
+              if(child===event.source)return true;
+              pending.push({win:child,depth:depth+1});
+            }
+          }
+        }catch(_){ }
+        return false;
       });
     if(!frame) return;
+    if(frame.dataset.moduleKey==="dashboard"){
+      frame.__dsInsetPeer=event.source;frame.dataset.dsInsetPeer=event.origin;
+    }
 
     if(data.type==="DS_SHELL_NAV_INSET_ACK"){
       frame.dataset.dsInsetAck="1";
@@ -228,7 +263,7 @@
       syncDashboardFallback();
     }
     // An ACK completes the exchange; replying to ACK would create a message loop.
-    if(data.type==="DS_SHELL_NAV_INSET_READY")postInset(frame,0);
+    if(data.type==="DS_SHELL_NAV_INSET_READY")postInset(frame,currentInset);
   });
 
   function installNavGeometryObserver(){

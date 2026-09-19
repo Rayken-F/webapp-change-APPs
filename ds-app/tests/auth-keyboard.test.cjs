@@ -5,7 +5,7 @@ const deferred=()=>{let resolve,reject;const promise=new Promise((a,b)=>{resolve
 function classes(){const values=new Set();return {add:x=>values.add(x),remove:x=>values.delete(x),contains:x=>values.has(x),toggle(x,on){if(on===undefined)on=!values.has(x);on?values.add(x):values.delete(x);}};}
 function setup(post){
  const nodes=new Map(),storage=new Map();let clears=0;
- const node=id=>{if(!nodes.has(id))nodes.set(id,{classList:classes(),value:'',textContent:'',checked:false,disabled:false,children:[],querySelectorAll(){return this.children;},replaceChildren(){clears++;this.children=[];},style:{setProperty(){}}});return nodes.get(id);};
+ const node=id=>{if(!nodes.has(id))nodes.set(id,{classList:classes(),focus(){},value:'',textContent:'',checked:false,disabled:false,children:[],querySelectorAll(){return this.children;},replaceChildren(){clears++;this.children=[];},style:{setProperty(){}}});return nodes.get(id);};
  const store={getItem:k=>storage.get(k)||null,setItem:(k,v)=>storage.set(k,v),removeItem:k=>storage.delete(k)};
  const cfg={AUTH_TOKEN_KEY:'token',AUTH_API_URL:'https://auth.fixture',PORTAL_API_URL:'https://portal.fixture',AUTH_CLIENT_VERSION:'compatible',REMEMBER_ACCOUNT_KEY:'account',REMEMBER_ENABLED_KEY:'remember'};
  const c=vm.createContext({window:{DS_PORTAL_CONFIG:cfg,DsAuthTransport:{create:()=>({post})},dispatchEvent(){}},document:{body:{classList:classes()},getElementById:node,querySelectorAll:()=>[]},sessionStorage:store,localStorage:store,AbortController,setTimeout,clearTimeout,URL,URLSearchParams,location:{search:'',href:'https://fixture/ds-app/'},CustomEvent:class{},console,requestAnimationFrame(){},scrollTo(){}});
@@ -106,4 +106,43 @@ test('home reads coalesce and authentication cancels the old request; its late b
  s.c.fetch=async(_url,options)=>{calls++;signal=options.signal;return {ok:true,text:()=>d.promise};};s.c.renderPriorities=()=>{};
  const a=s.c.loadHomeData(),b=s.c.loadHomeData();assert.equal(a,b);assert.equal(calls,1);
  await s.c.tryRestore(true);assert.equal(signal.aborted,true);d.resolve('{"ok":true,"priorities":[{"old":true}]}');await a;assert.equal(s.state().priorities.length,0);
+});
+
+test('a rejected login leaves a persistent error dialog and never grants the shell',async()=>{
+ const s=setup(async()=>{throw Object.assign(Error('登入通道未能完成回應，請重試。'),{code:'AUTH_BRIDGE_FAILED'});});
+ s.node('appShell').classList.add('hidden');
+ await assert.rejects(s.c.login('QA','fixture',true));
+ assert.equal(s.node('authFailureDialog').classList.contains('hidden'),false);
+ assert.match(s.node('authFailureText').textContent,/登入通道/);
+ assert.equal(s.node('loadingOverlay').classList.contains('hidden'),true);
+ assert.equal(s.node('appShell').classList.contains('hidden'),true);
+ assert.equal(s.node('loginBtn').disabled,false);
+});
+
+test('a late rejected login cannot replace the next attempt with an obsolete error',async()=>{
+ const old=deferred(),next=deferred();let count=0;const s=setup(()=>++count===1?old.promise:next.promise);
+ const first=s.c.login('QA','fixture',true);const rejected=assert.rejects(first);await Promise.resolve();s.c.cancelAuthentication();
+ const second=s.c.login('QA','fixture',true);await Promise.resolve();old.reject(Error('stale failure'));await rejected;
+ assert.equal(s.node('authFailureDialog').classList.contains('hidden'),true);
+ assert.equal(s.node('loadingOverlay').classList.contains('hidden'),false);
+ next.resolve({...s.profile,sessionToken:'new'});await second;
+});
+
+test('unrelated completed operations cannot dismiss an active authentication overlay',async()=>{
+ const d=deferred(),s=setup(()=>d.promise);const pending=s.c.login('QA','fixture',true);await Promise.resolve();
+ s.c.hideLoading();assert.equal(s.node('loadingOverlay').classList.contains('hidden'),false);
+ d.resolve({...s.profile,sessionToken:'new'});await pending;
+ assert.equal(s.node('loadingOverlay').classList.contains('hidden'),true);
+});
+
+test('failure diagnostics distinguish RPC and HTTP failure without copying error text or secrets',async()=>{
+ for(const rpc of [true,false]){
+  const records=[],data={ok:false,code:'AUTH_BRIDGE_FAILED',message:'private-account private-password private-token'};
+  const t=create({url:'fixture',bridge:rpc?{send:async(_b,_s,r)=>{r.transport='google_rpc';return data;}}:undefined,
+   fetch:async()=>({ok:true,status:200,text:async()=>JSON.stringify(data)}),onDiagnostic:r=>records.push(r)});
+  await assert.rejects(t.post('workstation_login',{password:'private-password'}));
+  assert.equal(records[0].errorCode,'AUTH_BRIDGE_FAILED');
+  assert.equal(records[0].errorSource,rpc?'rpc_response':'http_response');
+  assert.equal(JSON.stringify(records).includes('private-'),false);
+ }
 });

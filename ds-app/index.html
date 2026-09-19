@@ -24,6 +24,15 @@
     </div>
   </div>
 
+  <div id="authFailureDialog" class="loading-overlay hidden" role="alertdialog" aria-modal="true" aria-labelledby="authFailureTitle" aria-describedby="authFailureText" style="z-index:2100">
+    <div class="loading-card">
+      <strong id="authFailureTitle">尚未完成登入</strong>
+      <span id="authFailureText"></span>
+      <small id="authFailureCode"></small>
+      <button id="closeAuthFailureBtn" class="secondary-btn" type="button">返回登入</button>
+    </div>
+  </div>
+
   <section id="loginView" class="login-view">
     <div class="login-brand">
       <div class="brand-mark">DS</div>
@@ -58,7 +67,7 @@
         <pre id="authDiagnosticText" style="white-space:pre-wrap;overflow-wrap:anywhere"></pre>
         <button id="copyAuthDiagnosticBtn" class="secondary-btn" type="button">複製連線紀錄</button>
       </details>
-      <small>工作台 AUTH-K4 / LAYOUT-K4 · 20260918</small>
+      <small>工作台 AUTH-K5 / LAYOUT-K5 · 20260919</small>
     </form>
   </section>
 
@@ -232,9 +241,9 @@
   <div id="toast" class="toast hidden" role="status"></div>
 
   <script src="config.js"></script>
-  <script src="auth-bridge.js?v=20260918-k4"></script>
-  <script src="auth-transport.js?v=20260918-k4"></script>
-  <script src="app.js?v=20260918-k4"></script>
+  <script src="auth-bridge.js?v=20260919-k5"></script>
+  <script src="auth-transport.js?v=20260919-k5"></script>
+  <script src="app.js?v=20260919-k5"></script>
   <script src="shell-ux.js?v=20260918-k2"></script>
 </body>
 </html>
