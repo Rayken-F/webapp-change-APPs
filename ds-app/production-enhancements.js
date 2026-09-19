@@ -5,7 +5,7 @@
    inside document/dialog scrollers, held stable while typing.
    Explicitly excludes IQC image/OCR/Cloud Vision, fault injection and Return-to-WIP. */
 (function installDsProductionEnhancementsR5(){
-  const VERSION="DS_PROD_LAYOUT_K5_20260919";
+  const VERSION="DS_PROD_LAYOUT_K51_20260919";
   const MESSAGE_CHANNEL="DS_SHELL_LAYOUT_V1";
   if(window.__DS_PROD_ENH_R5__) return;
 
@@ -77,6 +77,16 @@
         padding-bottom:
           calc(var(--ds-shell-nav-inset,0px) + var(--ds-shell-content-tail,40px))!important;
       }
+      /* Daily's final action row must belong to the content scroll range,
+         including WebKit iframe viewports. Keep the original page background. */
+      body[data-ds-shell-module="daily"]{padding-bottom:0!important}
+      body[data-ds-shell-module="daily"] > .wrap::after{
+        content:"";
+        display:block;
+        height:calc(var(--ds-shell-nav-inset,0px) + var(--ds-shell-content-tail,24px));
+        flex-shrink:0;
+        pointer-events:none;
+      }
       body.ds-shell-overlay-inset-r5 .sticky-actions,
       body.ds-shell-overlay-inset-r5 #stickyActions{
         bottom:
@@ -144,6 +154,7 @@
         type:"DS_SHELL_NAV_INSET",
         version:VERSION,
         inset:Math.max(0,Math.round(inset)),
+        frameHeight:Math.max(0,frame.clientHeight),
         // Keep scroll geometry stable while an input/IME is active.
         keyboardOpen:false,
         moduleKey:String(frame.dataset.moduleKey||""),
@@ -162,6 +173,21 @@
 
   function syncFrame(frame,inset){
     if(!frame) return;
+    if(["daily","dashboard"].includes(frame.dataset.moduleKey)){
+      // The iframe can extend past its clipped host while iOS recomputes
+      // viewport/safe-area geometry. Measure its overlap, not just nav height.
+      if(keyboardOpen()){
+        inset=Number(frame.dataset.dsStableInset)||inset;
+      }else{
+        const nav=document.querySelector("#appShell .bottom-nav");
+        const rect=frame.getBoundingClientRect();
+        if(nav&&rect.height>0){
+          inset=Math.max(inset,Math.ceil(rect.bottom-nav.getBoundingClientRect().top+8));
+          try{inset+=Math.max(0,frame.contentWindow.innerHeight-frame.clientHeight);}catch(_){ }
+          frame.dataset.dsStableInset=String(inset);
+        }
+      }
+    }
     const sameOrigin=applySameOriginInset(frame,inset);
     if(!sameOrigin) postInset(frame,inset);
   }
@@ -263,7 +289,7 @@
       syncDashboardFallback();
     }
     // An ACK completes the exchange; replying to ACK would create a message loop.
-    if(data.type==="DS_SHELL_NAV_INSET_READY")postInset(frame,currentInset);
+    if(data.type==="DS_SHELL_NAV_INSET_READY")syncFrame(frame,currentInset);
   });
 
   function installNavGeometryObserver(){
@@ -301,7 +327,7 @@
         scanFrames();
         scheduleNavGeometry();
       });
-      observer.observe(host,{childList:true,subtree:false});
+      observer.observe(host,{childList:true,subtree:true,attributes:true,attributeFilter:["class"]});
       window.__DS_PROD_ENH_R5_FRAME_OBSERVER=observer;
     }
 

@@ -1,11 +1,11 @@
 const fs=require('node:fs'),path=require('node:path'),http=require('node:http'),assert=require('node:assert/strict');
-const {chromium}=require(process.env.PLAYWRIGHT_MODULE||'playwright');
+const {chromium,webkit}=require(process.env.PLAYWRIGHT_MODULE||'playwright');
 const root=path.resolve(__dirname,'../..');
 const output=process.env.DS_LAYOUT_OUTPUT||process.cwd();
 const dashboardReceiver=process.env.DS_DASHBOARD_RECEIVER?fs.readFileSync(process.env.DS_DASHBOARD_RECEIVER,'utf8').replace('https://rayken-f.github.io','http://127.0.0.1:8772'):null;
 const mode=process.argv[2]||'candidate',results=[];
 let failNextAuth=true,authCalls=0;
-const fixture='<!doctype html><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{margin:0;background:#263372;color:white;font:18px sans-serif}main{padding:20px}textarea{width:95%;height:120px;font-size:18px}button{padding:18px}#modal{position:fixed;inset:10px;overflow:auto;background:#18252e;padding:20px;box-sizing:border-box}</style><main><h1>Module fixture</h1><div style="height:1100px"></div><textarea id="note"></textarea><button id="last">最後按鈕</button></main>';
+const fixture='<!doctype html><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{margin:0;background:#263372;color:white;font:18px sans-serif}main{padding:20px}textarea{width:95%;height:120px;font-size:18px}button{padding:18px}#modal{position:fixed;inset:10px;overflow:auto;background:#18252e;padding:20px;box-sizing:border-box}</style><main class="wrap"><h1>Module fixture</h1><div style="height:1100px"></div><textarea id="note"></textarea><button id="last">最後按鈕</button></main>';
 const server=http.createServer(async(req,res)=>{
  const u=new URL(req.url,'http://127.0.0.1');
  if(u.pathname==='/fixture'){res.setHeader('Content-Type','text/html;charset=utf-8');res.end(fixture);return;}
@@ -18,6 +18,7 @@ const server=http.createServer(async(req,res)=>{
  let rel=decodeURIComponent(u.pathname).slice(1);if(!rel||rel.endsWith('/'))rel+='index.html';const file=path.resolve(root,rel);
  if(!file.startsWith(root+path.sep)||!fs.existsSync(file)){res.writeHead(404);res.end();return;}
  let body=fs.readFileSync(file);
+ if(rel==='ds-app/production-enhancements.js'&&process.env.DS_LAYOUT_BASELINE_JS)body=fs.readFileSync(process.env.DS_LAYOUT_BASELINE_JS);
  if(rel==='ds-app/config.js'||rel==='DS-IQC-WIP/api.js')body=body.toString().replace(/https:\/\/script\.google\.com\/macros\/s\/[^"']+\/exec/g,'http://127.0.0.1:8772/fixture-api');
  res.setHeader('Content-Type',file.endsWith('.html')?'text/html;charset=utf-8':file.endsWith('.js')?'text/javascript':file.endsWith('.css')?'text/css':'application/octet-stream');res.end(body);
 });
@@ -25,14 +26,14 @@ const crossServer=http.createServer(server.listeners('request')[0]);
 (async()=>{
  await new Promise(r=>server.listen(8772,'127.0.0.1',r));
  await new Promise(r=>crossServer.listen(8773,'127.0.0.1',r));
- const browser=await chromium.launch({headless:true,...(process.env.DS_BROWSER_EXECUTABLE?{executablePath:process.env.DS_BROWSER_EXECUTABLE}:{})});
+ const browser=await (process.env.DS_WEBKIT?webkit:chromium).launch({headless:true,...(!process.env.DS_WEBKIT&&process.env.DS_BROWSER_EXECUTABLE?{executablePath:process.env.DS_BROWSER_EXECUTABLE}:{})});
  try{
- const context=await browser.newContext({viewport:{width:402,height:874},serviceWorkers:'block'});
+ const context=await browser.newContext({viewport:{width:402,height:874},isMobile:!!process.env.DS_WEBKIT,hasTouch:!!process.env.DS_WEBKIT,serviceWorkers:'block'});
  const page=await context.newPage();await page.route('**/*',route=>{
   const url=new URL(route.request().url());
   if(dashboardReceiver&&url.href.startsWith('https://script.google.com/dashboard-fixture'))return route.fulfill({contentType:'text/html',body:'<style>html,body{margin:0;height:100%}iframe{width:100%;height:100%;border:0}</style><iframe src="https://k5-fixture-script.googleusercontent.com/userCodeAppPanel"></iframe>'});
   if(dashboardReceiver&&url.hostname==='k5-fixture-script.googleusercontent.com'&&url.pathname==='/userCodeAppPanel')return route.fulfill({contentType:'text/html',body:'<style>html,body{margin:0;height:100%}iframe{width:100%;height:100%;border:0}</style><iframe src="https://k5-fixture-script.googleusercontent.com/dashboard-content"></iframe>'});
-  if(dashboardReceiver&&url.hostname==='k5-fixture-script.googleusercontent.com')return route.fulfill({contentType:'text/html',body:fixture.replace('<main>','<main class="app-shell">')+'<script>window.receivedInsets=0;window.addEventListener("message",e=>{if(e.data?.type==="DS_SHELL_NAV_INSET")window.receivedInsets++;});</script>'+dashboardReceiver});
+  if(dashboardReceiver&&url.hostname==='k5-fixture-script.googleusercontent.com')return route.fulfill({contentType:'text/html',body:fixture.replace('class="wrap"','class="app-shell"')+'<script>window.receivedInsets=0;window.addEventListener("message",e=>{if(e.data?.type==="DS_SHELL_NAV_INSET")window.receivedInsets++;});</script>'+dashboardReceiver});
   return url.hostname==='127.0.0.1'?route.continue():route.abort();
  });
  await page.goto('http://127.0.0.1:8772/ds-app/');await page.locator('#loginAccount').fill('FIXTURE');await page.locator('#loginPassword').fill('fixture-only');await page.locator('#loginBtn').click();
@@ -46,6 +47,27 @@ const crossServer=http.createServer(server.listeners('request')[0]);
  const rect=selector=>page.locator(selector).evaluate(e=>{const r=e.getBoundingClientRect();return {top:r.top,bottom:r.bottom,height:r.height}});
  const short=await rect('.bottom-nav');await page.evaluate(()=>document.querySelector('#priorityList').innerHTML='<div style="height:1800px">載入後的資料</div>');const long=await rect('.bottom-nav');
  results.push({check:'home-short-long',short,long,stable:Math.abs(short.bottom-long.bottom)<1});
+ // Use the actual Daily source, including its final row, not only a short fixture.
+ // Model iPhone safe areas and a child frame taller than its clipped host.
+ const phoneStyle=await page.addStyleTag({content:':root{--ds-module-context-h:96px!important;--ds-shell-nav-bottom:12px!important}'});
+ await page.locator('#navDaily').click();
+ await page.frameLocator('iframe.module-frame:not(.hidden)').getByRole('button',{name:'下一步',exact:true}).waitFor();
+ const daily=page.frames().find(f=>f.url().includes('/ds-report-pwa/'));
+ await daily.getByRole('button',{name:'下一步',exact:true}).waitFor();
+ for(const extra of [0,96]){
+  const mismatch=await page.addStyleTag({content:`#appShell.module-mode .module-frame:not(.hidden){height:calc(100% + ${extra}px)!important;max-height:none!important}`});
+  await page.evaluate(()=>window.__DS_PROD_ENH_R5__.syncNavGeometry());
+  await daily.evaluate(()=>scrollTo(0,document.documentElement.scrollHeight));
+  const button=await daily.getByRole('button',{name:'下一步',exact:true}).boundingBox(),nav=await rect('.bottom-nav');
+  results.push({check:'actual-daily-safe-area-extra-'+extra,button,nav,visible:button.y+button.height<=nav.top});
+  await page.screenshot({path:path.join(output,mode+'-daily-extra-'+extra+'.png')});await mismatch.evaluate(e=>e.remove());
+ }
+ await page.locator('#navHome').click();await page.locator('#navDaily').click();
+ await page.waitForFunction(()=>Number(document.querySelector('iframe[data-module-key="daily"]').dataset.dsStableInset||0)>0).catch(()=>{});
+ await daily.evaluate(()=>scrollTo(0,document.documentElement.scrollHeight));
+ const dailyAgain=await daily.getByRole('button',{name:'下一步',exact:true}).boundingBox();
+ results.push({check:'actual-daily-revisit',visible:dailyAgain.y+dailyAgain.height<=(await rect('.bottom-nav')).top});
+ await phoneStyle.evaluate(e=>e.remove());await page.evaluate(()=>{document.querySelector('#moduleFrameHost').replaceChildren();switchView('home');});
  for(const key of ['daily','grinding','oqc']){
   await page.evaluate(key=>openModule(key,'/fixture',key,key),key);await page.frameLocator('.module-frame:not(.hidden)').locator('#last').waitFor();const frame=page.frames().find(f=>f.url().includes('/fixture?'));
   await page.waitForFunction(()=>getComputedStyle(document.querySelector('.bottom-nav')).visibility==='visible');
@@ -70,6 +92,12 @@ const crossServer=http.createServer(server.listeners('request')[0]);
   results.push({check:'nested-dashboard-floating',visible:fr.bottom===874});
   results.push({check:'dashboard-body-inherits-inset',visible:await dash.evaluate(()=>parseFloat(getComputedStyle(document.body).getPropertyValue('--ds-shell-nav-inset'))>=82)});
   results.push({check:'dashboard-no-message-loop',visible:await dash.evaluate(()=>window.receivedInsets<40)});
+  const mismatch=await page.addStyleTag({content:'#appShell.module-mode .module-frame:not(.hidden){height:calc(100% + 96px)!important;max-height:none!important}'});
+  await page.evaluate(()=>window.__DS_PROD_ENH_R5__.syncNavGeometry());
+  await dash.waitForFunction(()=>parseFloat(getComputedStyle(document.body).getPropertyValue('--ds-shell-nav-inset'))>=178).catch(()=>{});
+  await dash.evaluate(()=>scrollTo(0,document.documentElement.scrollHeight));
+  const mismatchLast=await dash.locator('#last').boundingBox();results.push({check:'dashboard-clipped-child-viewport',button:mismatchLast,nav,visible:mismatchLast.y+mismatchLast.height<=nav.top});
+  await mismatch.evaluate(e=>e.remove());
   await page.evaluate(()=>{document.querySelector('#moduleFrameHost').replaceChildren();switchView('home');});
  }
  await page.evaluate(()=>openModule('iqc','/DS-IQC-WIP/','IQC 異常處理','more'));const real=page.frameLocator('.module-frame:not(.hidden)');await real.locator('#mobileRequestToggle').click();await real.locator('#requestPanel').evaluate(e=>new Promise(resolve=>{function poll(){if(e.getBoundingClientRect().x<40&&getComputedStyle(e).opacity==='1'){e.scrollTop=e.scrollHeight;resolve();}else requestAnimationFrame(poll);}poll();}));const actual=await real.locator('#submitRequestBtn').boundingBox(),navActual=await rect('.bottom-nav');results.push({check:'actual-iqc-modal-submit',button:actual,nav:navActual,visible:actual.x>=0&&actual.x+actual.width<=402&&actual.y+actual.height<=navActual.top});results.push({check:'actual-iqc-full-viewport',visible:(await rect('.module-frame:not(.hidden)')).bottom===874});await page.locator('#toast').evaluate(e=>e.classList.add('hidden'));await page.screenshot({path:path.join(output,mode+'-actual-iqc.png')});
