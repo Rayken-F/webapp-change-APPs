@@ -5,7 +5,7 @@
    inside document/dialog scrollers, held stable while typing.
    Explicitly excludes IQC image/OCR/Cloud Vision, fault injection and Return-to-WIP. */
 (function installDsProductionEnhancementsR5(){
-  const VERSION="DS_PROD_LAYOUT_K6_20260919";
+  const VERSION="DS_PROD_LAYOUT_K7_20260919";
   const MESSAGE_CHANNEL="DS_SHELL_LAYOUT_V1";
   if(window.__DS_PROD_ENH_R5__) return;
 
@@ -38,6 +38,12 @@
   const shell=document.getElementById("appShell");
   const host=document.getElementById("moduleFrameHost");
   const watchedFrames=new WeakSet();
+  // Let CSS resolve the PWA viewport. iOS JavaScript viewport readings can
+  // still describe the shorter login screen while no data has arrived.
+  const viewportProbe=document.createElement("div");
+  viewportProbe.setAttribute("aria-hidden","true");
+  viewportProbe.style.cssText="position:fixed;top:0;left:0;width:0;height:100dvh;visibility:hidden;pointer-events:none";
+  document.body.appendChild(viewportProbe);
 
   let currentInset=96;
   let geometryTimer=0;
@@ -57,8 +63,7 @@
 
     // Measure layout dimensions, not an iOS visual viewport shifted by the keyboard.
     const style=getComputedStyle(nav);
-    const shellHeight=parseFloat(getComputedStyle(root).getPropertyValue("--ds-shell-vh"))||window.innerHeight;
-    const bottom=Math.max(8,shellHeight-(parseFloat(style.top)||0)-rect.height);
+    const bottom=Math.max(8,parseFloat(style.bottom)||0);
     return Math.max(82,Math.ceil(rect.height+bottom+8));
   }
 
@@ -203,12 +208,10 @@
 
   function syncNavGeometry(){
     if(!keyboardOpen()){
-      const vv=window.visualViewport;
-      // iOS can retain the shorter login visual viewport until content arrives.
-      // Outside keyboard editing, use the full current layout viewport as well.
-      const bottom=Math.max(Number(vv?.height||0)+Number(vv?.offsetTop||0),
-        window.innerHeight||0,root.clientHeight||0);
-      if(Number.isFinite(bottom)&&bottom>0)root.style.setProperty("--ds-shell-nav-viewport",`${Math.round(bottom)}px`);
+      const height=viewportProbe.getBoundingClientRect().height;
+      const value=`${Math.round(height)}px`;
+      if(Number.isFinite(height)&&height>0&&root.style.getPropertyValue("--ds-shell-layout-height")!==value)
+        root.style.setProperty("--ds-shell-layout-height",value);
     }
     currentInset=navInset();
     root.style.setProperty("--ds-shell-nav-inset",`${currentInset}px`);
@@ -301,6 +304,7 @@
     if(nav&&typeof ResizeObserver!=="undefined"){
       const observer=new ResizeObserver(scheduleNavGeometry);
       observer.observe(nav);
+      observer.observe(viewportProbe);
       window.__DS_PROD_NAV_R5_RESIZE_OBSERVER=observer;
     }
 
