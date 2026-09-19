@@ -5,7 +5,7 @@
    inside document/dialog scrollers, held stable while typing.
    Explicitly excludes IQC image/OCR/Cloud Vision, fault injection and Return-to-WIP. */
 (function installDsProductionEnhancementsR5(){
-  const VERSION="DS_PROD_LAYOUT_K51_20260919";
+  const VERSION="DS_PROD_LAYOUT_K52_20260919";
   const MESSAGE_CHANNEL="DS_SHELL_LAYOUT_V1";
   if(window.__DS_PROD_ENH_R5__) return;
 
@@ -77,10 +77,11 @@
         padding-bottom:
           calc(var(--ds-shell-nav-inset,0px) + var(--ds-shell-content-tail,40px))!important;
       }
-      /* Daily's final action row must belong to the content scroll range,
-         including WebKit iframe viewports. Keep the original page background. */
+      /* Some Daily station pages are outside .wrap in the parsed document.
+         Give the active page its own tail, including station/confirmation
+         transitions, without adding space before pages or while typing. */
       body[data-ds-shell-module="daily"]{padding-bottom:0!important}
-      body[data-ds-shell-module="daily"] > .wrap::after{
+      body[data-ds-shell-module="daily"] .page.active::after{
         content:"";
         display:block;
         height:calc(var(--ds-shell-nav-inset,0px) + var(--ds-shell-content-tail,24px));

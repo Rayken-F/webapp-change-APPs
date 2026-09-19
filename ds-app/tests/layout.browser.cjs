@@ -5,7 +5,7 @@ const output=process.env.DS_LAYOUT_OUTPUT||process.cwd();
 const dashboardReceiver=process.env.DS_DASHBOARD_RECEIVER?fs.readFileSync(process.env.DS_DASHBOARD_RECEIVER,'utf8').replace('https://rayken-f.github.io','http://127.0.0.1:8772'):null;
 const mode=process.argv[2]||'candidate',results=[];
 let failNextAuth=true,authCalls=0;
-const fixture='<!doctype html><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{margin:0;background:#263372;color:white;font:18px sans-serif}main{padding:20px}textarea{width:95%;height:120px;font-size:18px}button{padding:18px}#modal{position:fixed;inset:10px;overflow:auto;background:#18252e;padding:20px;box-sizing:border-box}</style><main class="wrap"><h1>Module fixture</h1><div style="height:1100px"></div><textarea id="note"></textarea><button id="last">最後按鈕</button></main>';
+const fixture='<!doctype html><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{margin:0;background:#263372;color:white;font:18px sans-serif}main{padding:20px}textarea{width:95%;height:120px;font-size:18px}button{padding:18px}#modal{position:fixed;inset:10px;overflow:auto;background:#18252e;padding:20px;box-sizing:border-box}</style><main class="wrap"><section class="page active"><h1>Module fixture</h1><div style="height:1100px"></div><textarea id="note"></textarea><button id="last">最後按鈕</button></section></main>';
 const server=http.createServer(async(req,res)=>{
  const u=new URL(req.url,'http://127.0.0.1');
  if(u.pathname==='/fixture'){res.setHeader('Content-Type','text/html;charset=utf-8');res.end(fixture);return;}
@@ -67,6 +67,58 @@ const crossServer=http.createServer(server.listeners('request')[0]);
  await daily.evaluate(()=>scrollTo(0,document.documentElement.scrollHeight));
  const dailyAgain=await daily.getByRole('button',{name:'下一步',exact:true}).boundingBox();
  results.push({check:'actual-daily-revisit',visible:dailyAgain.y+dailyAgain.height<=(await rect('.bottom-nav')).top});
+ // Exercise the actual station navigation. Page 1 alone cannot prove that the
+ // clearance belongs to the station and confirmation pages after HTML parsing.
+ await daily.addStyleTag({content:'*,*::before,*::after{animation-duration:0s!important;transition:none!important}html{scroll-behavior:auto!important}'});
+ const settleDaily=()=>page.waitForFunction(()=>{const r=document.documentElement,n=document.querySelector('.bottom-nav');return !r.classList.contains('ds-child-input-focus')&&!r.classList.contains('ds-keyboard-open')&&n.getBoundingClientRect().bottom<=innerHeight&&getComputedStyle(n).visibility==='visible';});
+ const stations=[['自動噴砂站','pageSandblast'],['UT站','pageUT'],['鋼印鎖瓶站','pageStamp'],['集束中心','pageBundle'],['IQC','pageIQC'],['專案','pageProject']];
+ for(const [site,id] of stations){
+  await daily.locator('#date').fill('2026-09-19');
+  await daily.locator('input[name="site"][value="'+site+'"]').check();
+  await daily.getByRole('button',{name:'下一步',exact:true}).click();
+  await daily.locator('#'+id+'.active').waitFor();await settleDaily();
+  for(const extra of [0,96]){
+   const mismatch=await page.addStyleTag({content:`#appShell.module-mode .module-frame:not(.hidden){height:calc(100% + ${extra}px)!important;max-height:none!important}`});
+   await page.evaluate(()=>window.__DS_PROD_ENH_R5__.syncNavGeometry());
+   await daily.evaluate(()=>scrollTo({top:document.documentElement.scrollHeight,behavior:'instant'}));
+   const buttons=await daily.locator('#'+id+' .btn-row').last().boundingBox(),nav=await rect('.bottom-nav');
+   const placement=await daily.locator('#'+id).evaluate(e=>({parent:e.parentElement.className,inWrap:!!e.closest('.wrap'),bottom:document.scrollingElement.scrollHeight,tail:getComputedStyle(e,'::after').height}));
+   results.push({check:'daily-station-'+id+'-extra-'+extra,buttons,nav,placement,visible:buttons.y>=96&&buttons.y+buttons.height<=nav.top});
+   if(extra===0)await page.screenshot({path:path.join(output,mode+'-'+id+'.png')});
+   await mismatch.evaluate(e=>e.remove());
+  }
+  const back=daily.locator('#'+id).getByRole('button',{name:'返回',exact:true});
+  if(mode==='baseline')await back.evaluate(e=>e.click());else await back.click();
+  await daily.locator('#page1.active').waitFor();
+ }
+ await daily.locator('input[name="site"][value="UT站"]').check();await daily.getByRole('button',{name:'下一步',exact:true}).click();
+ const preview=daily.locator('#pageUT').getByRole('button',{name:'預覽',exact:true});
+ if(mode==='baseline')await preview.evaluate(e=>e.click());else await preview.click();
+ await daily.locator('#page7.active').waitFor();await settleDaily();
+ for(const extra of [0,96]){
+  const mismatch=await page.addStyleTag({content:`#appShell.module-mode .module-frame:not(.hidden){height:calc(100% + ${extra}px)!important;max-height:none!important}`});
+  await page.evaluate(()=>window.__DS_PROD_ENH_R5__.syncNavGeometry());
+  await daily.evaluate(()=>scrollTo({top:document.documentElement.scrollHeight,behavior:'instant'}));
+  const buttons=await daily.locator('#page7 .btn-row').boundingBox(),nav=await rect('.bottom-nav');
+  results.push({check:'daily-confirmation-extra-'+extra,buttons,nav,visible:buttons.y>=96&&buttons.y+buttons.height<=nav.top});
+  if(extra===0)await page.screenshot({path:path.join(output,mode+'-page7.png')});await mismatch.evaluate(e=>e.remove());
+ }
+ // Baseline navigation may be covered; only bypass its pointer hit test to
+ // collect remaining failures. Candidate uses normal clicks throughout.
+ const confirmBack=daily.locator('#page7').getByRole('button',{name:'返回',exact:true});
+ if(mode==='baseline')await confirmBack.evaluate(e=>e.click());else await confirmBack.click();
+ const utBack=daily.locator('#pageUT').getByRole('button',{name:'返回',exact:true});
+ if(mode==='baseline')await utBack.evaluate(e=>e.click());else await utBack.click();
+ await daily.locator('input[name="site"][value="集束中心"]').check();await daily.getByRole('button',{name:'下一步',exact:true}).click();
+ await daily.locator('#bundle_frame_count').fill('2');await daily.locator('#bundle_frame_count').press('Tab');
+ await daily.locator('.bundle-note-textarea').last().fill('站別切換與中文備註測試');
+ const focusedFrame=await rect('.module-frame:not(.hidden)');await daily.locator('.bundle-note-textarea').last().press('End');
+ results.push({check:'daily-bundle-typing-geometry',stable:focusedFrame.height===(await rect('.module-frame:not(.hidden)')).height});
+ await daily.locator('.bundle-note-textarea').last().evaluate(e=>e.blur());
+ await page.locator('#navHome').click();await page.locator('#navDaily').click();await settleDaily();
+ await page.evaluate(()=>window.__DS_PROD_ENH_R5__.syncNavGeometry());await daily.evaluate(()=>scrollTo({top:document.documentElement.scrollHeight,behavior:'instant'}));
+ const bundleAgain=await daily.locator('#pageBundle > .btn-row').boundingBox();
+ results.push({check:'daily-bundle-multiple-revisit',buttons:bundleAgain,visible:bundleAgain.y+bundleAgain.height<=(await rect('.bottom-nav')).top});
  await phoneStyle.evaluate(e=>e.remove());await page.evaluate(()=>{document.querySelector('#moduleFrameHost').replaceChildren();switchView('home');});
  for(const key of ['daily','grinding','oqc']){
   await page.evaluate(key=>openModule(key,'/fixture',key,key),key);await page.frameLocator('.module-frame:not(.hidden)').locator('#last').waitFor();const frame=page.frames().find(f=>f.url().includes('/fixture?'));

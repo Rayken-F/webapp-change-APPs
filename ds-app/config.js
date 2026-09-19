@@ -60,7 +60,7 @@
   function loadProductionEnhancements(){
     ensureScript(
       "dsProductionEnhancementsR5K11Js",
-      "./production-enhancements.js?v=20260919-k51"
+      "./production-enhancements.js?v=20260919-k52"
     );
     ensureScript(
       "dsProductionKeyboardFocusGuardK11Js",
