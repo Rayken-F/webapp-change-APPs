@@ -634,6 +634,9 @@ async function archivePriority(){
 function bind(){
   $("loginForm").addEventListener("submit",async e=>{
     e.preventDefault();
+    // Dismiss the login keyboard before replacing its short viewport with home.
+    const focused=document.activeElement;
+    if(focused&&$("loginForm").contains(focused))focused.blur();
     try{await login($("loginAccount").value,$("loginPassword").value,$("rememberLogin").checked)}catch(_){/* The active authentication task presents its error. */}
   });
   $("closeAuthFailureBtn").addEventListener("click",()=>{$("authFailureDialog").classList.add("hidden");$("loginBtn").focus({preventScroll:true});});

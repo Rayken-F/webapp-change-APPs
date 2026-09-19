@@ -2,6 +2,7 @@
    Floating navigation overlays the full module. Scroll clearance belongs
    inside each content scroller and stays unchanged during text input. */
 :root{
+  --ds-layout-build:K8;
   --ds-shell-nav-inset:96px;
   --ds-shell-nav-bottom:max(8px,calc(env(safe-area-inset-bottom,0px) - 22px));
 }
@@ -16,8 +17,14 @@
   z-index:1400!important;
 }
 
-body:not(.ds-module-active){min-height:100dvh!important}
-#appShell:not(.module-mode){min-height:100dvh!important}
+/* Installed iPhone WebKit can anchor bottom against a short native viewport
+   even when CSS/JS layout values have recovered. Use the bounded screen height. */
+html.ds-iphone-standalone-layout #appShell .bottom-nav{
+  top:calc(var(--ds-shell-layout-height) - var(--ds-nav-real-h,66px) - var(--ds-shell-nav-bottom))!important;
+  bottom:auto!important;
+}
+body:not(.ds-module-active){min-height:var(--ds-shell-layout-height,100dvh)!important}
+#appShell:not(.module-mode){min-height:var(--ds-shell-layout-height,100dvh)!important}
 #appShell:not(.module-mode) .main-view{padding-bottom:var(--ds-shell-nav-inset,96px)!important}
 body.ds-module-active{
   height:var(--ds-shell-layout-height,100dvh)!important;
