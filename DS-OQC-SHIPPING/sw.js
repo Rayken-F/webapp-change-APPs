@@ -1,5 +1,5 @@
 'use strict';
-const CACHE='oqc-shipping-production-20260919-03';
+const CACHE='oqc-shipping-production-20260919-04';
 const BASE=new URL('./',self.location.href).href;
 const FILES=['./','index.html','domain-h2-g1.js?v=20260917-g1-01','rt-gate-g1.js?v=20260917-g1-02','rt-catalog-g12.js?v=20260917-g1-03','history-h1.js?v=20260919-k7','batch-removal-rm1.js?v=20260917-g1-01'];
 self.addEventListener('install',event=>event.waitUntil(caches.open(CACHE).then(c=>c.addAll(FILES)).then(()=>self.skipWaiting())));

@@ -5,7 +5,7 @@
    inside document/dialog scrollers, held stable while typing.
    Explicitly excludes IQC image/OCR/Cloud Vision, fault injection and Return-to-WIP. */
 (function installDsProductionEnhancementsR5(){
-  const VERSION="DS_PROD_LAYOUT_K7_20260919";
+  const VERSION="DS_PROD_LAYOUT_K8_20260919";
   const MESSAGE_CHANNEL="DS_SHELL_LAYOUT_V1";
   if(window.__DS_PROD_ENH_R5__) return;
 
@@ -42,8 +42,44 @@
   // still describe the shorter login screen while no data has arrived.
   const viewportProbe=document.createElement("div");
   viewportProbe.setAttribute("aria-hidden","true");
-  viewportProbe.style.cssText="position:fixed;top:0;left:0;width:0;height:100dvh;visibility:hidden;pointer-events:none";
+  viewportProbe.id="dsViewportProbe";
+  viewportProbe.style.cssText="position:fixed;top:0;left:0;width:0;height:100dvh;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);visibility:hidden;pointer-events:none";
   document.body.appendChild(viewportProbe);
+  const layoutSamples=[];
+  let lastLayoutSample="";
+
+  function readLayoutHeight(){
+    const cssHeight=viewportProbe.getBoundingClientRect().height;
+    const safe=getComputedStyle(viewportProbe);
+    const safeTotal=(parseFloat(safe.paddingTop)||0)+(parseFloat(safe.paddingBottom)||0);
+    const screenHeight=Number(window.screen?.height||0);
+    const standalone=navigator.standalone===true||window.matchMedia('(display-mode: standalone)').matches;
+    // Restrict the screen reference to a full-width, unzoomed iPhone PWA.
+    // Desktop windows, browser tabs, split views and the keyboard use CSS geometry.
+    const phoneSurface=standalone&&/iPhone/.test(navigator.userAgent)&&
+      Math.abs(Number(window.screen?.width||0)-root.clientWidth)<2&&
+      Math.abs(Number(window.visualViewport?.scale||1)-1)<0.01&&
+      screenHeight>=cssHeight-2&&screenHeight-cssHeight<=Math.max(120,safeTotal+2);
+    return {height:phoneSurface?Math.max(cssHeight,screenHeight):cssHeight,phoneSurface};
+  }
+
+  function recordLayout(){
+    const nav=document.querySelector('#appShell .bottom-nav'),rect=nav?.getBoundingClientRect(),vv=window.visualViewport;
+    const px=n=>Math.round(Number(n)||0),style=getComputedStyle(viewportProbe);
+    const sample={view:shell?.classList.contains('hidden')?'login':shell?.classList.contains('module-mode')?(host?.querySelector('.module-frame:not(.hidden)')?.dataset.moduleKey||'module'):'home/more',
+      inner:[px(window.innerWidth),px(window.innerHeight)],client:[root.clientWidth,root.clientHeight],screen:[screen.width,screen.height],
+      visual:vv?[px(vv.width),px(vv.height),px(vv.offsetTop),Number(vv.scale)]:null,
+      cssHeight:px(viewportProbe.getBoundingClientRect().height),layoutHeight:root.style.getPropertyValue('--ds-shell-layout-height'),
+      safeArea:[px(parseFloat(style.paddingTop)),px(parseFloat(style.paddingBottom))],scroll:[px(window.scrollY),root.scrollHeight],
+      nav:rect?[px(rect.top),px(rect.bottom),px(rect.height)]:null,keyboard:keyboardOpen(),phoneSurface:root.classList.contains('ds-iphone-standalone-layout')};
+    const serialized=JSON.stringify(sample);if(serialized===lastLayoutSample)return;
+    lastLayoutSample=serialized;layoutSamples.push({atMs:px(performance.now()),...sample});if(layoutSamples.length>24)layoutSamples.shift();
+  }
+
+  function layoutReport(){
+    recordLayout();return {build:VERSION,cssBuild:getComputedStyle(root).getPropertyValue('--ds-layout-build').trim(),
+      standalone:navigator.standalone===true||window.matchMedia('(display-mode: standalone)').matches,userAgent:navigator.userAgent,samples:layoutSamples.slice()};
+  }
 
   let currentInset=96;
   let geometryTimer=0;
@@ -63,7 +99,8 @@
 
     // Measure layout dimensions, not an iOS visual viewport shifted by the keyboard.
     const style=getComputedStyle(nav);
-    const bottom=Math.max(8,parseFloat(style.bottom)||0);
+    const top=parseFloat(style.top),height=parseFloat(root.style.getPropertyValue('--ds-shell-layout-height'));
+    const bottom=Math.max(8,Number.isFinite(top)&&Number.isFinite(height)?height-top-rect.height:parseFloat(style.bottom)||0);
     return Math.max(82,Math.ceil(rect.height+bottom+8));
   }
 
@@ -208,7 +245,8 @@
 
   function syncNavGeometry(){
     if(!keyboardOpen()){
-      const height=viewportProbe.getBoundingClientRect().height;
+      const {height,phoneSurface}=readLayoutHeight();
+      root.classList.toggle('ds-iphone-standalone-layout',phoneSurface);
       const value=`${Math.round(height)}px`;
       if(Number.isFinite(height)&&height>0&&root.style.getPropertyValue("--ds-shell-layout-height")!==value)
         root.style.setProperty("--ds-shell-layout-height",value);
@@ -225,6 +263,7 @@
     }
 
     syncAllFrames();
+    recordLayout();
   }
 
   function scheduleNavGeometry(){
@@ -457,6 +496,12 @@
 
   installNavGeometryObserver();
   scanFrames();
+  document.getElementById('copyLayoutDiagnosticBtn')?.addEventListener('click',async()=>{
+    const text=JSON.stringify(layoutReport(),null,2),output=document.getElementById('layoutDiagnosticText');
+    output.textContent=text;output.hidden=false;
+    try{await navigator.clipboard.writeText(text);document.getElementById('layoutDiagnosticStatus').textContent='版面資訊已複製，可貼給 CG。';}
+    catch(_){document.getElementById('layoutDiagnosticStatus').textContent='無法自動複製，請選取下方文字複製。';}
+  });
 
   loadSafeRcModules()
     .then(()=>{
@@ -474,6 +519,7 @@
     reloadSafeModules:loadSafeRcModules,
     repatchGrinding:patchGrindingFrames,
     syncNavGeometry,
-    syncAllFrames
+    syncAllFrames,
+    layoutReport
   };
 })();
