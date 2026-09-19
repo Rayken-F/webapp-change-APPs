@@ -1,6 +1,6 @@
 "use strict";
 
-const CACHE="ds-app-shell-auth-layout-k5-20260919-06";
+const CACHE="ds-app-shell-auth-k5-layout-k51-20260919-07";
 
 const STATIC=[
   "./",
