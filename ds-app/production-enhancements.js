@@ -5,7 +5,7 @@
    inside document/dialog scrollers, held stable while typing.
    Explicitly excludes IQC image/OCR/Cloud Vision, fault injection and Return-to-WIP. */
 (function installDsProductionEnhancementsR5(){
-  const VERSION="DS_PROD_LAYOUT_K52_20260919";
+  const VERSION="DS_PROD_LAYOUT_K6_20260919";
   const MESSAGE_CHANNEL="DS_SHELL_LAYOUT_V1";
   if(window.__DS_PROD_ENH_R5__) return;
 
@@ -15,7 +15,7 @@
     ["dsProdRcQuickbarKeeper","../ds-app-grinding-recovery-rc/rc-quickbar-keeper-v6.js?v=20260918-k2"],
     ["dsProdGrindingUiSafe","../ds-app-grinding-recovery-rc/grinding-ui-safe-rc.js?v=20260831-prod-r5"],
     ["dsProdGrindingOperatorSession","../ds-app-grinding-recovery-rc/operator-session-rc-v5.js?v=20260831-prod-r5"],
-    ["dsProdHomeProductionFocus","../ds-app-grinding-recovery-rc/home-production-focus-rc-v5.js?v=20260831-prod-r5"]
+    ["dsProdHomeProductionFocus","../ds-app-grinding-recovery-rc/home-production-focus-rc-v5.js?v=20260919-k6"]
   ];
 
   const RETRYABLE_CODES=new Set([
@@ -204,7 +204,10 @@
   function syncNavGeometry(){
     if(!keyboardOpen()){
       const vv=window.visualViewport;
-      const bottom=vv?Number(vv.height)+Number(vv.offsetTop||0):window.innerHeight;
+      // iOS can retain the shorter login visual viewport until content arrives.
+      // Outside keyboard editing, use the full current layout viewport as well.
+      const bottom=Math.max(Number(vv?.height||0)+Number(vv?.offsetTop||0),
+        window.innerHeight||0,root.clientHeight||0);
       if(Number.isFinite(bottom)&&bottom>0)root.style.setProperty("--ds-shell-nav-viewport",`${Math.round(bottom)}px`);
     }
     currentInset=navInset();

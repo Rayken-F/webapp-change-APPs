@@ -102,10 +102,10 @@ test('network retry preserves a suspended same-account form and rechecks permiss
  await s.c.tryRestore(true);assert.equal(s.state().profile,null);await s.c.tryRestore(true);assert.equal(routed,0);assert.equal(s.clears(),0);assert.equal(count,2);
 });
 test('home reads coalesce and authentication cancels the old request; its late body cannot update the screen',async()=>{
- const d=deferred(),s=setup(async()=>s.profile);let calls=0,signal;
- s.c.fetch=async(_url,options)=>{calls++;signal=options.signal;return {ok:true,text:()=>d.promise};};s.c.renderPriorities=()=>{};
+ const d=deferred();let calls=0,signal;
+ const s=setup(async(api,_payload,control)=>{if(api==='workstation_home_data'){calls++;signal=control.signal;return d.promise;}return s.profile;});s.c.renderPriorities=()=>{};
  const a=s.c.loadHomeData(),b=s.c.loadHomeData();assert.equal(a,b);assert.equal(calls,1);
- await s.c.tryRestore(true);assert.equal(signal.aborted,true);d.resolve('{"ok":true,"priorities":[{"old":true}]}');await a;assert.equal(s.state().priorities.length,0);
+ await s.c.tryRestore(true);assert.equal(signal.aborted,true);d.resolve({ok:true,priorities:[{old:true}]});await a;assert.equal(s.state().priorities.length,0);
 });
 
 test('a rejected login leaves a persistent error dialog and never grants the shell',async()=>{

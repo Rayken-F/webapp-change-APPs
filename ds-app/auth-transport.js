@@ -41,7 +41,7 @@
           const server=data.authDiagnostic;
           if(server?.requestId===requestId){
             record.server={totalMs:Number(server.totalMs)||0,phases:{}};
-            for(const key of ["lock","open_access","read_account","password","write_account","token","open_audit","audit","flush","session"]){
+            for(const key of ["lock","open_access","read_account","password","write_account","token","open_audit","audit","flush","session","home_permission","home_rt","home_priorities"]){
               if(Number.isFinite(server.phases?.[key]))record.server.phases[key]=server.phases[key];
             }
           }

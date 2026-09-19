@@ -6,6 +6,9 @@ const state={
   authUser:null,
   profile:null,
   priorities:[],
+  homeLoaded:false,
+  homeOwner:"",
+  homeStatus:"正在讀取生產需求…",
   rtMaster:[],
   rtMap:new Map(),
   filter:"ALL",
@@ -40,6 +43,7 @@ function saveToken(token,remember){
   (remember?localStorage:sessionStorage).setItem(CFG.AUTH_TOKEN_KEY,token);
 }
 function clearToken(){
+  resetHomeData();
   sessionStorage.removeItem(CFG.AUTH_TOKEN_KEY);
   localStorage.removeItem(CFG.AUTH_TOKEN_KEY);
 }
@@ -351,6 +355,9 @@ function runAuthentication(work){
   return authTask;
 }
 function applyAuthentication(result,preserveView){
+  const owner=String(result.user?.account||"");
+  if(state.homeOwner!==owner||!result.permissions?.home_enabled)resetHomeData();
+  state.homeOwner=owner;
   state.authUser=result.user||null;
   state.profile={user:result.user||null,permissions:result.permissions||{}};
   hydrateUser();syncShellPermissions();showApp();hideLoading();
@@ -473,6 +480,16 @@ function renderMore(){
   });
 }
 let homeTask=null;
+function resetHomeData(){
+  state.priorities=[];state.rtMaster=[];state.rtMap=new Map();state.selectedRt=null;
+  state.homeLoaded=false;state.homeOwner="";state.homeStatus="正在讀取生產需求…";
+}
+function renderHomeLoadState(){
+  $("homeLoadStatus").textContent=state.homeLoaded?state.homeStatus:"";
+  if(state.homeLoaded)return false;
+  $("priorityList").innerHTML=`<div class="empty-state" role="status">${escapeHtml(state.homeStatus)}</div>`;
+  return true;
+}
 function cancelHomeData(){
   if(homeTask){homeTask.controller.abort();homeTask=null;}
 }
@@ -482,20 +499,30 @@ function loadHomeData(){
   if(homeTask?.token===requestedToken)return homeTask.promise;
   cancelHomeData();
   const task={token:requestedToken,controller:new AbortController()};homeTask=task;
-  const timer=setTimeout(()=>task.controller.abort(),30000);
+  state.homeStatus=state.homeLoaded?"正在更新生產需求…":"正在讀取生產需求…";
+  renderPriorities();
   task.promise=(async()=>{
-    const result=await portalPost("portal_home_data",{include_rt_master:!state.rtMaster.length},{signal:task.controller.signal});
+    const result=await authTransport.post("workstation_home_data",{session_token:requestedToken,include_rt_master:!state.rtMaster.length},{signal:task.controller.signal,
+      onSlow:()=>{if(homeTask===task){state.homeStatus="生產需求仍在讀取，請稍候…";renderPriorities();}}});
     if(task.controller.signal.aborted||getToken()!==requestedToken||!state.profile)return;
     state.priorities=Array.isArray(result.priorities)?result.priorities:[];
+    state.homeLoaded=true;state.homeStatus="";
     if(!state.rtMaster.length&&Array.isArray(result.rtMaster)){
       state.rtMaster=result.rtMaster;
       state.rtMap=new Map(state.rtMaster.map(item=>[String(item.rtNo),item]));
     }
     renderPriorities();
-  })().finally(()=>{clearTimeout(timer);if(homeTask===task)homeTask=null;});
+  })().catch(error=>{
+    if(homeTask===task&&!task.controller.signal.aborted){
+      state.homeStatus="生產需求讀取失敗，請按「重新整理」重試。";renderPriorities();
+    }
+    if(task.controller.signal.aborted)return;
+    throw error;
+  }).finally(()=>{if(homeTask===task)homeTask=null;});
   return task.promise;
 }
 function renderPriorities(){
+  if(renderHomeLoadState())return;
   const list=state.priorities.filter(item=>state.filter==="ALL"||item.status===state.filter);
   if(!list.length){
     $("priorityList").innerHTML='<div class="empty-state">目前沒有符合條件的生產需求。</div>';

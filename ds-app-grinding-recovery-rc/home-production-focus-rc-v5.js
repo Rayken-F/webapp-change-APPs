@@ -50,6 +50,7 @@
   function installRenderer(){
     if(typeof renderPriorities!=="function"||typeof state==="undefined")return false;
     renderPriorities=function(){
+      if(typeof renderHomeLoadState==="function"&&renderHomeLoadState())return;
       const list=state.priorities.filter(item=>state.filter==="ALL"||item.status===state.filter);
       if(!list.length){
         $("priorityList").innerHTML='<div class="empty-state">目前沒有符合條件的生產需求。</div>';

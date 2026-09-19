@@ -2377,7 +2377,8 @@ user-scalable=no">
         <div class="scan-tip">登錄數量會決定下方 IQC 卡片數量；可左右滑動切換每一筆資料。每張卡片需先選擇「集束」或「散支」，才會顯示對應欄位。</div>
       </div>
 
-      <div id="iqc-error" class="iqc-error"></div>
+      <div id="iqc-error" class="iqc-error" role="alert" tabindex="-1"></div>
+      <button id="iqc-master-retry" type="button" hidden onclick="retryIqcMasters()">重新讀取 IQC 主檔</button>
 
       <div class="bundle-slider-wrap">
         <div id="iqcCardsContainer" class="bundle-slider"></div>
@@ -2875,7 +2876,13 @@ user-scalable=no">
     };
   }
 
-  async function loadIqcRegions(){
+  let iqcRegionTask = null;
+  function loadIqcRegions(){
+    if(iqcRegionTask) return iqcRegionTask;
+    iqcRegionTask = refreshIqcRegions().finally(() => { iqcRegionTask = null; });
+    return iqcRegionTask;
+  }
+  async function refreshIqcRegions(){
     const requestSeq = ++iqcRegionRequestSeq;
 
     // 只有「區域主檔已經存在於記憶體」時才從 UI 回收卡片。
@@ -2913,6 +2920,8 @@ user-scalable=no">
     try{
       const regions = await fetchIqcRegions();
       if(requestSeq !== iqcRegionRequestSeq) return;
+      // Preserve edits made while the asynchronous master request was running.
+      collectIqcCardsFromUI();
 
       const normalized = (Array.isArray(regions) ? regions : [])
         .map(normalizeIqcRegionOption)
@@ -2982,7 +2991,13 @@ user-scalable=no">
     return map;
   }
 
-  async function loadIqcRtMaster(forceReload = false){
+  let iqcRtMasterTask = null;
+  function loadIqcRtMaster(forceReload = false){
+    if(iqcRtMasterTask) return iqcRtMasterTask;
+    iqcRtMasterTask = refreshIqcRtMaster(forceReload).finally(() => { iqcRtMasterTask = null; });
+    return iqcRtMasterTask;
+  }
+  async function refreshIqcRtMaster(forceReload = false){
     if(iqcRtMasterLoaded && iqcRtMasterSource === "live" && !forceReload) return iqcRtMaster;
     if(typeof fetchIqcRtMaster !== "function"){
       iqcRtMasterLoaded = false;
@@ -3463,7 +3478,9 @@ user-scalable=no">
   }
 
   function getFirstVisibleErrorCard(){
-    return document.querySelector(`[${VISIBLE_ERROR_ATTR}="true"]`);
+    const page = document.querySelector(".page.active");
+    return page ? Array.from(page.querySelectorAll(`[${VISIBLE_ERROR_ATTR}="true"]`))
+      .find(card => card.getClientRects().length && getComputedStyle(card).visibility !== "hidden") || null : null;
   }
 
   function hasProjectEventInput(){
@@ -5546,6 +5563,7 @@ function bindFramePairTableEvents(){
     }
     else if(siteValue === "IQC"){
       targetPage = "pageIQC";
+      if(!iqcRegionsLoaded) loadIqcRegions();
       loadIqcRtMaster(false);
     }
     else if(siteValue === "專案"){
@@ -5561,8 +5579,9 @@ function bindFramePairTableEvents(){
   }
 
   function clearErrors(){
-    document.querySelectorAll(".error-card").forEach(el => {
+    document.querySelectorAll(`.error-card, [${VISIBLE_ERROR_ATTR}]`).forEach(el => {
       el.classList.remove("error-card");
+      el.removeAttribute(VISIBLE_ERROR_ATTR);
     });
 
     document.querySelectorAll(".error-text").forEach(el => {
@@ -6084,7 +6103,8 @@ function bindFramePairTableEvents(){
   function clearIqcError(){
     const errorEl = document.getElementById("iqc-error");
     if(errorEl) errorEl.innerText = "";
-    document.querySelectorAll(".iqc-card.error-card").forEach(card => {
+    document.getElementById("iqc-master-retry").hidden = true;
+    document.querySelectorAll(".iqc-card").forEach(card => {
       card.classList.remove("error-card");
       card.removeAttribute(VISIBLE_ERROR_ATTR);
     });
@@ -6095,15 +6115,28 @@ function bindFramePairTableEvents(){
     const errorEl = document.getElementById("iqc-error");
     const card = document.getElementById(`iqc-card-${cardIndex}`);
     if(errorEl) errorEl.innerText = message;
+    document.getElementById("iqc-master-retry").hidden = iqcRegionsLoaded && iqcRtMasterLoaded;
 
     if(card){
+      iqcActiveCardIndex = clampIqcCardIndex(cardIndex);
+      scheduleIqcActiveCardRestore();
       card.classList.remove("shake");
       void card.offsetWidth;
       card.classList.add("error-card", "shake");
       card.setAttribute(VISIBLE_ERROR_ATTR, "true");
-      card.scrollIntoView({ behavior:"smooth", block:"center" });
+      if(errorEl) errorEl.scrollIntoView({ behavior:"smooth", block:"center" });
       setTimeout(() => card.classList.remove("shake"), 450);
     }
+  }
+
+  async function retryIqcMasters(){
+    const button = document.getElementById("iqc-master-retry");
+    button.disabled = true;
+    try{
+      await Promise.all([loadIqcRegions(), loadIqcRtMaster(true)]);
+      if(iqcRegionsLoaded && iqcRtMasterLoaded) clearIqcError();
+      else showIqcError(iqcActiveCardIndex, "主檔仍無法讀取，填寫內容已保留。請恢復連線後重試。");
+    }finally{ button.disabled = false; }
   }
 
   function clearIqcFieldValidation(){
