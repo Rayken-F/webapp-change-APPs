@@ -288,7 +288,7 @@
           <button class="filter-btn" data-filter="BOTTLE" onclick="setWipFilter('BOTTLE')">散支</button>
           <button class="filter-btn" data-filter="BUNDLE_LOT" onclick="setWipFilter('BUNDLE_LOT')">集束</button>
           <button class="filter-btn" data-filter="HT" onclick="setWipFilter('HT')">轉 HT</button>
-          <span class="muted" title="轉 HT 留在 Grinding">HT1</span>
+          <span class="muted" title="轉 HT 留在 Grinding／可取消">HT2</span>
         </div>
         <div id="assetList" class="asset-list"></div>
       </section>
@@ -314,6 +314,7 @@
       <button class="btn" onclick="openLoadModal()">待噴砂</button>
       <button class="btn danger" onclick="submitSimpleAction('DCYL')">DCYL</button>
       <button class="btn warning" onclick="submitSimpleAction('TRANSFER_HT')">轉 HT</button>
+      <button id="cancelHtBtn" class="btn ghost" onclick="submitSimpleAction('CANCEL_HT')" disabled>取消轉 HT</button>
     </div>
   </aside>
 
@@ -1543,6 +1544,10 @@
     function selectedItems(){
       const assets=state.wip&&state.wip.grindingAssets||[];return Object.keys(state.selected).map(key=>{const a=assets.find(x=>x.assetKey===key);if(!a)return null;return {asset_key:key,qty:Number(state.selectedQty[key]||a.qty||1),expected_version:Number(a.stateVersion||0)}}).filter(Boolean)
     }
+    function canCancelSelectedHt(){
+      const items=selectedItems(),assets=state.wip&&state.wip.grindingAssets||[];
+      return items.length>0&&items.every(item=>isHtInGrinding(assets.find(a=>a.assetKey===item.asset_key)))
+    }
     function renderSticky(){
       const bar=document.getElementById("stickyActions");
       if(state.tab!=="wip"){
@@ -1557,7 +1562,7 @@
         :"尚未選擇項目";
 
       bar.querySelectorAll("button").forEach(button=>{
-        button.disabled=state.dispositionBusy
+        button.disabled=state.dispositionBusy || (button.id==="cancelHtBtn"&&!canCancelSelectedHt())
       })
     }
     function renderFrames(){
@@ -1632,7 +1637,7 @@
       }).join("")
     }
     function applyOptimisticDisposition(action,items,extra){
-      if(action==="TRANSFER_HT")return;
+      if(action==="TRANSFER_HT"||action==="CANCEL_HT"){renderSticky();return}
       if(!state.wip)return;
       const selectedMap={};
       items.forEach(item=>selectedMap[item.asset_key]=Number(item.qty||0));
@@ -1812,9 +1817,9 @@
             daily:r.daily_summary||{}
           }
         }
-        if(action==="TRANSFER_HT"&&Array.isArray(r.affected_assets)){
+        if((action==="TRANSFER_HT"||action==="CANCEL_HT")&&Array.isArray(r.affected_assets)){
           state.wip.grindingAssets=mergeAssetsByKey_(state.wip.grindingAssets,r.affected_assets);
-          state.wip.dispositions=mergeAssetsByKey_(state.wip.dispositions,r.affected_assets.filter(isHtInGrinding));
+          state.wip.dispositions=mergeAssetsByKey_(removeAssetKeys_(state.wip.dispositions,r.affected_assets.map(a=>a.assetKey)),r.affected_assets.filter(isHtInGrinding));
         }
         state.revision=Number(
           r.revision||
@@ -1866,9 +1871,11 @@
     async function submitSimpleAction(action){
       const items=selectedItems();
       if(!items.length)return;
+      if(action==="CANCEL_HT"&&!canCancelSelectedHt()){showToast("請只選取已標記轉 HT 的項目。",true);return}
       const labels={
         DCYL:"DCYL",
-        TRANSFER_HT:"轉 HT"
+        TRANSFER_HT:"轉 HT",
+        CANCEL_HT:"取消轉 HT"
       };
       if(!confirm(
         `確定將已選 ${items.reduce((n,i)=>n+i.qty,0)} 支執行「${labels[action]||action}」？`
@@ -2170,7 +2177,7 @@
       loadHistory(true)
     }
     function historyActionLabel(action){
-      const map={GRINDING_CHECK_IN:"進入 Grinding",LOAD_TO_FRAME:"入框",FRAME_READY_SANDBLAST:"完成待噴砂框",FRAME_CONTENT_CHANGED:"框內內容變更",FRAME_ITEM_RETURN_GRINDING:"退回 Grinding",DCYL:"DCYL",FRAME_ITEM_DCYL:"框內轉 DCYL",FRAME_ITEM_HT:"框內轉 HT",TRANSFER_HT:"轉 HT",HYDROTEST_MIGRATED_TO_HT:"舊水壓轉 HT",RELEASE_TO_SANDBLAST:"送往噴砂"};
+      const map={GRINDING_CHECK_IN:"進入 Grinding",LOAD_TO_FRAME:"入框",FRAME_READY_SANDBLAST:"完成待噴砂框",FRAME_CONTENT_CHANGED:"框內內容變更",FRAME_ITEM_RETURN_GRINDING:"退回 Grinding",DCYL:"DCYL",FRAME_ITEM_DCYL:"框內轉 DCYL",FRAME_ITEM_HT:"框內轉 HT",TRANSFER_HT:"轉 HT",CANCEL_HT:"取消轉 HT",HYDROTEST_MIGRATED_TO_HT:"舊水壓轉 HT",RELEASE_TO_SANDBLAST:"送往噴砂"};
       return map[action]||action||"-"
     }
     function renderHistoryTimeline(){
