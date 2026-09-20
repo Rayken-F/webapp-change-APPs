@@ -180,6 +180,7 @@
     body.embedded-mode .card{box-shadow:none;background:linear-gradient(180deg,rgba(56,79,173,.25),rgba(32,42,114,.22))}
     body.embedded-mode .sticky-actions{width:calc(100% - 12px);bottom:calc(6px + env(safe-area-inset-bottom))}
 
+    .ht-badge{display:inline-block;margin-left:8px;padding:2px 7px;border:1px solid #facc15;border-radius:6px;color:#facc15;font-size:12px;line-height:1.5;vertical-align:middle;white-space:nowrap}
   </style>
 </head>
 <!-- Grinding Recovery UX copy patch 2026-08-16; client version unchanged -->
@@ -264,12 +265,12 @@
           <div class="section-title">Barcoder WIP 快速選取</div>
           <span id="barcodeSelectedText" class="muted">已掃描選取 0 支</span>
         </div>
-        <div class="muted">只比對「已進入 Grinding、目前仍在 Grinding」的 WIP CTN，散支鋼瓶 CTN 與集束 CTN 都可掃描。掃描只會選取，不會先改帳；按下待噴砂、DCYL 或轉 HT 後，後端才會從 Grinding WIP 扣除。</div>
+        <div class="muted">只比對「已進入 Grinding、目前仍在 Grinding」的 WIP CTN，散支鋼瓶 CTN 與集束 CTN 都可掃描。掃描只會選取，不會先改帳；待噴砂或 DCYL 才會從 Grinding WIP 扣除；轉 HT 會留在站內並加上黃色標記。</div>
         <div class="scan-grid">
           <input id="wipBarcodeInput" class="input" maxlength="7" autocomplete="off" autocapitalize="characters" placeholder="掃描 Grinding WIP CTN（散支／集束）">
           <button id="wipBarcodeBtn" class="btn cyan" onclick="scanGrindingWipBarcode()">掃描選取</button>
         </div>
-        <div id="barcodeStatus" class="barcode-status">等待掃描。可掃描目前 Grinding WIP 內的散支鋼瓶 CTN 或集束 CTN；未進站、已入框、已 DCYL、已轉 HT 或不存在的 CTN 都會拒絕。</div>
+        <div id="barcodeStatus" class="barcode-status">等待掃描。可掃描目前 Grinding WIP 內的散支鋼瓶 CTN 或集束 CTN；未進站、已入框、已 DCYL、舊版已轉出 HT 或不存在的 CTN 都會拒絕。</div>
         <div id="barcodeRecent" class="barcode-recent"></div>
         <div class="barcode-actions">
           <button class="btn ghost" onclick="clearBarcodeSelections()">清除掃描選取</button>
@@ -286,6 +287,8 @@
           <button class="filter-btn active" data-filter="ALL" onclick="setWipFilter('ALL')">全部</button>
           <button class="filter-btn" data-filter="BOTTLE" onclick="setWipFilter('BOTTLE')">散支</button>
           <button class="filter-btn" data-filter="BUNDLE_LOT" onclick="setWipFilter('BUNDLE_LOT')">集束</button>
+          <button class="filter-btn" data-filter="HT" onclick="setWipFilter('HT')">轉 HT</button>
+          <span class="muted" title="轉 HT 留在 Grinding">HT1</span>
         </div>
         <div id="assetList" class="asset-list"></div>
       </section>
@@ -972,7 +975,7 @@
         metric("Grinding 現場 WIP",`${Number(c.grinding_wip_qty||0)} 支`),
         metric("入框待噴砂",`${Number(c.wait_sandblast_qty||0)} 支／${Number(c.wait_sandblast_frame_count||0)} 框`),
         metric("DCYL",`${Number(c.dcyl_qty||0)} 支`),
-        metric("轉 HT",`${Number(c.ht_qty||0)} 支`),
+        metric("轉 HT（含站內）",`${Number(c.ht_qty||0)} 支`),
         metric("進出差額",`${diff} 支`,diff===0?"good":"bad")
       ].join("");
       document.getElementById("dailySummary").innerHTML=`今日：進站 <strong>${Number(d.entered_qty||0)}</strong> 支｜入框 <strong>${Number(d.loaded_qty||0)}</strong> 支｜完成 <strong>${Number(d.completed_frame_count||0)}</strong> 框｜DCYL <strong>${Number(d.daily_dcyl_qty||0)}</strong> 支｜轉 HT <strong>${Number(d.daily_ht_qty||0)}</strong> 支`;
@@ -1380,9 +1383,12 @@
     function setWipFilter(filter){state.wipFilter=filter;document.querySelectorAll(".filter-btn").forEach(b=>b.classList.toggle("active",b.dataset.filter===filter));renderWipAssets()}
     function statusLabel(v){return STATUS_LABELS[v]||v||"-"}
     function renderWip(){renderWipAssets();renderFrames();renderHistory();renderBarcodeScanner()}
+    function isHtInGrinding(a){return !!a&&a.htInGrinding===true}
+    function htBadge(a){return isHtInGrinding(a)?'<span class="ht-badge">轉 HT</span>':""}
     function filteredAssets(){
       const list=state.wip&&Array.isArray(state.wip.grindingAssets)?state.wip.grindingAssets:[];
       if(state.wipFilter==="ALL")return list;
+      if(state.wipFilter==="HT")return list.filter(isHtInGrinding);
       return list.filter(a=>String(a.trackingType||"").toUpperCase()===state.wipFilter)
     }
     function renderWipAssets(){
@@ -1390,7 +1396,7 @@
       document.getElementById("assetList").innerHTML=list.length?list.map(a=>{
         const selected=!!state.selected[a.assetKey];const isLot=a.trackingType==="BUNDLE_LOT";const name=isLot?`集束來源 ${a.sourceCtn}`:a.assetCtn;
         const qty=Number(state.selectedQty[a.assetKey]||a.qty||0);
-        return `<article class="asset-item ${selected?"selected":""}" data-asset-key="${escapeHtml(a.assetKey)}"><input data-asset-checkbox="1" type="checkbox" ${selected?"checked":""} onchange="toggleAsset('${escapeHtml(a.assetKey)}',this.checked)"><div><div class="asset-name">${escapeHtml(name)}</div><div class="asset-sub">RT：${escapeHtml(a.rt||"-")}｜來源：${escapeHtml(a.sourceFrameCtn||a.sourceCtn||"-")}｜數量 ${Number(a.qty||0)} 支</div><span class="status-pill">${escapeHtml(statusLabel(a.stationStatus))}</span></div>${isLot&&selected?`<input class="qty-input" type="number" min="1" max="${Number(a.qty||0)}" value="${qty}" onchange="setAssetQty('${escapeHtml(a.assetKey)}',this.value)">`:""}</article>`
+        return `<article class="asset-item ${selected?"selected":""}" data-asset-key="${escapeHtml(a.assetKey)}"><input data-asset-checkbox="1" type="checkbox" ${selected?"checked":""} onchange="toggleAsset('${escapeHtml(a.assetKey)}',this.checked)"><div><div class="asset-name">${escapeHtml(name)}${htBadge(a)}</div><div class="asset-sub">RT：${escapeHtml(a.rt||"-")}｜來源：${escapeHtml(a.sourceFrameCtn||a.sourceCtn||"-")}｜數量 ${Number(a.qty||0)} 支</div><span class="status-pill">${escapeHtml(statusLabel(a.stationStatus))}</span></div>${isLot&&selected?`<input class="qty-input" type="number" min="1" max="${Number(a.qty||0)}" value="${qty}" onchange="setAssetQty('${escapeHtml(a.assetKey)}',this.value)">`:""}</article>`
       }).join(""):'<div class="empty">目前沒有符合篩選條件的 Grinding WIP。</div>';renderSticky()
     }
     function toggleAsset(assetKey,checked){
@@ -1428,7 +1434,7 @@
       if(countEl)countEl.textContent=`已掃描選取 ${qty} 支`;
       if(statusEl&&!state.barcodeRecent.length){
         statusEl.className="barcode-status";
-        statusEl.textContent="等待掃描。可掃描目前 Grinding WIP 內的散支鋼瓶 CTN 或集束 CTN；未進站、已入框、已 DCYL、已轉 HT 或不存在的 CTN 都會拒絕。"
+        statusEl.textContent="等待掃描。可掃描目前 Grinding WIP 內的散支鋼瓶 CTN 或集束 CTN；未進站、已入框、已 DCYL、舊版已轉出 HT 或不存在的 CTN 都會拒絕。"
       }else if(statusEl&&state.barcodeRecent.length){
         const last=state.barcodeRecent[0];
         statusEl.className=`barcode-status ${last.status||""}`;
@@ -1621,11 +1627,12 @@
         const rows=groups[def.key];
         const qty=rows.reduce((sum,item)=>sum+Number(item.qty||0),0);
         const open=def.key==="today"||(!groups.today.length&&def.key===firstAvailable);
-        const body=rows.map(item=>`<article class="history-item"><div class="asset-name">${escapeHtml(item.assetCtn||`集束來源 ${item.sourceCtn}`)}</div><div class="asset-sub">${escapeHtml(statusLabel(item.lifecycleStatus))}｜${Number(item.qty||0)} 支｜RT ${escapeHtml(item.rt||"-")}｜${escapeHtml(formatDispositionTime(item.updatedAt))}</div></article>`).join("");
+        const body=rows.map(item=>`<article class="history-item"><div class="asset-name">${escapeHtml(item.assetCtn||`集束來源 ${item.sourceCtn}`)}</div><div class="asset-sub">${escapeHtml(isHtInGrinding(item)?"轉 HT（站內）":statusLabel(item.lifecycleStatus))}｜${Number(item.qty||0)} 支｜RT ${escapeHtml(item.rt||"-")}｜${escapeHtml(formatDispositionTime(item.updatedAt))}</div></article>`).join("");
         return `<details class="history-period"${open?" open":""}><summary><span class="history-period-title">${def.label}</span><span class="history-period-count">${rows.length} 筆／${qty} 支</span></summary><div class="history-period-body">${body}</div></details>`
       }).join("")
     }
     function applyOptimisticDisposition(action,items,extra){
+      if(action==="TRANSFER_HT")return;
       if(!state.wip)return;
       const selectedMap={};
       items.forEach(item=>selectedMap[item.asset_key]=Number(item.qty||0));
@@ -1679,11 +1686,16 @@
         Number(current.complete_wait_qty||0)
       );
 
+      if(action==="DCYL"||action==="LOAD_TO_FRAME"){
+        current.ht_qty=Math.max(0,Number(current.ht_qty||0)-moved.filter(isHtInGrinding).reduce((n,a)=>n+Number(a.qty||0),0));
+        state.wip.dispositions=(state.wip.dispositions||[]).filter(a=>!isHtInGrinding(a)).concat(remain.filter(isHtInGrinding));
+      }
       if(action==="DCYL"||action==="TRANSFER_HT"){
         const lifecycle=action==="DCYL"?"DCYL":"HT";
         const list=state.wip.dispositions||[];
         moved.forEach(asset=>list.unshift(Object.assign({},asset,{
           lifecycleStatus:lifecycle,
+          htInGrinding:false,
           updatedAt:"同步中…"
         })));
         state.wip.dispositions=list;
@@ -1800,6 +1812,10 @@
             daily:r.daily_summary||{}
           }
         }
+        if(action==="TRANSFER_HT"&&Array.isArray(r.affected_assets)){
+          state.wip.grindingAssets=mergeAssetsByKey_(state.wip.grindingAssets,r.affected_assets);
+          state.wip.dispositions=mergeAssetsByKey_(state.wip.dispositions,r.affected_assets.filter(isHtInGrinding));
+        }
         state.revision=Number(
           r.revision||
           r.current_summary&&r.current_summary.revision||
@@ -1897,7 +1913,7 @@
       document.getElementById("frameEditList").innerHTML=assets.length?assets.map(a=>{
         const lot=a.trackingType==="BUNDLE_LOT";const name=lot?`集束來源 ${a.sourceCtn}`:a.assetCtn;
         const checked=!!state.frameEditSelected[a.assetKey];const qty=Number(state.frameEditQty[a.assetKey]||a.qty||1);
-        return `<article class="asset-item ${checked?"selected":""}"><input type="checkbox" ${checked?"checked":""} onchange="toggleFrameEditAsset('${escapeHtml(a.assetKey)}',this.checked)"><div><div class="asset-name">${escapeHtml(name)}</div><div class="asset-sub">RT：${escapeHtml(a.rt||"-")}｜數量 ${Number(a.qty||0)} 支</div></div>${lot&&checked?`<input class="qty-input" type="number" min="1" max="${Number(a.qty||0)}" value="${qty}" onchange="setFrameEditQty('${escapeHtml(a.assetKey)}',this.value)">`:""}</article>`
+        return `<article class="asset-item ${checked?"selected":""}"><input type="checkbox" ${checked?"checked":""} onchange="toggleFrameEditAsset('${escapeHtml(a.assetKey)}',this.checked)"><div><div class="asset-name">${escapeHtml(name)}${htBadge(a)}</div><div class="asset-sub">RT：${escapeHtml(a.rt||"-")}｜數量 ${Number(a.qty||0)} 支</div></div>${lot&&checked?`<input class="qty-input" type="number" min="1" max="${Number(a.qty||0)}" value="${qty}" onchange="setFrameEditQty('${escapeHtml(a.assetKey)}',this.value)">`:""}</article>`
       }).join(""):'<div class="empty">此框目前沒有可回修項目。</div>';
       const disabled=!data.editable||!assets.length;
       document.getElementById("frameReturnBtn").disabled=disabled;
@@ -1952,11 +1968,11 @@
         state.wip.waitSandblastAssets,remaining
       );
 
-      if(action==="FRAME_ITEM_RETURN_GRINDING"){
+      if(action==="FRAME_ITEM_RETURN_GRINDING"||action==="FRAME_ITEM_HT"){
         state.wip.grindingAssets=mergeAssetsByKey_(
           removeAssetKeys_(state.wip.grindingAssets,movedKeys),moved
         );
-        state.wip.dispositions=removeAssetKeys_(state.wip.dispositions,movedKeys)
+        state.wip.dispositions=mergeAssetsByKey_(removeAssetKeys_(state.wip.dispositions,movedKeys),moved.filter(isHtInGrinding))
       }else{
         state.wip.grindingAssets=removeAssetKeys_(state.wip.grindingAssets,movedKeys);
         state.wip.dispositions=mergeAssetsByKey_(
