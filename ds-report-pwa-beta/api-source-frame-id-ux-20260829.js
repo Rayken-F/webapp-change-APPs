@@ -40,7 +40,7 @@
         return `<article class="asset-item ${selected ? "selected" : ""}" data-asset-key="${escapeHtml(a.assetKey)}">` +
           `<input data-asset-checkbox="1" type="checkbox" ${selected ? "checked" : ""} onchange="toggleAsset('${escapeHtml(a.assetKey)}',this.checked)">` +
           `<div>` +
-            `<div class="asset-name">${escapeHtml(name)}</div>` +
+            `<div class="asset-name">${escapeHtml(name)}${htBadge(a)}</div>` +
             `<div class="asset-sub">RT：${escapeHtml(a.rt || "-")}｜來源：${escapeHtml(source)}${frameIdPart}｜數量 ${Number(a.qty || 0)} 支</div>` +
             `<span class="status-pill">${escapeHtml(statusLabel(a.stationStatus))}</span>` +
           `</div>` +
