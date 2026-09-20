@@ -17,3 +17,12 @@ test('incompatible environment is not accepted as prepared data',async()=>{const
 test('clear between cached get and take continuation cannot reuse invalidated snapshot',async()=>{const f=fixture(),pre=f.client.get();f.calls[0].resolve();await pre;const taken=f.client.take();f.client.clear();await assert.rejects(taken,{code:'CONTEXT_CHANGED'});});
 test('prepared batch data cannot overwrite pending, in-flight, blocked or newer local work',()=>{const f=fixture(),merge=f.c.DsOqcBootstrap.mergeDocs;for(const flag of [{pending:[{id:'scan'}]},{inflight:{id:'request'}},{blocked:'conflict'}]){const root={docs:{a:{id:'a',revision:4}},receipts:{},pending:[],...flag};assert.equal(merge(root,[{id:'a',revision:5}]),false);assert.equal(root.docs.a.revision,4);}
  const root={docs:{a:{id:'a',revision:4}},receipts:{},pending:[]};assert.equal(merge(root,[{id:'a',revision:3},{id:'b',revision:2,receipt:{id:'receipt'}}]),true);assert.equal(root.docs.a.revision,4);assert.equal(root.docs.b.revision,2);assert.equal(root.receipts.b.id,'receipt');});
+test('manual refresh click always reads fresh batches; only daily initialization may reuse preparation',async()=>{
+ const html=fs.readFileSync(path.join(__dirname,'../../DS-OQC-SHIPPING/index.html'),'utf8');
+ const fn=html.split(/\r?\n/).find(x=>x.startsWith('async function readRemote('));
+ for(const [input,expectedCalls] of [[{type:'click'},1],[undefined,1],[true,0]]){
+  let calls=0;const root={pending:[],docs:{},receipts:{}};
+  const c=vm.createContext({bootstrapRead:Date.now(),root,syncTask:null,key:'fixture',verify:async()=>{},reload:async()=>{},pump(){},api:async()=>{calls++;return {docs:[]};},S:{change:async(_k,f)=>f(root)}});
+  vm.runInContext(fn,c);await c.readRemote(input);assert.equal(calls,expectedCalls);
+ }
+});
