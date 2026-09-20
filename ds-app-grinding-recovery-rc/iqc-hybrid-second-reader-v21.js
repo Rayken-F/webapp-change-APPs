@@ -119,6 +119,7 @@
   }
 
   async function evaluateLocalResult(){
+    if(window.__DS_IQC_RC31)return;
     const batchId=activeBatch();if(!batchId||localStorage.getItem(attemptedKey(batchId))!=="1")return;
     const btn=document.getElementById("iqcRcAnalyze");if(btn?.disabled)return;if(localAttemptedAt&&Date.now()-localAttemptedAt<2200)return;
     const photos=await sourcePhotos(batchId).catch(()=>[]);if(!photos.length||photos.some(p=>p.status==="PROCESSING"))return;
@@ -144,8 +145,12 @@
   }
 
   async function syncAiQueue({manual=false}={}){
+    const rc31=window.__DS_IQC_RC31;if(rc31&&!rc31.claimCloud(manual))return;
+    try{
     if(syncing)return;if(!navigator.onLine){setHint("目前離線：AI_PENDING 安全留在本機。",false);return;}
-    const batchId=activeBatch();if(!batchId)return;const selected=await selectCloudCandidate(batchId);await reconcileSelectiveQueue(batchId,selected);
+    const batchId=activeBatch();if(!batchId)return;
+    if(rc31)await queueSelectiveForAi(batchId,"RC31_MANUAL_GAP");
+    const selected=await selectCloudCandidate(batchId);await reconcileSelectiveQueue(batchId,selected);
     syncing=true;const btn=document.getElementById("iqcHybridSyncBtn");if(btn)btn.disabled=true;
     try{
       const status=await getCloudStatus(manual);if(!status.ready){setHint(`Cloud 第二讀者尚未啟用：${status.message||"Backend 未就緒"}。Queue 不會遺失。`,false);return;}
@@ -156,6 +161,9 @@
       if(done){setHint(`Cloud 只補辨識 ${done} 張；正在重新做整批免費對帳，不會重送已完整的 Local 照片。`,false);lastEvaluatedSignature="";setTimeout(()=>evaluateLocalResult().catch(()=>{}),800);}
     }catch(err){setHint(`AI Queue 同步暫停：${err?.message||err}。照片仍在本機。`,true);}
     finally{syncing=false;if(btn)btn.disabled=false;refreshUi();}
+
+    }catch(err){if(!rc31)throw err;setHint("Cloud 補辨識暫停：本機佇列無法讀寫，照片保留，請稍後重試。",true);}
+    finally{if(rc31)rc31.releaseCloud();}
   }
 
   async function refreshUi(){
@@ -164,6 +172,7 @@
   }
 
   document.addEventListener("click",event=>{
+    if(window.__DS_IQC_RC31)return;
     const btn=event.target.closest?.("#iqcRcAnalyze");if(!btn||btn.dataset.dsV8Replay==="1")return;const batchId=activeBatch();if(!batchId)return;
     if(localStorage.getItem(attemptedKey(batchId))==="1"){event.preventDefault();event.stopImmediatePropagation();setHint("Local OCR 已跑過；只重新評估最小必要 AI 照片，不重跑整批。",false);toastHybrid("改走選擇性 Cloud 第二讀者");lastEvaluatedSignature="";evaluateLocalResult().then(()=>syncAiQueue({manual:true}));return;}
     localStorage.setItem(attemptedKey(batchId),"1");localAttemptedAt=Date.now();lastEvaluatedSignature="";clearTimeout(evaluationTimer);evaluationTimer=setTimeout(()=>evaluateLocalResult().catch(console.warn),2500);

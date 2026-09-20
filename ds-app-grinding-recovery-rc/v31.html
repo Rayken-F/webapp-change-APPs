@@ -4,33 +4,272 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
   <meta name="theme-color" content="#101942">
-  <title>鼎世工作台｜IQC RC v31</title>
-  <style>
-    html,body{margin:0;min-height:100%;background:#081331;color:#eaf2ff;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
-    .boot{min-height:100vh;display:grid;place-items:center;padding:24px;box-sizing:border-box;text-align:center}
-    .card{max-width:480px;padding:22px;border:1px solid rgba(130,160,255,.28);border-radius:20px;background:#142459}
-    strong{display:block;font-size:20px;margin-bottom:8px}small{color:#aebce5;line-height:1.6}
-  </style>
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="DS工作台">
+  <title>IQC RC31｜OCR-S1-20260920</title>
+  <link rel="apple-touch-icon" sizes="180x180" href="../ds-app/icons/apple-touch-icon.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="../ds-app/icons/icon-192.png">
+  <link rel="stylesheet" href="../ds-app/app.css">
+  <link rel="stylesheet" href="../ds-app/shell-ux.css?v=20260819-r1">
 </head>
 <body>
-  <div class="boot"><div class="card"><strong>IQC RC v31 載入中</strong><small>單張 OCR＋同批累積；IndexedDB 與目前照片不會清除。</small></div></div>
+  <div id="loadingOverlay" class="loading-overlay hidden" aria-live="polite">
+    <div class="loading-card">
+      <div class="spinner"></div>
+      <strong id="loadingTitle">正在處理</strong>
+      <span id="loadingText">請稍候…</span>
+      <button id="cancelAuthBtn" class="secondary-btn hidden" type="button">取消等待</button>
+    </div>
+  </div>
+
+  <div id="authFailureDialog" class="loading-overlay hidden" role="alertdialog" aria-modal="true" aria-labelledby="authFailureTitle" aria-describedby="authFailureText" style="z-index:2100">
+    <div class="loading-card">
+      <strong id="authFailureTitle">尚未完成登入</strong>
+      <span id="authFailureText"></span>
+      <small id="authFailureCode"></small>
+      <button id="closeAuthFailureBtn" class="secondary-btn" type="button">返回登入</button>
+    </div>
+  </div>
+
+  <section id="loginView" class="login-view">
+    <div class="login-brand">
+      <div class="brand-mark">DS</div>
+      <div>
+        <div class="eyebrow">IQC RC31 / OCR-S1-20260920</div>
+        <h1>鼎世工作台</h1>
+        <p>IQC 影像辨識測試：登入後由「更多」開啟「IQC 影像建檔 RC」。</p>
+      </div>
+    </div>
+
+    <form id="loginForm" class="login-card" autocomplete="on">
+      <label>
+        <span>帳號</span>
+        <input id="loginAccount" name="username" autocomplete="username" autocapitalize="characters" required>
+      </label>
+      <label>
+        <span>密碼</span>
+        <div class="password-field">
+          <input id="loginPassword" name="password" type="password" autocomplete="current-password" required>
+          <button id="togglePassword" type="button" class="icon-btn" aria-label="顯示或隱藏密碼">👁</button>
+        </div>
+      </label>
+      <label class="remember-row">
+        <input id="rememberLogin" type="checkbox" checked>
+        <span>記住登入</span>
+      </label>
+      <button id="loginBtn" class="primary-btn" type="submit">登入</button>
+      <button id="retrySessionBtn" class="secondary-btn hidden" type="button">重試登入驗證</button>
+      <p id="authStatus" class="login-note hidden" role="status"></p>
+      <details id="authDiagnostics" class="login-note hidden">
+        <summary>登入連線資訊</summary>
+        <pre id="authDiagnosticText" style="white-space:pre-wrap;overflow-wrap:anywhere"></pre>
+        <button id="copyAuthDiagnosticBtn" class="secondary-btn" type="button">複製連線紀錄</button>
+      </details>
+      <small>RC31 / OCR-S1-20260920 · 照片保留於本機，IQC 寫入鎖定</small>
+    </form>
+  </section>
+
+  <section id="appShell" class="app-shell hidden">
+    <header class="topbar">
+      <div class="topbar-brand">
+        <div class="mini-mark">DS</div>
+        <div>
+          <div id="pageEyebrow" class="eyebrow">OPERATIONS HOME</div>
+          <h1 id="pageTitle">公佈欄</h1>
+        </div>
+      </div>
+      <button id="userButton" class="user-chip" type="button">
+        <span id="userName">-</span>
+        <small id="userRole">-</small>
+      </button>
+    </header>
+
+    <div id="dsModuleContextBar" class="ds-module-context-bar" aria-hidden="true">
+      <div class="ds-module-context-left">
+        <span id="dsModuleContextIcon" class="ds-module-context-icon">DS</span>
+        <strong id="dsModuleContextTitle">日報系統</strong>
+      </div>
+      <div id="dsModuleContextUser" class="ds-module-context-user">-</div>
+    </div>
+
+    <main id="mainView" class="main-view">
+      <section id="homeModule" class="module-view">
+        <div class="hero-card">
+          <div>
+            <span class="hero-kicker">本週現場</span>
+            <h2>生產需求與進度</h2>
+            <p>RT需求由管理端維護；製程進度會在 Grinding API Bridge 完成後接上即時數據。</p>
+          </div>
+          <button id="addPriorityBtn" class="secondary-btn hidden" type="button">＋ 新增需求</button>
+        </div>
+
+        <section class="progress-strip" aria-label="製程進度">
+          <div class="progress-item">
+            <span>本週產能</span>
+            <strong>待串接</strong>
+          </div>
+          <div class="progress-item">
+            <span>急單進製程</span>
+            <strong>待串接</strong>
+          </div>
+          <div class="progress-item">
+            <span>待對帳</span>
+            <strong>待串接</strong>
+          </div>
+        </section>
+
+        <section class="priority-section">
+          <div class="section-head">
+            <div>
+              <span class="section-kicker">PRODUCTION REQUIREMENT</span>
+              <h3>生產需求</h3>
+            </div>
+            <button id="refreshPriorityBtn" class="text-btn" type="button">重新整理</button>
+          </div>
+
+          <div id="statusFilters" class="filter-row" role="group" aria-label="狀態篩選">
+            <button class="filter-chip active" data-status="ALL" type="button">全部</button>
+            <button class="filter-chip" data-status="常態" type="button">常態</button>
+            <button class="filter-chip" data-status="緊急" type="button">緊急</button>
+            <button class="filter-chip" data-status="中等" type="button">中等</button>
+            <button class="filter-chip" data-status="暫緩" type="button">暫緩</button>
+          </div>
+
+          <div id="homeLoadStatus" role="status" aria-live="polite"></div>
+          <div id="priorityList" class="priority-list">
+            <div class="empty-state">正在載入生產需求…</div>
+          </div>
+        </section>
+      </section>
+
+      <section id="moduleModule" class="module-view module-host hidden" aria-live="polite">
+        <div id="moduleFrameHost" class="module-frame-host"></div>
+      </section>
+
+      <section id="moreModule" class="module-view hidden">
+        <div class="section-head">
+          <div>
+            <span class="section-kicker">TOOLS</span>
+            <h3>更多功能</h3>
+          </div>
+        </div>
+        <div id="moreGrid" class="tool-grid"></div>
+        <details style="margin-top:20px">
+          <summary>畫面診斷</summary>
+          <p id="layoutDiagnosticStatus">畫面位置異常時，可複製版面資訊給 CG；不含帳密或作業資料。</p>
+          <button id="copyLayoutDiagnosticBtn" class="secondary-btn" type="button">複製版面資訊</button>
+          <pre id="layoutDiagnosticText" hidden style="white-space:pre-wrap;overflow-wrap:anywhere;user-select:text"></pre>
+        </details>
+      </section>
+    </main>
+
+    <nav class="bottom-nav" aria-label="主要功能">
+      <button id="navHome" class="nav-item active" data-nav="home" type="button">
+        <span class="nav-icon">📢</span><span>公佈欄</span>
+      </button>
+      <button id="navDaily" class="nav-item" data-nav="daily" type="button">
+        <span class="nav-icon">📝</span><span>日報系統</span>
+      </button>
+      <button id="navDashboard" class="nav-item" data-nav="dashboard" type="button">
+        <span class="nav-icon">📊</span><span>Dashboard</span>
+      </button>
+      <button id="navGrinding" class="nav-item hidden" data-nav="grinding" type="button">
+        <span class="nav-icon">⚙️</span><span>Grinding WIP</span>
+      </button>
+      <button id="navMore" class="nav-item" data-nav="more" type="button">
+        <span class="nav-icon">☰</span><span>更多</span>
+      </button>
+    </nav>
+  </section>
+
+  <div id="priorityModal" class="modal-backdrop hidden" aria-hidden="true">
+    <section class="modal-sheet" role="dialog" aria-modal="true" aria-labelledby="priorityModalTitle">
+      <div class="modal-head">
+        <div>
+          <span class="section-kicker">PRODUCTION REQUIREMENT</span>
+          <h3 id="priorityModalTitle">新增需求</h3>
+        </div>
+        <button id="closePriorityModal" class="icon-btn" type="button" aria-label="關閉">×</button>
+      </div>
+
+      <form id="priorityForm" class="priority-form">
+        <input id="priorityId" type="hidden">
+
+        <label>
+          <span>RT</span>
+          <input id="priorityRt" inputmode="numeric" autocomplete="off" placeholder="掃描或輸入 RT" required>
+          <div id="rtSuggestions" class="rt-suggestions hidden"></div>
+        </label>
+
+        <div id="rtPreview" class="rt-preview muted-card">
+          輸入 RT 後，系統會從 RT list 自動帶入 RT敘述、鋼瓶容量及「組／支」單位。
+        </div>
+
+        <label>
+          <span>需求量 <small id="demandUnitLabel"></small></span>
+          <input id="priorityQty" type="number" min="1" step="1" inputmode="numeric" required>
+        </label>
+
+        <label>
+          <span>需求來源</span>
+          <input id="prioritySource" maxlength="60" placeholder="例如：MRP需求" required>
+        </label>
+
+        <label>
+          <span>廠區</span>
+          <input id="priorityPlant" maxlength="20" autocapitalize="characters" placeholder="例如：7201、7A39" required>
+        </label>
+
+        <label>
+          <span>狀態</span>
+          <select id="priorityStatus" required>
+            <option value="常態">常態</option>
+            <option value="緊急">緊急</option>
+            <option value="中等">中等</option>
+            <option value="暫緩">暫緩</option>
+          </select>
+        </label>
+
+        <div class="modal-actions">
+          <button id="archivePriorityBtn" class="danger-btn hidden" type="button">封存</button>
+          <button class="primary-btn" type="submit">儲存</button>
+        </div>
+      </form>
+    </section>
+  </div>
+
+  <div id="userMenu" class="user-menu hidden">
+    <div id="userMenuName" class="user-menu-name">-</div>
+    <button id="logoutBtn" type="button">登出</button>
+  </div>
+
+  <div id="toast" class="toast hidden" role="status"></div>
+
+  <script src="./config-rc31.js?v=20260920-1"></script>
+  <script src="../ds-app/auth-bridge.js?v=20260919-k5"></script>
+  <script src="../ds-app/auth-transport.js?v=20260919-k6"></script>
+  <script src="../ds-app/oqc-bootstrap.js?v=20260920-k9"></script>
+  <script src="../ds-app/app.js?v=20260920-k9"></script>
+  <script src="../ds-app/shell-ux.js?v=20260918-k2"></script>
   <script>
-  (async function(){
-    try{
-      const source=await fetch('./v25.html?rc_bootstrap=31-20260826-1',{cache:'no-store'}).then(function(r){
-        if(!r.ok)throw new Error('v25 base HTTP '+r.status);
-        return r.text();
-      });
-      let html=source.replace('IQC Hybrid Image RC v25｜測試入口','IQC Hybrid Image RC v31｜單張辨識＋批次累積測試入口');
-      const runtimePattern=/<script src="\.\/iqc-intake-runtime-v25\.js[^\"]*"><\/script>/;
-      const replacement='<script src="./iqc-single-photo-batch-v31.js?v=20260826-1"><\/script>';
-      if(!runtimePattern.test(html))throw new Error('V31 runtime replacement marker not found');
-      html=html.replace(runtimePattern,replacement);
-      document.open();document.write(html);document.close();
-    }catch(err){
-      document.body.innerHTML='<div class="boot"><div class="card"><strong>V31 載入失敗</strong><small>'+String(err&&err.message||err)+'</small></div></div>';
-    }
-  })();
+    // Fail closed if the RC31 runtime cannot load: never resume old RC submissions or OCR handlers.
+    window.__DS_IQC_RC31={booting:true,claimCloud:()=>false,releaseCloud:()=>{}};
+    document.addEventListener("click",function(event){
+      if(!window.__DS_IQC_RC31.booting||!event.target.closest?.("#iqcImageRc"))return;
+      if(event.target.closest("#iqcRcClose"))return;
+      event.preventDefault();event.stopImmediatePropagation();
+      const info=document.getElementById("iqcRcProgressText");
+      if(info)info.textContent="RC31 載入尚未完成，請重新開啟此頁；原照片與批次保留。";
+    },true);
   </script>
+  <script src="./iqc-ocr-engine-rc31.js?v=rc31-20260920-1"></script>
+  <script src="./iqc-ocr-rules-rc31.js?v=rc31-20260920-1"></script>
+  <script src="./iqc-ocr-runtime-rc31.js?v=rc31-20260920-1"></script>
+  <script src="./iqc-image-intake-rc-v1.js?v=rc31-20260920-1"></script>
+  <script src="./iqc-image-memory-guard-v14.js?v=rc31-20260920-1"></script>
+  <script src="./iqc-hybrid-second-reader-v21.js?v=rc31-20260920-1"></script>
+  <script src="./iqc-meta-grouping-rc-v8.js?v=rc31-20260920-1"></script>
+  <script src="./iqc-image-safety-guard-rc-v1.js?v=rc31-20260920-1"></script>
 </body>
 </html>
