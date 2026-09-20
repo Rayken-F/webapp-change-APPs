@@ -1,12 +1,13 @@
 "use strict";
 
-const CACHE="ds-app-shell-layout-k8-20260919-11";
+const CACHE="ds-app-shell-oqc-k9-20260920-12";
 
 const STATIC=[
   "./",
   "./index.html",
   "./app.css",
   "./app.js",
+  "./oqc-bootstrap.js",
   "./auth-transport.js",
   "./auth-bridge.js",
   "./shell-ux.css",
