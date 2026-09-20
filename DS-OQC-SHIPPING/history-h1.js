@@ -191,7 +191,7 @@ function install(){
     // unsent operations; the existing sync/read guards remain in force.
     await T.sync();r=await T.getRoot();
     if(r.blocked||r.pending.length||r.inflight)throw Error('舊資料仍待同步，先按「同步／重試」；今日批次不會重複建立');
-    if(!dailyDocs(r,date).length)await T.readRemote();
+    if(!dailyDocs(r,date).length)await T.readRemote(true);
    }
    if(k!==T.getKey()||date!==today()||!pack()||editing(allowInput))return false;
    const result=await S.change(k,v=>ensureIn(v,date,new Date().toISOString(),id));

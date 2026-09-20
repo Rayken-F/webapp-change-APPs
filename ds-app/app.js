@@ -15,6 +15,8 @@ const state={
   selectedRt:null
 };
 const $=id=>document.getElementById(id);
+const oqcPreparation=window.DsOqcBootstrap?.create({url:CFG.OQC_API_URL,
+  context:()=>({token:getToken(),account:state.authUser?.account,allowed:state.profile?.permissions?.stamp_shipping_enabled===true})});
 
 function showLoading(title,text){
   $("authFailureDialog").classList.add("hidden");
@@ -43,6 +45,7 @@ function saveToken(token,remember){
   (remember?localStorage:sessionStorage).setItem(CFG.AUTH_TOKEN_KEY,token);
 }
 function clearToken(){
+  oqcPreparation?.clear();
   resetHomeData();
   sessionStorage.removeItem(CFG.AUTH_TOKEN_KEY);
   localStorage.removeItem(CFG.AUTH_TOKEN_KEY);
@@ -336,6 +339,7 @@ function authControl(epoch,signal){
 
 function runAuthentication(work){
   if(authTask) return authTask;
+  oqcPreparation?.clear();
   cancelHomeData();authStatus("");
   const epoch=++authEpoch;
   const controller=new AbortController();authController=controller;
@@ -368,6 +372,8 @@ function applyAuthentication(result,preserveView){
     const key=modulePermissions[frame.dataset.moduleKey];
     if(key&&!permission(key)){if(!frame.classList.contains("hidden"))activeRevoked=true;frame.remove();}
   });
+  // Read-only preload; it must never delay authentication or create a batch.
+  if(permission("stamp_shipping_enabled")&&!$("moduleFrameHost").querySelector('[data-module-key="oqc"]'))oqcPreparation?.get().catch(()=>{});
   if(preserveView&&!activeRevoked){
     $("moduleFrameHost").querySelectorAll(".module-frame").forEach(frame=>{
       try{const win=frame.contentWindow;win.dispatchEvent(new win.CustomEvent("ds-iqc-session-restored"));}catch(_){ }
@@ -662,6 +668,7 @@ function bind(){
   document.addEventListener("click",e=>{if(!$("userMenu").contains(e.target)&&!$("userButton").contains(e.target)) $("userMenu").classList.add("hidden")});
 }
 window.DS_PORTAL_BRIDGE=Object.freeze({
+  takeOqcPreparation:()=>oqcPreparation?.take(),
   reauthenticate:()=>tryRestore(true),
   getToken:()=>getToken(),
   getProfile:()=>state.profile,
@@ -684,7 +691,7 @@ async function init(){
   if("serviceWorker" in navigator){navigator.serviceWorker.register("sw.js").catch(()=>{})}
   await installBottomNavHeightObserver();
   document.addEventListener("visibilitychange",()=>{
-    if(document.hidden){resumeValidationNeeded=!!getToken();return;}
+    if(document.hidden){oqcPreparation?.clear();resumeValidationNeeded=!!getToken();return;}
     if(resumeValidationNeeded&&getToken()){resumeValidationNeeded=false;tryRestore(true);}
   });
   window.addEventListener("pageshow",event=>{if(event.persisted&&getToken())tryRestore(true);});
