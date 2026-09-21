@@ -3,6 +3,7 @@
   const VERSION="IQC_IMAGE_MEMORY_GUARD_V14_20260823";
   if(window.__DS_IQC_IMAGE_MEMORY_GUARD_V14)return;
   const revoked=new Set();
+  const retained=new Set();
 
   function revoke(src){
     if(!src||!String(src).startsWith("blob:")||revoked.has(src))return;
@@ -12,11 +13,12 @@
     if(!img||img.dataset.dsMemGuard==="1")return;
     img.dataset.dsMemGuard="1";
     const src=img.currentSrc||img.src||"";
+    if(window.__DS_IQC_RC31){retained.add(src);return;}
     const done=()=>{revoke(src);img.removeEventListener("load",done);img.removeEventListener("error",done);};
     if(img.complete)setTimeout(done,0);else{img.addEventListener("load",done,{once:true});img.addEventListener("error",done,{once:true});}
   }
-  function sweep(root=document){root.querySelectorAll?.("#iqcRcPhotoList img").forEach(bindImage);}
-  function revokeVisible(){document.querySelectorAll("#iqcRcPhotoList img").forEach(img=>revoke(img.currentSrc||img.src||""));}
+  function sweep(root=document){root.querySelectorAll?.("#iqcRcPhotoList img").forEach(bindImage);if(window.__DS_IQC_RC31){const current=new Set([...document.querySelectorAll('#iqcRcPhotoList img')].map(img=>img.currentSrc||img.src));for(const src of retained)if(!current.has(src)){revoke(src);retained.delete(src);}}}
+  function revokeVisible(){if(window.__DS_IQC_RC31)return;document.querySelectorAll("#iqcRcPhotoList img").forEach(img=>revoke(img.currentSrc||img.src||""));}
 
   const observer=new MutationObserver(records=>{
     records.forEach(rec=>rec.addedNodes.forEach(node=>{

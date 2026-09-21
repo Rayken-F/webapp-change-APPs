@@ -52,3 +52,20 @@ test('new explicit manual assignment takes priority over preserved legacy review
 test('unknown status is not treated as a completed group',()=>{
  const g=model.build([photo('p1','113374 CYLINDER UNKNOWN 7209 TOTAL 1\nAB12CDE')])[0];assert.equal(g.status,'');assert.equal(g.ready,false);
 });
+test('same RT with empty manual fields joins its unique known group and deduplicates overlaps',()=>{
+ const p=photo('p2','AB12CDE\nFG34HIJ');p.rc31Review=model.updateReview(p,[{original:'AB12CDE',ctn:'AB12CDE'},{original:'FG34HIJ',ctn:'FG34HIJ'}],{rt:'113374'});
+ const first=photo('p1',header+'\nAB12CDE');
+ for(const photos of [[first,p],[p,first]]){const groups=model.build(photos);assert.equal(groups.length,1);assert.equal(groups[0].ctns.length,2);assert.equal(groups[0].status,'OCYL');assert.equal(groups[0].plant,'7209');assert.equal(groups[0].warnings.length,0);assert.equal(groups[0].ready,true);}
+});
+test('missing fields cannot bridge incompatible same-RT groups',()=>{
+ const groups=model.build([photo('p1',header+'\nAB12CDE'),photo('p2','113374 CYLINDER MNT1 7209 TOTAL 1\nFG34HIJ'),photo('p3','113374 CYLINDER UNKNOWN UNKNOWN TOTAL 0\nKL56MNP')]);
+ assert.equal(groups.length,3);assert.ok(groups.find(g=>!g.status).warnings.some(w=>w.includes('不同狀態')));
+});
+test('a photo with no OCR candidates accepts explicit manual CTNs and retains original text',()=>{
+ const p=photo('p1','NEXT PAGE');p.rc31Review=model.updateReview(p,[{original:'AB12CDE',ctn:'AB12CDE',added:true}],{...meta,expected:1});
+ const g=model.build([p])[0];assert.deepEqual(g.ctns,['AB12CDE']);assert.equal(g.ready,true);assert.equal(g.rows[0].stale,false);assert.equal(p.ocrText,'NEXT PAGE');
+ assert.throws(()=>model.updateReview(p,[{original:'BADINPUT',ctn:'BADINPUT',added:true}],meta));
+});
+test('complementary missing fields merge only when same RT has no conflicts',()=>{
+ const g=model.build([photo('p1','113374 CYLINDER OCYL UNKNOWN TOTAL 2\nAB12CDE'),photo('p2','113374 CYLINDER UNKNOWN 7209 TOTAL 2\nFG34HIJ')]);assert.equal(g.length,1);assert.equal(g[0].ready,true);
+});
