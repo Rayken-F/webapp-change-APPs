@@ -76,7 +76,8 @@
     const commit=document.getElementById("iqcRcCommit");
     if(commit){
       commit.dataset.dsProductionWriteLocked="1";
-      commit.textContent="🔒 RC 複查完成（正式寫入暫鎖）";
+      const label="🔒 RC 複查完成（正式寫入暫鎖）";
+      if(commit.textContent!==label)commit.textContent=label;
     }
     auditVisibleGroups();
   }
