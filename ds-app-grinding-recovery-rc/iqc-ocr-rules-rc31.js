@@ -33,6 +33,27 @@ const clean=v=>String(v||" ").trim().toUpperCase();
   async function makeVariant(image){let src=null,canvas=null;try{src=await createBitmap(image);const sw=Number(src.width||src.naturalWidth||0),sh=Number(src.height||src.naturalHeight||0);if(!sw||!sh)throw new Error("影像尺寸無效");const sx=Math.round(sw*.04),sy=Math.round(sh*.06),cw=Math.round(sw*.92),ch=Math.round(sh*.92),scale=Math.min(1.5,2100/Math.max(cw,ch)),w=Math.max(1,Math.round(cw*scale)),h=Math.max(1,Math.round(ch*scale));canvas=document.createElement("canvas");canvas.width=w;canvas.height=h;const ctx=canvas.getContext("2d",{willReadFrequently:true,alpha:false});ctx.drawImage(src,sx,sy,cw,ch,0,0,w,h);try{src.close?.();}catch(_){ }src=null;const im=ctx.getImageData(0,0,w,h),d=im.data;for(let i=0;i<d.length;i+=4){const y=.299*d[i]+.587*d[i+1]+.114*d[i+2],v=y>182?255:(y>104?Math.min(255,Math.round((y-104)*3.1)):0);d[i]=d[i+1]=d[i+2]=v;}ctx.putImageData(im,0,0);return await new Promise(resolve=>canvas.toBlob(b=>resolve(b||image),"image/jpeg",.9));}finally{try{src?.close?.();}catch(_){ }if(canvas){canvas.width=1;canvas.height=1;canvas.remove();}src=null;canvas=null;}}
 
 
-const api={parseText,normalizeCtn,parseEvents,mergeParsedPasses,structuralState,qualityLabel,needsSparse,needsHighContrast,preprocessForOcr,makeVariant};
+  // Locate the largest light, neutral screen region; dark device frames and blue UI
+  // bars otherwise dominate segmentation on short continuation photos.
+  async function makeTextRegion(blob){
+    let source,small,canvas;try{
+      source=await createBitmap(blob);const sw=source.width||source.naturalWidth,sh=source.height||source.naturalHeight;
+      small=document.createElement('canvas');const scale=Math.min(1,320/Math.max(sw,sh));small.width=Math.max(1,Math.round(sw*scale));small.height=Math.max(1,Math.round(sh*scale));
+      const ctx=small.getContext('2d',{willReadFrequently:true});ctx.drawImage(source,0,0,small.width,small.height);
+      const w=small.width,h=small.height,pixels=ctx.getImageData(0,0,w,h).data,mask=new Uint8Array(w*h),queue=new Int32Array(w*h);let best=null;
+      for(let i=0;i<mask.length;i++){const r=pixels[i*4],g=pixels[i*4+1],b=pixels[i*4+2];mask[i]=Math.min(r,g,b)>132&&Math.max(r,g,b)-Math.min(r,g,b)<55?1:0;}
+      for(let i=0;i<mask.length;i++){if(mask[i]!==1)continue;let start=0,end=1,count=0,left=w,right=0,top=h,bottom=0;queue[0]=i;mask[i]=0;
+        while(start<end){const n=queue[start++],x=n%w,y=Math.floor(n/w);count++;left=Math.min(left,x);right=Math.max(right,x);top=Math.min(top,y);bottom=Math.max(bottom,y);
+          for(const next of [x>0?n-1:-1,x<w-1?n+1:-1,y>0?n-w:-1,y<h-1?n+w:-1])if(next>=0&&mask[next]===1){mask[next]=0;queue[end++]=next;}
+        }
+        if(!best||count>best.count)best={count,left,right,top,bottom};
+      }
+      if(!best||best.count<w*h*.035||best.right-best.left<w*.2||best.bottom-best.top<h*.06)return null;
+      const pad=Math.max(2,Math.round(Math.min(w,h)*.012)),sx=Math.max(0,best.left-pad)/scale,sy=Math.max(0,best.top-pad)/scale,cw=Math.min(sw-sx,(best.right-best.left+1+pad*2)/scale),ch=Math.min(sh-sy,(best.bottom-best.top+1+pad*2)/scale);
+      const zoom=Math.min(2,2000/Math.max(cw,ch));canvas=document.createElement('canvas');canvas.width=Math.round(cw*zoom)+40;canvas.height=Math.round(ch*zoom)+40;const out=canvas.getContext('2d',{alpha:false});out.fillStyle='white';out.fillRect(0,0,canvas.width,canvas.height);out.drawImage(source,sx,sy,cw,ch,20,20,canvas.width-40,canvas.height-40);
+      return await new Promise(resolve=>canvas.toBlob(resolve,'image/png'));
+    }finally{source?.close?.();if(small)small.width=small.height=1;if(canvas)canvas.width=canvas.height=1;}
+  }
+const api={parseText,normalizeCtn,parseEvents,mergeParsedPasses,structuralState,qualityLabel,needsSparse,needsHighContrast,preprocessForOcr,makeVariant,makeTextRegion};
 if(typeof module==="object"&&module.exports)module.exports=api;else window.IqcOcrRules31=api;
 })();
