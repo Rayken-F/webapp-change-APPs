@@ -45,6 +45,7 @@ function saveToken(token,remember){
   (remember?localStorage:sessionStorage).setItem(CFG.AUTH_TOKEN_KEY,token);
 }
 function clearToken(){
+  forgetVerifiedSession();
   oqcPreparation?.clear();
   resetHomeData();
   sessionStorage.removeItem(CFG.AUTH_TOKEN_KEY);
@@ -300,12 +301,95 @@ async function loadHomeDataSafe(){
 }
 let authTask=null;
 let authEpoch=0;
-let resumeValidationNeeded=false;
 let authController=null;
 let restoreViewPending=false;
+// Only server-verified state in this document may resume without a blocking request.
+// A reload still verifies the saved token. This does not authorize backend writes.
+const SESSION_REFRESH_MS=60000;
+let verifiedSession=null;
+let sessionRefreshTask=null;
+let sessionRefreshController=null;
+let sessionExpiryTimer=null;
+function forgetVerifiedSession(){
+  sessionRefreshController?.abort();sessionRefreshController=null;sessionRefreshTask=null;
+  clearTimeout(sessionExpiryTimer);sessionExpiryTimer=null;verifiedSession=null;
+}
+function sessionExpiry(value){
+  // The deployed backend formats expiresAt in Asia/Taipei, without an offset.
+  const text=String(value||"");
+  if(!/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(text))return 0;
+  return Date.parse(text.replace(" ","T")+"+08:00")||0;
+}
+function rememberVerifiedSession(result){
+  clearTimeout(sessionExpiryTimer);
+  const expiresAt=sessionExpiry(result.expiresAt);
+  verifiedSession=expiresAt?{token:getToken(),account:result.user.account,expiresAt,attemptedAt:Date.now()}:null;
+  scheduleSessionExpiry();
+}
+function scheduleSessionExpiry(){
+  if(!verifiedSession)return;
+  // A 30-day token exceeds the maximum browser timeout; check at most daily.
+  sessionExpiryTimer=setTimeout(()=>{
+    if(!verifiedSession)return;
+    if(getToken()!==verifiedSession.token){resumeSession();return;}
+    if(Date.now()>=verifiedSession.expiresAt){endSession("登入已到期，請重新登入。");return;}
+    scheduleSessionExpiry();
+  },Math.max(0,Math.min(verifiedSession.expiresAt-Date.now(),86400000)));
+}
+function endSession(message){
+  cancelAuthentication();cancelHomeData();restoreViewPending=false;
+  clearToken();state.authUser=null;state.profile=null;
+  $("moduleFrameHost").replaceChildren();
+  $("userMenu").classList.add("hidden");
+  authStatus(message);hydrateRememberedLogin();showLogin();
+}
+function refreshSessionInBackground(){
+  if(sessionRefreshTask)return sessionRefreshTask;
+  const session=verifiedSession;
+  if(!session||document.hidden||Date.now()-session.attemptedAt<SESSION_REFRESH_MS)return;
+  session.attemptedAt=Date.now();
+  const epoch=authEpoch,controller=new AbortController();sessionRefreshController=controller;
+  const current=()=>verifiedSession===session&&epoch===authEpoch&&getToken()===session.token;
+  const pending=Promise.resolve().then(async()=>{
+    if(!current())return;
+    try{
+      const result=await authTransport.post("workstation_bootstrap",{session_token:session.token},{signal:controller.signal});
+      if(!current())return;
+      if(!result.user||!result.permissions)throw new Error("登入服務回應不完整");
+      if(result.user.account!==session.account){endSession("登入帳號已變更，請重新登入。");return;}
+      if(sessionExpiry(result.expiresAt)<=Date.now()){endSession("登入已到期，請重新登入。");return;}
+      applyAuthentication(result,true);markAuthApplied(result);
+    }catch(err){
+      if(!current())return;
+      if(isExplicitAuthInvalidMessage(err.message))endSession("登入已失效，請重新登入。");
+      // A transport failure must not discard a previously verified, unexpired session.
+      // attemptedAt limits retries during rapid foreground events on a weak network.
+    }
+  }).finally(()=>{
+    if(sessionRefreshTask===pending){sessionRefreshTask=null;sessionRefreshController=null;}
+  });
+  sessionRefreshTask=pending;return pending;
+}
+function resumeSession(){
+  if(authTask)return authTask;
+  const token=getToken(),session=verifiedSession;
+  if(!token){if(state.authUser||state.profile)endSession("請重新登入。");return;}
+  if(session?.token===token&&state.profile&&state.authUser?.account===session.account){
+    if(Date.now()>=session.expiresAt){endSession("登入已到期，請重新登入。");return;}
+    return refreshSessionInBackground();
+  }
+  return tryRestore(true);
+}
+function bindSessionLifecycle(){
+  document.addEventListener("visibilitychange",()=>{if(!document.hidden)resumeSession();});
+  window.addEventListener("pageshow",event=>{if(event.persisted)resumeSession();});
+  window.addEventListener("storage",event=>{
+    if((event.key===CFG.AUTH_TOKEN_KEY||event.key===null)&&verifiedSession&&getToken()!==verifiedSession.token)resumeSession();
+  });
+}
 const authRecords=[];
 function renderAuthDiagnostics(){
-  $("authDiagnosticText").textContent=JSON.stringify({build:"AUTH-K5",attempts:authRecords},null,2);
+  $("authDiagnosticText").textContent=JSON.stringify({build:"AUTH-K10",attempts:authRecords},null,2);
   $("authDiagnostics").classList.toggle("hidden",authRecords.length===0);
 }
 function authStatus(message){
@@ -339,6 +423,7 @@ function authControl(epoch,signal){
 
 function runAuthentication(work){
   if(authTask) return authTask;
+  forgetVerifiedSession();
   oqcPreparation?.clear();
   cancelHomeData();authStatus("");
   const epoch=++authEpoch;
@@ -360,14 +445,15 @@ function runAuthentication(work){
 }
 function applyAuthentication(result,preserveView){
   const owner=String(result.user?.account||"");
-  if(state.homeOwner!==owner||!result.permissions?.home_enabled)resetHomeData();
+  if(state.homeOwner!==owner||!result.permissions?.home_enabled){cancelHomeData();resetHomeData();}
   state.homeOwner=owner;
   state.authUser=result.user||null;
   state.profile={user:result.user||null,permissions:result.permissions||{}};
+  rememberVerifiedSession(result);
   hydrateUser();syncShellPermissions();showApp();hideLoading();
   // Remove frames whose permission was revoked while the app was suspended.
   const modulePermissions={daily:"daily_report_enabled",grinding:"grinding_enabled",iqc:"iqc_correction_enabled",oqc:"stamp_shipping_enabled"};
-  let activeRevoked=false;
+  let activeRevoked=!permission("home_enabled")&&!$("homeModule").classList.contains("hidden");
   $("moduleFrameHost").querySelectorAll(".module-frame").forEach(frame=>{
     const key=modulePermissions[frame.dataset.moduleKey];
     if(key&&!permission(key)){if(!frame.classList.contains("hidden"))activeRevoked=true;frame.remove();}
@@ -416,6 +502,7 @@ function tryRestore(preserveView=false){
       if(epoch!==authEpoch||getToken()!==token)return;
       if(!result.user||!result.permissions)throw new Error("登入服務回應不完整，請重試。");
       const sameUser=previousUser?.account===result.user.account;
+      if(previousUser&&!sameUser)$("moduleFrameHost").replaceChildren();
       applyAuthentication(result,preserveView&&restoreViewPending&&sameUser);
       restoreViewPending=false;markAuthApplied(result);
     }catch(err){
@@ -656,7 +743,7 @@ function bind(){
     btn.addEventListener("click",()=>handleNav(btn.dataset.nav));
   });
   $("userButton").addEventListener("click",()=>$("userMenu").classList.toggle("hidden"));
-  $("logoutBtn").addEventListener("click",()=>{cancelAuthentication();cancelHomeData();restoreViewPending=false;resumeValidationNeeded=false;clearToken();state.authUser=null;state.profile=null;$("moduleFrameHost").replaceChildren();authStatus("");$("userMenu").classList.add("hidden");hydrateRememberedLogin();showLogin()});
+  $("logoutBtn").addEventListener("click",()=>endSession(""));
   $("addPriorityBtn").addEventListener("click",()=>openPriorityModal());
   $("refreshPriorityBtn").addEventListener("click",async()=>{try{showLoading("重新整理","正在取得最新需求…");await loadHomeData();toast("已更新")}catch(err){toast(err.message,true)}finally{hideLoading()}});
   $("statusFilters").querySelectorAll("[data-status]").forEach(btn=>btn.addEventListener("click",()=>{state.filter=btn.dataset.status;$("statusFilters").querySelectorAll("[data-status]").forEach(x=>x.classList.toggle("active",x===btn));renderPriorities()}));
@@ -690,11 +777,7 @@ async function init(){
   if(handlePublicRoute()) return;
   if("serviceWorker" in navigator){navigator.serviceWorker.register("sw.js").catch(()=>{})}
   await installBottomNavHeightObserver();
-  document.addEventListener("visibilitychange",()=>{
-    if(document.hidden){oqcPreparation?.clear();resumeValidationNeeded=!!getToken();return;}
-    if(resumeValidationNeeded&&getToken()){resumeValidationNeeded=false;tryRestore(true);}
-  });
-  window.addEventListener("pageshow",event=>{if(event.persisted&&getToken())tryRestore(true);});
+  bindSessionLifecycle();
   tryRestore();
 }
 init();
