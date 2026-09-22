@@ -69,3 +69,29 @@ test('a photo with no OCR candidates accepts explicit manual CTNs and retains or
 test('complementary missing fields merge only when same RT has no conflicts',()=>{
  const g=model.build([photo('p1','113374 CYLINDER OCYL UNKNOWN TOTAL 2\nAB12CDE'),photo('p2','113374 CYLINDER UNKNOWN 7209 TOTAL 2\nFG34HIJ')]);assert.equal(g.length,1);assert.equal(g[0].ready,true);
 });
+
+test('explicit reconciliation merges same RT conflicts and deduplicates sources without rewriting OCR',()=>{
+ const photos=[photo('p1',header+'\nAB12CDE'),photo('p2','113374 CYLINDER MNT1 7A44 TOTAL 2\nAB12CDE\nFG34HIJ')];
+ const keys=model.build(photos).map(g=>g.key),before=photos.map(p=>p.ocrText);
+ const updates=model.mergeReviews(photos,keys,{...meta,expected:2});
+ const next=photos.map(p=>({...p,rc31Review:updates.find(u=>u.id===p.id).review}));
+ const groups=model.build(next);assert.equal(groups.length,1);assert.equal(groups[0].ready,true);assert.equal(groups[0].overlapCount,1);assert.equal(groups[0].photoIds.length,2);assert.deepEqual(next.map(p=>p.ocrText),before);assert.ok(next.every(p=>p.rc31Review.history.length===1));
+});
+test('reconciliation leaves unselected RT and metadata in the same photo untouched',()=>{
+ const photos=[photo('p1',header+'\nAB12CDE\n113407 CYLINDER MNT1 7A44 TOTAL 1\nKL56MNP'),photo('p2','113374 CYLINDER MNT1 7209 TOTAL 1\nFG34HIJ')];
+ const selected=model.build(photos).filter(g=>g.rt==='113374').map(g=>g.key),updates=model.mergeReviews(photos,selected,meta);
+ const groups=model.build(photos.map(p=>({...p,rc31Review:updates.find(u=>u.id===p.id).review})));assert.equal(groups.length,2);assert.equal(groups.find(g=>g.rt==='113407').status,'MNT1');assert.equal(groups.find(g=>g.rt==='113407').rows[0].manual,undefined);
+});
+test('reconciliation rejects mismatched RT, changed keys, duplicates or unconfirmed metadata',()=>{
+ const photos=[photo('p1',header+'\nAB12CDE'),photo('p2','113374 CYLINDER MNT1 7209 TOTAL 1\nFG34HIJ'),photo('p3','113407 CYLINDER OCYL 7209 TOTAL 1\nKL56MNP')];const groups=model.build(photos),keys=groups.filter(g=>g.rt==='113374').map(g=>g.key);
+ assert.throws(()=>model.mergeReviews(photos,groups.map(g=>g.key),meta),/相同 RT/);
+ assert.throws(()=>model.mergeReviews(photos,[keys[0],'removed'],meta),/群組變動/);
+ assert.throws(()=>model.mergeReviews(photos,[keys[0],keys[0]],meta),/群組變動/);
+ assert.throws(()=>model.mergeReviews(photos,keys,{...meta,status:''}),/狀態與廠區/);
+ assert.ok(photos.every(p=>!p.rc31Review));
+});
+test('reconciliation preserves earlier corrected CTNs and prior review history',()=>{
+ const p=photo('p1',header+'\nAB12CDE');p.rc31Review=model.updateReview(p,[{original:'AB12CDE',ctn:'AB12CD1'}],meta);
+ const photos=[p,photo('p2','113374 CYLINDER MNT1 7209 TOTAL 1\nFG34HIJ')],updates=model.mergeReviews(photos,model.build(photos).map(g=>g.key),meta);
+ assert.equal(updates[0].review.ctns.AB12CDE.ctn,'AB12CD1');assert.equal(updates[0].review.history.length,2);assert.equal(p.rc31Review.history.length,1);
+});

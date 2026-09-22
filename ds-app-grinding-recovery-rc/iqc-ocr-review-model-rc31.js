@@ -141,5 +141,16 @@
       });
     });return decisions;
   }
-  return {candidates,build,updateReview,legacyDecisions};
+  function mergeReviews(photos,keys,meta,legacy=[]){
+    const all=build(photos,legacy),selected=all.filter(g=>keys.includes(g.key));
+    if(new Set(keys).size!==keys.length||selected.length!==keys.length||selected.length<2)throw new Error("請選擇至少兩組；群組變動時請重新開啟合併。");
+    const rt=selected[0].rt;if(!rt||selected.some(g=>g.rt!==rt)||clean(meta.rt)!==rt)throw new Error("只能合併相同 RT；不同 RT 請先逐筆核對歸類。");
+    if(!field(meta.status)||!field(meta.plant))throw new Error("請確認合併後的狀態與廠區。");
+    const rows=selected.flatMap(g=>g.rows),updates=[];
+    for(const p of photos){const selection=rows.filter(r=>r.photoId===p.id).map(r=>({original:r.original,ctn:r.ctn,added:!!r.added}));
+      if(selection.length)updates.push({id:p.id,updatedAt:p.updatedAt,review:updateReview(p,selection,meta)});
+    }
+    return updates;
+  }
+  return {candidates,build,updateReview,legacyDecisions,mergeReviews};
 });
