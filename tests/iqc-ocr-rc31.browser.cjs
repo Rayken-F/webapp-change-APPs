@@ -154,7 +154,7 @@ const dbPhotos=page=>page.evaluate(()=>new Promise((resolve,reject)=>{const r=in
  await page.locator('#iqc31StartTop').tap();await page.waitForFunction(()=>!window.__DS_IQC_RC31.isBusy(),{},{timeout:240000});
  const bulkPhotos=await dbPhotos(page);
  ok('one touch processes and saves all 30 synthetic photos',bulkPhotos.length===30&&bulkPhotos.every(p=>p.status==='RECOGNIZED'&&p.rc31RawPasses?.length));
- ok('30-photo queue uses the same warm worker',workerRequests===bulkWorkers);
+ ok('30-photo queue releases and recreates its worker every four photos',workerRequests===bulkWorkers+7);
  fs.writeFileSync(path.join(artifacts,'bulk-30.json'),JSON.stringify({elapsedMs:Date.now()-bulkStarted,photos:bulkPhotos.map(p=>({seq:p.seq,status:p.status,text:p.ocrText})),diagnostics:await page.evaluate(()=>window.__DS_IQC_RC31.diagnostics())},null,2));
  await page.reload();await page.locator('#appShell').waitFor({state:'visible'});await page.locator('#navMore').click();await page.locator('#iqcImageRcTool').click();await page.waitForFunction(()=>!window.__DS_IQC_RC31.isBusy());
  ok('all 30 saved results survive reload',(await dbPhotos(page)).length===30&&(await dbPhotos(page)).every(p=>p.status==='RECOGNIZED'));
@@ -167,6 +167,35 @@ const dbPhotos=page=>page.evaluate(()=>new Promise((resolve,reject)=>{const r=in
  ok('headerless photo still requires explicit RT grouping',await page.evaluate(()=>window.__DS_IQC_REVIEW31.getModel().every(g=>!g.rt)));
  await page.locator('[data-review-photo]').first().click();await page.screenshot({path:path.join(artifacts,'rc312-review.png')});await page.locator('[data-review-close]').click();
  await page.locator('#iqc31StartTop').scrollIntoViewIfNeeded();await page.screenshot({path:path.join(artifacts,'rc312-start.png')});
+ // A hung third photo must not hold the remainder of a 13-photo queue.
+ await page.locator('#iqcRcNewBatch').click();await page.waitForFunction(()=>!window.__DS_IQC_RC31.isBusy());
+ await page.locator('#iqcRcGalleryInput').setInputFiles(bulk.slice(0,13).map((s,i)=>({name:'fault-'+i+'.png',mimeType:'image/png',buffer:Buffer.from(s,'base64')})));await page.waitForFunction(()=>!window.__DS_IQC_RC31.isBusy());
+ ok('queue and review retain metadata, not all original image blobs',await page.evaluate(async()=>(await window.__DS_IQC_RC31.readPhotos()).every(p=>!p.blob&&p.thumbnail.size)));
+ await page.evaluate(()=>{window.__firstCard=document.querySelector('.iqc-photo');window.__firstSrc=window.__firstCard.querySelector('img').src;window.__nativePost=Worker.prototype.postMessage;window.__thirdHeld=false;Worker.prototype.postMessage=function(m,...args){if(!window.__thirdHeld&&m?.action==='recognize'&&window.__DS_IQC_RC31.diagnostics().events.at(-1).photo===3){window.__thirdHeld=true;return;}return window.__nativePost.call(this,m,...args);};});
+ await page.locator('#iqc31StartTop').tap();await page.waitForFunction(()=>window.__thirdHeld,{},{timeout:90000});
+ ok('visible progress identifies completed count and current third photo',/2\/13/.test(await page.locator('#iqc31LiveCount').textContent())&&/第 3 張/.test(await page.locator('#iqc31LivePhase').textContent()));
+ await page.evaluate(()=>{const p=document.getElementById('iqcImageRc');p.scrollTop=p.scrollHeight;});
+ ok('skip remains visible at bottom of long photo list',await page.locator('#iqc31Skip').evaluate(e=>{const r=e.getBoundingClientRect();return r.top>=0&&r.bottom<innerHeight;}));
+ await page.locator('#iqc31Skip').tap();await page.waitForFunction(()=>!window.__DS_IQC_RC31.isBusy(),{},{timeout:240000});await page.evaluate(()=>{Worker.prototype.postMessage=window.__nativePost;});
+ const thirteen=await dbPhotos(page);
+ ok('skip third preserves it and attempts all remaining photos',thirteen.length===13&&thirteen[2].localFailure==='PHOTO_SKIPPED'&&thirteen.filter(p=>p.status==='RECOGNIZED').length===12);
+ ok('completed photos keep their original cards and thumbnail URLs',await page.evaluate(()=>window.__firstCard===document.querySelector('.iqc-photo')&&window.__firstSrc===window.__firstCard.querySelector('img').src));
+ ok('thumbnail decode size is bounded to 160 pixels',await page.locator('.iqc-photo img').first().evaluate(e=>Math.max(e.naturalWidth,e.naturalHeight)<=160));
+ // Exercise the total-photo deadline using a shortened test clock, preserving per-stage guards.
+ await page.evaluate(()=>{window.__nativeTimer=window.setTimeout;window.setTimeout=function(fn,ms,...args){if(ms===120000&&window.__DS_IQC_RC31.isBusy())ms=200;return window.__nativeTimer(fn,ms,...args);};Worker.prototype.postMessage=function(m,...args){if(m?.action==='recognize')return;return window.__nativePost.call(this,m,...args);};});
+ await page.locator('[data-ocr31-photo="'+thirteen[2].id+'"]').click();await page.waitForFunction(()=>!window.__DS_IQC_RC31.isBusy(),{},{timeout:10000});await page.evaluate(()=>{window.setTimeout=window.__nativeTimer;Worker.prototype.postMessage=window.__nativePost;});
+ ok('per-photo deadline releases engine and retains explicit failure',(await dbPhotos(page))[2].localFailure==='PHOTO_TIMEOUT');
+ await page.locator('#iqc31StartTop').tap();await page.waitForFunction(()=>!window.__DS_IQC_RC31.isBusy(),{},{timeout:90000});
+ ok('next Start retries only unfinished third photo',(await dbPhotos(page)).every(p=>p.status==='RECOGNIZED')&&(await dbPhotos(page))[0].updatedAt===thirteen[0].updatedAt);
+ await page.locator('[data-preview-photo]').first().click();await page.locator('#iqc31PhotoPreview img').waitFor();ok('explicit preview reads the larger original image',await page.locator('#iqc31PhotoPreview img').evaluate(async img=>{await img.decode();return img.naturalWidth>160;}));await page.locator('[data-preview-close]').click();
+ await page.evaluate(async()=>{const c=window.__DS_IQC_RC31,p=(await c.readPhotos())[0],m=window.IqcReviewModel31;await c.saveReview(p.id,photo=>m.updateReview(photo,m.candidates(photo).map(r=>({original:r.original,ctn:r.ctn})),{rt:'113374',status:'MNT1',plant:'7209',expected:1}));});await page.waitForFunction(()=>!window.__DS_IQC_RC31.isBusy());
+ await page.locator('[data-merge-rt]').first().click();await page.locator('[data-merge-save]').click();await page.waitForFunction(()=>document.getElementById('iqc31ReviewMessage').textContent.includes('至少兩組'));ok('merge requires explicit group selection',/至少兩組/.test(await page.locator('#iqc31ReviewMessage').textContent()));
+ for(const box of await page.locator('[data-merge-key]').all())await box.check();await page.locator('[data-merge-field="status"]').fill('OCYL');await page.locator('[data-merge-field="expected"]').fill('13');await page.locator('[data-merge-save]').click();await page.waitForFunction(()=>!document.getElementById('iqc31ReviewEditor'));
+ ok('explicit same-RT reconciliation merges all selected photo sources',await page.evaluate(()=>{const g=window.__DS_IQC_REVIEW31.getModel();return g.length===1&&g[0].photoIds.length===13&&g[0].status==='OCYL';}));
+ await page.screenshot({path:path.join(artifacts,'rc313-merged.png')});await page.locator('#iqc31StartTop').scrollIntoViewIfNeeded();await page.screenshot({path:path.join(artifacts,'rc313-progress.png')});
+ await page.reload();await page.locator('#appShell').waitFor({state:'visible'});await page.locator('#navMore').click();await page.locator('#iqcImageRcTool').click();await page.waitForFunction(()=>!window.__DS_IQC_RC31.isBusy());
+ ok('reconciled group, full photos and history survive reload',(await dbPhotos(page)).length===13&&await page.evaluate(()=>window.__DS_IQC_REVIEW31.getModel().length===1));
+ ok('new queue and review paths never submit business data',business===0);
  // Abort generates a browser worker error; it must not become an uncaught page error.
  ok('no uncaught frontend errors',errors.length===0);
  console.log('TOTAL '+checks);fs.writeFileSync(path.join(artifacts,'browser-'+(process.env.DS_WEBKIT?'webkit':'edge')+'-summary.json'),JSON.stringify({checks,workerRequests,business,cloudPhotos,errors,diagnostics:await page.evaluate(()=>window.__DS_IQC_RC31.diagnostics())},null,2));
