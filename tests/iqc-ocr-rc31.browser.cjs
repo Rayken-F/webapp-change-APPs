@@ -210,6 +210,20 @@ const dbPhotos=page=>page.evaluate(()=>new Promise((resolve,reject)=>{const r=in
  await page.locator('[data-review-photo="'+third.id+'"]').first().click();await page.locator('#iqc31TargetGroup').selectOption({label:'RT 113374｜OCYL｜7209'});await page.locator('[data-review-save]').click();await page.waitForFunction(()=>document.getElementById('iqc31ReviewMessage').textContent.includes('已保存'));await page.locator('[data-review-close]').click();
  ok('headerless photo joins existing RT without replacing OCR or losing fourth photo',await page.evaluate(()=>{const g=window.__DS_IQC_REVIEW31.getModel();return g.length===1&&g[0].rt==='113374'&&g[0].ctns.length===4&&g[0].photoIds.length===4;})&&(await dbPhotos(page))[2].ocrText===third.ocrText&&(await dbPhotos(page))[3].updatedAt===headerlessBatch[3].updatedAt);
  await page.locator('#iqc31StartTop').scrollIntoViewIfNeeded();await page.screenshot({path:path.join(artifacts,'rc314-compact.png')});
+ // A useful first pass must survive a failed quality pass, and the next photo runs.
+ await page.locator('#iqcRcNewBatch').click();await page.waitForFunction(()=>!window.__DS_IQC_RC31.isBusy());
+ await page.locator('#iqcRcGalleryInput').setInputFiles([image,image]);await page.waitForFunction(()=>!window.__DS_IQC_RC31.isBusy());
+ await page.evaluate(()=>{const original=IqcOcrEngine31.Engine.prototype.recognize;let n=0;IqcOcrEngine31.Engine.prototype.recognize=async function(...args){
+   if(n++===0)return {data:{text:'AB12CDE\nFGB34HIJ',confidence:70}};
+   if(n===2)throw IqcOcrEngine31.fault('recognize_TIMEOUT');
+   return original.apply(this,args);
+ };});
+ await page.locator('#iqc31StartTop').tap();await page.waitForFunction(()=>!window.__DS_IQC_RC31.isBusy(),{},{timeout:90000});
+ const partial=await dbPhotos(page);
+ ok('quality-pass failure preserves first-pass candidates and completes second photo',partial[0].status==='NEEDS_REVIEW'&&partial[0].ocrText.includes('AB12CDE')&&partial[0].localFailure==='recognize_TIMEOUT'&&partial[1].status==='RECOGNIZED');
+ ok('partial card reports retained candidates instead of claiming no CTNs',/已保留 1 個/.test(await page.locator('[data-photo-delete="'+partial[0].id+'"]').locator('..').locator('.rc31-photo-result').textContent()));
+ await page.locator('#iqc31StartTop').tap();await page.waitForFunction(()=>!window.__DS_IQC_RC31.isBusy(),{},{timeout:90000});
+ ok('next Start retries partial photo and leaves completed successor untouched',(await dbPhotos(page))[0].status==='RECOGNIZED'&&(await dbPhotos(page))[1].updatedAt===partial[1].updatedAt);
  ok('new queue and review paths never submit business data',business===0);
  // Abort generates a browser worker error; it must not become an uncaught page error.
  ok('no uncaught frontend errors',errors.length===0);

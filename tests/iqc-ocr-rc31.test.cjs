@@ -96,3 +96,38 @@ test('candidate total counts unique CTNs including unassigned leading entries',(
   const s=rules.structuralState('EX71MHT\n113374 CYLINDER OCYL 7209 TOTAL 2\nEX71MHT\nBH20EPJ');
   assert.equal(s.found,2);assert.equal(s.complete,false);
 });
+
+function positioned(rows){return {data:{text:rows.map(r=>r[0]).join('\n'),blocks:[{paragraphs:[{lines:rows.map(([text,y,confidence=90])=>({text:text+'\n',confidence,bbox:{x0:20,y0:y,x1:200,y1:y+30},words:[{text,confidence,bbox:{x0:20,y0:y,x1:200,y1:y+30}}]}))}]}]}};}
+
+test('rejected CTN-shaped row triggers another read despite other valid CTNs and absent RT',()=>{
+  const p=positioned([['AB12CDE',10],['FGB34HIJ',60]]);
+  assert.equal(rules.structuralState(p.data.text).found,1);
+  assert.equal(rules.needsRowCheck(p),true);
+  const recovered=rules.reconcileRows([p,positioned([['AB12CDE',10],['FG34HIJ',60]])]);
+  assert.deepEqual(rules.parseText(recovered.text).leading,['AB12CDE','FG34HIJ']);
+  assert.equal(recovered.unread.length,0);
+});
+
+test('different readings of the same physical row are a conflict, not two CTNs',()=>{
+  const out=rules.reconcileRows([positioned([['AB12CD5',10]]),positioned([['AB12CDS',11]])]);
+  assert.equal(rules.structuralState(out.text).found,1);
+  assert.deepEqual(out.uncertain[0].alternatives,['AB12CD5','AB12CDS']);
+  assert.equal(out.uncertain[0].reason,'CONFLICT');
+});
+
+test('two adjacent real rows remain distinct even with similar characters',()=>{
+  const out=rules.reconcileRows([positioned([['AB12CD5',10],['AB12CDS',60]])]);
+  assert.equal(rules.structuralState(out.text).found,2);
+});
+
+test('missing RT alone does not trigger row check; low confidence and unresolved rows remain explicit',()=>{
+  assert.equal(rules.needsRowCheck(positioned([['AB12CDE',10],['FG34HIJ',60]])),false);
+  const out=rules.reconcileRows([positioned([['AB12CDE',10,20],['FGB34HIJ',60]])]);
+  assert.equal(out.unread[0].raw,'FGB34HIJ');assert.equal(out.uncertain[0].ctn,'AB12CDE');
+  assert.equal(out.uncertain[0].reason,'LOW_CONFIDENCE');
+});
+
+test('row reconciliation retains RT headers, leading entries and groups',()=>{
+  const out=rules.reconcileRows([positioned([['AB12CDE',10],['113374 CYLINDER OCYL 7209 TOTAL 1',60],['FG34HIJ',110]])]);
+  assert.deepEqual(rules.parseText(out.text),{leading:['AB12CDE'],groups:[{rt:'113374',status:'OCYL',plant:'7209',expected:1,ctns:['FG34HIJ']}]});
+});

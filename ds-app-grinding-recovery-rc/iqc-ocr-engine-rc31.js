@@ -57,7 +57,7 @@
         const w=await this.ensure(),s=this.slot;
         return await this.bounded(s,async()=>{
           await w.setParameters({tessedit_pageseg_mode:psm});
-          return w.recognize(image,{}, {text:true,blocks:false,hocr:false,tsv:false,box:false,unlv:false,osd:false});
+          return w.recognize(image,{}, {text:true,blocks:true,hocr:false,tsv:false,box:false,unlv:false,osd:false});
         },this.jobMs,"recognize");
       }finally{this.running=false;}
     }
