@@ -61,17 +61,17 @@ const dbPhotos=page=>page.evaluate(()=>new Promise((resolve,reject)=>{const r=in
  fs.writeFileSync(path.join(artifacts,'browser-'+(process.env.DS_WEBKIT?'webkit':'edge')+'-initial.json'),JSON.stringify({elapsedMs:Date.now()-start,photos,diagnostics:await page.evaluate(()=>window.__DS_IQC_RC31.diagnostics()),errors,network},null,2));
  ok('real Tesseract recognizes the first, second and third synthetic photos',photos.every(p=>p.status==='RECOGNIZED'&&p.ocrText.includes('AB12CDE')&&p.ocrText.includes('FG34HIJ')));
  const initialWorkers=workerRequests;
- ok('three actual photos share one successfully initialized worker',initialWorkers<=2&&await page.evaluate(()=>window.__DS_IQC_RC31.diagnostics().events.filter(e=>e.stage==='initialize'&&e.outcome==='ok').length===1));ok('raw OCR passes remain available locally',photos.every(p=>p.rc31RawPasses?.length));
+ ok('three photos run serially with a fresh worker for each photo',initialWorkers===3);ok('raw OCR passes remain available locally',photos.every(p=>p.rc31RawPasses?.length));
  ok('Cloud never automatically received a photo',cloudPhotos===0);
  await page.locator('#iqcRcAnalyze').click();await page.waitForFunction(()=>!window.__DS_IQC_RC31.isBusy());ok('repeat start preserves already completed results',workerRequests===initialWorkers&&(await dbPhotos(page)).every((p,i)=>p.updatedAt===photos[i].updatedAt));
  await page.locator('#iqcRcGalleryInput').setInputFiles(image);await page.waitForFunction(()=>!window.__DS_IQC_RC31.isBusy());await page.locator('#iqcRcAnalyze').click();await page.waitForFunction(()=>!window.__DS_IQC_RC31.isBusy(),{},{timeout:90000});
- photos=await dbPhotos(page);ok('later fourth photo completes with same engine',photos.length===4&&photos.every(p=>p.status==='RECOGNIZED')&&workerRequests===initialWorkers);
+ photos=await dbPhotos(page);ok('later fourth photo completes using its own engine',photos.length===4&&photos.every(p=>p.status==='RECOGNIZED')&&workerRequests===initialWorkers+1);
  const keep=photos[0].ocrText;
  await page.evaluate(()=>{window.originalWorkerPost=Worker.prototype.postMessage;Worker.prototype.postMessage=function(message,...args){if(message?.action==='recognize')return;return window.originalWorkerPost.call(this,message,...args);};});
  await page.locator('[data-ocr31-photo]').first().click();await page.locator('#iqc31LiveDetails summary').click();await page.locator('#iqc31Cancel').click();await page.waitForFunction(()=>!window.__DS_IQC_RC31.isBusy());photos=await dbPhotos(page);await page.locator('#iqc31LiveDetails summary').click();
  await page.evaluate(()=>{Worker.prototype.postMessage=window.originalWorkerPost;});
  ok('cancel of a retry retains previously recognized text',photos[0].ocrText===keep&&photos[0].status==='RECOGNIZED');
- await page.locator('[data-ocr31-photo]').first().click();await page.waitForFunction(()=>!window.__DS_IQC_RC31.isBusy(),{},{timeout:90000});ok('retry after cancel starts a fresh engine',(await dbPhotos(page))[0].status==='RECOGNIZED'&&workerRequests===initialWorkers+1);
+ const beforeRetry=workerRequests;await page.locator('[data-ocr31-photo]').first().click();await page.waitForFunction(()=>!window.__DS_IQC_RC31.isBusy(),{},{timeout:90000});ok('retry after cancel starts a fresh engine',(await dbPhotos(page))[0].status==='RECOGNIZED'&&workerRequests===beforeRetry+1);
  await page.locator('#iqcRcClose').click();await page.reload();await page.locator('#appShell').waitFor({state:'visible'});await page.locator('#navMore').click();await page.locator('#iqcImageRcTool').click();await page.waitForFunction(()=>!window.__DS_IQC_RC31.isBusy());
  ok('reload retains all four photos and OCR results',(await dbPhotos(page)).length===4&&(await dbPhotos(page)).every(p=>p.status==='RECOGNIZED'));
  ok('read-only RC has no business submissions',business===0);
@@ -155,7 +155,7 @@ const dbPhotos=page=>page.evaluate(()=>new Promise((resolve,reject)=>{const r=in
  await page.locator('#iqc31StartTop').tap();await page.waitForFunction(()=>!window.__DS_IQC_RC31.isBusy(),{},{timeout:240000});
  const bulkPhotos=await dbPhotos(page);
  ok('one touch processes and saves all 30 synthetic photos',bulkPhotos.length===30&&bulkPhotos.every(p=>p.status==='RECOGNIZED'&&p.rc31RawPasses?.length));
- ok('30-photo queue releases and recreates its worker every four photos',workerRequests===bulkWorkers+7);
+ ok('30-photo queue releases each worker before the next photo',workerRequests===bulkWorkers+30);
  fs.writeFileSync(path.join(artifacts,'bulk-30.json'),JSON.stringify({elapsedMs:Date.now()-bulkStarted,photos:bulkPhotos.map(p=>({seq:p.seq,status:p.status,text:p.ocrText})),diagnostics:await page.evaluate(()=>window.__DS_IQC_RC31.diagnostics())},null,2));
  await page.reload();await page.locator('#appShell').waitFor({state:'visible'});await page.locator('#navMore').click();await page.locator('#iqcImageRcTool').click();await page.waitForFunction(()=>!window.__DS_IQC_RC31.isBusy());
  ok('all 30 saved results survive reload',(await dbPhotos(page)).length===30&&(await dbPhotos(page)).every(p=>p.status==='RECOGNIZED'));
@@ -224,6 +224,30 @@ const dbPhotos=page=>page.evaluate(()=>new Promise((resolve,reject)=>{const r=in
  ok('partial card reports retained candidates instead of claiming no CTNs',/已保留 1 個/.test(await page.locator('[data-photo-delete="'+partial[0].id+'"]').locator('..').locator('.rc31-photo-result').textContent()));
  await page.locator('#iqc31StartTop').tap();await page.waitForFunction(()=>!window.__DS_IQC_RC31.isBusy(),{},{timeout:90000});
  ok('next Start retries partial photo and leaves completed successor untouched',(await dbPhotos(page))[0].status==='RECOGNIZED'&&(await dbPhotos(page))[1].updatedAt===partial[1].updatedAt);
+ // Safari-compatible touch completion remains valid if only the pointer stream
+ // is cancelled. Movement/pinch/touch cancellation must still cancel the action.
+ await page.evaluate(()=>{window.__gesturePhoto=document.querySelector('[data-ocr31-photo]');window.__touch=(type,x=20,y=20,count=1)=>{
+   const touch=new Touch({identifier:7,target:window.__gesturePhoto,clientX:x,clientY:y});
+   window.__gesturePhoto.dispatchEvent(new TouchEvent(type,{bubbles:true,cancelable:true,changedTouches:[touch],touches:type==='touchend'||type==='touchcancel'?[]:Array.from({length:count},()=>touch)}));
+ };window.__gestureBefore=window.__DS_IQC_RC31.diagnostics().events.filter(e=>e.stage==='start_request').length;});
+ await page.evaluate(()=>{__touch('touchstart');__gesturePhoto.dispatchEvent(new PointerEvent('pointercancel',{bubbles:true,pointerId:88}));__touch('touchend');__gesturePhoto.dispatchEvent(new MouseEvent('click',{bubbles:true,detail:1}));});
+ await page.waitForFunction(()=>!window.__DS_IQC_RC31.isBusy(),{},{timeout:90000});
+ ok('stationary touchend after pointer cancellation starts exactly once',await page.evaluate(()=>window.__DS_IQC_RC31.diagnostics().events.filter(e=>e.stage==='start_request').length===window.__gestureBefore+1));
+ await page.evaluate(()=>{window.__gestureBefore=window.__DS_IQC_RC31.diagnostics().events.filter(e=>e.stage==='start_request').length;__touch('touchstart');__touch('touchmove',20,60);__touch('touchend',20,20);__touch('touchstart');__touch('touchcancel');__touch('touchend');__touch('touchstart',20,20,2);__touch('touchend');});
+ ok('scroll away and back, cancelled touch and pinch do not start OCR',await page.evaluate(()=>window.__DS_IQC_RC31.diagnostics().events.filter(e=>e.stage==='start_request').length===window.__gestureBefore));
+ // Diagnostics distinguish an OS/background cancellation from an untouched button.
+ await page.locator('[data-ocr31-photo]').first().tap();await page.evaluate(()=>{Object.defineProperty(document,'hidden',{configurable:true,get:()=>true});document.dispatchEvent(new Event('visibilitychange'));delete document.hidden;});await page.waitForFunction(()=>!window.__DS_IQC_RC31.isBusy());
+ ok('background stop is explicit and preserves saved results',await page.evaluate(()=>window.__DS_IQC_RC31.diagnostics().events.some(e=>e.stage==='cancel'&&e.reason==='BACKGROUND'))&&(await dbPhotos(page)).every(p=>p.status==='RECOGNIZED')&&/已停止/.test(await page.locator('#iqc31LiveCount').textContent()));
+ // Show warnings near the editor heading, without requiring an unrelated RT edit.
+ await page.evaluate(()=>new Promise(resolve=>{const r=indexedDB.open('ds_iqc_image_rc_v1',1);r.onsuccess=()=>{const db=r.result,tx=db.transaction('photos','readwrite'),s=tx.objectStore('photos'),q=s.index('batchId').getAll(localStorage.getItem('ds_iqc_image_rc_active_batch'));q.onsuccess=()=>{const p=q.result[0];p.rc31Quality={unread:[],uncertain:[{ctn:'AB12CDE',reason:'LOW_CONFIDENCE',alternatives:[]}]};p.updatedAt=new Date().toISOString();s.put(p);};tx.oncomplete=()=>{db.close();resolve();};};}));
+ await page.evaluate(()=>window.__DS_IQC_REVIEW31.refresh());await page.locator('[data-review-quality]').first().tap();
+ ok('warning button opens the exact character warning within the visible viewport',await page.locator('[data-character-warnings]').evaluate(e=>{const r=e.getBoundingClientRect(),header=document.querySelector('.iqc-rc-top').getBoundingClientRect();return e.textContent.includes('AB12CDE')&&r.top>=header.bottom&&r.bottom<innerHeight;}));
+ await page.locator('#iqc31ReviewEditor [data-preview-photo]').tap();await page.locator('#iqc31PhotoPreview img').evaluate(img=>img.decode());
+ const previewFits=()=>page.locator('#iqc31PhotoPreview').evaluate(panel=>{const image=panel.querySelector('img').getBoundingClientRect(),button=panel.querySelector('button').getBoundingClientRect(),content=panel.firstElementChild.getBoundingClientRect(),p=panel.getBoundingClientRect();return image.width>0&&image.top>=p.top+10&&button.top>=image.bottom+10&&button.bottom<=p.bottom-10&&Math.abs((content.top+content.bottom)/2-(p.top+p.bottom)/2)<3;});
+ ok('preview image and bottom close button are centered and entirely visible',await previewFits());await page.screenshot({path:path.join(artifacts,'rc316-preview-portrait.png')});
+ await page.setViewportSize({width:874,height:402});await page.waitForTimeout(100);ok('preview adapts to landscape without hiding close button',await previewFits());await page.screenshot({path:path.join(artifacts,'rc316-preview-landscape.png')});
+ await page.setViewportSize({width:402,height:674});await page.waitForTimeout(100);ok('preview adapts when browser bars reduce viewport height',await previewFits());
+ await page.locator('[data-preview-close]').tap();ok('close preview returns to the existing character-review form',await page.locator('#iqc31ReviewEditor').isVisible()&&await page.locator('#iqc31PhotoPreview').count()===0);await page.setViewportSize({width:402,height:874});
  ok('new queue and review paths never submit business data',business===0);
  // Abort generates a browser worker error; it must not become an uncaught page error.
  ok('no uncaught frontend errors',errors.length===0);

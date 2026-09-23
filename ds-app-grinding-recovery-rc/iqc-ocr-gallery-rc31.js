@@ -1,16 +1,27 @@
 /* RC31: stable cards use 160px thumbnails; full images stay in IndexedDB. */
 (function(){
   "use strict";
-  const controller=window.__DS_IQC_RC31,cards=new Map();let previewUrl="",previewGeneration=0;
+  const controller=window.__DS_IQC_RC31,cards=new Map();let previewUrl="",previewGeneration=0,releasePreview=()=>{};
   const escape=v=>String(v??"").replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-  function closePreview(){previewGeneration++;document.getElementById('iqc31PhotoPreview')?.remove();if(previewUrl)URL.revokeObjectURL(previewUrl);previewUrl="";}
+  function closePreview(){previewGeneration++;releasePreview();releasePreview=()=>{};document.getElementById('iqc31PhotoPreview')?.remove();if(previewUrl)URL.revokeObjectURL(previewUrl);previewUrl="";}
   async function preview(id){
     closePreview();const generation=previewGeneration;
     const panel=document.createElement('section');panel.id='iqc31PhotoPreview';panel.setAttribute('role','dialog');panel.setAttribute('aria-label','照片檢視');
-    panel.innerHTML='<button type="button" class="iqc-rc-btn" data-preview-close>關閉照片</button><p role="status">正在讀取本機照片…</p>';
-    panel.style.cssText='position:fixed;inset:0;z-index:120010;overflow:auto;padding:16px;box-sizing:border-box;background:#08112f;color:white';document.body.appendChild(panel);
+    panel.setAttribute('aria-modal','true');
+    panel.innerHTML='<div class="iqc31-preview-content" style="display:flex;flex-direction:column;align-items:center;gap:12px;max-width:100%;min-height:0"><p role="status">正在讀取本機照片…</p><button type="button" class="iqc-rc-btn" data-preview-close style="flex:none;min-height:48px">關閉照片</button></div>';
+    panel.style.cssText='position:fixed;inset:0;z-index:120010;display:flex;align-items:center;justify-content:center;overflow:hidden;padding:max(12px,env(safe-area-inset-top)) max(12px,env(safe-area-inset-right)) max(12px,env(safe-area-inset-bottom)) max(12px,env(safe-area-inset-left));box-sizing:border-box;background:#08112f;color:white';document.body.appendChild(panel);
+    // Use the visible viewport, including Safari's changing browser bars. Do not
+    // inherit the workbench's stable form height or the underlying scroll position.
+    const viewport=window.visualViewport,layout=()=>{
+      panel.style.inset='auto';panel.style.left=(viewport?.offsetLeft||0)+'px';panel.style.top=(viewport?.offsetTop||0)+'px';
+      panel.style.width=(viewport?.width||innerWidth)+'px';panel.style.height=(viewport?.height||innerHeight)+'px';
+      const image=panel.querySelector('img'),css=getComputedStyle(panel),button=panel.querySelector('[data-preview-close]');
+      if(image){image.style.maxHeight=Math.max(1,panel.clientHeight-parseFloat(css.paddingTop)-parseFloat(css.paddingBottom)-button.offsetHeight-12)+'px';image.style.maxWidth='100%';}
+    };
+    layout();viewport?.addEventListener('resize',layout);viewport?.addEventListener('scroll',layout);window.addEventListener('resize',layout);
+    releasePreview=()=>{viewport?.removeEventListener('resize',layout);viewport?.removeEventListener('scroll',layout);window.removeEventListener('resize',layout);};
     try{const p=await controller.readPhoto(id);if(generation!==previewGeneration)return;if(!p?.blob)throw Error();
-      previewUrl=URL.createObjectURL(p.blob);const img=document.createElement('img');img.alt='第 '+p.seq+' 張原照片';img.style.cssText='display:block;width:100%;height:auto;margin-top:12px';img.src=previewUrl;panel.querySelector('p').replaceWith(img);
+      previewUrl=URL.createObjectURL(p.blob);const img=document.createElement('img');img.alt='第 '+p.seq+' 張原照片';img.style.cssText='display:block;width:auto;height:auto;object-fit:contain;min-height:0;flex:0 1 auto';img.onload=layout;img.src=previewUrl;panel.querySelector('p').replaceWith(img);layout();
     }catch(_){if(generation===previewGeneration)panel.querySelector('p').textContent='照片讀取失敗，請關閉後重試。';}
   }
   controller.renderPhotoCards=function(list){
