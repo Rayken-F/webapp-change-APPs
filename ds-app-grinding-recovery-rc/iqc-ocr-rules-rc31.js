@@ -29,6 +29,58 @@ const clean=v=>String(v||" ").trim().toUpperCase();
   function needsHighContrast(text){return needsMoreCandidates(text);}
   function qualityLabel(text){const s=structuralState(text);if(s.kind==="COMPLETE")return `資料完整｜${s.found}/${s.expected}`;if(s.kind==="GROUP_GAP")return `已辨識｜${s.found}/${s.expected} 待補`;if(s.kind==="CONTINUATION")return `已辨識｜${s.found} CTN（續頁）`;return "已辨識｜待複查";}
 
+  // Keep rejected CTN-shaped rows visible to the controller. Counting only parsed
+  // tokens hides a missed row as soon as any other token was successfully read.
+  function ctnRows(result){
+    const lines=(result?.data?.blocks||[]).flatMap(b=>(b.paragraphs||[]).flatMap(p=>p.lines||[]));
+    const source=lines.length?lines:String(result?.data?.text||'').split(/\r?\n/).map(text=>({text}));
+    const rows=[];
+    source.forEach((line,index)=>{
+      if(readHeader(clean(line.text)))return;
+      const words=line.words?.length?line.words:(String(line.text||'').match(/[A-Z0-9]+/gi)||[]).map(text=>({text}));
+      words.forEach(word=>{
+        const raw=clean(word.text),ctn=normalizeCtn(raw);
+        if(!ctn&&!(/^[A-Z]{2}[A-Z0-9]{4,7}$/.test(raw)&&/\d/.test(raw)))return;
+        rows.push({raw,ctn,bbox:word.bbox||line.bbox||null,confidence:Number(word.confidence??line.confidence??100),line:index});
+      });
+    });
+    return rows;
+  }
+  function sameRow(a,b){
+    if(!a||!b)return false;
+    const w=Math.min(a.x1-a.x0,b.x1-b.x0),h=Math.min(a.y1-a.y0,b.y1-b.y0);
+    return w>0&&h>0&&Math.min(a.x1,b.x1)-Math.max(a.x0,b.x0)>w*.5&&Math.min(a.y1,b.y1)-Math.max(a.y0,b.y0)>h*.5;
+  }
+  function needsRowCheck(result){return ctnRows(result).some(r=>!r.ctn||r.confidence<60);}
+  // These passes must use the SAME image coordinates (block and sparse modes).
+  // An alternative reading at the same position is not an additional cylinder.
+  function reconcileRows(results){
+    const slots=[],maps=[];
+    results.forEach(result=>{
+      const rows=ctnRows(result);maps.push(rows);
+      rows.forEach(row=>{
+        let slot=slots.find(s=>sameRow(s.bbox,row.bbox));
+        if(!slot){slot={bbox:row.bbox,ctn:'',readings:[]};slots.push(slot);}
+        slot.readings.push(row);if(!slot.ctn&&row.ctn)slot.ctn=row.ctn;row.slot=slot;
+      });
+    });
+    const passes=results.map((result,i)=>{
+      const lines=(result?.data?.blocks||[]).flatMap(b=>(b.paragraphs||[]).flatMap(p=>p.lines||[]));
+      const textLines=lines.length?lines.map(l=>String(l.text||'')):String(result?.data?.text||'').split(/\r?\n/);
+      maps[i].forEach(row=>{if(row.slot.ctn)textLines[row.line]=textLines[row.line].replace(row.raw,row.slot.ctn);});
+      return {data:{text:textLines.join('\n')}};
+    });
+    const unread=[],uncertain=[];
+    slots.forEach(slot=>{
+      const alternatives=[...new Set(slot.readings.map(r=>r.ctn).filter(Boolean))];
+      if(!slot.ctn)unread.push({raw:slot.readings[0].raw,bbox:slot.bbox});
+      else if(alternatives.length>1||Math.max(...slot.readings.filter(r=>r.ctn===slot.ctn).map(r=>r.confidence))<60||/[O0S5]$/.test(slot.ctn)){
+        if(!uncertain.some(r=>r.ctn===slot.ctn))uncertain.push({ctn:slot.ctn,alternatives,reason:alternatives.length>1?'CONFLICT':/[O0S5]$/.test(slot.ctn)?'AMBIGUOUS_END':'LOW_CONFIDENCE'});
+      }
+    });
+    return {text:mergeParsedPasses(passes),unread,uncertain};
+  }
+
   function parseEvents(text){const events=[];String(text||"").split(/\r?\n/).map(x=>x.trim()).filter(Boolean).forEach((line,lineIndex)=>{const upper=clean(line).replace(/[|]/g," "),h=readHeader(upper);if(h){events.push({type:"header",rt:h.rt,expected:h.expected,line:upper,lineIndex});return;}if(/^RT[_\s]/.test(upper)||((upper.match(/_/g)||[]).length>=2))return;upper.split(/[^A-Z0-9]+/).filter(Boolean).forEach(token=>{const ctn=normalizeCtn(token);if(ctn)events.push({type:"ctn",ctn,raw:token,corrected:ctn!==token,lineIndex});});});return events;}
 
 
@@ -58,6 +110,6 @@ const clean=v=>String(v||" ").trim().toUpperCase();
       return await new Promise(resolve=>canvas.toBlob(resolve,'image/png'));
     }finally{source?.close?.();if(small)small.width=small.height=1;if(canvas)canvas.width=canvas.height=1;}
   }
-const api={parseText,normalizeCtn,parseEvents,mergeParsedPasses,structuralState,qualityLabel,needsSparse,needsHighContrast,preprocessForOcr,makeVariant,makeTextRegion};
+const api={parseText,normalizeCtn,parseEvents,mergeParsedPasses,structuralState,qualityLabel,needsSparse,needsHighContrast,ctnRows,needsRowCheck,reconcileRows,preprocessForOcr,makeVariant,makeTextRegion};
 if(typeof module==="object"&&module.exports)module.exports=api;else window.IqcOcrRules31=api;
 })();

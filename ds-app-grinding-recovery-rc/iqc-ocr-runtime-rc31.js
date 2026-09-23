@@ -1,7 +1,7 @@
-/* RC31.4 / OCR-S5-20260923. Loaded before intake/legacy click handlers. */
+/* RC31.5 / OCR-S6-20260924. Loaded before intake/legacy click handlers. */
 (function(){
   "use strict";
-  const BUILD="RC31.4 / OCR-S5-20260923",DB="ds_iqc_image_rc_v1",ACTIVE="ds_iqc_image_rc_active_batch";
+  const BUILD="RC31.5 / OCR-S6-20260924",DB="ds_iqc_image_rc_v1",ACTIVE="ds_iqc_image_rc_active_batch";
   const LOG="ds_iqc_ocr_rc31_diagnostics",LIB="https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js";
   const WORKER=new URL("./iqc-ocr-worker-rc31.js?v=20260920-1",document.currentScript.src).href;
   const rules=window.IqcOcrRules31,$=id=>document.getElementById(id);
@@ -171,12 +171,25 @@
       progress(`第 ${currentPhoto} 張｜辨識核心連線中斷，正在重新準備一次…`);
       await engine.ensure();check(run);
     }
-    const recognize=(image,mode)=>{check(run);run.pass=(run.pass||0)+1;record({stage:"pass",number:run.pass,mode});return engine.recognize(image,mode);};
+    const recognize=async(image,mode)=>{
+      check(run);run.pass=(run.pass||0)+1;record({stage:"pass",number:run.pass,mode,outcome:"started"});
+      const result=await engine.recognize(image,mode);check(run);
+      record({stage:"pass",number:run.pass,mode,outcome:"ok",candidates:rules.structuralState(result?.data?.text).found,rejectedRows:rules.ctnRows(result).filter(r=>!r.ctn).length});return result;
+    };
     const image=await timed(run,"preprocess",()=>rules.preprocessForOcr(photo.blob));check(run);
     const results=[];results.push(await recognize(image,"6"));check(run);
-    let merged=rules.mergeParsedPasses(results)||String(results[0]?.data?.text||"");
-    if(rules.needsSparse(merged)){results.push(await recognize(image,"11"));check(run);merged=rules.mergeParsedPasses(results)||merged;}
-    if(rules.needsHighContrast(merged)){
+    let quality=rules.reconcileRows(results),merged=quality.text||String(results[0]?.data?.text||"");
+    const checkpoint=()=>{
+      const value={text:merged,confidence:Number(results[0]?.data?.confidence||0),quality:{unread:quality.unread,uncertain:quality.uncertain},passes:results.map((r,i)=>({pass:i+1,text:String(r?.data?.text||""),confidence:Number(r?.data?.confidence||0)}))};
+      if(rules.structuralState(merged).found)run.partial=value;return value;
+    };
+    checkpoint();
+    if(rules.needsSparse(merged)||rules.needsRowCheck(results[0])){
+      results.push(await recognize(image,"11"));check(run);quality=rules.reconcileRows(results);merged=quality.text||merged;checkpoint();
+    }
+    // A reference total may span several photos. Once rows are extracted, do not
+    // keep transforming the whole photo merely to fill a cross-photo quantity.
+    if(rules.structuralState(merged).found===0){
       const variant=await timed(run,"contrast",()=>rules.makeVariant(image));check(run);
       results.push(await recognize(variant,"6"));check(run);merged=rules.mergeParsedPasses(results)||merged;
     }
@@ -185,7 +198,7 @@
       if(region){results.push(await recognize(region,"6"));check(run);merged=rules.mergeParsedPasses(results)||merged;
         if(rules.structuralState(merged).found===0){results.push(await recognize(region,"11"));check(run);merged=rules.mergeParsedPasses(results)||merged;}}
     }
-    return {text:merged,confidence:Number(results[0]?.data?.confidence||0),passes:results.map((r,i)=>({pass:i+1,text:String(r?.data?.text||""),confidence:Number(r?.data?.confidence||0)}))};
+    return checkpoint();
   }
   async function runBatch(photoId){
     const run=claim("local_ocr");if(!run)return;
@@ -208,12 +221,13 @@
           if(!result.text.trim())throw fail("NO_TEXT");
           const found=rules.structuralState(result.text).found;
           await put({...original,ocrText:result.text,events:rules.parseEvents(result.text),status:found?"RECOGNIZED":"NEEDS_REVIEW",confidence:result.confidence,engineConfidence:result.confidence,
-            rc31RawPasses:result.passes,localFailure:found?"":"NO_CTN",ocrBuild:BUILD,updatedAt:now()});
+            rc31RawPasses:result.passes,rc31Quality:result.quality,localFailure:found?"":"NO_CTN",ocrBuild:BUILD,updatedAt:now()});
           if(found)done++;else failed++;record({stage:"photo_saved",outcome:found?"ok":"needs_review",candidates:found,passes:result.passes.length});await refresh();
         }catch(e){
           // Keep any earlier valid result. A failed retry must not erase it or its Cloud result.
           const keep=original.status==="RECOGNIZED"&&rules.structuralState(original.ocrText).found>0;
-          await put({...original,status:keep?"RECOGNIZED":"LOCAL_FAILED",localFailure:e.code||"WORKER_ERROR",updatedAt:now()});
+          const partial=!keep&&task.partial;
+          await put({...original,...(partial?{ocrText:partial.text,events:rules.parseEvents(partial.text),rc31RawPasses:partial.passes,rc31Quality:partial.quality,confidence:partial.confidence,ocrBuild:BUILD}:{}),status:keep?"RECOGNIZED":partial?"NEEDS_REVIEW":"LOCAL_FAILED",localFailure:e.code||"WORKER_ERROR",updatedAt:now()});
           failed++;record({stage:"photo_failed",outcome:"error",code:e.code||"WORKER_ERROR"});
           if(run.cancelled||/^STORAGE_|^initialize_|^LIB_LOAD$|^CANCELLED$/.test(e.code||""))throw e;
           engine.dispose(e.code||"WORKER_ERROR");await refresh();
@@ -246,7 +260,7 @@
     if(!$("iqc31Tools")){
       const style=document.createElement("style");style.textContent="#iqcImageRc [data-ocr31-photo]{grid-column:2 / 4;justify-self:start}#iqc31LogText{background:#08112f;color:#dbe8ff}#iqc31Tools{font-size:13px}#iqcRcAnalyze,#iqc31StartTop,#iqcImageRc [data-ocr31-photo]{touch-action:manipulation;min-height:48px;min-width:150px}";document.head.appendChild(style);
       const tools=document.createElement("div");tools.id="iqc31Tools";tools.className="iqc-rc-note";
-      tools.innerHTML='<strong>RC31.4 / OCR-S5-20260923</strong><p>可一次加入多張或分次補照片。辨識中請保持此頁開啟；切到背景會停止並保留照片。初次使用需下載辨識核心與英數字模型。</p><button id="iqc31Cancel" class="iqc-rc-btn" type="button">停止本輪辨識</button><details><summary>辨識紀錄</summary><p>紀錄不含帳密、照片或 CTN；保留最近 100 個處理事件。</p><button id="iqc31Copy" class="iqc-rc-btn" type="button">複製辨識紀錄</button><textarea id="iqc31LogText" readonly rows="7" style="width:100%;box-sizing:border-box;font-size:12px" aria-label="辨識紀錄"></textarea></details>';
+      tools.innerHTML='<strong>RC31.5 / OCR-S6-20260924</strong><p>可一次加入多張或分次補照片。辨識中請保持此頁開啟；切到背景會停止並保留照片。初次使用需下載辨識核心與英數字模型。</p><button id="iqc31Cancel" class="iqc-rc-btn" type="button">停止本輪辨識</button><details><summary>辨識紀錄</summary><p>紀錄不含帳密、照片或 CTN；保留最近 100 個處理事件。</p><button id="iqc31Copy" class="iqc-rc-btn" type="button">複製辨識紀錄</button><textarea id="iqc31LogText" readonly rows="7" style="width:100%;box-sizing:border-box;font-size:12px" aria-label="辨識紀錄"></textarea></details>';
       const review=document.createElement("p");review.textContent="請逐筆核對 CTN、RT 與數量；辨識結果仍可能有字元誤讀。";tools.appendChild(review);
       button.parentElement.insertAdjacentElement("afterend",tools);
       $("iqc31LogText").value=JSON.stringify(diagnosticSnapshot(),null,2);
@@ -258,7 +272,7 @@
       const style=document.createElement("style");style.textContent='#iqcImageRc .iqc-rc-top{gap:0 8px;padding:4px 0}#iqcImageRc .iqc-rc-top>div:first-child>small{display:none}#iqcImageRc .iqc-rc-top h2{font-size:16px}#iqc31Live{flex-basis:100%;display:flex;align-items:center;justify-content:space-between;gap:6px;min-width:0;font-size:12px;line-height:1.4}#iqc31LiveCount{min-width:0}#iqc31LiveDetails{flex:none}#iqc31LiveDetails summary{cursor:pointer;min-height:40px;display:flex;align-items:center;padding:0 5px;border-radius:8px;color:#c8dcf2}#iqc31LiveDetails summary::before{content:"▸";margin-right:4px}#iqc31LiveDetails[open] summary::before{content:"▾"}.iqc31-live-menu{position:absolute;left:0;right:0;top:100%;padding:10px;background:#101b42;border:1px solid #526394;border-radius:12px;box-shadow:0 8px 18px #02072288}#iqc31LivePhase{color:#c8dcf2;overflow-wrap:anywhere}#iqc31Live .iqc-rc-row{gap:5px;margin-top:8px}#iqc31Live button{min-height:42px;font-size:12px;padding:5px 8px}';document.head.appendChild(style);
       text("iqc31LivePhase",progressMessage);
     }
-    const heading=panel.querySelector(".iqc-rc-top h2");if(heading&&heading.textContent!=="📷 Honeywell 影像 RC31.4")heading.textContent="📷 Honeywell 影像 RC31.4";
+    const heading=panel.querySelector(".iqc-rc-top h2");if(heading&&heading.textContent!=="📷 Honeywell 影像 RC31.5")heading.textContent="📷 Honeywell 影像 RC31.5";
     const gallery=$("iqcRcGalleryInput");if(gallery)gallery.multiple=true;
     text("iqcHybridSyncBtn","補辨識缺漏（Cloud）");
     const hint=$("iqcHybridHint");if(hint&&!hint.dataset.rc31){hint.dataset.rc31="1";text("iqcHybridHint","RC31 先完成本機辨識；如有缺漏，再按「補辨識缺漏（Cloud）」。");}
