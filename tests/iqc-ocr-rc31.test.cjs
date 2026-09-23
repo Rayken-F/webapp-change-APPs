@@ -61,3 +61,38 @@ test('RC30 rules still retain ordered group headers and continuation CTNs',()=>{
   const text='113374 CYLINDER OCYL 7209 TOTAL 2\nAB12CDE\nFG34HIJ';
   assert.equal(r.structuralState(text).complete,true);assert.equal(r.parseEvents(text).length,3);assert.equal(r.structuralState('AB12CDE').kind,'CONTINUATION');
 });
+
+const rules=require(path.join(dir,'iqc-ocr-rules-rc31.js'));
+test('CTN-only photo finishes extraction without repeated OCR for absent RT',()=>{
+  const text='EX71MHT\nBH20EPJ\nBH19XQX';
+  assert.equal(rules.structuralState(text).found,3);
+  assert.equal(rules.structuralState(text).complete,false);
+  assert.equal(rules.needsSparse(text),false);
+  assert.equal(rules.needsHighContrast(text),false);
+  assert.deepEqual(rules.parseText(text).groups,[]);
+});
+test('missing status, plant or quantity does not make existing CTNs an OCR failure',()=>{
+  for(const text of ['113374 CYLINDER\nAB12CDE','113374 CYLINDER OCYL\nAB12CDE','113374 CYLINDER UNKNOWN UNKNOWN TOTAL 1\nAB12CDE']){
+    assert.equal(rules.structuralState(text).found,1);
+    assert.equal(rules.structuralState(text).complete,false);
+    assert.equal(rules.needsSparse(text),false);
+    assert.equal(rules.needsHighContrast(text),false);
+  }
+});
+test('leading CTNs survive a later empty header and remain unassigned',()=>{
+  const text='EX71MHT\nBH20EPJ\n113374 CYLINDER OCYL 7209';
+  const merged=rules.mergeParsedPasses([{data:{text}}]);
+  assert.equal(rules.structuralState(merged).found,2);
+  assert.deepEqual(rules.parseText(merged).leading,['EX71MHT','BH20EPJ']);
+  assert.equal(rules.needsSparse(merged),false);
+});
+test('zero candidates and known quantity gaps still permit bounded OCR fallbacks',()=>{
+  for(const text of ['NEXT PAGE','113374 CYLINDER OCYL 7209 TOTAL 2\nAB12CDE']){
+    assert.equal(rules.needsSparse(text),true);assert.equal(rules.needsHighContrast(text),true);
+  }
+  assert.equal(rules.needsSparse('113374 CYLINDER OCYL 7209 TOTAL 2\nAB12CDE\nFG34HIJ'),false);
+});
+test('candidate total counts unique CTNs including unassigned leading entries',()=>{
+  const s=rules.structuralState('EX71MHT\n113374 CYLINDER OCYL 7209 TOTAL 2\nEX71MHT\nBH20EPJ');
+  assert.equal(s.found,2);assert.equal(s.complete,false);
+});

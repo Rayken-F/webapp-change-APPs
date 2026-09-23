@@ -44,6 +44,7 @@ const dbPhotos=page=>page.evaluate(()=>new Promise((resolve,reject)=>{const r=in
  await page.locator('#loginAccount').fill('TEST');await page.locator('#loginPassword').fill('SYNTHETIC_ONLY');await page.locator('#loginBtn').click();
  await page.locator('#appShell').waitFor({state:'visible'});await page.locator('#navMore').click();await page.locator('#iqcImageRcTool').click();await page.locator('#iqc31Tools').waitFor();await page.waitForFunction(()=>!window.__DS_IQC_RC31.isBusy());
  ok('RC31 works with current shared DS login DOM and transport',await page.locator('#iqcImageRc').isVisible());
+ ok('fixed header is compact before recognition',(await page.locator('.iqc-rc-top').boundingBox()).height<=100&&await page.locator('#iqc31LiveDetails').getAttribute('open')===null);
  ok('old initialization did not run before photos',workerRequests===0);
  const idleMutations=await page.evaluate(()=>new Promise(resolve=>{let n=0;const o=new MutationObserver(()=>n++);o.observe(document.getElementById('iqcRcCommit'),{childList:true});setTimeout(()=>{o.disconnect();resolve(n);},1100);}));
  ok('read-only label does not recursively mutate and starve control updates',idleMutations===0);
@@ -67,7 +68,7 @@ const dbPhotos=page=>page.evaluate(()=>new Promise((resolve,reject)=>{const r=in
  photos=await dbPhotos(page);ok('later fourth photo completes with same engine',photos.length===4&&photos.every(p=>p.status==='RECOGNIZED')&&workerRequests===initialWorkers);
  const keep=photos[0].ocrText;
  await page.evaluate(()=>{window.originalWorkerPost=Worker.prototype.postMessage;Worker.prototype.postMessage=function(message,...args){if(message?.action==='recognize')return;return window.originalWorkerPost.call(this,message,...args);};});
- await page.locator('[data-ocr31-photo]').first().click();await page.locator('#iqc31Cancel').click();await page.waitForFunction(()=>!window.__DS_IQC_RC31.isBusy());photos=await dbPhotos(page);
+ await page.locator('[data-ocr31-photo]').first().click();await page.locator('#iqc31LiveDetails summary').click();await page.locator('#iqc31Cancel').click();await page.waitForFunction(()=>!window.__DS_IQC_RC31.isBusy());photos=await dbPhotos(page);await page.locator('#iqc31LiveDetails summary').click();
  await page.evaluate(()=>{Worker.prototype.postMessage=window.originalWorkerPost;});
  ok('cancel of a retry retains previously recognized text',photos[0].ocrText===keep&&photos[0].status==='RECOGNIZED');
  await page.locator('[data-ocr31-photo]').first().click();await page.waitForFunction(()=>!window.__DS_IQC_RC31.isBusy(),{},{timeout:90000});ok('retry after cancel starts a fresh engine',(await dbPhotos(page))[0].status==='RECOGNIZED'&&workerRequests===initialWorkers+1);
@@ -174,9 +175,11 @@ const dbPhotos=page=>page.evaluate(()=>new Promise((resolve,reject)=>{const r=in
  await page.evaluate(()=>{window.__firstCard=document.querySelector('.iqc-photo');window.__firstSrc=window.__firstCard.querySelector('img').src;window.__nativePost=Worker.prototype.postMessage;window.__thirdHeld=false;Worker.prototype.postMessage=function(m,...args){if(!window.__thirdHeld&&m?.action==='recognize'&&window.__DS_IQC_RC31.diagnostics().events.at(-1).photo===3){window.__thirdHeld=true;return;}return window.__nativePost.call(this,m,...args);};});
  await page.locator('#iqc31StartTop').tap();await page.waitForFunction(()=>window.__thirdHeld,{},{timeout:90000});
  ok('visible progress identifies completed count and current third photo',/2\/13/.test(await page.locator('#iqc31LiveCount').textContent())&&/第 3 張/.test(await page.locator('#iqc31LivePhase').textContent()));
+ ok('running progress stays compact',(await page.locator('.iqc-rc-top').boundingBox()).height<=100);
  await page.evaluate(()=>{const p=document.getElementById('iqcImageRc');p.scrollTop=p.scrollHeight;});
+ await page.locator('#iqc31LiveDetails summary').tap();
  ok('skip remains visible at bottom of long photo list',await page.locator('#iqc31Skip').evaluate(e=>{const r=e.getBoundingClientRect();return r.top>=0&&r.bottom<innerHeight;}));
- await page.locator('#iqc31Skip').tap();await page.waitForFunction(()=>!window.__DS_IQC_RC31.isBusy(),{},{timeout:240000});await page.evaluate(()=>{Worker.prototype.postMessage=window.__nativePost;});
+ await page.locator('#iqc31Skip').tap();await page.locator('#iqc31LiveDetails summary').tap();await page.waitForFunction(()=>!window.__DS_IQC_RC31.isBusy(),{},{timeout:240000});await page.evaluate(()=>{Worker.prototype.postMessage=window.__nativePost;});
  const thirteen=await dbPhotos(page);
  ok('skip third preserves it and attempts all remaining photos',thirteen.length===13&&thirteen[2].localFailure==='PHOTO_SKIPPED'&&thirteen.filter(p=>p.status==='RECOGNIZED').length===12);
  ok('completed photos keep their original cards and thumbnail URLs',await page.evaluate(()=>window.__firstCard===document.querySelector('.iqc-photo')&&window.__firstSrc===window.__firstCard.querySelector('img').src));
@@ -195,6 +198,18 @@ const dbPhotos=page=>page.evaluate(()=>new Promise((resolve,reject)=>{const r=in
  await page.screenshot({path:path.join(artifacts,'rc313-merged.png')});await page.locator('#iqc31StartTop').scrollIntoViewIfNeeded();await page.screenshot({path:path.join(artifacts,'rc313-progress.png')});
  await page.reload();await page.locator('#appShell').waitFor({state:'visible'});await page.locator('#navMore').click();await page.locator('#iqcImageRcTool').click();await page.waitForFunction(()=>!window.__DS_IQC_RC31.isBusy());
  ok('reconciled group, full photos and history survive reload',(await dbPhotos(page)).length===13&&await page.evaluate(()=>window.__DS_IQC_REVIEW31.getModel().length===1));
+ // Third photo has CTNs but no RT/status/plant: it must finish in one pass and advance.
+ await page.locator('#iqcRcNewBatch').click();await page.waitForFunction(()=>!window.__DS_IQC_RC31.isBusy());
+ await page.locator('#iqcRcGalleryInput').setInputFiles([image,image,{name:'third-no-rt.png',mimeType:'image/png',buffer:Buffer.from(series[1],'base64')},image]);await page.waitForFunction(()=>!window.__DS_IQC_RC31.isBusy());
+ await page.locator('#iqc31StartTop').tap();await page.waitForFunction(()=>!window.__DS_IQC_RC31.isBusy(),{},{timeout:90000});
+ const headerlessBatch=await dbPhotos(page),third=headerlessBatch[2];
+ ok('third CTN-only photo and fourth photo finish from one start',headerlessBatch.length===4&&headerlessBatch.every(p=>p.status==='RECOGNIZED')&&third.rc31RawPasses.length===1);
+ ok('third photo candidates stay unassigned until explicit operator decision',await page.evaluate(id=>{const g=window.__DS_IQC_REVIEW31.getModel().find(g=>!g.rt&&g.photoIds.includes(id));return g&&g.ctns.length===2;},third.id));
+ ok('photo card explains missing RT without treating OCR as failed',/RT 待指定/.test(await page.locator('[data-photo-delete="'+third.id+'"]').locator('..').locator('.rc31-photo-result').textContent()));
+ await page.locator('[data-review-photo="'+third.id+'"]').first().scrollIntoViewIfNeeded();await page.screenshot({path:path.join(artifacts,'rc314-headerless.png')});
+ await page.locator('[data-review-photo="'+third.id+'"]').first().click();await page.locator('#iqc31TargetGroup').selectOption({label:'RT 113374｜OCYL｜7209'});await page.locator('[data-review-save]').click();await page.waitForFunction(()=>document.getElementById('iqc31ReviewMessage').textContent.includes('已保存'));await page.locator('[data-review-close]').click();
+ ok('headerless photo joins existing RT without replacing OCR or losing fourth photo',await page.evaluate(()=>{const g=window.__DS_IQC_REVIEW31.getModel();return g.length===1&&g[0].rt==='113374'&&g[0].ctns.length===4&&g[0].photoIds.length===4;})&&(await dbPhotos(page))[2].ocrText===third.ocrText&&(await dbPhotos(page))[3].updatedAt===headerlessBatch[3].updatedAt);
+ await page.locator('#iqc31StartTop').scrollIntoViewIfNeeded();await page.screenshot({path:path.join(artifacts,'rc314-compact.png')});
  ok('new queue and review paths never submit business data',business===0);
  // Abort generates a browser worker error; it must not become an uncaught page error.
  ok('no uncaught frontend errors',errors.length===0);
