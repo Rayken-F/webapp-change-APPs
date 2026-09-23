@@ -12,17 +12,21 @@ const clean=v=>String(v||" ").trim().toUpperCase();
 
   function structuralState(text){
     const parsed=parseText(text),groups=parsed.groups||[],leading=parsed.leading||[];
+    const found=new Set([...leading,...groups.flatMap(g=>g.ctns||[])]).size;
     if(groups.length){
-      const complete=groups.every(g=>!!g.rt&&!!g.status&&!!g.plant&&Number(g.expected||0)>0&&(g.ctns||[]).length>=Number(g.expected||0));
-      const found=groups.reduce((n,g)=>n+(g.ctns||[]).length,0);
+      const known=v=>!!v&&v!=="UNKNOWN";
+      const complete=!leading.length&&groups.every(g=>known(g.rt)&&known(g.status)&&known(g.plant)&&Number(g.expected||0)>0&&(g.ctns||[]).length>=Number(g.expected||0));
       const expected=groups.reduce((n,g)=>n+Number(g.expected||0),0);
       return {kind:complete?"COMPLETE":"GROUP_GAP",complete,groups,leading,found,expected};
     }
     if(leading.length)return {kind:"CONTINUATION",complete:false,groups,leading,found:leading.length,expected:0};
     return {kind:"NO_DATA",complete:false,groups,leading,found:0,expected:0};
   }
-  function needsSparse(text){return !structuralState(text).complete;}
-  function needsHighContrast(text){const s=structuralState(text);if(s.complete)return false;if(s.kind==="CONTINUATION"&&s.found>0)return false;return true;}
+  // Missing grouping metadata is a review task, not evidence that OCR must run again.
+  // Retry only when no CTNs were extracted or a visible total indicates missing CTNs.
+  function needsMoreCandidates(text){const s=structuralState(text);return !s.found||s.groups.some(g=>g.expected>0&&g.ctns.length<g.expected);}
+  function needsSparse(text){return needsMoreCandidates(text);}
+  function needsHighContrast(text){return needsMoreCandidates(text);}
   function qualityLabel(text){const s=structuralState(text);if(s.kind==="COMPLETE")return `資料完整｜${s.found}/${s.expected}`;if(s.kind==="GROUP_GAP")return `已辨識｜${s.found}/${s.expected} 待補`;if(s.kind==="CONTINUATION")return `已辨識｜${s.found} CTN（續頁）`;return "已辨識｜待複查";}
 
   function parseEvents(text){const events=[];String(text||"").split(/\r?\n/).map(x=>x.trim()).filter(Boolean).forEach((line,lineIndex)=>{const upper=clean(line).replace(/[|]/g," "),h=readHeader(upper);if(h){events.push({type:"header",rt:h.rt,expected:h.expected,line:upper,lineIndex});return;}if(/^RT[_\s]/.test(upper)||((upper.match(/_/g)||[]).length>=2))return;upper.split(/[^A-Z0-9]+/).filter(Boolean).forEach(token=>{const ctn=normalizeCtn(token);if(ctn)events.push({type:"ctn",ctn,raw:token,corrected:ctn!==token,lineIndex});});});return events;}
