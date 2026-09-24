@@ -66,6 +66,34 @@ test('raw recognition rejection is categorized before releasing the worker',asyn
   const {engine,stats}=setup({recognize:()=>Promise.reject('RuntimeError: memory access out of bounds')});
   await assert.rejects(engine.recognize('test'),{code:'WORKER_MEMORY'});assert.equal(stats.killed,1);assert.equal(engine.slot,null);
 });
+
+test('disposing from a worker failure retains its safe action for pending jobs',async()=>{
+  const {engine}=setup({ready:()=>new Promise(()=>{})});const pending=engine.ensure();await delay(1);
+  engine.dispose(workerFault('WebAssembly compile failed','load'));
+  await assert.rejects(pending,{code:'WORKER_WASM',workerAction:'load'});
+});
+
+function bootstrapWorker({scriptError}={}){
+  const events={},messages=[],scripts=[];
+  const context={self:{addEventListener:(type,fn)=>events[type]=fn,postMessage:m=>messages.push(m)},importScripts:url=>{
+    scripts.push(url);if(url.includes('iqc-ocr-engine'))context.self.IqcOcrEngine31={workerFault};else if(scriptError)throw Error(scriptError);
+  }};
+  vm.runInNewContext(fs.readFileSync(path.join(dir,'iqc-ocr-worker-rc31.js'),'utf8'),context);
+  return {events,messages,scripts};
+}
+test('worker bootstrap reports a failed script once without leaking its URL',()=>{
+  const {messages}=bootstrapWorker({scriptError:'importScripts failed https://private.invalid/?token=SECRET'});
+  assert.equal(messages.length,1);assert.equal(messages[0].error.code,'WORKER_ASSET_NETWORK');
+  assert.ok(!JSON.stringify(messages).includes('SECRET'));
+});
+test('unhandled core rejection has a safe actionable reply before any normal job result',()=>{
+  const {events,messages}=bootstrapWorker();let prevented=0;
+  events.message({data:{action:'initialize'}});
+  events.unhandledrejection({reason:Error('WebAssembly compile failed SECRET'),preventDefault:()=>prevented++});
+  events.error({message:'private details',preventDefault:()=>prevented++});
+  assert.equal(messages.length,1);assert.equal(prevented,2);assert.equal(messages[0].action,'initialize');
+  assert.equal(messages[0].error.code,'WORKER_WASM');assert.ok(!JSON.stringify(messages).includes('SECRET'));
+});
 test('RC31 entry selects only one OCR controller and keeps read-only guard',()=>{
   const html=fs.readFileSync(path.join(dir,'v31.html'),'utf8');
   assert.match(html,/iqc-ocr-runtime-rc31/);assert.match(html,/iqc-image-safety-guard-rc-v1/);
