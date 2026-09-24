@@ -146,6 +146,62 @@ const dbPhotos=page=>page.evaluate(()=>new Promise((resolve,reject)=>{const r=in
  await page.locator('#iqc31BatchSelect').selectOption(batchB);await idle();await page.waitForFunction(()=>document.getElementById('iqcRcPhotoCount').textContent==='2');
  await page.locator('[data-review-quality]').first().click();await page.screenshot({path:path.join(artifacts,'character-warnings.png')});
  await page.locator('[data-review-close]').click();await page.locator('#iqcRcResultList').scrollIntoViewIfNeeded();await page.screenshot({path:path.join(artifacts,'duplicate-summary.png')});
+ // RC31.12: real multi-store IndexedDB deletion, empty selection and receipt guards.
+ const allBatches=()=>page.evaluate(()=>window.__DS_IQC_RC31.listBatches());
+ const inspect=id=>page.evaluate(id=>window.__DS_IQC_RC31.inspectBatch(id),id);
+ const storeWrite=async(store,value,remove=false)=>page.evaluate(({store,value,remove})=>new Promise((resolve,reject)=>{const r=indexedDB.open('ds_iqc_image_rc_v1',1);r.onsuccess=()=>{const db=r.result,tx=db.transaction(store,'readwrite'),s=tx.objectStore(store);remove?s.delete(value):s.put(value);tx.oncomplete=()=>{db.close();resolve();};tx.onabort=()=>{db.close();reject(tx.error);};};}),{store,value,remove});
+ const removeCurrent=async accept=>{const dialog=page.waitForEvent('dialog').then(d=>accept?d.accept():d.dismiss());await page.locator('#iqc31BatchRemove').click();await dialog;await page.waitForFunction(()=>document.getElementById('iqc31BatchControls').getAttribute('aria-busy')==='false'&&!window.__DS_IQC_RC31.isBusy());};
+ const originalB=await dbPhotos(page);await removeCurrent(false);
+ ok('cancelled deletion preserves all photos, classifications and selected batch',JSON.stringify(await dbPhotos(page))===JSON.stringify(originalB)&&await page.locator('#iqc31BatchSelect').inputValue()===batchB);
+ await page.evaluate(()=>{window.__deleteBeforeFailure=IDBObjectStore.prototype.delete;let count=0;IDBObjectStore.prototype.delete=function(...args){if(this.name==='photos'&&++count===2)throw new DOMException('Synthetic second-photo delete failure','UnknownError');return window.__deleteBeforeFailure.apply(this,args);};});
+ await removeCurrent(true);
+ ok('second-photo deletion failure atomically restores batch and every photo',JSON.stringify(await dbPhotos(page))===JSON.stringify(originalB)&&(await allBatches()).length===2);
+ await page.evaluate(()=>{IDBObjectStore.prototype.delete=window.__deleteBeforeFailure;});
+ const stale=await inspect(batchB),changed={...stale.batch,label:'Changed in another tab',updatedAt:'2031-01-01T00:00:00Z'};await storeWrite('batches',changed);
+ const staleError=await page.evaluate(async s=>{try{await window.__DS_IQC_RC31.removeBatch(s);return '';}catch(e){return e.message;}},stale);
+ ok('stale confirmation cannot delete a concurrently changed draft',staleError.includes('已變更')&&(await inspect(batchB)).photos.length===2);
+ await storeWrite('batches',stale.batch);
+ for(const status of ['PENDING','SENDING','SYNCED']){
+   const rec={submissionId:'guard-'+status,batchId:batchB,status,receipt:status==='SYNCED'?{id:'receipt-fixture'}:null};await storeWrite('submissions',rec);
+   const snapshot=await inspect(batchB),message=await page.evaluate(async s=>{try{await window.__DS_IQC_RC31.removeBatch(s);return '';}catch(e){return e.message;}},snapshot);
+   ok('removal preserves '+status+' submissions and all associated source photos',snapshot.protected&&message.includes('不能移除')&&(await inspect(batchB)).photos.length===2);
+   await storeWrite('submissions',rec.submissionId,true);
+ }
+ // A receipt arriving AFTER confirmation is checked again inside the write transaction.
+ const beforeReceipt=await inspect(batchB);await storeWrite('submissions',{submissionId:'late-receipt',batchId:batchB,status:'SYNCED'});
+ const lateRejected=await page.evaluate(async s=>{try{await IqcBatchStore31.remove(s);return false;}catch(_){return true;}},beforeReceipt);
+ ok('late receipt prevents deletion even when confirmation originally saw a draft',lateRejected&&(await inspect(batchB)).photos.length===2);await storeWrite('submissions','late-receipt',true);
+ await page.evaluate(async id=>{localStorage.setItem('ds_iqc_v8_meta_override_'+id,'{}');await new Promise(resolve=>{const r=indexedDB.open('ds_iqc_hybrid_rc_v15',1);r.onsuccess=()=>{const db=r.result,tx=db.transaction('ai_jobs','readwrite');tx.objectStore('ai_jobs').put({jobId:'cleanup-fixture',batchId:id,photoId:'fixture',status:'LOCAL_LOCKED'});tx.oncomplete=()=>{db.close();resolve();};};});},batchB);
+ const latePhoto=await page.evaluate(id=>window.__DS_IQC_RC31.readPhoto(id),originalB[0].id);
+ await removeCurrent(true);await page.waitForFunction(()=>document.getElementById('iqc31BatchMessage').textContent==='批次與本機照片已移除。');
+ ok('confirmed removal deletes only chosen draft and all its image/review records',!(await inspect(batchB)).batch&&(await inspect(batchB)).photos.length===0&&(await inspect(batchA)).photos.length===5);
+ ok('remaining batch is automatically selected with source results intact',await page.locator('#iqc31BatchSelect').inputValue()===batchA&&JSON.stringify(await dbPhotos(page))===JSON.stringify(beforeA));
+ const cleanup=await page.evaluate(async id=>({key:localStorage.getItem('ds_iqc_v8_meta_override_'+id),jobs:await new Promise(resolve=>{const r=indexedDB.open('ds_iqc_hybrid_rc_v15',1);r.onsuccess=()=>{const db=r.result,tx=db.transaction('ai_jobs'),q=tx.objectStore('ai_jobs').index('batchId').count(id);q.onsuccess=()=>resolve(q.result);tx.oncomplete=()=>db.close();};})}),batchB);
+ ok('removed draft also releases only its legacy review and auxiliary job metadata',cleanup.key===null&&cleanup.jobs===0);
+ const resurrected=await page.evaluate(async({batch,photo})=>{
+   let blocked=0;try{await IqcBatchStore31.updateBatch(batch);}catch(_){blocked++;}
+   // Reconstruct bytes in-page; Playwright serialization is not the persistence path.
+   photo.rc31Image={type:'image/png',bytes:new Uint8Array([1,2,3]).buffer};delete photo.blob;
+   try{await window.__DS_IQC_RC31.writePhoto(photo);}catch(_){blocked++;}return blocked;
+ },{batch:stale.batch,photo:latePhoto});
+ ok('late asynchronous writes cannot resurrect deleted batch or image',resurrected===2&&!(await inspect(batchB)).batch&&(await inspect(batchB)).photos.length===0);
+ await page.locator('#iqcRcNewBatch').click();await idle();const emptyId=(await batchMeta()).id;
+ ok('new empty draft is clearly marked in batch selector',(await page.locator('#iqc31BatchSelect option:checked').textContent()).includes('空批次'));
+ let check=await page.evaluate(ids=>window.__DS_IQC_RC31.checkSubmissionBatches(ids),[batchA,emptyId,emptyId]);
+ ok('submission preflight excludes empty drafts and de-duplicates selection',check.empty.length===1&&check.empty[0]===emptyId&&check.nonempty.length===1&&check.nonempty[0]===batchA);
+ await page.locator('#iqc31BatchPreflight').click();await page.waitForFunction(()=>document.getElementById('iqc31PreflightResult').textContent.includes('已排除'));
+ ok('visible preflight reports empty exclusion without claiming IQC creation',(await page.locator('#iqc31PreflightResult').textContent()).includes('尚未送出')&&await page.locator('#iqcRcCommit').isDisabled());
+ await page.locator('#iqc31BatchPreflight').scrollIntoViewIfNeeded();await page.screenshot({path:path.join(artifacts,'empty-preflight.png')});
+ await ingest(1);check=await page.evaluate(ids=>window.__DS_IQC_RC31.checkSubmissionBatches(ids),[emptyId]);
+ ok('unrecognized photos are blocked for processing, never misclassified as empty',check.empty.length===0&&check.nonempty.length===0&&check.blocked.length===1&&check.blocked[0].reason.includes('尚無可用 CTN'));
+ await removeCurrent(true);await removeCurrent(true);
+ ok('removing last draft leaves no automatic replacement, photos or active selection',(await allBatches()).length===0&&await page.locator('#iqc31BatchSelect').inputValue()===''&&await page.locator('#iqc31BatchRemove').isDisabled());
+ await page.reload();await page.locator('#appShell').waitFor({state:'visible'});await page.locator('#navMore').click();await page.locator('#iqcImageRcTool').click();await idle();
+ await page.waitForFunction(()=>document.getElementById('iqc31BatchSelect')?.value==='');
+ ok('reopening after last deletion does not persist another empty draft',(await allBatches()).length===0&&await page.locator('#iqc31BatchSelect').inputValue()===''&&await page.locator('#iqcRcRegion').isDisabled());
+ await page.locator('#iqc31BatchControls').scrollIntoViewIfNeeded();await page.screenshot({path:path.join(artifacts,'no-batches.png')});
+ await ingest(1);
+ ok('adding a photo from no-batch state creates exactly one usable draft',(await allBatches()).length===1&&(await dbPhotos(page)).length===1&&!await page.locator('#iqcRcRegion').isDisabled());
  ok('batch/review changes never submit business records or upload photos',business===0&&cloudPhotos===0);
  ok('no uncaught frontend errors',errors.length===0);
  console.log('TOTAL '+checks);fs.writeFileSync(path.join(artifacts,'batch-summary.json'),JSON.stringify({checks,errors,business,cloudPhotos,diagnostics:await page.evaluate(()=>window.__DS_IQC_RC31.diagnostics())},null,2));

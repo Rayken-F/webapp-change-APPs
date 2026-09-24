@@ -35,6 +35,16 @@
   function openHybridDb(){return new Promise((resolve,reject)=>{const req=indexedDB.open(HYBRID_DB,HYBRID_DB_VERSION);req.onupgradeneeded=()=>{const db=req.result;if(!db.objectStoreNames.contains("ai_jobs")){const s=db.createObjectStore("ai_jobs",{keyPath:"jobId"});s.createIndex("status","status",{unique:false});s.createIndex("batchId","batchId",{unique:false});}};req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error);});}
   function putJob(job){return openHybridDb().then(db=>new Promise((resolve,reject)=>{const tx=db.transaction("ai_jobs","readwrite");tx.objectStore("ai_jobs").put(job);tx.oncomplete=()=>{db.close();resolve(job);};tx.onerror=()=>{db.close();reject(tx.error);};}));}
   function getJobs(){return openHybridDb().then(db=>new Promise((resolve,reject)=>{const tx=db.transaction("ai_jobs","readonly"),req=tx.objectStore("ai_jobs").getAll();req.onsuccess=()=>resolve(req.result||[]);req.onerror=()=>reject(req.error);tx.oncomplete=()=>db.close();}));}
+  // Called only after RC31 has committed removal of this exact local draft.
+  async function removeBatchJobs(batchId){
+    if(!window.__DS_IQC_RC31||!batchId)throw new Error('RC31 batch required');
+    const snapshot=await window.__DS_IQC_RC31.inspectBatch(batchId);if(snapshot.batch)throw new Error('Batch still exists');
+    const db=await openHybridDb();return new Promise((resolve,reject)=>{
+      const tx=db.transaction('ai_jobs','readwrite'),s=tx.objectStore('ai_jobs'),r=s.index('batchId').openKeyCursor(IDBKeyRange.only(batchId));
+      r.onsuccess=()=>{const c=r.result;if(c){s.delete(c.primaryKey);c.continue();}};
+      tx.oncomplete=()=>{db.close();resolve();};tx.onabort=()=>{db.close();reject(tx.error||new Error('Job cleanup failed'));};
+    });
+  }
   async function pendingJobs(batchId=""){const jobs=await getJobs();return jobs.filter(j=>(!batchId||j.batchId===batchId)&&["AI_PENDING","AI_RETRY"].includes(j.status));}
 
   function jobId(batchId,photoId){const safe=v=>String(v||"").replace(/[^A-Za-z0-9_.:-]/g,"_");return `IQCAI_${safe(batchId)}_${safe(photoId)}`;}
@@ -185,6 +195,6 @@
   setInterval(()=>{if(navigator.onLine)syncAiQueue({manual:false});},60000);
 
   ensureUi();getCloudStatus(false).catch(()=>{});refreshUi();
-  window.__DS_IQC_HYBRID_V21={version:VERSION,syncAiQueue,queueSelectiveForAi,getCloudStatus,selectCloudCandidate};
+  window.__DS_IQC_HYBRID_V21={version:VERSION,syncAiQueue,queueSelectiveForAi,getCloudStatus,selectCloudCandidate,removeBatchJobs};
   window.__DS_IQC_HYBRID_V15={version:VERSION,syncAiQueue,queueBatchForAi:queueSelectiveForAi,queueSelectiveForAi,getCloudStatus,selectCloudCandidate};
 })();
