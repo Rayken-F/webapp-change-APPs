@@ -24,10 +24,11 @@
     }
     emit(stage,extra={}){this.onEvent({stage,...extra});}
     dispose(code="CANCELLED"){
+      const reason=typeof code==="string"?fault(code):workerFault(code);code=reason.code;
       clearTimeout(this.idle);const s=this.slot;this.slot=null;
       if(!s||s.dead)return;s.dead=true;
       // Reject our waiters AND terminate the native Worker, even before createWorker resolves.
-      for(const reject of s.waiters)reject(fault(code));s.waiters.clear();
+      for(const reject of s.waiters)reject(reason);s.waiters.clear();
       try{s.handle?.terminate();}catch(_){}
       this.emit("disposed",{generation:s.id,code});
     }

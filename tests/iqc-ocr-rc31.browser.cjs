@@ -12,10 +12,10 @@ const dbPhotos=page=>page.evaluate(()=>new Promise((resolve,reject)=>{const r=in
  const browser=process.env.DS_WEBKIT==='1'?await webkit.launch({headless:true}):await chromium.launch({headless:true,executablePath:process.env.EDGE_EXECUTABLE||undefined});
  try{
  const context=await browser.newContext({viewport:{width:402,height:874},isMobile:true,hasTouch:true,serviceWorkers:'block'});
- let business=0,cloudPhotos=0,workerRequests=0,blockWorker=false,blockLibrary=false;const errors=[],network=[];
+ let business=0,cloudPhotos=0,workerRequests=0,blockWorker=false,blockLibrary=false,bootstrapRejectOnce=false;const errors=[],network=[];
  await context.route('**/*',async route=>{
   const u=new URL(route.request().url());
-  if(u.origin===origin){if(u.pathname.endsWith('iqc-ocr-worker-rc31.js')){workerRequests++;if(blockWorker)return route.abort();}return route.continue();}
+  if(u.origin===origin){if(u.pathname.endsWith('iqc-ocr-worker-rc31.js')){workerRequests++;if(blockWorker)return route.abort();if(bootstrapRejectOnce){bootstrapRejectOnce=false;return route.fulfill({contentType:'text/javascript',body:`self.addEventListener('message',e=>{if(e.data?.action==='load'){e.stopImmediatePropagation();Promise.reject(new Error('WebAssembly bootstrap failure SECRET_TEST'));}});\n`+fs.readFileSync(path.join(root,u.pathname),'utf8')});}}return route.continue();}
   if(u.hostname==='cdn.jsdelivr.net'||u.hostname==='tessdata.projectnaptha.com'){
    network.push(u.pathname);if(blockLibrary&&u.pathname.includes('/tesseract.min.js'))return route.abort();return route.continue();
   }
@@ -27,6 +27,7 @@ const dbPhotos=page=>page.evaluate(()=>new Promise((resolve,reject)=>{const r=in
    else if(p.api==='portal_iqc_cloud_ocr_status_rc')out={ok:true,ready:true,enabled:true,configured:true};
    else if(p.api==='portal_iqc_cloud_ocr_rc'){cloudPhotos++;out={ok:true,status:'DONE',text:'113374 CYLINDER OCYL 7209 TOTAL 2\nAB12CDE\nFG34HIJ'};}
    else if(p.api==='portal_rt_master')out={ok:true,items:[{rtNo:'113374',description:'X40S',unit:'支',rtType:'loose'}]};
+   else if(p.api==='iqc_regions')out={ok:true,regions:[{code:'TEST_REGION',name:'測試區域'}]};
    else if(!['workstation_home_data','iqc_regions','health'].includes(p.api))business++;
    return route.fulfill({contentType:'application/json',body:JSON.stringify(out)});
   }
@@ -46,6 +47,14 @@ const dbPhotos=page=>page.evaluate(()=>new Promise((resolve,reject)=>{const r=in
  ok('RC31 works with current shared DS login DOM and transport',await page.locator('#iqcImageRc').isVisible());
  ok('fixed header is compact before recognition',(await page.locator('.iqc-rc-top').boundingBox()).height<=100&&await page.locator('#iqc31LiveDetails').getAttribute('open')===null);
  ok('old initialization did not run before photos',workerRequests===0);
+ ok('batch card only asks for region, without date/operator/batch-status inputs',await page.locator('#iqcRcDate,#iqcRcOperator,#iqcRcStatus').count()===0&&await page.locator('#iqcRcRegion').count()===1);
+ await page.waitForFunction(()=>document.querySelector('#iqcRcRegion option[value="TEST_REGION"]'));
+ await page.locator('#iqcRcRegion').selectOption('TEST_REGION');
+ const batchMeta=()=>page.evaluate(()=>new Promise(resolve=>{const r=indexedDB.open('ds_iqc_image_rc_v1',1);r.onsuccess=()=>{const db=r.result,tx=db.transaction('batches'),q=tx.objectStore('batches').get(localStorage.getItem('ds_iqc_image_rc_active_batch'));q.onsuccess=()=>resolve(q.result);tx.oncomplete=()=>db.close();};}));
+ await page.waitForTimeout(100);const initialMeta=await batchMeta();
+ ok('batch records current date and verified DS identity automatically',initialMeta.operatorAccount==='TEST'&&initialMeta.operatorName==='測試'&&initialMeta.regionCode==='TEST_REGION'&&initialMeta.reportDate===await page.evaluate(()=>{const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;}));
+ await page.evaluate(async()=>{const D=Date;try{window.Date=class extends D{constructor(...args){super(...(args.length?args:[2030,0,2,12]));}};await window.__DS_IQC_IMAGE_RC.rc31.prepareMetadata();}finally{window.Date=D;}});
+ const nextDay=await batchMeta();ok('resumed draft uses current operation date while preserving original creation and region',nextDay.reportDate==='2030-01-02'&&nextDay.createdAt===initialMeta.createdAt&&nextDay.regionCode==='TEST_REGION');
  const idleMutations=await page.evaluate(()=>new Promise(resolve=>{let n=0;const o=new MutationObserver(()=>n++);o.observe(document.getElementById('iqcRcCommit'),{childList:true});setTimeout(()=>{o.disconnect();resolve(n);},1100);}));
  ok('read-only label does not recursively mutate and starve control updates',idleMutations===0);
  const png=await page.evaluate(()=>{const c=document.createElement('canvas');c.width=1500;c.height=600;const g=c.getContext('2d');g.fillStyle='white';g.fillRect(0,0,1500,600);g.fillStyle='black';g.font='32px Arial';g.fillText('113374 CYLINDER OCYL 7209 TOTAL 2',70,110);g.font='50px Arial';g.fillText('AB12CDE',80,240);g.fillText('FG34HIJ',80,340);return c.toDataURL('image/png').split(',')[1];});
@@ -258,6 +267,7 @@ const dbPhotos=page=>page.evaluate(()=>new Promise((resolve,reject)=>{const r=in
  const recoveredPhoto=(await dbPhotos(page))[0],recoveryLog=await page.evaluate(()=>window.__DS_IQC_RC31.diagnostics());
  ok('one tap recovers a real worker rejection and saves the photo',recoveredPhoto.localFailure===''&&recoveredPhoto.status==='RECOGNIZED'&&workerRequests===recoverWorkers+2);
  ok('failure diagnostics identify memory and recognize action without private error text',recoveryLog.events.some(e=>e.stage==='worker_failure'&&e.code==='WORKER_MEMORY'&&e.workerAction==='recognize')&&!JSON.stringify(recoveryLog).includes('SENSITIVE_TEST'));
+ ok('core failure selects compatible non-SIMD mode for automatic recovery',recoveryLog.engine.core==='compatible'&&network.some(p=>p.endsWith('/tesseract-core-lstm.wasm.js')));
  await page.evaluate(()=>{Worker.prototype.postMessage=window.__faultPost;});
  await page.locator('#iqcRcNewBatch').click();await page.waitForFunction(()=>!window.__DS_IQC_RC31.isBusy());
  await page.locator('#iqcRcGalleryInput').setInputFiles([image,image]);await page.waitForFunction(()=>!window.__DS_IQC_RC31.isBusy());
@@ -277,6 +287,16 @@ const dbPhotos=page=>page.evaluate(()=>new Promise((resolve,reject)=>{const r=in
  await page.locator('[data-ocr31-photo]').first().tap();await page.waitForFunction(()=>!window.__DS_IQC_RC31.isBusy(),{},{timeout:90000});
  ok('model initialization failure refreshes only the model cache once and resumes',await page.evaluate(()=>JSON.stringify(window.__modelOptions)===JSON.stringify(['write','refresh']))&&(await dbPhotos(page))[0].localFailure==='');
  await page.evaluate(()=>{Worker.prototype.postMessage=window.__faultPost;});
+ // A core promise rejection may happen before Tesseract sends a normal job rejection.
+ await page.locator('#iqcRcClose').click();await page.locator('#iqcImageRcTool').click();await page.waitForFunction(()=>!window.__DS_IQC_RC31.isBusy());
+ const beforeBootstrapFailure=workerRequests;bootstrapRejectOnce=true;
+ await page.locator('[data-ocr31-photo]').first().tap();await page.waitForFunction(()=>!window.__DS_IQC_RC31.isBusy(),{},{timeout:90000});
+ const bootstrapLog=await page.evaluate(()=>window.__DS_IQC_RC31.diagnostics());
+ ok('one tap recovers an actual worker unhandled rejection before the ordinary protocol is ready',workerRequests===beforeBootstrapFailure+2&&(await dbPhotos(page))[0].localFailure==='');
+ ok('bootstrap rejection is categorized without forwarding private error text',bootstrapLog.events.some(e=>e.stage==='worker_failure'&&e.code==='WORKER_WASM'&&e.workerAction==='load')&&!JSON.stringify(bootstrapLog).includes('SECRET_TEST'));
+ // The shared intake still has its original fields when used by older RC entries.
+ const legacy=await context.newPage();await legacy.route(origin+'/legacy-intake-fixture',route=>route.fulfill({contentType:'text/html',body:'<!doctype html><body><script src="/ds-app-grinding-recovery-rc/iqc-image-intake-rc-v1.js"></script></body>'}));
+ await legacy.goto(origin+'/legacy-intake-fixture');ok('older RC intake keeps date/operator/status fields',await legacy.locator('#iqcRcDate,#iqcRcOperator,#iqcRcStatus').count()===3);await legacy.close();
  ok('new queue and review paths never submit business data',business===0);
  // Abort generates a browser worker error; it must not become an uncaught page error.
  ok('no uncaught frontend errors',errors.length===0);
