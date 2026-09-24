@@ -1,4 +1,4 @@
-/* RC31.8 photo review. Does not change OCR text or submit IQC records. */
+/* RC31.9 photo review. Does not change OCR text or submit IQC records. */
 (function(){
   "use strict";
   const model=window.IqcReviewModel31,$=id=>document.getElementById(id),controller=()=>window.__DS_IQC_RC31;
@@ -15,6 +15,9 @@
       let status=p.status==="PROCESSING"?"處理中":p.status==="NEEDS_REVIEW"?(count?`已保留 ${count} 個 CTN 候選，補讀未完成；可重新辨識`:"未找到 CTN，可重試或人工補登"):p.status==="LOCAL_FAILED"?`未完成（${p.localFailure||"辨識中斷"}）`:p.status==="RECOGNIZED"?(count?`已讀出 ${count} 個 CTN 候選${unassigned?'｜RT 待指定，不影響後續照片辨識':''}`:"辨識已完成，但未找到 CTN"):"等待辨識";
       const quality=p.rc31Quality;if(quality?.unread?.length)status+=`｜疑似漏讀 ${quality.unread.length} 列，請核對`;
       if(p.status==="LOCAL_FAILED"&&/^WORKER_/.test(p.localFailure||""))status=`未完成｜${controller().workerLabel(p.localFailure)}（${p.localFailure}）；自動恢復仍未完成，請複製辨識紀錄`;
+      if(p.status!=="PROCESSING"&&p.localFailure==="IMAGE_READ_ERROR")status="本機照片內容無法讀取，原紀錄保留；其他照片會繼續處理。請保留原照片並複製辨識紀錄";
+      if(p.status!=="PROCESSING"&&(p.localFailure==="DECODE_ERROR"||p.localFailure==="IMAGE_PREPROCESS_ERROR"))status=`照片${p.localFailure==="DECODE_ERROR"?"解碼":"前處理"}失敗，其他照片會繼續處理（${p.localFailure}）`;
+      if(p.localSaveFailure)status=`本機存檔失敗，本輪結果尚未保存；原照片與先前結果保留（${p.localSaveFailure}）`;
       if(quality?.uncertain?.length)status+=`｜${quality.uncertain.length} 筆字元需核對`;
       if(detail.textContent!==status)detail.textContent=status;
       const warnings=(quality?.unread?.length||0)+(quality?.uncertain?.length||0);
@@ -26,7 +29,7 @@
   function render(){
     const host=$("iqcRcResultList");if(!host)return;
     host.innerHTML=groups.map(g=>`<section class="iqc-group ${g.ready?'good':'warn'} ds-iqc-v8-group"><div class="iqc-group-title"><div><strong>${g.rt?'RT '+esc(g.rt):'待歸類'}</strong><div class="iqc-group-sub">來源照片：${g.photoSeqs.map(n=>'第 '+n+' 張').join('、')}<br>狀態 ${esc(g.status||'待填')}｜廠區 ${esc(g.plant||'待填')}</div></div><span class="iqc-rc-status ${g.ready?'good':'warn'}">${g.ctns.length}/${g.expected||'?'} ${g.ready?'數量吻合':'需複查'}</span></div>${!g.rt?'<p class="iqc-issue">照片未拍到 RT，請選「手動歸類」指定；所有候選 CTN 均保留。</p>':''}${g.warnings.map(w=>'<p class="iqc-issue bad">'+esc(w)+'</p>').join('')}<p class="iqc-rc-note">跨照片去重後 ${g.ctns.length} 支${g.overlapCount?`｜重疊 ${g.overlapCount} 筆已合併`:""}${g.expected?`｜${g.ctns.length<g.expected?"距參考總量少 "+(g.expected-g.ctns.length)+" 支":g.ctns.length>g.expected?"超過參考總量 "+(g.ctns.length-g.expected)+" 支":"與參考總量吻合"}`:"｜參考總量待確認"}</p><div class="iqc-ctn-grid">${g.ctns.map(ctn=>'<span class="iqc-ctn-input">'+esc(ctn)+'</span>').join('')}</div><p class="iqc-rc-note">${g.rows.some(r=>r.manual)?'含人工歸類｜':''}${g.rows.some(r=>r.legacy)?'保留前版人工核對｜':''}數量吻合仍需核對字元。</p>${g.rt&&groups.filter(x=>x.rt===g.rt).length>1?'<p class="iqc-issue">同一 RT 尚有其他群組：狀態／廠區不同或尚未確定。請核對後合併。</p><button type="button" class="iqc-rc-btn" data-merge-rt="'+esc(g.rt)+'">核對並合併相同 RT</button>':''}<div class="iqc-rc-row">${g.photoIds.map(id=>'<button type="button" class="iqc-rc-btn" data-review-photo="'+esc(id)+'">手動歸類：第 '+snapshot.find(p=>p.id===id)?.seq+' 張</button>').join('')}</div></section>`).join('')||'<div class="iqc-empty">尚無 CTN 候選。請先辨識照片；沒有 RT 也能在此手動歸類。</div>';
-    const hint=$("iqcRcCommitHint");if(hint)hint.textContent="RC31.8：逐筆核對 RT／CTN／狀態／廠區／總量；本輪正式 IQC 寫入維持鎖定。";
+    const hint=$("iqcRcCommitHint");if(hint)hint.textContent="RC31.9：逐筆核對 RT／CTN／狀態／廠區／總量；本輪正式 IQC 寫入維持鎖定。";
   }
   async function refresh(list){
     const id=++refreshId,batch=localStorage.getItem('ds_iqc_image_rc_active_batch');

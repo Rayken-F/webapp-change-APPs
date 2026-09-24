@@ -1,11 +1,11 @@
-/* RC31.8 / OCR-S9-20260924. Loaded before intake/legacy click handlers. */
+/* RC31.9 / OCR-S10-20260924. Loaded before intake/legacy click handlers. */
 (function(){
   "use strict";
-  const BUILD="RC31.8 / OCR-S9-20260924",DB="ds_iqc_image_rc_v1",ACTIVE="ds_iqc_image_rc_active_batch";
+  const BUILD="RC31.9 / OCR-S10-20260924",DB="ds_iqc_image_rc_v1",ACTIVE="ds_iqc_image_rc_active_batch";
   const LOG="ds_iqc_ocr_rc31_diagnostics",LIB="https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js";
   const WORKER=new URL("./iqc-ocr-worker-rc31.js?v=20260924-9",document.currentScript.src).href;
   const CORE="https://cdn.jsdelivr.net/npm/tesseract.js-core@5.1.1";
-  const rules=window.IqcOcrRules31,$=id=>document.getElementById(id);
+  const rules=window.IqcOcrRules31,photoCodec=window.IqcOcrPhoto31,$=id=>document.getElementById(id),photoFailures=new Map();
   let operation=null,sequence=0,currentPhoto=0,trace=[],uiTimer,queuedStart=null,refreshSequence=0,viewSignature="";
   try{trace=JSON.parse(localStorage.getItem(LOG)||"[]").slice(-100);}catch(_){}
   const activeBatch=()=>localStorage.getItem(ACTIVE)||"";
@@ -29,6 +29,8 @@
   function diagnosticSnapshot(){return {build:BUILD,engine:{model:"eng-best-int-v1",core:coreMode},queue:{busy:!!operation,kind:operation?.kind||"",photo:currentPhoto,...batchProgress},events:trace.slice()};}
   function errorLabel(e){
     const code=e?.code||"WORKER_ERROR";
+    if(code==="IMAGE_READ_ERROR")return "本機照片內容無法讀取，原批次與結果保留；請保留原照片並複製辨識紀錄";
+    if(code==="IMAGE_PREPROCESS_ERROR")return "照片前處理失敗，照片與結果保留；請複製辨識紀錄";
     if(/^WORKER_/.test(code))return `${workerLabel(code)}，照片保留；請複製辨識紀錄`;
     return /TIMEOUT/.test(code)?"等候逾時，已停止舊引擎；照片保留，請重試":code==="CANCELLED"?"已停止，照片與完成結果保留":code==="LIB_LOAD"?"OCR 程式下載失敗，請檢查網路後重試":code==="DECODE_ERROR"?"照片無法解碼，請改用原始 JPEG／PNG 照片":code==="NO_TEXT"?"引擎已完成辨識，但沒有讀到可用文字；請檢查照片或手動補辨識":/^STORAGE_/.test(code)?"本機儲存失敗，請保留原照片並複製辨識紀錄":code==="OTHER_TAB_BUSY"?"另一個 RC31 分頁正在處理照片，請先完成或停止該分頁":"辨識中斷，已停止舊引擎；請複製辨識紀錄或重試";
   }
@@ -108,9 +110,9 @@
     try{work(tx.objectStore("photos"),v=>{value=v;});}catch(_){try{tx.abort();}catch(_){}clearTimeout(timer);db.close();reject(fail("STORAGE_ERROR"));}
   });}
   // Keep only metadata and small thumbnails in the queue/UI. Read one full image for OCR.
-  const photos=batch=>photoTransaction("readonly",(s,done)=>{const list=[],r=s.index("batchId").openCursor(IDBKeyRange.only(batch));r.onsuccess=()=>{const c=r.result;if(c){const {blob,...meta}=c.value;list.push(meta);c.continue();}else done(list.sort((a,b)=>a.seq-b.seq));};});
-  const getPhoto=id=>photoTransaction("readonly",(s,done)=>{const r=s.get(id);r.onsuccess=()=>done(r.result);});
-  const put=photo=>photoTransaction("readwrite",s=>s.put(photo));
+  const photos=batch=>photoTransaction("readonly",(s,done)=>{const list=[],r=s.index("batchId").openCursor(IDBKeyRange.only(batch));r.onsuccess=()=>{const c=r.result;if(c){list.push({...photoCodec.metadata(c.value),...photoFailures.get(c.value.id)});c.continue();}else done(list.sort((a,b)=>a.seq-b.seq));};});
+  const getPhoto=id=>photoTransaction("readonly",(s,done)=>{const r=s.get(id);r.onsuccess=()=>done(photoCodec.hydrate(r.result));});
+  async function put(photo){const stored=await photoCodec.encode(photo);await photoTransaction("readwrite",s=>s.put(stored));photoFailures.delete(photo.id);}
   function check(run){const parent=run.parent||run;if(parent.cancelled||operation!==parent||activeBatch()!==parent.batch)throw fail("CANCELLED");if(run.parent&&(run.ended||parent.task!==run))throw fail(run.reason||"PHOTO_SKIPPED");}
   function stopPhoto(reason="PHOTO_SKIPPED"){
     const task=operation?.task;if(!task||task.ended)return;
@@ -160,7 +162,7 @@
     check(run);const started=Date.now();record({stage:label,outcome:"started"});let timer,abort;
     const gate=new Promise((_,reject)=>{abort=()=>reject(fail(run.reason||"CANCELLED"));run.abort.signal.addEventListener("abort",abort,{once:true});timer=setTimeout(()=>reject(fail(label+"_TIMEOUT")),ms);});
     try{const result=await Promise.race([Promise.resolve().then(work),gate]);check(run);record({stage:label,outcome:"ok",ms:Date.now()-started});return result;}
-    catch(e){record({stage:label,outcome:"error",ms:Date.now()-started,code:e.code||"IMAGE_ERROR"});throw e;}
+    catch(e){const error=typeof e?.code==="string"?e:fail(label==="read_image"?"IMAGE_READ_ERROR":"IMAGE_PREPROCESS_ERROR");record({stage:label,outcome:"error",ms:Date.now()-started,code:error.code});throw error;}
     finally{clearTimeout(timer);run.abort.signal.removeEventListener("abort",abort);}
   }
   async function ingest(files){
@@ -246,12 +248,16 @@
         check(run);currentPhoto=item.seq;
         // Reuse one healthy serial worker, including later additions. Faults,
         // explicit cancellation, backgrounding and idle expiry release it.
-        const original=await getPhoto(item.id);check(run);if(!original||original.batchId!==run.batch)throw fail("STORAGE_PHOTO_MISSING");
-        await put({...original,status:"PROCESSING",updatedAt:now()});
-        const task={parent:run,batch:run.batch,abort:new AbortController(),started:Date.now(),ended:false};run.task=task;
+        let original=await getPhoto(item.id);check(run);if(!original||original.batchId!==run.batch)throw fail("STORAGE_PHOTO_MISSING");
+        const task={parent:run,batch:run.batch,abort:new AbortController(),started:Date.now(),ended:false,phase:"read_image"};run.task=task;
         const deadline=setTimeout(()=>stopPhoto("PHOTO_TIMEOUT"),120000);
         try{
           check(run);progress(`第 ${currentPhoto} 張｜準備辨識…`);
+          // Read legacy Blob bytes BEFORE updating its database record. New photos
+          // already contain bytes. A failed conversion leaves the original untouched.
+          record({stage:"image_source",format:photoCodec.valid(original.rc31Image)?"bytes":"legacy_blob",bytes:original.size||0});
+          original=photoCodec.hydrate(await timed(task,"read_image",()=>photoCodec.encode(original)));
+          check(task);await put({...original,status:"PROCESSING",updatedAt:now()});check(task);
           let result;
           try{result=await pipeline(original,task);}catch(error){
             check(task);if(!recoverable(error))throw error;
@@ -270,10 +276,17 @@
           // Keep any earlier valid result. A failed retry must not erase it or its Cloud result.
           const keep=original.status==="RECOGNIZED"&&rules.structuralState(original.ocrText).found>0;
           const partial=!keep&&task.partial;
-          await put({...original,...(partial?{ocrText:partial.text,events:rules.parseEvents(partial.text),rc31RawPasses:partial.passes,rc31Quality:partial.quality,confidence:partial.confidence,ocrBuild:BUILD}:{}),status:keep?"RECOGNIZED":partial?"NEEDS_REVIEW":"LOCAL_FAILED",localFailure:e.code||"WORKER_ERROR",updatedAt:now()});
-          failed++;record({stage:"photo_failed",outcome:"error",code:e.code||"WORKER_ERROR"});
+          const code=typeof e?.code==="string"?e.code:task.phase==="image"?"IMAGE_PREPROCESS_ERROR":"WORKER_ERROR";
+          const state={...(partial?{ocrText:partial.text,events:rules.parseEvents(partial.text),rc31RawPasses:partial.passes,rc31Quality:partial.quality,confidence:partial.confidence,ocrBuild:BUILD}:{}),status:keep?"RECOGNIZED":partial?"NEEDS_REVIEW":"LOCAL_FAILED",localFailure:code,updatedAt:now()};
+          // Record the primary failure before saving its status; a second storage
+          // failure must not conceal the unreadable image behind WORKER_ERROR.
+          failed++;record({stage:"photo_failed",outcome:"error",phase:task.phase,code});
+          if(code==="IMAGE_READ_ERROR"||code==="read_image_TIMEOUT")photoFailures.set(original.id,state);
+          else try{await put({...original,...state});}catch(saveError){
+            photoFailures.set(original.id,{...state,localSaveFailure:saveError.code||"STORAGE_ERROR"});record({stage:"failure_save",outcome:"error",code:saveError.code||"STORAGE_ERROR",primaryCode:code});throw saveError;
+          }
           if(run.cancelled||task.phase==="initialize"||/^STORAGE_|^initialize_|^LIB_LOAD$|^CANCELLED$/.test(e.code||""))throw e;
-          engine.dispose(e.code||"WORKER_ERROR");await refresh();
+          if(!/^(IMAGE_|DECODE_ERROR|read_image_)/.test(code))engine.dispose(code);await refresh();
           // A blank/failed individual photo must not prevent the other saved photos being attempted.
         }finally{clearTimeout(deadline);task.ended=true;run.task=null;batchProgress={done:done+failed,total,failed};updateLive();}
       }
@@ -303,7 +316,7 @@
     if(!$("iqc31Tools")){
       const style=document.createElement("style");style.textContent="#iqcImageRc [data-ocr31-photo]{grid-column:2 / 4;justify-self:start}#iqc31LogText{background:#08112f;color:#dbe8ff}#iqc31Tools{font-size:13px}#iqcRcAnalyze,#iqc31StartTop,#iqcImageRc [data-ocr31-photo]{touch-action:manipulation;min-height:48px;min-width:150px}";document.head.appendChild(style);
       const tools=document.createElement("div");tools.id="iqc31Tools";tools.className="iqc-rc-note";
-      tools.innerHTML='<strong>RC31.8 / OCR-S9-20260924</strong><p>可一次加入多張或分次補照片。辨識中請保持此頁開啟；切到背景會停止並保留照片。初次使用需下載辨識核心與英數字模型。</p><button id="iqc31Cancel" class="iqc-rc-btn" type="button">停止本輪辨識</button><details><summary>辨識紀錄</summary><p>紀錄不含帳密、照片或 CTN；保留最近 100 個處理事件。</p><button id="iqc31Copy" class="iqc-rc-btn" type="button">複製辨識紀錄</button><textarea id="iqc31LogText" readonly rows="7" style="width:100%;box-sizing:border-box;font-size:12px" aria-label="辨識紀錄"></textarea></details>';
+      tools.innerHTML='<strong>RC31.9 / OCR-S10-20260924</strong><p>可一次加入多張或分次補照片。辨識中請保持此頁開啟；切到背景會停止並保留照片。初次使用需下載辨識核心與英數字模型。</p><button id="iqc31Cancel" class="iqc-rc-btn" type="button">停止本輪辨識</button><details><summary>辨識紀錄</summary><p>紀錄不含帳密、照片或 CTN；保留最近 100 個處理事件。</p><button id="iqc31Copy" class="iqc-rc-btn" type="button">複製辨識紀錄</button><textarea id="iqc31LogText" readonly rows="7" style="width:100%;box-sizing:border-box;font-size:12px" aria-label="辨識紀錄"></textarea></details>';
       const review=document.createElement("p");review.textContent="請逐筆核對 CTN、RT 與數量；辨識結果仍可能有字元誤讀。";tools.appendChild(review);
       button.parentElement.insertAdjacentElement("afterend",tools);
       $("iqc31LogText").value=JSON.stringify(diagnosticSnapshot(),null,2);
@@ -315,7 +328,7 @@
       const style=document.createElement("style");style.textContent='#iqcImageRc .iqc-rc-top{gap:0 8px;padding:4px 0}#iqcImageRc .iqc-rc-top>div:first-child>small{display:none}#iqcImageRc .iqc-rc-top h2{font-size:16px}#iqc31Live{flex-basis:100%;display:flex;align-items:center;justify-content:space-between;gap:6px;min-width:0;font-size:12px;line-height:1.4}#iqc31LiveCount{min-width:0}#iqc31LiveDetails{flex:none}#iqc31LiveDetails summary{cursor:pointer;min-height:40px;display:flex;align-items:center;padding:0 5px;border-radius:8px;color:#c8dcf2}#iqc31LiveDetails summary::before{content:"▸";margin-right:4px}#iqc31LiveDetails[open] summary::before{content:"▾"}.iqc31-live-menu{position:absolute;left:0;right:0;top:100%;padding:10px;background:#101b42;border:1px solid #526394;border-radius:12px;box-shadow:0 8px 18px #02072288}#iqc31LivePhase{color:#c8dcf2;overflow-wrap:anywhere}#iqc31Live .iqc-rc-row{gap:5px;margin-top:8px}#iqc31Live button{min-height:42px;font-size:12px;padding:5px 8px}';document.head.appendChild(style);
       text("iqc31LivePhase",progressMessage);
     }
-    const heading=panel.querySelector(".iqc-rc-top h2");if(heading&&heading.textContent!=="📷 Honeywell 影像 RC31.8")heading.textContent="📷 Honeywell 影像 RC31.8";
+    const heading=panel.querySelector(".iqc-rc-top h2");if(heading&&heading.textContent!=="📷 Honeywell 影像 RC31.9")heading.textContent="📷 Honeywell 影像 RC31.9";
     const gallery=$("iqcRcGalleryInput");if(gallery)gallery.multiple=true;
     text("iqcHybridSyncBtn","補辨識缺漏（Cloud）");
     const hint=$("iqcHybridHint");if(hint&&!hint.dataset.rc31){hint.dataset.rc31="1";text("iqcHybridHint","RC31 先完成本機辨識；如有缺漏，再按「補辨識缺漏（Cloud）」。");}
@@ -334,13 +347,15 @@
     async mergeReviews(keys,meta){const run=claim("review");if(!run)throw fail("OCR_BUSY");try{await exclusive(run,async()=>{
       const list=await photos(run.batch);check(run);let legacy={};try{legacy=JSON.parse(localStorage.getItem('ds_iqc_v8_meta_override_'+run.batch)||'{}');}catch(_){}
       const model=window.IqcReviewModel31,updates=model.mergeReviews(list,keys,meta,model.legacyDecisions(list,legacy));
+      // Convert only legacy images one at a time before the atomic review update.
+      for(const u of updates){const p=await getPhoto(u.id);check(run);if(p&&!photoCodec.valid(p.rc31Image))await put(p);}
       // All affected reviews commit together. Full images are read one at a time by ID.
       await photoTransaction("readwrite",s=>{updates.forEach(u=>{const r=s.get(u.id);r.onsuccess=()=>{const p=r.result;
         if(!p||p.batchId!==run.batch||p.updatedAt!==u.updatedAt){s.transaction.abort();return;}
         s.put({...p,rc31Review:u.review,updatedAt:now()});
       };});});record({stage:"merge_review",outcome:"saved",photos:updates.length});
     });}catch(e){run.failed=true;throw e;}finally{await finish(run);}},
-    readPhotos:(batch=activeBatch())=>photos(batch),readPhoto:getPhoto,
+    readPhotos:(batch=activeBatch())=>photos(batch),readPhoto:getPhoto,writePhoto:put,
     claimCloud(manual){if(!manual||operation)return false;return !!claim("cloud");},
     releaseCloud(){const run=operation;if(run?.kind==="cloud")finish(run);},
     diagnostics:diagnosticSnapshot};
