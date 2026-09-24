@@ -51,9 +51,27 @@
       if(!validCtn(row.ctn))g.warnings.push("有 CTN 格式未完成，請人工核對。");
     });
     const owners=new Map();groups.forEach(g=>g.ctns.forEach(ctn=>{if(!owners.has(ctn))owners.set(ctn,[]);owners.get(ctn).push(g);}));
-    owners.forEach(list=>{if(list.length>1)list.forEach(g=>g.warnings.push("相同 CTN 出現在其他群組，請核對歸屬；尚未自動刪除。"));});
+    owners.forEach(list=>{if(list.filter(g=>g.rt).length>1)list.forEach(g=>g.warnings.push("同一 CTN 的 RT／狀態／廠區有衝突，請依來源照片核對歸屬。"));});
     groups.forEach(g=>{g.overlapCount=g.rows.length-g.ctns.length;g.warnings=[...new Set(g.warnings)];g.ready=!!g.rt&&!!g.status&&!!g.plant&&g.expected>0&&g.ctns.length===g.expected&&!g.warnings.length;});
     return groups;
+  }
+  // Collapse display only. Every original row remains in build() for manual
+  // review, explicit reconciliation, source attribution and undo.
+  function presentation(groups){
+    const all=new Map(),display=groups.map(g=>({...g,displayCtns:[],collapsed:0,conflictCount:0})),conflicts=[];
+    display.forEach(g=>g.rows.forEach(row=>{if(!all.has(row.ctn))all.set(row.ctn,[]);all.get(row.ctn).push({group:g,row});}));
+    let duplicates=0,repeatedRows=0;
+    all.forEach((entries,ctn)=>{
+      if(entries.length>1){duplicates++;repeatedRows+=entries.length-1;}
+      const owners=[...new Set(entries.map(e=>e.group))],assigned=owners.filter(g=>g.rt);
+      if(assigned.length>1){
+        conflicts.push({ctn,choices:assigned.map(g=>({rt:g.rt,status:g.status,plant:g.plant})),photoIds:[...new Set(entries.map(e=>e.row.photoId))],photoSeqs:[...new Set(entries.map(e=>e.row.seq))]});
+        owners.forEach(g=>g.conflictCount++);
+      }else{
+        const owner=assigned[0]||owners[0];owner.displayCtns.push(ctn);owners.filter(g=>g!==owner).forEach(g=>g.collapsed++);
+      }
+    });
+    return {groups:display.filter(g=>g.displayCtns.length||g.conflictCount),conflicts,duplicates,repeatedRows,unique:all.size};
   }
   function updateReview(photo,selection,meta,{clear=false}={}){
     const all=candidates(photo),available=new Set(all.map(x=>x.original));
@@ -152,5 +170,5 @@
     }
     return updates;
   }
-  return {candidates,build,updateReview,legacyDecisions,mergeReviews};
+  return {candidates,build,presentation,updateReview,legacyDecisions,mergeReviews};
 });

@@ -33,6 +33,28 @@ test('conflicting groups preserve both sources and require review',()=>{
  const groups=model.build([photo('p1',header+'\nAB12CDE'),photo('p2','113407 CYLINDER OCYL 7209 TOTAL 1\nAB12CDE')]);
  assert.equal(groups.length,2);assert.ok(groups.every(g=>g.warnings.length&&!g.ready));
 });
+test('presentation collapses assigned/unassigned copies without changing original candidates',()=>{
+ const photos=[photo('p1',header+'\nAB12CDE'),photo('p2','AB12CDE\nFG34HIJ'),photo('p3','AB12CDE')];
+ const before=JSON.stringify(photos),groups=model.build(photos),original=JSON.stringify(groups),view=model.presentation(groups);
+ assert.equal(view.duplicates,1);assert.equal(view.repeatedRows,2);assert.equal(view.unique,2);assert.equal(view.groups.length,2);
+ assert.deepEqual(view.groups.flatMap(g=>g.displayCtns),['AB12CDE','FG34HIJ']);assert.equal(view.conflicts.length,0);
+ assert.equal(groups.flatMap(g=>g.rows).length,4);assert.equal(JSON.stringify(photos),before);assert.equal(JSON.stringify(groups),original);
+ assert.deepEqual(model.candidates(photos[2]).map(r=>r.ctn),['AB12CDE']);
+});
+test('overlapping CTNs within a known group show once with unique and occurrence counts',()=>{
+ const groups=model.build([photo('p1',header+'\nAB12CDE\nFG34HIJ'),photo('p2',header+'\nAB12CDE\nFG34HIJ'),photo('p3','AB12CDE')]);
+ const view=model.presentation(groups);assert.equal(view.duplicates,2);assert.equal(view.repeatedRows,3);assert.equal(view.groups.length,1);assert.equal(view.groups[0].displayCtns.length,2);assert.equal(view.groups[0].ready,true);
+});
+test('conflicting RT copies display once in unresolved conflicts, never pick a winner',()=>{
+ const photos=[photo('p1',header+'\nAB12CDE'),photo('p2','113407 CYLINDER OCYL 7209 TOTAL 1\nAB12CDE'),photo('p3','AB12CDE')];
+ const groups=model.build(photos),view=model.presentation(groups);assert.equal(view.conflicts.length,1);assert.equal(view.conflicts[0].ctn,'AB12CDE');assert.equal(view.conflicts[0].photoIds.length,3);assert.equal(view.conflicts[0].choices.length,2);
+ assert.equal(view.groups.flatMap(g=>g.displayCtns).length,0);assert.ok(groups.every(g=>!g.ready&&g.warnings.length));
+});
+test('same RT with different status stays an explicit deduplicated conflict',()=>{
+ const groups=model.build([photo('p1',header+'\nAB12CDE'),photo('p2','113374 CYLINDER MNT1 7209 TOTAL 1\nAB12CDE')]);
+ const view=model.presentation(groups);assert.equal(view.conflicts.length,1);assert.equal(view.conflicts[0].choices.length,2);
+ const updates=model.mergeReviews([photo('p1',header+'\nAB12CDE'),photo('p2','113374 CYLINDER MNT1 7209 TOTAL 1\nAB12CDE')],groups.map(g=>g.key),meta);assert.equal(updates.length,2);
+});
 test('invalid/manual duplicate CTNs and RTs are rejected without changing source',()=>{
  const p=photo('p1','AB12CDE\nFG34HIJ');
  assert.throws(()=>model.updateReview(p,[{original:'AB12CDE',ctn:'AB12CDE'}],{rt:'unknown'}),/RT/);

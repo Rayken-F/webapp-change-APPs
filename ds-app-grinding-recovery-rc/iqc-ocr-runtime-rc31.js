@@ -1,12 +1,12 @@
-/* RC31.9 / OCR-S10-20260924. Loaded before intake/legacy click handlers. */
+/* RC31.10 / OCR-S11-20260924. Loaded before intake/legacy click handlers. */
 (function(){
   "use strict";
-  const BUILD="RC31.9 / OCR-S10-20260924",DB="ds_iqc_image_rc_v1",ACTIVE="ds_iqc_image_rc_active_batch";
+  const BUILD="RC31.10 / OCR-S11-20260924",DB="ds_iqc_image_rc_v1",ACTIVE="ds_iqc_image_rc_active_batch";
   const LOG="ds_iqc_ocr_rc31_diagnostics",LIB="https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js";
   const WORKER=new URL("./iqc-ocr-worker-rc31.js?v=20260924-9",document.currentScript.src).href;
   const CORE="https://cdn.jsdelivr.net/npm/tesseract.js-core@5.1.1";
   const rules=window.IqcOcrRules31,photoCodec=window.IqcOcrPhoto31,$=id=>document.getElementById(id),photoFailures=new Map();
-  let operation=null,sequence=0,currentPhoto=0,trace=[],uiTimer,queuedStart=null,refreshSequence=0,viewSignature="";
+  let operation=null,sequence=0,currentPhoto=0,trace=[],uiTimer,queuedStart=null,refreshSequence=0,viewSignature="",progressBatch="";
   try{trace=JSON.parse(localStorage.getItem(LOG)||"[]").slice(-100);}catch(_){}
   const activeBatch=()=>localStorage.getItem(ACTIVE)||"";
   const api=()=>window.__DS_IQC_IMAGE_RC?.rc31;
@@ -102,15 +102,15 @@
     }else record(event);
   }});
   function openDb(){return new Promise((resolve,reject)=>{let ended=false;const r=indexedDB.open(DB,1),timer=setTimeout(()=>{ended=true;reject(fail("STORAGE_OPEN_TIMEOUT"));},15000);r.onsuccess=()=>{clearTimeout(timer);if(ended)r.result.close();else resolve(r.result);};r.onerror=()=>{clearTimeout(timer);reject(fail("STORAGE_ERROR"));};});}
-  async function photoTransaction(mode,work){const db=await openDb();return new Promise((resolve,reject)=>{
-    let value,tx,timeout=false;try{tx=db.transaction("photos",mode);}catch(_){db.close();reject(fail("STORAGE_ERROR"));return;}
+  async function photoTransaction(mode,work,storeName="photos"){const db=await openDb();return new Promise((resolve,reject)=>{
+    let value,tx,timeout=false;try{tx=db.transaction(storeName,mode);}catch(_){db.close();reject(fail("STORAGE_ERROR"));return;}
     const timer=setTimeout(()=>{timeout=true;try{tx.abort();}catch(_){}db.close();reject(fail("STORAGE_TRANSACTION_TIMEOUT"));},15000);
     tx.oncomplete=()=>{clearTimeout(timer);db.close();resolve(value);};
     tx.onabort=tx.onerror=event=>{clearTimeout(timer);const name=tx.error?.name||event.target?.error?.name;db.close();reject(fail(timeout?"STORAGE_TRANSACTION_TIMEOUT":["QuotaExceededError","UnknownError","DataCloneError","AbortError"].includes(name)?"STORAGE_"+name:"STORAGE_ERROR"));};
-    try{work(tx.objectStore("photos"),v=>{value=v;});}catch(_){try{tx.abort();}catch(_){}clearTimeout(timer);db.close();reject(fail("STORAGE_ERROR"));}
+    try{work(tx.objectStore(storeName),v=>{value=v;});}catch(_){try{tx.abort();}catch(_){}clearTimeout(timer);db.close();reject(fail("STORAGE_ERROR"));}
   });}
   // Keep only metadata and small thumbnails in the queue/UI. Read one full image for OCR.
-  const photos=batch=>photoTransaction("readonly",(s,done)=>{const list=[],r=s.index("batchId").openCursor(IDBKeyRange.only(batch));r.onsuccess=()=>{const c=r.result;if(c){list.push({...photoCodec.metadata(c.value),...photoFailures.get(c.value.id)});c.continue();}else done(list.sort((a,b)=>a.seq-b.seq));};});
+  const photos=batch=>photoTransaction("readonly",(s,done)=>{const list=[],r=s.index("batchId").openCursor(IDBKeyRange.only(batch));r.onsuccess=()=>{const c=r.result;if(c){list.push({...photoCodec.metadata(c.value),rc31BytesStored:photoCodec.valid(c.value.rc31Image),...photoFailures.get(c.value.id)});c.continue();}else done(list.sort((a,b)=>a.seq-b.seq));};});
   const getPhoto=id=>photoTransaction("readonly",(s,done)=>{const r=s.get(id);r.onsuccess=()=>done(photoCodec.hydrate(r.result));});
   async function put(photo){const stored=await photoCodec.encode(photo);await photoTransaction("readwrite",s=>s.put(stored));photoFailures.delete(photo.id);}
   function check(run){const parent=run.parent||run;if(parent.cancelled||operation!==parent||activeBatch()!==parent.batch)throw fail("CANCELLED");if(run.parent&&(run.ended||parent.task!==run))throw fail(run.reason||"PHOTO_SKIPPED");}
@@ -120,7 +120,8 @@
   }
   function claim(kind){
     if(operation)return null;
-    const run={id:++sequence,kind,batch:activeBatch(),cancelled:false,abort:new AbortController()};operation=run;
+    const run={id:++sequence,kind,batch:activeBatch(),started:Date.now(),cancelled:false,abort:new AbortController()};operation=run;
+    if(kind==="review"){actionMessage="正在保存歸類…";progress("正在保存歸類，完成後會自動恢復按鈕。");}
     record({stage:kind,outcome:"started"});paint();return run;
   }
   function cancel(reason="USER_STOP"){
@@ -131,21 +132,23 @@
     if(navigator.locks)return navigator.locks.request("ds-iqc-ocr-rc31",{ifAvailable:true},async lock=>{if(!lock)throw fail("OTHER_TAB_BUSY");check(run);return work();});
     check(run);return work();
   }
-  async function refresh(){const id=++refreshSequence,batch=activeBatch(),list=batch?await photos(batch):[];
+  async function refresh(list){const id=++refreshSequence,batch=activeBatch();if(!Array.isArray(list))list=batch?await photos(batch):[];
     if(id!==refreshSequence||batch!==activeBatch())return;
-    try{const signature=batch+"|"+JSON.stringify(list.map(p=>[p.id,p.status,p.updatedAt]));if(signature!==viewSignature){viewSignature=signature;api()?.renderPhotos(list);}installUi();await window.__DS_IQC_META_GROUPING_V8?.refresh(list);paint();}
+    if(progressBatch!==batch){progressBatch=batch;const done=list.filter(p=>p.status==="RECOGNIZED").length;batchProgress={done,total:list.length,failed:list.length-done};actionMessage="";}
+    try{const signature=batch+"|"+JSON.stringify(list.map(p=>[p.id,p.status,p.updatedAt]));if(signature!==viewSignature){viewSignature=signature;api()?.renderPhotos(list);}installUi();await window.__DS_IQC_META_GROUPING_V8?.refresh(list);window.__DS_IQC_BATCHES31?.refresh(list);paint();}
     catch(_){record({stage:"render",outcome:"error",code:"UI_RENDER_ERROR"});}
   }
   async function finish(run){
     // Storage has settled before this point. UI repaint must not keep the start button locked.
     if(operation!==run)return;operation=null;currentPhoto=0;engine.release();
     if(run.cancelled)actionMessage="本輪已停止，照片保留";
+    else if(run.kind==="review"){actionMessage=run.failed?"歸類未保存｜請查看表單提示後重試":"歸類已保存，可繼續操作";progress(actionMessage);}
     else if(run.failed&&run.kind!=="local_ocr")actionMessage="照片處理未完成｜展開進度查看原因";
     paint();
     record({stage:"released",kind:run.kind,outcome:run.cancelled?"cancelled":run.failed?"error":"ok"});
     const next=queuedStart;queuedStart=null;
     if(next&&next.after===run.id&&!run.cancelled&&!run.failed){record({stage:"queued_start",outcome:"accepted"});runBatch(next.photoId);}
-    else refresh().catch(e=>record({stage:"refresh",outcome:"error",code:e.code||"STORAGE_ERROR"}));
+    else if(run.kind!=="review")refresh().catch(e=>record({stage:"refresh",outcome:"error",code:e.code||"STORAGE_ERROR"}));
   }
   function requestStart(photoId){
     record({stage:"start_request",outcome:operation?"busy":"accepted",busyKind:operation?.kind||"",visibility:document.visibilityState});
@@ -300,8 +303,9 @@
     text("iqcRcAnalyze",queuedStart?"已排定，保存後開始":operation?.kind==="local_ocr"?"辨識中…":operation?"保存／整理後開始辨識":"開始辨識未完成照片");
     ["iqcRcAnalyze","iqc31StartTop"].forEach(id=>{if($(id)){$(id).disabled=false;$(id).setAttribute("aria-busy",String(!!operation));if(id!=="iqcRcAnalyze")text(id,$("iqcRcAnalyze").textContent);}});
     ["iqcRcNewBatch","iqcRcCameraBtn","iqcRcGalleryBtn","iqcRcCameraInput","iqcRcGalleryInput","iqcHybridSyncBtn"].forEach(id=>{if($(id))$(id).disabled=!!operation;});
-    panel.querySelectorAll("[data-photo-delete],[data-ocr31-photo],[data-review-photo]").forEach(e=>{if(operation)e.disabled=true;else if(!e.hasAttribute("data-review-photo"))e.disabled=false;});
-    if($("iqc31Cancel"))$("iqc31Cancel").disabled=!operation||operation.kind==="cloud";
+    panel.querySelectorAll("[data-photo-delete],[data-ocr31-photo],[data-review-photo],[data-review-quality],[data-merge-rt]").forEach(e=>{e.disabled=!!operation;});
+    window.__DS_IQC_BATCHES31?.paint(!!operation);
+    if($("iqc31Cancel"))$("iqc31Cancel").disabled=!operation||["cloud","review","edit_batch"].includes(operation.kind);
     updateLive();
     if($("iqcRcCommit"))$("iqcRcCommit").disabled=true;
     if($("iqcRcSyncPending"))$("iqcRcSyncPending").disabled=true;
@@ -316,7 +320,7 @@
     if(!$("iqc31Tools")){
       const style=document.createElement("style");style.textContent="#iqcImageRc [data-ocr31-photo]{grid-column:2 / 4;justify-self:start}#iqc31LogText{background:#08112f;color:#dbe8ff}#iqc31Tools{font-size:13px}#iqcRcAnalyze,#iqc31StartTop,#iqcImageRc [data-ocr31-photo]{touch-action:manipulation;min-height:48px;min-width:150px}";document.head.appendChild(style);
       const tools=document.createElement("div");tools.id="iqc31Tools";tools.className="iqc-rc-note";
-      tools.innerHTML='<strong>RC31.9 / OCR-S10-20260924</strong><p>可一次加入多張或分次補照片。辨識中請保持此頁開啟；切到背景會停止並保留照片。初次使用需下載辨識核心與英數字模型。</p><button id="iqc31Cancel" class="iqc-rc-btn" type="button">停止本輪辨識</button><details><summary>辨識紀錄</summary><p>紀錄不含帳密、照片或 CTN；保留最近 100 個處理事件。</p><button id="iqc31Copy" class="iqc-rc-btn" type="button">複製辨識紀錄</button><textarea id="iqc31LogText" readonly rows="7" style="width:100%;box-sizing:border-box;font-size:12px" aria-label="辨識紀錄"></textarea></details>';
+      tools.innerHTML='<strong>RC31.10 / OCR-S11-20260924</strong><p>可一次加入多張或分次補照片。辨識中請保持此頁開啟；切到背景會停止並保留照片。初次使用需下載辨識核心與英數字模型。</p><button id="iqc31Cancel" class="iqc-rc-btn" type="button">停止本輪辨識</button><details><summary>辨識紀錄</summary><p>紀錄不含帳密、照片或 CTN；保留最近 100 個處理事件。</p><button id="iqc31Copy" class="iqc-rc-btn" type="button">複製辨識紀錄</button><textarea id="iqc31LogText" readonly rows="7" style="width:100%;box-sizing:border-box;font-size:12px" aria-label="辨識紀錄"></textarea></details>';
       const review=document.createElement("p");review.textContent="請逐筆核對 CTN、RT 與數量；辨識結果仍可能有字元誤讀。";tools.appendChild(review);
       button.parentElement.insertAdjacentElement("afterend",tools);
       $("iqc31LogText").value=JSON.stringify(diagnosticSnapshot(),null,2);
@@ -328,7 +332,7 @@
       const style=document.createElement("style");style.textContent='#iqcImageRc .iqc-rc-top{gap:0 8px;padding:4px 0}#iqcImageRc .iqc-rc-top>div:first-child>small{display:none}#iqcImageRc .iqc-rc-top h2{font-size:16px}#iqc31Live{flex-basis:100%;display:flex;align-items:center;justify-content:space-between;gap:6px;min-width:0;font-size:12px;line-height:1.4}#iqc31LiveCount{min-width:0}#iqc31LiveDetails{flex:none}#iqc31LiveDetails summary{cursor:pointer;min-height:40px;display:flex;align-items:center;padding:0 5px;border-radius:8px;color:#c8dcf2}#iqc31LiveDetails summary::before{content:"▸";margin-right:4px}#iqc31LiveDetails[open] summary::before{content:"▾"}.iqc31-live-menu{position:absolute;left:0;right:0;top:100%;padding:10px;background:#101b42;border:1px solid #526394;border-radius:12px;box-shadow:0 8px 18px #02072288}#iqc31LivePhase{color:#c8dcf2;overflow-wrap:anywhere}#iqc31Live .iqc-rc-row{gap:5px;margin-top:8px}#iqc31Live button{min-height:42px;font-size:12px;padding:5px 8px}';document.head.appendChild(style);
       text("iqc31LivePhase",progressMessage);
     }
-    const heading=panel.querySelector(".iqc-rc-top h2");if(heading&&heading.textContent!=="📷 Honeywell 影像 RC31.9")heading.textContent="📷 Honeywell 影像 RC31.9";
+    const heading=panel.querySelector(".iqc-rc-top h2");if(heading&&heading.textContent!=="📷 Honeywell 影像 RC31.10")heading.textContent="📷 Honeywell 影像 RC31.10";
     const gallery=$("iqcRcGalleryInput");if(gallery)gallery.multiple=true;
     text("iqcHybridSyncBtn","補辨識缺漏（Cloud）");
     const hint=$("iqcHybridHint");if(hint&&!hint.dataset.rc31){hint.dataset.rc31="1";text("iqcHybridHint","RC31 先完成本機辨識；如有缺漏，再按「補辨識缺漏（Cloud）」。");}
@@ -339,22 +343,35 @@
     });
     paint();
   }
-  window.__DS_IQC_RC31={build:BUILD,runBatch:requestStart,ingest,cancel,isBusy:()=>!!operation,workerLabel,
-    async saveReview(photoId,change){const run=claim("review");if(!run)throw fail("OCR_BUSY");try{await exclusive(run,async()=>{
-      const p=await getPhoto(photoId);if(!p||p.batchId!==run.batch)throw fail("PHOTO_MISSING");check(run);
-      const review=change(p);await put({...p,rc31Review:review,updatedAt:now()});record({stage:"manual_review",outcome:"saved"});
-    });}catch(e){run.failed=true;throw e;}finally{await finish(run);}},
-    async mergeReviews(keys,meta){const run=claim("review");if(!run)throw fail("OCR_BUSY");try{await exclusive(run,async()=>{
-      const list=await photos(run.batch);check(run);let legacy={};try{legacy=JSON.parse(localStorage.getItem('ds_iqc_v8_meta_override_'+run.batch)||'{}');}catch(_){}
-      const model=window.IqcReviewModel31,updates=model.mergeReviews(list,keys,meta,model.legacyDecisions(list,legacy));
-      // Convert only legacy images one at a time before the atomic review update.
-      for(const u of updates){const p=await getPhoto(u.id);check(run);if(p&&!photoCodec.valid(p.rc31Image))await put(p);}
-      // All affected reviews commit together. Full images are read one at a time by ID.
-      await photoTransaction("readwrite",s=>{updates.forEach(u=>{const r=s.get(u.id);r.onsuccess=()=>{const p=r.result;
-        if(!p||p.batchId!==run.batch||p.updatedAt!==u.updatedAt){s.transaction.abort();return;}
-        s.put({...p,rc31Review:u.review,updatedAt:now()});
-      };});});record({stage:"merge_review",outcome:"saved",photos:updates.length});
-    });}catch(e){run.failed=true;throw e;}finally{await finish(run);}},
+  async function persistReviews(run,updates){
+    // Metadata for current byte-backed photos is updated directly, without
+    // decoding/re-encoding an image or rereading all photos for every UI refresh.
+    for(const u of updates){if(u.legacy){const p=await getPhoto(u.id);check(run);if(p&&!photoCodec.valid(p.rc31Image))await put(p);}}
+    check(run);await photoTransaction("readwrite",s=>{updates.forEach(u=>{const r=s.get(u.id);r.onsuccess=()=>{try{const p=r.result;
+      if(run.cancelled||activeBatch()!==run.batch||!p||p.batchId!==run.batch||p.updatedAt!==u.updatedAt){s.transaction.abort();return;}
+      s.put({...p,rc31Review:u.review,updatedAt:u.savedAt});}catch(_){s.transaction.abort();}
+    };});});
+  }
+  async function reviewOperation(work){const run=claim("review");if(!run)throw fail("OCR_BUSY");
+    try{await exclusive(run,async()=>{const list=await photos(run.batch);check(run);const updates=work(list),savedAt=now();
+      updates.forEach(u=>{u.savedAt=savedAt;u.legacy=!list.find(p=>p.id===u.id)?.rc31BytesStored;});
+      await persistReviews(run,updates);record({stage:"manual_review",outcome:"saved",photos:updates.length,ms:Date.now()-run.started});
+      const next=list.map(p=>{const u=updates.find(u=>u.id===p.id);return u?{...p,rc31Review:u.review,updatedAt:savedAt}:p;});
+      await refresh(next);
+    });}catch(e){run.failed=true;record({stage:"manual_review",outcome:"error",code:e.code||"REVIEW_INVALID",ms:Date.now()-run.started});throw e;}
+    finally{await finish(run);}
+  }
+  async function editBatch(work,switching=true){const run=claim("edit_batch");if(!run)throw fail("OCR_BUSY");
+    actionMessage="正在切換／保存批次…";progress(actionMessage);
+    try{await exclusive(run,async()=>{await work();run.batch=activeBatch();check(run);if(switching){$("iqc31ReviewEditor")?.remove();batchProgress={done:0,total:0,failed:0};}actionMessage="";progress(switching?"已切換批次，只會辨識目前批次的照片。":"批次名稱已保存。");await window.__DS_IQC_BATCHES31?.reload();});}
+    catch(e){run.failed=true;progress("批次操作未完成，已保存資料保留，請重試。");throw e;}finally{await finish(run);}
+  }
+  window.__DS_IQC_RC31={build:BUILD,runBatch:requestStart,ingest,cancel,isBusy:()=>!!operation,workerLabel,refresh,
+    listBatches:()=>photoTransaction("readonly",(s,done)=>{const r=s.getAll();r.onsuccess=()=>done(r.result);},"batches"),
+    batchCounts:ids=>photoTransaction("readonly",(s,done)=>{const result={};done(result);ids.forEach(id=>{const r=s.index("batchId").count(id);r.onsuccess=()=>{result[id]=r.result;};});}),
+    selectBatch:id=>editBatch(()=>api().selectBatch(id)),renameBatch:name=>editBatch(()=>api().renameBatch(name),false),
+    saveReview:(photoId,change)=>reviewOperation(list=>{const p=list.find(p=>p.id===photoId);if(!p)throw fail("PHOTO_MISSING");return [{id:p.id,updatedAt:p.updatedAt,review:change(p)}];}),
+    mergeReviews:(keys,meta)=>reviewOperation(list=>{let legacy={};try{legacy=JSON.parse(localStorage.getItem('ds_iqc_v8_meta_override_'+activeBatch())||'{}');}catch(_){}const model=window.IqcReviewModel31;return model.mergeReviews(list,keys,meta,model.legacyDecisions(list,legacy));}),
     readPhotos:(batch=activeBatch())=>photos(batch),readPhoto:getPhoto,writePhoto:put,
     claimCloud(manual){if(!manual||operation)return false;return !!claim("cloud");},
     releaseCloud(){const run=operation;if(run?.kind==="cloud")finish(run);},
@@ -414,13 +431,14 @@
     if(target.id==="iqcImageRcTool"){
       const run=claim("open_panel");window.__DS_IQC_IMAGE_RC.open().then(()=>{run.batch=activeBatch();}).catch(()=>progress("本機批次讀取失敗，請稍後再開啟。")).finally(()=>finish(run));return;
     }
-    if(target.id==="iqcRcNewBatch"||target.dataset.photoDelete){
-      const run=claim("edit_batch");exclusive(run,async()=>{if(target.dataset.photoDelete)await api().deletePhoto(target.dataset.photoDelete);else await api().newBatch();}).catch(()=>progress("批次更新失敗，請稍後重試。")).finally(()=>finish(run));
+    if(target.id==="iqcRcNewBatch"){if(window.__DS_IQC_REVIEW31?.allowLeave()!==false)editBatch(()=>api().newBatch()).catch(()=>{});return;}
+    if(target.dataset.photoDelete){
+      const run=claim("edit_batch");exclusive(run,()=>api().deletePhoto(target.dataset.photoDelete)).catch(()=>progress("批次更新失敗，請稍後重試。")).finally(()=>finish(run));
     }
   },true);
   document.addEventListener("visibilitychange",()=>{record({stage:"visibility",state:document.visibilityState});if(document.hidden){finger=null;cancel("BACKGROUND");engine.dispose("BACKGROUND");}});
   addEventListener("pagehide",()=>{finger=null;cancel("PAGEHIDE");engine.dispose("PAGEHIDE");});
-  setInterval(()=>{if(operation?.task)updateLive();},1000);
+  setInterval(()=>{if(operation?.task)updateLive();else if(operation?.kind==="review"){actionMessage=`正在保存歸類… ${Math.floor((Date.now()-operation.started)/1000)} 秒`;updateLive();}},1000);
   document.addEventListener("DOMContentLoaded",()=>{
     installUi();const panel=$("iqcImageRc");if(!panel)return;
     const observer=new MutationObserver(()=>{if(!uiTimer)uiTimer=setTimeout(()=>{uiTimer=null;installUi();},100);});

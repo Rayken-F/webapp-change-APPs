@@ -1,4 +1,4 @@
-/* RC31.9 photo review. Does not change OCR text or submit IQC records. */
+/* RC31.10 photo review. Does not change OCR text or submit IQC records. */
 (function(){
   "use strict";
   const model=window.IqcReviewModel31,$=id=>document.getElementById(id),controller=()=>window.__DS_IQC_RC31;
@@ -28,8 +28,11 @@
   }
   function render(){
     const host=$("iqcRcResultList");if(!host)return;
-    host.innerHTML=groups.map(g=>`<section class="iqc-group ${g.ready?'good':'warn'} ds-iqc-v8-group"><div class="iqc-group-title"><div><strong>${g.rt?'RT '+esc(g.rt):'待歸類'}</strong><div class="iqc-group-sub">來源照片：${g.photoSeqs.map(n=>'第 '+n+' 張').join('、')}<br>狀態 ${esc(g.status||'待填')}｜廠區 ${esc(g.plant||'待填')}</div></div><span class="iqc-rc-status ${g.ready?'good':'warn'}">${g.ctns.length}/${g.expected||'?'} ${g.ready?'數量吻合':'需複查'}</span></div>${!g.rt?'<p class="iqc-issue">照片未拍到 RT，請選「手動歸類」指定；所有候選 CTN 均保留。</p>':''}${g.warnings.map(w=>'<p class="iqc-issue bad">'+esc(w)+'</p>').join('')}<p class="iqc-rc-note">跨照片去重後 ${g.ctns.length} 支${g.overlapCount?`｜重疊 ${g.overlapCount} 筆已合併`:""}${g.expected?`｜${g.ctns.length<g.expected?"距參考總量少 "+(g.expected-g.ctns.length)+" 支":g.ctns.length>g.expected?"超過參考總量 "+(g.ctns.length-g.expected)+" 支":"與參考總量吻合"}`:"｜參考總量待確認"}</p><div class="iqc-ctn-grid">${g.ctns.map(ctn=>'<span class="iqc-ctn-input">'+esc(ctn)+'</span>').join('')}</div><p class="iqc-rc-note">${g.rows.some(r=>r.manual)?'含人工歸類｜':''}${g.rows.some(r=>r.legacy)?'保留前版人工核對｜':''}數量吻合仍需核對字元。</p>${g.rt&&groups.filter(x=>x.rt===g.rt).length>1?'<p class="iqc-issue">同一 RT 尚有其他群組：狀態／廠區不同或尚未確定。請核對後合併。</p><button type="button" class="iqc-rc-btn" data-merge-rt="'+esc(g.rt)+'">核對並合併相同 RT</button>':''}<div class="iqc-rc-row">${g.photoIds.map(id=>'<button type="button" class="iqc-rc-btn" data-review-photo="'+esc(id)+'">手動歸類：第 '+snapshot.find(p=>p.id===id)?.seq+' 張</button>').join('')}</div></section>`).join('')||'<div class="iqc-empty">尚無 CTN 候選。請先辨識照片；沒有 RT 也能在此手動歸類。</div>';
-    const hint=$("iqcRcCommitHint");if(hint)hint.textContent="RC31.9：逐筆核對 RT／CTN／狀態／廠區／總量；本輪正式 IQC 寫入維持鎖定。";
+    const view=model.presentation(groups);
+    const repeated=view.duplicates?'<p id="iqc31DuplicateSummary" class="iqc-issue">本批重複 '+view.duplicates+' 個 CTN（多出 '+view.repeatedRows+' 筆），清單只列一次；原照片與歸類保留。</p>':'';
+    const conflicts=view.conflicts.length?'<section id="iqc31Conflicts" class="iqc-group bad"><strong>CTN 歸屬待核對</strong><p class="iqc-rc-note">以下 CTN 出現不同 RT／狀態／廠區，只在此列一次；尚未決定正確歸屬。</p>'+view.conflicts.map(c=>'<div class="iqc-issue bad"><strong class="iqc31-conflict-ctn">'+esc(c.ctn)+'</strong><ul>'+c.choices.map(x=>'<li>RT '+esc(x.rt)+'｜'+esc(x.status||'狀態待填')+'｜'+esc(x.plant||'廠區待填')+'</li>').join('')+'</ul><div class="iqc-rc-row">'+c.photoIds.map(id=>'<button type="button" class="iqc-rc-btn" data-review-photo="'+esc(id)+'">核對第 '+snapshot.find(p=>p.id===id)?.seq+' 張</button>').join('')+'</div></div>').join('')+'</section>':'';
+    host.innerHTML=repeated+conflicts+(view.groups.map(g=>`<section class="iqc-group ${g.ready?'good':'warn'} ds-iqc-v8-group"><div class="iqc-group-title"><div><strong>${g.rt?'RT '+esc(g.rt):'待歸類'}</strong><div class="iqc-group-sub">來源照片：${g.photoSeqs.map(n=>'第 '+n+' 張').join('、')}<br>狀態 ${esc(g.status||'待填')}｜廠區 ${esc(g.plant||'待填')}</div></div><span class="iqc-rc-status ${g.ready?'good':'warn'}">${g.ctns.length}/${g.expected||'?'} ${g.ready?'數量吻合':'需複查'}</span></div>${!g.rt?'<p class="iqc-issue">照片未拍到 RT，請選「手動歸類」指定；所有候選 CTN 均保留。</p>':''}${g.warnings.map(w=>'<p class="iqc-issue bad">'+esc(w)+'</p>').join('')}<p class="iqc-rc-note">跨照片去重後 ${g.ctns.length} 支${g.overlapCount?`｜重疊 ${g.overlapCount} 筆已合併`:""}${g.expected?`｜${g.ctns.length<g.expected?"距參考總量少 "+(g.expected-g.ctns.length)+" 支":g.ctns.length>g.expected?"超過參考總量 "+(g.ctns.length-g.expected)+" 支":"與參考總量吻合"}`:"｜參考總量待確認"}</p>${g.collapsed?'<p class="iqc-rc-note">'+g.collapsed+' 個重複 CTN 已列在其他群組，此處不重列。</p>':''}${g.conflictCount?'<p class="iqc-issue bad">另有 '+g.conflictCount+' 個 CTN 歸屬衝突，請核對上方清單。</p>':''}<div class="iqc-ctn-grid">${g.displayCtns.map(ctn=>'<span class="iqc-ctn-input">'+esc(ctn)+'</span>').join('')}</div><p class="iqc-rc-note">${g.rows.some(r=>r.manual)?'含人工歸類｜':''}${g.rows.some(r=>r.legacy)?'保留前版人工核對｜':''}數量吻合仍需核對字元。</p>${g.rt&&groups.filter(x=>x.rt===g.rt).length>1?'<p class="iqc-issue">同一 RT 尚有其他群組：狀態／廠區不同或尚未確定。請核對後合併。</p><button type="button" class="iqc-rc-btn" data-merge-rt="'+esc(g.rt)+'">核對並合併相同 RT</button>':''}<div class="iqc-rc-row">${g.photoIds.map(id=>'<button type="button" class="iqc-rc-btn" data-review-photo="'+esc(id)+'">手動歸類：第 '+snapshot.find(p=>p.id===id)?.seq+' 張</button>').join('')}</div></section>`).join('')||'<div class="iqc-empty">尚無 CTN 候選。請先辨識照片；沒有 RT 也能在此手動歸類。</div>');
+    const hint=$("iqcRcCommitHint");if(hint)hint.textContent="RC31.10：逐筆核對 RT／CTN／狀態／廠區／總量；本輪正式 IQC 寫入維持鎖定。";
   }
   async function refresh(list){
     const id=++refreshId,batch=localStorage.getItem('ds_iqc_image_rc_active_batch');
@@ -47,9 +50,9 @@
     const same=candidates.length&&candidates.every(x=>x.rt===candidates[0].rt&&x.status===candidates[0].status&&x.plant===candidates[0].plant)?candidates[0]:{};
     editor.innerHTML=`<div class="iqc-rc-row iqc-rc-between"><strong>第 ${p.seq} 張｜手動歸類與核對</strong><button type="button" class="iqc-rc-btn" data-review-close>關閉</button></div><p class="iqc-rc-note">照片沒拍到 RT 也能指定到現有群組，或直接填入 RT。預設勾選整張；如有多個 RT，可分次勾選 CTN。人工設定只修改歸類，原照片與 OCR 文字保留。</p><div class="iqc-rc-field"><label for="iqc31TargetGroup">指定到現有 RT 群組（可選）</label><select id="iqc31TargetGroup"><option value="">自行填寫 RT 與資料</option>${groups.filter(g=>g.rt).map(g=>'<option value="'+esc(g.key)+'">RT '+esc(g.rt)+'｜'+esc(g.status||'狀態待填')+'｜'+esc(g.plant||'廠區待填')+'</option>').join('')}</select></div><div class="iqc-rc-grid" style="margin-top:10px">${[['rt','RT（必填）',same.rt||''],['status','鋼瓶狀態',same.status||''],['plant','廠區',same.plant||''],['expected','此 RT／狀態／廠區標籤總量（未知可留空）',same.expected||'']].map(([key,label,value])=>'<div class="iqc-rc-field"><label for="iqc31Review_'+key+'">'+label+'</label><input id="iqc31Review_'+key+'" value="'+esc(value)+'" '+(key==='rt'||key==='expected'?'inputmode="numeric"':'autocapitalize="characters"')+'></div>').join('')}</div><p>勾選本次要歸類的 CTN：</p><div class="iqc-rc-row"><button type="button" class="iqc-rc-btn" data-review-all="1">全選</button><button type="button" class="iqc-rc-btn" data-review-all="0">清除勾選</button></div><div class="rc31-review-candidates">${candidates.map(r=>'<label style="display:flex;gap:10px;align-items:center;margin:8px 0"><input type="checkbox" checked data-review-key="'+esc(r.original)+'"><input class="iqc-ctn-input" aria-label="核對 CTN" value="'+esc(r.ctn)+'" style="flex:1;min-width:0" autocapitalize="characters"><small>'+esc(r.manual?'人工':r.rt?'RT '+r.rt:'待歸類')+'</small></label>').join('')}</div><div class="iqc-rc-field"><label for="iqc31ManualCtns">漏讀的 CTN（可補登，每行一個；已列出的不必重填）</label><textarea id="iqc31ManualCtns" rows="3" autocapitalize="characters" placeholder="請對照原照片輸入完整 CTN" style="width:100%;box-sizing:border-box;font-size:16px"></textarea></div><details><summary>查看原始辨識文字</summary><pre style="white-space:pre-wrap;overflow-wrap:anywhere">${esc((p.rc31RawPasses||[]).map(r=>r.text).join("\n──\n")||p.ocrText||"尚無辨識文字")}</pre></details><p id="iqc31ReviewMessage" role="status"></p><div class="iqc-rc-row"><button class="iqc-rc-btn good" type="button" data-review-save>套用歸類</button><button class="iqc-rc-btn" type="button" data-review-clear>取消所選人工設定</button></div>`;
     if(p.rc31Quality?.unread?.length||p.rc31Quality?.uncertain?.length){
-      const note=document.createElement('p');note.className='iqc-issue';note.setAttribute('role','status');note.dataset.characterWarnings='';
-      note.textContent=[...(p.rc31Quality.unread||[]).map(r=>'疑似漏讀列：'+r.raw),...(p.rc31Quality.uncertain||[]).map(r=>'請核對 '+r.ctn+'（'+(r.reason==='CONFLICT'?'同一列另讀成 '+r.alternatives.filter(c=>c!==r.ctn).join('／'):r.reason==='AMBIGUOUS_END'?'尾碼 0／O、5／S 易混淆':'字元辨識信心偏低')+'）')].join('；');
-      const title=document.createElement('strong');title.textContent='原始辨識的字元核對提醒';note.prepend(document.createElement('br'));note.prepend(title);
+      const note=document.createElement('div');note.className='iqc-issue';note.setAttribute('role','status');note.dataset.characterWarnings='';
+      const messages=[...(p.rc31Quality.unread||[]).map(r=>'疑似漏讀列：'+r.raw),...(p.rc31Quality.uncertain||[]).map(r=>'請核對 '+r.ctn+'（'+(r.reason==='CONFLICT'?'同一列另讀成 '+r.alternatives.filter(c=>c!==r.ctn).join('／'):r.reason==='AMBIGUOUS_END'?'尾碼 0／O、5／S 易混淆':'字元辨識信心偏低')+'）')];
+      const title=document.createElement('strong');title.textContent='原始辨識的字元核對提醒';const list=document.createElement('ul');messages.forEach(message=>{const item=document.createElement('li');item.textContent=message;list.appendChild(item);});note.append(title,list);
       editor.firstElementChild.after(note);
       const preview=document.createElement('button');preview.type='button';preview.className='iqc-rc-btn';preview.dataset.previewPhoto=p.id;preview.textContent='查看原照片';note.after(preview);
     }
@@ -73,7 +76,7 @@
       const editor=$("iqc31ReviewEditor"),message=$("iqc31ReviewMessage"),keys=[...editor.querySelectorAll('[data-merge-key]:checked')].map(e=>e.dataset.mergeKey);
       const meta={rt:editor.dataset.mergeRt,...Object.fromEntries([...editor.querySelectorAll('[data-merge-field]')].map(e=>[e.dataset.mergeField,e.value]))};
       editor.querySelectorAll('button,input').forEach(e=>e.disabled=true);message.textContent='正在保存合併結果…';
-      try{await controller().mergeReviews(keys,meta);await refresh();editor.remove();$("iqcRcResultList").style.scrollMarginTop=(document.querySelector("#iqcImageRc .iqc-rc-top").offsetHeight+12)+"px";$("iqcRcResultList").scrollIntoView({block:'start'});}
+      try{await controller().mergeReviews(keys,meta);editor.remove();$("iqcRcResultList").style.scrollMarginTop=(document.querySelector("#iqcImageRc .iqc-rc-top").offsetHeight+12)+"px";$("iqcRcResultList").scrollIntoView({block:'start'});}
       catch(error){message.textContent=error.message||'合併未完成，請重新核對。';}
       finally{editor.querySelectorAll('button,input').forEach(e=>e.disabled=false);}return;
     }
@@ -87,7 +90,7 @@
     if(button.hasAttribute('data-review-save')){const entered=$("iqc31ManualCtns").value.toUpperCase().split(/[\s,;，；]+/).filter(Boolean);selection.push(...entered.map(ctn=>({original:ctn,ctn,added:true})));}
     const meta=Object.fromEntries(['rt','status','plant','expected'].map(key=>[key,$("iqc31Review_"+key).value]));
     const message=$("iqc31ReviewMessage");editor.querySelectorAll('button,input,select,textarea').forEach(el=>el.disabled=true);message.textContent='正在保存人工歸類…';
-    try{await controller().saveReview(id,p=>model.updateReview(p,selection,meta,{clear:button.hasAttribute('data-review-clear')}));await refresh();showEditor(id);$("iqc31ReviewMessage").textContent='已保存人工歸類。可關閉後查看群組，或繼續勾選其他 CTN。';}
+    try{await controller().saveReview(id,p=>model.updateReview(p,selection,meta,{clear:button.hasAttribute('data-review-clear')}));showEditor(id);$("iqc31ReviewMessage").textContent='已保存人工歸類。可關閉後查看群組，或繼續勾選其他 CTN。';}
     catch(error){message.textContent=error.message||'保存失敗，請稍後重試。';}
     finally{editor.querySelectorAll('button,input,select,textarea').forEach(el=>el.disabled=false);}
   });
@@ -96,5 +99,8 @@
     const host=$("iqcRcPhotoList");if(host)new MutationObserver(photoButtons).observe(host,{childList:true});
   });
   window.__DS_IQC_META_GROUPING_V8={version:'RC31_REVIEW_S3',refresh,getModel:()=>groups};
-  window.__DS_IQC_REVIEW31={refresh,showEditor,getModel:()=>groups};
+  function allowLeave(){const editor=$("iqc31ReviewEditor");return !editor?.dataset.dirty||confirm("目前表單尚未按「套用歸類」。要離開這份未儲存的修改嗎？已保存的照片與歸類不會刪除。");}
+  document.addEventListener('input',e=>{const editor=e.target.closest?.('#iqc31ReviewEditor');if(editor)editor.dataset.dirty='1';});
+  document.addEventListener('change',e=>{const editor=e.target.closest?.('#iqc31ReviewEditor');if(editor)editor.dataset.dirty='1';});
+  window.__DS_IQC_REVIEW31={refresh,showEditor,allowLeave,getModel:()=>groups};
 })();
