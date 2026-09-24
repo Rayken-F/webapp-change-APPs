@@ -3,6 +3,7 @@ const assert=require('node:assert/strict');
 const fs=require('node:fs'),path=require('node:path'),vm=require('node:vm');
 const dir=path.join(__dirname,'../ds-app-grinding-recovery-rc');
 const {Engine}=require(path.join(dir,'iqc-ocr-engine-rc31.js'));
+const {workerFault,recoverable}=require(path.join(dir,'iqc-ocr-engine-rc31.js'));
 const delay=ms=>new Promise(r=>setTimeout(r,ms));
 function deferred(){let resolve,reject;const promise=new Promise((r,j)=>{resolve=r;reject=j;});return {promise,resolve,reject};}
 function setup(options={}){
@@ -48,6 +49,22 @@ test('idle release frees engine, a later batch can restart',async()=>{
 test('worker initialization error is retryable',async()=>{
   let first=true;const {engine:e,stats:s}=setup({ready:w=>{if(first){first=false;return Promise.reject(Error('download failed'));}return Promise.resolve(w);}});
   await assert.rejects(e.ensure());assert.equal(s.killed,1);await e.recognize('retry');assert.equal(s.created,2);e.dispose();
+});
+
+test('worker failures retain a safe category and action without raw error contents',()=>{
+  const inputs=[['TypeError: Failed to fetch https://example.invalid/?token=SECRET','WORKER_ASSET_NETWORK'],['initialization failed','WORKER_MODEL'],['RuntimeError: memory access out of bounds','WORKER_MEMORY'],['CompileError: WebAssembly module','WORKER_WASM'],['Error in pixReadMem: image not read','WORKER_IMAGE'],['unexpected private details','WORKER_ENGINE']];
+  for(const [raw,code] of inputs){const e=workerFault(raw,'recognize');assert.equal(e.code,code);assert.equal(e.workerAction,'recognize');assert.equal(e.message,code);assert.ok(!JSON.stringify(e).includes(raw));}
+  assert.equal(workerFault('unknown','PRIVATE_ACTION').workerAction,'unknown');
+});
+
+test('only explicit worker faults permit recovery; bad images and cancellation do not',()=>{
+  for(const code of ['WORKER_ASSET_NETWORK','WORKER_MODEL','WORKER_MEMORY','WORKER_ENGINE','WORKER_CRASH','LIB_LOAD'])assert.equal(recoverable({code}),true);
+  for(const code of ['WORKER_IMAGE','CANCELLED','PHOTO_TIMEOUT','recognize_TIMEOUT','STORAGE_ERROR','OCR_BUSY'])assert.equal(recoverable({code}),false);
+});
+
+test('raw recognition rejection is categorized before releasing the worker',async()=>{
+  const {engine,stats}=setup({recognize:()=>Promise.reject('RuntimeError: memory access out of bounds')});
+  await assert.rejects(engine.recognize('test'),{code:'WORKER_MEMORY'});assert.equal(stats.killed,1);assert.equal(engine.slot,null);
 });
 test('RC31 entry selects only one OCR controller and keeps read-only guard',()=>{
   const html=fs.readFileSync(path.join(dir,'v31.html'),'utf8');
@@ -113,6 +130,13 @@ test('different readings of the same physical row are a conflict, not two CTNs',
   assert.equal(rules.structuralState(out.text).found,1);
   assert.deepEqual(out.uncertain[0].alternatives,['AB12CD5','AB12CDS']);
   assert.equal(out.uncertain[0].reason,'CONFLICT');
+});
+
+test('a stronger later reading replaces a low-confidence guess but keeps a visible conflict',()=>{
+  const out=rules.reconcileRows([positioned([['AB12CDO',10,0]]),positioned([['AB12CD9',10,45]])]);
+  assert.deepEqual(rules.parseText(out.text).leading,['AB12CD9']);
+  assert.equal(out.uncertain[0].ctn,'AB12CD9');assert.equal(out.uncertain[0].reason,'CONFLICT');
+  assert.deepEqual(out.uncertain[0].alternatives,['AB12CDO','AB12CD9']);
 });
 
 test('two adjacent real rows remain distinct even with similar characters',()=>{

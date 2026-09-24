@@ -5,6 +5,18 @@
 })(typeof window!=="undefined"?window:this,function(){
   "use strict";
   function fault(code){const e=new Error(code);e.code=code;return e;}
+  // Export only a category. Raw worker errors may contain URLs or image data.
+  function workerFault(error,action="unknown"){
+    if(typeof error?.code==="string"&&/^(?:[A-Z]+_)*[A-Z]+$|^(?:initialize|recognize)_TIMEOUT$/.test(error.code))return error;
+    const message=String(error?.message||error||"");
+    const code=/out of memory|memory access|memory allocation|Array buffer allocation|Aborted\(OOM\)|bad_alloc/i.test(message)?"WORKER_MEMORY":
+      /fetch|network|load script|importScripts|HTTP|Failed to load TesseractCore/i.test(message)?"WORKER_ASSET_NETWORK":
+      /traineddata|initialization failed|Failed loading language|gzip|invalid distance|incorrect header check/i.test(message)?"WORKER_MODEL":
+      /pixRead|read image|decode image|unsupported image/i.test(message)?"WORKER_IMAGE":
+      /wasm|WebAssembly|CompileError|RuntimeError/i.test(message)?"WORKER_WASM":"WORKER_ENGINE";
+    const e=fault(code);e.workerAction=["load","loadLanguage","initialize","setParameters","recognize"].includes(action)?action:"unknown";return e;
+  }
+  function recoverable(error){return /^(LIB_LOAD|WORKER_(ASSET_NETWORK|MODEL|MEMORY|WASM|ENGINE|CRASH|MESSAGE))$/.test(error?.code||"");}
   class Engine {
     constructor({create,onEvent=()=>{},initMs=60000,jobMs=55000,idleMs=120000}){
       this.create=create;this.onEvent=onEvent;this.initMs=initMs;this.jobMs=jobMs;this.idleMs=idleMs;
@@ -32,8 +44,9 @@
         if(s.dead||this.slot!==s)throw fault("CANCELLED");
         this.emit(stage,{generation:s.id,outcome:"ok",ms:Date.now()-started});return value;
       }catch(e){
-        this.emit(stage,{generation:s.id,outcome:"error",ms:Date.now()-started,code:e.code||"WORKER_ERROR"});
-        if(this.slot===s)this.dispose(e.code||"WORKER_ERROR");throw e;
+        e=workerFault(e,stage);
+        this.emit(stage,{generation:s.id,outcome:"error",ms:Date.now()-started,code:e.code,workerAction:e.workerAction||"unknown"});
+        if(this.slot===s)this.dispose(e.code);throw e;
       }finally{clearTimeout(timer);s.waiters.delete(rejectWait);}
     }
     ensure(){
@@ -66,5 +79,5 @@
       if(this.slot&&!this.running)this.idle=setTimeout(()=>this.dispose("IDLE_RELEASE"),this.idleMs);
     }
   }
-  return {Engine,fault};
+  return {Engine,fault,workerFault,recoverable};
 });

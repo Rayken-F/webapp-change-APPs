@@ -61,11 +61,11 @@ const dbPhotos=page=>page.evaluate(()=>new Promise((resolve,reject)=>{const r=in
  fs.writeFileSync(path.join(artifacts,'browser-'+(process.env.DS_WEBKIT?'webkit':'edge')+'-initial.json'),JSON.stringify({elapsedMs:Date.now()-start,photos,diagnostics:await page.evaluate(()=>window.__DS_IQC_RC31.diagnostics()),errors,network},null,2));
  ok('real Tesseract recognizes the first, second and third synthetic photos',photos.every(p=>p.status==='RECOGNIZED'&&p.ocrText.includes('AB12CDE')&&p.ocrText.includes('FG34HIJ')));
  const initialWorkers=workerRequests;
- ok('three photos run serially with a fresh worker for each photo',initialWorkers===3);ok('raw OCR passes remain available locally',photos.every(p=>p.rc31RawPasses?.length));
+ ok('three photos share one serial worker initialization',initialWorkers===1);ok('raw OCR passes remain available locally',photos.every(p=>p.rc31RawPasses?.length));
  ok('Cloud never automatically received a photo',cloudPhotos===0);
  await page.locator('#iqcRcAnalyze').click();await page.waitForFunction(()=>!window.__DS_IQC_RC31.isBusy());ok('repeat start preserves already completed results',workerRequests===initialWorkers&&(await dbPhotos(page)).every((p,i)=>p.updatedAt===photos[i].updatedAt));
  await page.locator('#iqcRcGalleryInput').setInputFiles(image);await page.waitForFunction(()=>!window.__DS_IQC_RC31.isBusy());await page.locator('#iqcRcAnalyze').click();await page.waitForFunction(()=>!window.__DS_IQC_RC31.isBusy(),{},{timeout:90000});
- photos=await dbPhotos(page);ok('later fourth photo completes using its own engine',photos.length===4&&photos.every(p=>p.status==='RECOGNIZED')&&workerRequests===initialWorkers+1);
+ photos=await dbPhotos(page);ok('later fourth photo reuses the healthy engine',photos.length===4&&photos.every(p=>p.status==='RECOGNIZED')&&workerRequests===initialWorkers);
  const keep=photos[0].ocrText;
  await page.evaluate(()=>{window.originalWorkerPost=Worker.prototype.postMessage;Worker.prototype.postMessage=function(message,...args){if(message?.action==='recognize')return;return window.originalWorkerPost.call(this,message,...args);};});
  await page.locator('[data-ocr31-photo]').first().click();await page.locator('#iqc31LiveDetails summary').click();await page.locator('#iqc31Cancel').click();await page.waitForFunction(()=>!window.__DS_IQC_RC31.isBusy());photos=await dbPhotos(page);await page.locator('#iqc31LiveDetails summary').click();
@@ -155,14 +155,14 @@ const dbPhotos=page=>page.evaluate(()=>new Promise((resolve,reject)=>{const r=in
  await page.locator('#iqc31StartTop').tap();await page.waitForFunction(()=>!window.__DS_IQC_RC31.isBusy(),{},{timeout:240000});
  const bulkPhotos=await dbPhotos(page);
  ok('one touch processes and saves all 30 synthetic photos',bulkPhotos.length===30&&bulkPhotos.every(p=>p.status==='RECOGNIZED'&&p.rc31RawPasses?.length));
- ok('30-photo queue releases each worker before the next photo',workerRequests===bulkWorkers+30);
+ ok('30-photo queue reuses one healthy worker without repeated initialization',workerRequests===bulkWorkers);
  fs.writeFileSync(path.join(artifacts,'bulk-30.json'),JSON.stringify({elapsedMs:Date.now()-bulkStarted,photos:bulkPhotos.map(p=>({seq:p.seq,status:p.status,text:p.ocrText})),diagnostics:await page.evaluate(()=>window.__DS_IQC_RC31.diagnostics())},null,2));
  await page.reload();await page.locator('#appShell').waitFor({state:'visible'});await page.locator('#navMore').click();await page.locator('#iqcImageRcTool').click();await page.waitForFunction(()=>!window.__DS_IQC_RC31.isBusy());
  ok('all 30 saved results survive reload',(await dbPhotos(page)).length===30&&(await dbPhotos(page)).every(p=>p.status==='RECOGNIZED'));
- // Exercise actual text-region fallback after three deliberately empty segmentation outputs.
+ // Exercise actual text-region fallback after five deliberately empty segmentation outputs.
  await page.locator('#iqcRcNewBatch').click();await page.waitForFunction(()=>!window.__DS_IQC_RC31.isBusy());
  const device=await page.evaluate(()=>{const c=document.createElement('canvas');c.width=1800;c.height=1500;const g=c.getContext('2d');g.fillStyle='#141414';g.fillRect(0,0,1800,1500);g.fillStyle='#f0f0f0';g.fillRect(420,80,960,540);g.fillStyle='#151515';g.font='50px Arial';['AB12CDE','FG34HIJ','KL56MNP'].forEach((t,i)=>g.fillText(t,670,190+i*120));g.fillStyle='#04a9df';g.fillRect(460,520,860,65);g.fillStyle='#bbbbbb';g.font='55px Arial';g.fillText('NEXT',650,800);return c.toDataURL('image/png').split(',')[1];});
- await page.evaluate(()=>{const old=IqcOcrEngine31.Engine.prototype.recognize;let n=0;IqcOcrEngine31.Engine.prototype.recognize=async function(...args){if(n++<3)return {data:{text:'NEXT',confidence:0}};return old.apply(this,args);};});
+ await page.evaluate(()=>{const old=IqcOcrEngine31.Engine.prototype.recognize;let n=0;IqcOcrEngine31.Engine.prototype.recognize=async function(...args){if(n++<5)return {data:{text:'NEXT',confidence:0}};return old.apply(this,args);};});
  await page.locator('#iqcRcGalleryInput').setInputFiles({name:'synthetic-headerless-device.png',mimeType:'image/png',buffer:Buffer.from(device,'base64')});await page.waitForFunction(()=>!window.__DS_IQC_RC31.isBusy());await page.locator('#iqc31StartTop').tap();await page.waitForFunction(()=>!window.__DS_IQC_RC31.isBusy(),{},{timeout:90000});
  const fallback=(await dbPhotos(page))[0];ok('actual text-region fallback reads CTNs without RT or status',fallback.ocrText.includes('AB12CDE')&&fallback.ocrText.includes('FG34HIJ')&&fallback.ocrText.includes('KL56MNP')&&fallback.rc31RawPasses.length>=4);
  ok('headerless photo still requires explicit RT grouping',await page.evaluate(()=>window.__DS_IQC_REVIEW31.getModel().every(g=>!g.rt)));
@@ -239,7 +239,7 @@ const dbPhotos=page=>page.evaluate(()=>new Promise((resolve,reject)=>{const r=in
  await page.locator('[data-ocr31-photo]').first().tap();await page.evaluate(()=>{Object.defineProperty(document,'hidden',{configurable:true,get:()=>true});document.dispatchEvent(new Event('visibilitychange'));delete document.hidden;});await page.waitForFunction(()=>!window.__DS_IQC_RC31.isBusy());
  ok('background stop is explicit and preserves saved results',await page.evaluate(()=>window.__DS_IQC_RC31.diagnostics().events.some(e=>e.stage==='cancel'&&e.reason==='BACKGROUND'))&&(await dbPhotos(page)).every(p=>p.status==='RECOGNIZED')&&/已停止/.test(await page.locator('#iqc31LiveCount').textContent()));
  // Show warnings near the editor heading, without requiring an unrelated RT edit.
- await page.evaluate(()=>new Promise(resolve=>{const r=indexedDB.open('ds_iqc_image_rc_v1',1);r.onsuccess=()=>{const db=r.result,tx=db.transaction('photos','readwrite'),s=tx.objectStore('photos'),q=s.index('batchId').getAll(localStorage.getItem('ds_iqc_image_rc_active_batch'));q.onsuccess=()=>{const p=q.result[0];p.rc31Quality={unread:[],uncertain:[{ctn:'AB12CDE',reason:'LOW_CONFIDENCE',alternatives:[]}]};p.updatedAt=new Date().toISOString();s.put(p);};tx.oncomplete=()=>{db.close();resolve();};};}));
+ await page.evaluate(()=>new Promise(resolve=>{const r=indexedDB.open('ds_iqc_image_rc_v1',1);r.onsuccess=()=>{const db=r.result,tx=db.transaction('photos','readwrite'),s=tx.objectStore('photos'),q=s.index('batchId').getAll(localStorage.getItem('ds_iqc_image_rc_active_batch'));q.onsuccess=()=>{const p=q.result.sort((a,b)=>a.seq-b.seq)[0];p.rc31Quality={unread:[],uncertain:[{ctn:'AB12CDE',reason:'LOW_CONFIDENCE',alternatives:[]}]};p.updatedAt=new Date().toISOString();s.put(p);};tx.oncomplete=()=>{db.close();resolve();};};}));
  await page.evaluate(()=>window.__DS_IQC_REVIEW31.refresh());await page.locator('[data-review-quality]').first().tap();
  ok('warning button opens the exact character warning within the visible viewport',await page.locator('[data-character-warnings]').evaluate(e=>{const r=e.getBoundingClientRect(),header=document.querySelector('.iqc-rc-top').getBoundingClientRect();return e.textContent.includes('AB12CDE')&&r.top>=header.bottom&&r.bottom<innerHeight;}));
  await page.locator('#iqc31ReviewEditor [data-preview-photo]').tap();await page.locator('#iqc31PhotoPreview img').evaluate(img=>img.decode());
@@ -248,6 +248,35 @@ const dbPhotos=page=>page.evaluate(()=>new Promise((resolve,reject)=>{const r=in
  await page.setViewportSize({width:874,height:402});await page.waitForTimeout(100);ok('preview adapts to landscape without hiding close button',await previewFits());await page.screenshot({path:path.join(artifacts,'rc316-preview-landscape.png')});
  await page.setViewportSize({width:402,height:674});await page.waitForTimeout(100);ok('preview adapts when browser bars reduce viewport height',await previewFits());
  await page.locator('[data-preview-close]').tap();ok('close preview returns to the existing character-review form',await page.locator('#iqc31ReviewEditor').isVisible()&&await page.locator('#iqc31PhotoPreview').count()===0);await page.setViewportSize({width:402,height:874});
+ await page.locator('[data-review-close]').click();
+ // Exercise the actual native-worker reject message, not just a controller throw.
+ await page.evaluate(()=>{window.__faultPost=Worker.prototype.postMessage;window.__faultCount=0;Worker.prototype.postMessage=function(m,...args){
+   if(m?.action==='recognize'&&window.__faultCount++===0){queueMicrotask(()=>this.dispatchEvent(new MessageEvent('message',{data:{workerId:m.workerId,jobId:m.jobId,action:m.action,status:'reject',data:'RuntimeError: memory access out of bounds https://example.invalid/?token=SENSITIVE_TEST'}})));return;}
+   return window.__faultPost.call(this,m,...args);
+ };});
+ const recoverWorkers=workerRequests;await page.locator('[data-ocr31-photo]').first().tap();await page.waitForFunction(()=>!window.__DS_IQC_RC31.isBusy(),{},{timeout:90000});
+ const recoveredPhoto=(await dbPhotos(page))[0],recoveryLog=await page.evaluate(()=>window.__DS_IQC_RC31.diagnostics());
+ ok('one tap recovers a real worker rejection and saves the photo',recoveredPhoto.localFailure===''&&recoveredPhoto.status==='RECOGNIZED'&&workerRequests===recoverWorkers+2);
+ ok('failure diagnostics identify memory and recognize action without private error text',recoveryLog.events.some(e=>e.stage==='worker_failure'&&e.code==='WORKER_MEMORY'&&e.workerAction==='recognize')&&!JSON.stringify(recoveryLog).includes('SENSITIVE_TEST'));
+ await page.evaluate(()=>{Worker.prototype.postMessage=window.__faultPost;});
+ await page.locator('#iqcRcNewBatch').click();await page.waitForFunction(()=>!window.__DS_IQC_RC31.isBusy());
+ await page.locator('#iqcRcGalleryInput').setInputFiles([image,image]);await page.waitForFunction(()=>!window.__DS_IQC_RC31.isBusy());
+ await page.evaluate(()=>{window.__faultCount=0;Worker.prototype.postMessage=function(m,...args){
+   if(m?.action==='recognize'&&window.__DS_IQC_RC31.diagnostics().queue.photo===1){window.__faultCount++;queueMicrotask(()=>this.dispatchEvent(new MessageEvent('message',{data:{workerId:m.workerId,jobId:m.jobId,action:m.action,status:'reject',data:'RuntimeError: memory access out of bounds'}})));return;}
+   return window.__faultPost.call(this,m,...args);
+ };});
+ await page.locator('#iqc31StartTop').tap();await page.waitForFunction(()=>!window.__DS_IQC_RC31.isBusy(),{},{timeout:90000});
+ const failedPhotos=await dbPhotos(page);
+ ok('persistent worker failure retries once then advances to the next photo',await page.evaluate(()=>window.__faultCount===2)&&failedPhotos[0].localFailure==='WORKER_MEMORY'&&failedPhotos[0].status==='LOCAL_FAILED'&&failedPhotos[1].status==='RECOGNIZED');
+ ok('failed photo displays the reason and releases start without endless retries',/記憶體錯誤/.test(await page.locator('.rc31-photo-result').first().textContent())&&!await page.locator('#iqc31StartTop').isDisabled());
+ await page.evaluate(()=>{Worker.prototype.postMessage=window.__faultPost;});
+ await page.locator('#iqcRcClose').click();await page.locator('#iqcImageRcTool').click();await page.waitForFunction(()=>!window.__DS_IQC_RC31.isBusy());
+ await page.evaluate(()=>{window.__modelFaults=0;window.__modelOptions=[];const create=Tesseract.createWorker;Tesseract.createWorker=function(...args){window.__modelOptions.push(args[2]?.cacheMethod||'write');return create.apply(this,args);};
+   Worker.prototype.postMessage=function(m,...args){if(m?.action==='initialize'&&window.__modelFaults++===0){queueMicrotask(()=>this.dispatchEvent(new MessageEvent('message',{data:{workerId:m.workerId,jobId:m.jobId,action:m.action,status:'reject',data:'initialization failed'}})));return;}return window.__faultPost.call(this,m,...args);};
+ });
+ await page.locator('[data-ocr31-photo]').first().tap();await page.waitForFunction(()=>!window.__DS_IQC_RC31.isBusy(),{},{timeout:90000});
+ ok('model initialization failure refreshes only the model cache once and resumes',await page.evaluate(()=>JSON.stringify(window.__modelOptions)===JSON.stringify(['write','refresh']))&&(await dbPhotos(page))[0].localFailure==='');
+ await page.evaluate(()=>{Worker.prototype.postMessage=window.__faultPost;});
  ok('new queue and review paths never submit business data',business===0);
  // Abort generates a browser worker error; it must not become an uncaught page error.
  ok('no uncaught frontend errors',errors.length===0);

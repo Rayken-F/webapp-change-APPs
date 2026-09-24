@@ -64,6 +64,12 @@ const clean=v=>String(v||" ").trim().toUpperCase();
         slot.readings.push(row);if(!slot.ctn&&row.ctn)slot.ctn=row.ctn;row.slot=slot;
       });
     });
+    // Prefer the stronger reading at the same position, but retain every
+    // conflicting candidate in the warning for operator confirmation.
+    slots.forEach(slot=>{
+      const valid=slot.readings.filter(r=>r.ctn).sort((a,b)=>b.confidence-a.confidence);
+      if(valid.length)slot.ctn=valid[0].ctn;
+    });
     const passes=results.map((result,i)=>{
       const lines=(result?.data?.blocks||[]).flatMap(b=>(b.paragraphs||[]).flatMap(p=>p.lines||[]));
       const textLines=lines.length?lines.map(l=>String(l.text||'')):String(result?.data?.text||'').split(/\r?\n/);
@@ -89,6 +95,28 @@ const clean=v=>String(v||" ").trim().toUpperCase();
   async function makeVariant(image){let src=null,canvas=null;try{src=await createBitmap(image);const sw=Number(src.width||src.naturalWidth||0),sh=Number(src.height||src.naturalHeight||0);if(!sw||!sh)throw new Error("影像尺寸無效");const sx=Math.round(sw*.04),sy=Math.round(sh*.06),cw=Math.round(sw*.92),ch=Math.round(sh*.92),scale=Math.min(1.5,2100/Math.max(cw,ch)),w=Math.max(1,Math.round(cw*scale)),h=Math.max(1,Math.round(ch*scale));canvas=document.createElement("canvas");canvas.width=w;canvas.height=h;const ctx=canvas.getContext("2d",{willReadFrequently:true,alpha:false});ctx.drawImage(src,sx,sy,cw,ch,0,0,w,h);try{src.close?.();}catch(_){ }src=null;const im=ctx.getImageData(0,0,w,h),d=im.data;for(let i=0;i<d.length;i+=4){const y=.299*d[i]+.587*d[i+1]+.114*d[i+2],v=y>182?255:(y>104?Math.min(255,Math.round((y-104)*3.1)):0);d[i]=d[i+1]=d[i+2]=v;}ctx.putImageData(im,0,0);return await new Promise(resolve=>canvas.toBlob(b=>resolve(b||image),"image/jpeg",.9));}finally{try{src?.close?.();}catch(_){ }if(canvas){canvas.width=1;canvas.height=1;canvas.remove();}src=null;canvas=null;}}
 
 
+  // Suppress fine display stripes, then compare each pixel with its local background.
+  // Keep the original coordinates so block/sparse readings can be reconciled by row.
+  async function makeScreenReadable(blob){
+    let source,canvas;try{
+      source=await createBitmap(blob);canvas=document.createElement('canvas');canvas.width=source.width||source.naturalWidth;canvas.height=source.height||source.naturalHeight;
+      const w=canvas.width,h=canvas.height,ctx=canvas.getContext('2d',{willReadFrequently:true,alpha:false});ctx.drawImage(source,0,0);source.close?.();source=null;
+      const pixels=ctx.getImageData(0,0,w,h),gray=new Float32Array(w*h),sum=new Float64Array((w+1)*(h+1));
+      for(let i=0;i<gray.length;i++)gray[i]=.299*pixels.data[i*4]+.587*pixels.data[i*4+1]+.114*pixels.data[i*4+2];
+      const average=(src,radius)=>{
+        sum.fill(0);const out=new Float32Array(w*h);
+        for(let y=0;y<h;y++){let row=0;for(let x=0;x<w;x++){row+=src[y*w+x];sum[(y+1)*(w+1)+x+1]=sum[y*(w+1)+x+1]+row;}}
+        for(let y=0;y<h;y++)for(let x=0;x<w;x++){
+          const l=Math.max(0,x-radius),r=Math.min(w,x+radius+1),t=Math.max(0,y-radius),b=Math.min(h,y+radius+1);
+          out[y*w+x]=(sum[b*(w+1)+r]-sum[t*(w+1)+r]-sum[b*(w+1)+l]+sum[t*(w+1)+l])/((b-t)*(r-l));
+        }return out;
+      };
+      const smooth=average(gray,1),background=average(smooth,22);
+      for(let i=0;i<gray.length;i++){const v=smooth[i]<background[i]-16?0:255;pixels.data[i*4]=pixels.data[i*4+1]=pixels.data[i*4+2]=v;}
+      ctx.putImageData(pixels,0,0);return await new Promise(resolve=>canvas.toBlob(resolve,'image/png'));
+    }finally{source?.close?.();if(canvas)canvas.width=canvas.height=1;}
+  }
+
   // Locate the largest light, neutral screen region; dark device frames and blue UI
   // bars otherwise dominate segmentation on short continuation photos.
   async function makeTextRegion(blob){
@@ -110,6 +138,6 @@ const clean=v=>String(v||" ").trim().toUpperCase();
       return await new Promise(resolve=>canvas.toBlob(resolve,'image/png'));
     }finally{source?.close?.();if(small)small.width=small.height=1;if(canvas)canvas.width=canvas.height=1;}
   }
-const api={parseText,normalizeCtn,parseEvents,mergeParsedPasses,structuralState,qualityLabel,needsSparse,needsHighContrast,ctnRows,needsRowCheck,reconcileRows,preprocessForOcr,makeVariant,makeTextRegion};
+const api={parseText,normalizeCtn,parseEvents,mergeParsedPasses,structuralState,qualityLabel,needsSparse,needsHighContrast,ctnRows,needsRowCheck,reconcileRows,preprocessForOcr,makeVariant,makeScreenReadable,makeTextRegion};
 if(typeof module==="object"&&module.exports)module.exports=api;else window.IqcOcrRules31=api;
 })();
