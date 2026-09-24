@@ -1,7 +1,7 @@
-/* RC31.6 / OCR-S7-20260924. Loaded before intake/legacy click handlers. */
+/* RC31.7 / OCR-S8-20260924. Loaded before intake/legacy click handlers. */
 (function(){
   "use strict";
-  const BUILD="RC31.6 / OCR-S7-20260924",DB="ds_iqc_image_rc_v1",ACTIVE="ds_iqc_image_rc_active_batch";
+  const BUILD="RC31.7 / OCR-S8-20260924",DB="ds_iqc_image_rc_v1",ACTIVE="ds_iqc_image_rc_active_batch";
   const LOG="ds_iqc_ocr_rc31_diagnostics",LIB="https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js";
   const WORKER=new URL("./iqc-ocr-worker-rc31.js?v=20260920-1",document.currentScript.src).href;
   const rules=window.IqcOcrRules31,$=id=>document.getElementById(id);
@@ -28,11 +28,14 @@
   function diagnosticSnapshot(){return {build:BUILD,queue:{busy:!!operation,kind:operation?.kind||"",photo:currentPhoto,...batchProgress},events:trace.slice()};}
   function errorLabel(e){
     const code=e?.code||"WORKER_ERROR";
+    if(/^WORKER_/.test(code))return `${workerLabel(code)}，照片保留；請複製辨識紀錄`;
     return /TIMEOUT/.test(code)?"等候逾時，已停止舊引擎；照片保留，請重試":code==="CANCELLED"?"已停止，照片與完成結果保留":code==="LIB_LOAD"?"OCR 程式下載失敗，請檢查網路後重試":code==="DECODE_ERROR"?"照片無法解碼，請改用原始 JPEG／PNG 照片":code==="NO_TEXT"?"引擎已完成辨識，但沒有讀到可用文字；請檢查照片或手動補辨識":/^STORAGE_/.test(code)?"本機儲存失敗，請保留原照片並複製辨識紀錄":code==="OTHER_TAB_BUSY"?"另一個 RC31 分頁正在處理照片，請先完成或停止該分頁":"辨識中斷，已停止舊引擎；請複製辨識紀錄或重試";
   }
-  const fail=window.IqcOcrEngine31.fault;
+  function workerLabel(code){return ({WORKER_ASSET_NETWORK:"辨識資源下載中斷",WORKER_MODEL:"辨識模型載入失敗",WORKER_MEMORY:"辨識記憶體錯誤",WORKER_IMAGE:"辨識引擎讀圖失敗",WORKER_WASM:"辨識核心執行失敗",WORKER_ENGINE:"辨識引擎回報錯誤",WORKER_CRASH:"辨識程序中斷",WORKER_MESSAGE:"辨識程序通訊失敗"})[code]||"辨識程序中斷";}
+  const {fault:fail,workerFault,recoverable}=window.IqcOcrEngine31;
+  let refreshModel=false;
   function createOwnedWorker(logger){
-    let native=null,wrapper=null,dead=false,script=null,rejectLoad;
+    let native=null,wrapper=null,dead=false,script=null,rejectLoad,workerAction="load",failed=false;
     const terminate=()=>{
       dead=true;if(script){script.onload=null;script.onerror=null;script.remove();script=null;rejectLoad?.(fail("CANCELLED"));}
       try{native?.terminate();}catch(_){}try{Promise.resolve(wrapper?.terminate()).catch(()=>{});}catch(_){}
@@ -44,22 +47,37 @@
     const ready=library.then(()=>{
       if(dead)throw fail("CANCELLED");
       return new Promise((resolve,reject)=>{
+        const broken=(error,action=workerAction)=>{
+          if(dead||failed)return;failed=true;const e=workerFault(error,action);
+          record({stage:"worker_failure",code:e.code,workerAction:e.workerAction||action});
+          if(e.code==="WORKER_MODEL")refreshModel=true;
+          reject(e);terminate();engine.dispose(e.code);
+        };
         const NativeWorker=window.Worker;
         // Tesseract 5.1.1 synchronously spawns its native Worker before its first await.
         // Capture only our same-origin entry, and restore the constructor immediately.
         window.Worker=new Proxy(NativeWorker,{construct(target,args){
           const w=Reflect.construct(target,args);
-          if(String(args[0])===WORKER){native=w;w.addEventListener("error",()=>{reject(fail("WORKER_CRASH"));if(!dead)engine.dispose("WORKER_CRASH");});}
+          if(String(args[0])===WORKER){
+            native=w;
+            w.addEventListener("message",event=>{
+              const {action,status,data}=event.data||{};
+              if(["load","loadLanguage","initialize","setParameters","recognize"].includes(action))workerAction=action;
+              if(status==="reject")broken(data,workerAction);
+            });
+            w.addEventListener("error",event=>broken(event.message||fail("WORKER_CRASH")));
+            w.addEventListener("messageerror",()=>broken(fail("WORKER_MESSAGE")));
+          }
           return w;
         }});
         let pending;
         try{
           pending=window.Tesseract.createWorker("eng",1,{workerPath:WORKER,workerBlobURL:false,
             corePath:"https://cdn.jsdelivr.net/npm/tesseract.js-core@5.1.1",langPath:"https://tessdata.projectnaptha.com/4.0.0",
-            logger,errorHandler:()=>{reject(fail("WORKER_ERROR"));if(!dead)engine.dispose("WORKER_ERROR");}});
-        }catch(e){reject(e);}finally{window.Worker=NativeWorker;}
+            ...(refreshModel?{cacheMethod:"refresh"}:{}),logger,errorHandler:broken});refreshModel=false;
+        }catch(e){broken(e);}finally{window.Worker=NativeWorker;}
         if(!native){Promise.resolve(pending).then(w=>w?.terminate()).catch(()=>{});reject(fail("WORKER_CAPTURE"));return;}
-        Promise.resolve(pending).then(w=>{wrapper=w;if(dead){terminate();reject(fail("CANCELLED"));}else resolve(w);},reject);
+        Promise.resolve(pending).then(w=>{wrapper=w;if(dead){terminate();reject(fail("CANCELLED"));}else resolve(w);},broken);
       });
     });
     return {ready,terminate};
@@ -165,15 +183,7 @@
     }finally{img.onload=null;img.onerror=null;img.src="";URL.revokeObjectURL(url);if(canvas){canvas.width=canvas.height=1;}}
   }
   async function pipeline(photo,run){
-    // One retry per user-started run for a transient startup/download failure.
-    // Timeouts, cancellation and recognition failures are not blindly retried.
-    try{await engine.ensure();check(run);}catch(e){
-      check(run);
-      const parent=run.parent||run;if(parent.initRetried||! /^(LIB_LOAD|WORKER_ERROR|WORKER_CRASH)$/.test(e.code||""))throw e;
-      parent.initRetried=true;record({stage:"initialize_retry",code:e.code});
-      progress(`第 ${currentPhoto} 張｜辨識核心連線中斷，正在重新準備一次…`);
-      await engine.ensure();check(run);
-    }
+    run.phase="initialize";await engine.ensure();check(run);run.phase="image";
     const recognize=async(image,mode)=>{
       check(run);run.pass=(run.pass||0)+1;record({stage:"pass",number:run.pass,mode,outcome:"started"});
       const result=await engine.recognize(image,mode);check(run);
@@ -181,25 +191,37 @@
     };
     const image=await timed(run,"preprocess",()=>rules.preprocessForOcr(photo.blob));check(run);
     const results=[];results.push(await recognize(image,"6"));check(run);
-    let quality=rules.reconcileRows(results),merged=quality.text||String(results[0]?.data?.text||"");
+    let selected=results.slice(),quality=rules.reconcileRows(selected),merged=quality.text||String(results[0]?.data?.text||"");
     const checkpoint=()=>{
-      const value={text:merged,confidence:Number(results[0]?.data?.confidence||0),quality:{unread:quality.unread,uncertain:quality.uncertain},passes:results.map((r,i)=>({pass:i+1,text:String(r?.data?.text||""),confidence:Number(r?.data?.confidence||0)}))};
+      const value={text:merged,confidence:Math.max(...selected.map(r=>Number(r?.data?.confidence||0))),quality:{unread:quality.unread,uncertain:quality.uncertain},passes:results.map((r,i)=>({pass:i+1,text:String(r?.data?.text||""),confidence:Number(r?.data?.confidence||0)}))};
       if(rules.structuralState(merged).found)run.partial=value;return value;
     };
     checkpoint();
     if(rules.needsSparse(merged)||rules.needsRowCheck(results[0])){
-      results.push(await recognize(image,"11"));check(run);quality=rules.reconcileRows(results);merged=quality.text||merged;checkpoint();
+      results.push(await recognize(image,"11"));check(run);selected=results.slice();quality=rules.reconcileRows(selected);merged=quality.text||merged;checkpoint();
+    }
+    // A few noise tokens must not suppress recovery of a severely degraded screen photo.
+    if(!rules.structuralState(merged).found||Math.max(...selected.map(r=>Number(r?.data?.confidence||0)))<35){
+      const readable=await timed(run,"screen_cleanup",()=>rules.makeScreenReadable(photo.blob));check(run);
+      if(readable){
+        const clean=[await recognize(readable,"6")];results.push(clean[0]);check(run);
+        if(rules.needsSparse(clean[0]?.data?.text)||rules.needsRowCheck(clean[0])){clean.push(await recognize(readable,"11"));results.push(clean[1]);check(run);}
+        const reviewed=rules.reconcileRows(clean);
+        if(rules.structuralState(reviewed.text).found>rules.structuralState(merged).found){selected=clean;quality=reviewed;merged=quality.text;checkpoint();}
+      }
     }
     // A reference total may span several photos. Once rows are extracted, do not
     // keep transforming the whole photo merely to fill a cross-photo quantity.
     if(rules.structuralState(merged).found===0){
       const variant=await timed(run,"contrast",()=>rules.makeVariant(image));check(run);
-      results.push(await recognize(variant,"6"));check(run);merged=rules.mergeParsedPasses(results)||merged;
+      const result=await recognize(variant,"6");results.push(result);check(run);
+      if(rules.structuralState(result?.data?.text).found){selected=[result];quality=rules.reconcileRows(selected);merged=quality.text;checkpoint();}
     }
     if(rules.structuralState(merged).found===0){
       const region=await timed(run,"text_region",()=>rules.makeTextRegion(photo.blob));check(run);
-      if(region){results.push(await recognize(region,"6"));check(run);merged=rules.mergeParsedPasses(results)||merged;
-        if(rules.structuralState(merged).found===0){results.push(await recognize(region,"11"));check(run);merged=rules.mergeParsedPasses(results)||merged;}}
+      if(region){const regionResults=[await recognize(region,"6")];results.push(regionResults[0]);check(run);
+        if(rules.structuralState(regionResults[0]?.data?.text).found===0){regionResults.push(await recognize(region,"11"));results.push(regionResults[1]);check(run);}
+        if(regionResults.some(r=>rules.structuralState(r?.data?.text).found)){selected=regionResults;quality=rules.reconcileRows(selected);merged=quality.text;checkpoint();}}
     }
     return checkpoint();
   }
@@ -213,16 +235,22 @@
       actionMessage="";batchProgress={done:0,total,failed:0};record({stage:"selection",total,skipped:all.length-total});if(!total){actionMessage="沒有待辨識照片｜可逐張重新辨識";progress("沒有尚未完成的照片；如需重試已讀到 CTN 的照片，請按該張「重新辨識」。");return;}
       for(const item of pending){
         check(run);currentPhoto=item.seq;
-        // One photo owns one worker lifetime. Release its WASM memory before the
-        // next image; the model download can still use the browser cache.
-        engine.dispose("PHOTO_RECYCLE");
+        // Reuse one healthy serial worker, including later additions. Faults,
+        // explicit cancellation, backgrounding and idle expiry release it.
         const original=await getPhoto(item.id);check(run);if(!original||original.batchId!==run.batch)throw fail("STORAGE_PHOTO_MISSING");
         await put({...original,status:"PROCESSING",updatedAt:now()});
         const task={parent:run,batch:run.batch,abort:new AbortController(),started:Date.now(),ended:false};run.task=task;
         const deadline=setTimeout(()=>stopPhoto("PHOTO_TIMEOUT"),120000);
         try{
           check(run);progress(`第 ${currentPhoto} 張｜準備辨識…`);
-          const result=await pipeline(original,task);check(task);
+          let result;
+          try{result=await pipeline(original,task);}catch(error){
+            check(task);if(!recoverable(error))throw error;
+            record({stage:"photo_recovery",code:error.code,phase:task.phase,attempt:1});
+            engine.dispose(error.code);progress(`第 ${currentPhoto} 張｜辨識引擎中斷，正在自動恢復一次；不用再按開始。`);
+            await timed(task,"recovery_wait",()=>new Promise(resolve=>setTimeout(resolve,400)),2000);
+            result=await pipeline(original,task);
+          }check(task);
           clearTimeout(deadline);task.ended=true;run.task=null;
           if(!result.text.trim())throw fail("NO_TEXT");
           const found=rules.structuralState(result.text).found;
@@ -235,10 +263,10 @@
           const partial=!keep&&task.partial;
           await put({...original,...(partial?{ocrText:partial.text,events:rules.parseEvents(partial.text),rc31RawPasses:partial.passes,rc31Quality:partial.quality,confidence:partial.confidence,ocrBuild:BUILD}:{}),status:keep?"RECOGNIZED":partial?"NEEDS_REVIEW":"LOCAL_FAILED",localFailure:e.code||"WORKER_ERROR",updatedAt:now()});
           failed++;record({stage:"photo_failed",outcome:"error",code:e.code||"WORKER_ERROR"});
-          if(run.cancelled||/^STORAGE_|^initialize_|^LIB_LOAD$|^CANCELLED$/.test(e.code||""))throw e;
+          if(run.cancelled||task.phase==="initialize"||/^STORAGE_|^initialize_|^LIB_LOAD$|^CANCELLED$/.test(e.code||""))throw e;
           engine.dispose(e.code||"WORKER_ERROR");await refresh();
           // A blank/failed individual photo must not prevent the other saved photos being attempted.
-        }finally{clearTimeout(deadline);task.ended=true;run.task=null;engine.dispose("PHOTO_FINISHED");batchProgress={done:done+failed,total,failed};updateLive();}
+        }finally{clearTimeout(deadline);task.ended=true;run.task=null;batchProgress={done:done+failed,total,failed};updateLive();}
       }
       if(total)progress(`本輪完成 ${done}/${total} 張${failed?`，${failed} 張未完成，可依照片狀態重試`:""}。缺 RT 的 CTN 請按「手動歸類」，辨識字元仍需複查。`);
     });record({stage:"local_ocr",outcome:"finished",done,failed,total});}
@@ -266,7 +294,7 @@
     if(!$("iqc31Tools")){
       const style=document.createElement("style");style.textContent="#iqcImageRc [data-ocr31-photo]{grid-column:2 / 4;justify-self:start}#iqc31LogText{background:#08112f;color:#dbe8ff}#iqc31Tools{font-size:13px}#iqcRcAnalyze,#iqc31StartTop,#iqcImageRc [data-ocr31-photo]{touch-action:manipulation;min-height:48px;min-width:150px}";document.head.appendChild(style);
       const tools=document.createElement("div");tools.id="iqc31Tools";tools.className="iqc-rc-note";
-      tools.innerHTML='<strong>RC31.6 / OCR-S7-20260924</strong><p>可一次加入多張或分次補照片。辨識中請保持此頁開啟；切到背景會停止並保留照片。初次使用需下載辨識核心與英數字模型。</p><button id="iqc31Cancel" class="iqc-rc-btn" type="button">停止本輪辨識</button><details><summary>辨識紀錄</summary><p>紀錄不含帳密、照片或 CTN；保留最近 100 個處理事件。</p><button id="iqc31Copy" class="iqc-rc-btn" type="button">複製辨識紀錄</button><textarea id="iqc31LogText" readonly rows="7" style="width:100%;box-sizing:border-box;font-size:12px" aria-label="辨識紀錄"></textarea></details>';
+      tools.innerHTML='<strong>RC31.7 / OCR-S8-20260924</strong><p>可一次加入多張或分次補照片。辨識中請保持此頁開啟；切到背景會停止並保留照片。初次使用需下載辨識核心與英數字模型。</p><button id="iqc31Cancel" class="iqc-rc-btn" type="button">停止本輪辨識</button><details><summary>辨識紀錄</summary><p>紀錄不含帳密、照片或 CTN；保留最近 100 個處理事件。</p><button id="iqc31Copy" class="iqc-rc-btn" type="button">複製辨識紀錄</button><textarea id="iqc31LogText" readonly rows="7" style="width:100%;box-sizing:border-box;font-size:12px" aria-label="辨識紀錄"></textarea></details>';
       const review=document.createElement("p");review.textContent="請逐筆核對 CTN、RT 與數量；辨識結果仍可能有字元誤讀。";tools.appendChild(review);
       button.parentElement.insertAdjacentElement("afterend",tools);
       $("iqc31LogText").value=JSON.stringify(diagnosticSnapshot(),null,2);
@@ -278,7 +306,7 @@
       const style=document.createElement("style");style.textContent='#iqcImageRc .iqc-rc-top{gap:0 8px;padding:4px 0}#iqcImageRc .iqc-rc-top>div:first-child>small{display:none}#iqcImageRc .iqc-rc-top h2{font-size:16px}#iqc31Live{flex-basis:100%;display:flex;align-items:center;justify-content:space-between;gap:6px;min-width:0;font-size:12px;line-height:1.4}#iqc31LiveCount{min-width:0}#iqc31LiveDetails{flex:none}#iqc31LiveDetails summary{cursor:pointer;min-height:40px;display:flex;align-items:center;padding:0 5px;border-radius:8px;color:#c8dcf2}#iqc31LiveDetails summary::before{content:"▸";margin-right:4px}#iqc31LiveDetails[open] summary::before{content:"▾"}.iqc31-live-menu{position:absolute;left:0;right:0;top:100%;padding:10px;background:#101b42;border:1px solid #526394;border-radius:12px;box-shadow:0 8px 18px #02072288}#iqc31LivePhase{color:#c8dcf2;overflow-wrap:anywhere}#iqc31Live .iqc-rc-row{gap:5px;margin-top:8px}#iqc31Live button{min-height:42px;font-size:12px;padding:5px 8px}';document.head.appendChild(style);
       text("iqc31LivePhase",progressMessage);
     }
-    const heading=panel.querySelector(".iqc-rc-top h2");if(heading&&heading.textContent!=="📷 Honeywell 影像 RC31.6")heading.textContent="📷 Honeywell 影像 RC31.6";
+    const heading=panel.querySelector(".iqc-rc-top h2");if(heading&&heading.textContent!=="📷 Honeywell 影像 RC31.7")heading.textContent="📷 Honeywell 影像 RC31.7";
     const gallery=$("iqcRcGalleryInput");if(gallery)gallery.multiple=true;
     text("iqcHybridSyncBtn","補辨識缺漏（Cloud）");
     const hint=$("iqcHybridHint");if(hint&&!hint.dataset.rc31){hint.dataset.rc31="1";text("iqcHybridHint","RC31 先完成本機辨識；如有缺漏，再按「補辨識缺漏（Cloud）」。");}
@@ -289,7 +317,7 @@
     });
     paint();
   }
-  window.__DS_IQC_RC31={build:BUILD,runBatch:requestStart,ingest,cancel,isBusy:()=>!!operation,
+  window.__DS_IQC_RC31={build:BUILD,runBatch:requestStart,ingest,cancel,isBusy:()=>!!operation,workerLabel,
     async saveReview(photoId,change){const run=claim("review");if(!run)throw fail("OCR_BUSY");try{await exclusive(run,async()=>{
       const p=await getPhoto(photoId);if(!p||p.batchId!==run.batch)throw fail("PHOTO_MISSING");check(run);
       const review=change(p);await put({...p,rc31Review:review,updatedAt:now()});record({stage:"manual_review",outcome:"saved"});
