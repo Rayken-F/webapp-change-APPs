@@ -36,8 +36,9 @@
         element.innerHTML='<button class="iqc-rc-btn" style="padding:0;overflow:hidden" type="button" data-preview-photo="'+escape(p.id)+'" aria-label="查看第 '+p.seq+' 張照片"><span style="display:block;font-size:11px;padding:8px">查看照片</span></button><div class="meta"><strong></strong><small class="rc31-photo-meta"></small></div><button class="iqc-photo-del" type="button" data-photo-delete="'+escape(p.id)+'" aria-label="移除第 '+p.seq+' 張照片">×</button>';
         host.appendChild(element);card={element,url:""};cards.set(p.id,card);
       }
+      if(p.photosClearedAt){if(card.url)URL.revokeObjectURL(card.url);card.url="";const button=card.element.querySelector("[data-preview-photo]");button.disabled=true;button.textContent="照片已清除";}
       if(!card.url&&p.thumbnail?.size){card.url=URL.createObjectURL(p.thumbnail);const image=document.createElement('img');image.alt='photo '+p.seq;image.decoding='async';image.src=card.url;card.element.querySelector('[data-preview-photo]').replaceChildren(image);}
-      const title='第 '+p.seq+' 張｜'+p.name,meta=Math.round((p.size||0)/1024)+' KB｜原照片已存本機';
+      const title='第 '+p.seq+' 張｜'+p.name,meta=p.photosClearedAt?'已入帳照片已清除；辨識文字保留':Math.round((p.size||0)/1024)+' KB｜原照片已存本機';
       if(card.element.querySelector('strong').textContent!==title)card.element.querySelector('strong').textContent=title;
       if(card.element.querySelector('.rc31-photo-meta').textContent!==meta)card.element.querySelector('.rc31-photo-meta').textContent=meta;
     }
