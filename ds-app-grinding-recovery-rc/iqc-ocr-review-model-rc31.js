@@ -55,23 +55,36 @@
     groups.forEach(g=>{g.overlapCount=g.rows.length-g.ctns.length;g.warnings=[...new Set(g.warnings)];g.ready=!!g.rt&&!!g.status&&!!g.plant&&g.expected>0&&g.ctns.length===g.expected&&!g.warnings.length;});
     return groups;
   }
-  // Collapse display only. Every original row remains in build() for manual
-  // review, explicit reconciliation, source attribution and undo.
+  // Share the CTN ownership decision between display and submission. Missing
+  // duplicate fields may use a unique owner; explicit conflicts never do.
+  // Source rows stay intact for per-photo review, attribution and undo.
+  function resolve(groups){
+    const all=new Map();
+    groups.forEach(g=>g.rows.forEach(row=>{if(!all.has(row.ctn))all.set(row.ctn,[]);all.get(row.ctn).push({group:g,row});}));
+    return [...all].map(([ctn,entries])=>{
+      const owners=[...new Set(entries.map(e=>e.group))],assigned=owners.filter(g=>g.rt),values={},different=[];
+      for(const [key,label] of [['rt','RT'],['status','狀態'],['plant','廠區']]){
+        const found=[...new Set(entries.map(e=>field(e.row[key])).filter(Boolean))];values[key]=found[0]||'';if(found.length>1)different.push(label);
+      }
+      const ambiguous=entries.some(e=>e.row.groupAmbiguous||e.row.ambiguous&&!e.row.manual);
+      const problem=different.length?'來源照片有不同 '+different.join('／')+'，請核對全部歸屬。':ambiguous?'來源 OCR 歸屬不明，請手動歸類。':'';
+      return {ctn,entries,owners,owner:assigned[0]||owners[0],...values,problem,
+        photoIds:[...new Set(entries.map(e=>e.row.photoId))],photoSeqs:[...new Set(entries.map(e=>e.row.seq))].sort((a,b)=>a-b)};
+    });
+  }
   function presentation(groups){
-    const all=new Map(),display=groups.map(g=>({...g,displayCtns:[],collapsed:0,conflictCount:0})),conflicts=[];
-    display.forEach(g=>g.rows.forEach(row=>{if(!all.has(row.ctn))all.set(row.ctn,[]);all.get(row.ctn).push({group:g,row});}));
+    const display=groups.map(g=>({...g,displayCtns:[],collapsed:0,conflictCount:0})),conflicts=[],resolved=resolve(display);
     let duplicates=0,repeatedRows=0;
-    all.forEach((entries,ctn)=>{
+    resolved.forEach(({entries,ctn,owners,owner,problem,photoIds,photoSeqs})=>{
       if(entries.length>1){duplicates++;repeatedRows+=entries.length-1;}
-      const owners=[...new Set(entries.map(e=>e.group))],assigned=owners.filter(g=>g.rt);
-      if(assigned.length>1){
-        conflicts.push({ctn,choices:assigned.map(g=>({rt:g.rt,status:g.status,plant:g.plant})),photoIds:[...new Set(entries.map(e=>e.row.photoId))],photoSeqs:[...new Set(entries.map(e=>e.row.seq))]});
-        owners.forEach(g=>g.conflictCount++);
+      if(problem){
+        conflicts.push({ctn,reason:problem,choices:owners.filter(g=>g.rt).map(g=>({rt:g.rt,status:g.status,plant:g.plant})),photoIds,photoSeqs});
+        owners.forEach(g=>{g.conflictCount++;g.ready=false;});
       }else{
-        const owner=assigned[0]||owners[0];owner.displayCtns.push(ctn);owners.filter(g=>g!==owner).forEach(g=>g.collapsed++);
+        owner.displayCtns.push(ctn);owners.filter(g=>g!==owner).forEach(g=>g.collapsed++);
       }
     });
-    return {groups:display.filter(g=>g.displayCtns.length||g.conflictCount),conflicts,duplicates,repeatedRows,unique:all.size};
+    return {groups:display.filter(g=>g.displayCtns.length||g.conflictCount),conflicts,duplicates,repeatedRows,unique:resolved.length};
   }
   function updateReview(photo,selection,meta,{clear=false}={}){
     const all=candidates(photo),available=new Set(all.map(x=>x.original));
@@ -151,6 +164,7 @@
 
   function legacyDecisions(photos,overrides={}){
     if(!Object.keys(overrides).length)return [];
+    photos=photos.slice().sort((a,b)=>Number(a.seq)-Number(b.seq)||String(a.id).localeCompare(String(b.id)));
     const decisions=[];
     legacyModel(photos.filter(p=>p.ocrText)).forEach((g,i)=>{
       const entry=overrides[(g.rt||'ORPHAN')+'|'+(g.photoSeqs?.[0]||0)+'|'+i];if(!entry)return;
@@ -170,5 +184,5 @@
     }
     return updates;
   }
-  return {candidates,build,presentation,updateReview,legacyDecisions,mergeReviews};
+  return {candidates,build,resolve,presentation,updateReview,legacyDecisions,mergeReviews};
 });
