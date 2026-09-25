@@ -2,7 +2,7 @@
 (function(){
   'use strict';
   const model=window.IqcSubmitModel31,store=window.IqcSubmitStore31;
-  const endpoint='__IQC_TEST_ENDPOINT__';
+  const endpoint='https://script.google.com/macros/s/AKfycbyVr5PqTETUV6YmMbQ2zO38Xk_fHiSYkST8xn2di09xvEfay_HDdTwJWBWx0v47k0R6/exec';
   const active=()=>localStorage.getItem('ds_iqc_image_rc_active_batch')||'',ctl=()=>window.__DS_IQC_RC31,$=id=>document.getElementById(id);
   const configured=()=>/^https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec$/.test(endpoint);
   const esc=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
