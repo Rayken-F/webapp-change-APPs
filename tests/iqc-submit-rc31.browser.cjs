@@ -41,14 +41,42 @@ let checks=0;const ok=(label,x)=>{assert.ok(x,label);console.log('PASS '+label);
  const snapshot=()=>page.evaluate(()=>IqcSubmitStore31.snapshot(localStorage.getItem('ds_iqc_image_rc_active_batch')));
  async function seed(){await page.locator('#iqcRcRegion').selectOption('B3');await page.waitForTimeout(100);await page.evaluate(async()=>{
    const id=localStorage.getItem('ds_iqc_image_rc_active_batch');await new Promise((resolve,reject)=>{const q=indexedDB.open('ds_iqc_image_rc_v1',1);q.onsuccess=()=>{const db=q.result,tx=db.transaction('photos','readwrite');tx.objectStore('photos').put({id:id+'_PHOTO',batchId:id,seq:1,status:'RECOGNIZED',updatedAt:new Date().toISOString(),ocrText:'113353 CYLINDER OCYL 7209 TOTAL 2\nAB12CDE\nFG34HIJ',rc31Image:{type:'image/png',bytes:new Uint8Array([1,2,3]).buffer}});tx.oncomplete=()=>{db.close();resolve();};tx.onabort=()=>reject(tx.error);};});await __DS_IQC_RC31.refresh();});}
- const preview=async()=>{await page.locator('#iqcRcCommit').click();await idle();await page.locator('#iqc31SubmitPreview').waitFor();};
- const commit=async()=>{await page.locator('#iqc31SubmitConfirm').check();await page.locator('#iqc31SubmitAccept').click();};
+ const preview=async()=>{await page.locator('#iqcRcCommit').tap();await idle();await page.locator('#iqc31SubmitPreview ol').waitFor();};
+ const commit=async()=>{await page.locator('#iqc31SubmitConfirm').check();await page.locator('#iqc31SubmitAccept').tap();};
  const next=async()=>{await page.locator('#iqcRcNewBatch').click();await idle();await seed();};
  ok('empty batch cannot be submitted',await page.locator('#iqcRcCommit').isDisabled());
- await seed();await preview();ok('preview has exact CTNs and explicit unchecked confirmation',await page.locator('#iqc31SubmitPreview ol li').count()===2&&await page.locator('#iqc31SubmitAccept').isDisabled());
- await page.waitForTimeout(350);await page.locator('#iqc31SubmitPreview').scrollIntoViewIfNeeded();
- const mutations=await page.evaluate(()=>new Promise(resolve=>{let n=0;const o=new MutationObserver(()=>n++);for(const selector of ['.iqc-rc-top h2','#iqcRcCommit'])o.observe(document.querySelector(selector),{childList:true});setTimeout(()=>{o.disconnect();resolve(n);},1100);}));ok('version and submit labels settle without an observer loop',mutations===0&&/RC31.13/.test(await page.locator('.iqc-rc-top h2').textContent()));
+ await seed();
+ // Some mobile taps never produce the compatibility click. Exercise the completed
+ // touch itself; locator.click() alone cannot cover that failure.
+ await page.evaluate(()=>{window.__dropSubmitClick=true;window.addEventListener('click',e=>{if(window.__dropSubmitClick&&e.target.closest?.('#iqcRcCommit')){e.preventDefault();e.stopImmediatePropagation();}},true);});
+ await page.locator('#iqcRcCommit').tap();await page.locator('#iqc31SubmitPreview').waitFor();await idle();
+ ok('one completed mobile tap opens preview even without a compatibility click',await page.locator('#iqc31SubmitPreview').count()===1&&submits===0);
+ await page.evaluate(()=>{window.__dropSubmitClick=false;});
+ ok('preview has exact CTNs and explicit unchecked confirmation',await page.locator('#iqc31SubmitPreview ol li').count()===2&&await page.locator('#iqc31SubmitAccept').isDisabled());
+ await page.waitForTimeout(200);
+ const bounds=await page.locator('#iqc31SubmitPreview h3').boundingBox();
+ ok('preview title is visible without test code scrolling to it',bounds.y>=0&&bounds.y+bounds.height<874);
+ const mutations=await page.evaluate(()=>new Promise(resolve=>{let n=0;const o=new MutationObserver(()=>n++);for(const selector of ['.iqc-rc-top h2','#iqcRcCommit'])o.observe(document.querySelector(selector),{childList:true,attributes:true,attributeFilter:['disabled']});__DS_IQC_RC31.refresh().then(()=>setTimeout(()=>{o.disconnect();resolve(n);},1100));}));ok('refresh does not toggle preview disabled or repaint stable labels',mutations===0&&/RC31.14/.test(await page.locator('.iqc-rc-top h2').textContent()));
  await page.screenshot({path:path.join(out,'preview.png')});await page.locator('#iqc31SubmitBack').click();ok('returning to edit has no submission',submits===0&&(await snapshot()).submissions.length===0);
+ await page.locator('#iqcRcRegion').selectOption('');await page.waitForFunction(async()=>!(await IqcSubmitStore31.snapshot(localStorage.getItem('ds_iqc_image_rc_active_batch'))).batch.regionCode);
+ await page.locator('#iqcRcCommit').tap();await idle();
+ ok('missing region gives a visible explanation and never sends',/請先選擇區域/.test(await page.locator('#iqc31SubmitPreview [role="alert"]').textContent())&&submits===0);
+ const errorBounds=await page.locator('#iqc31SubmitPreview [role="alert"]').boundingBox();ok('validation message is in mobile viewport',errorBounds.y>=0&&errorBounds.y+errorBounds.height<874);
+ await page.screenshot({path:path.join(out,'validation.png')});await page.locator('#iqc31SubmitBack').tap();await page.locator('#iqcRcRegion').selectOption('B3');await page.waitForTimeout(150);
+ await page.evaluate(()=>{const read=IqcSubmitStore31.snapshot;let first=true;IqcSubmitStore31.snapshot=async id=>{if(first){first=false;await new Promise(resolve=>window.__releaseSnapshot=resolve);}return read(id);};window.__restoreSnapshot=()=>IqcSubmitStore31.snapshot=read;});
+ await page.locator('#iqcRcCommit').tap();await page.waitForFunction(()=>typeof window.__releaseSnapshot==='function');
+ ok('slow local read immediately shows progress before it settles',await page.locator('#iqc31SubmitPreview').getAttribute('aria-busy')==='true'&&/正在整理預覽/.test(await page.locator('#iqc31SubmitPreview').textContent())&&await page.locator('#iqcRcCommit').isDisabled());
+ await page.evaluate(()=>window.__releaseSnapshot());await idle();await page.locator('#iqc31SubmitConfirm').check();
+ await page.locator('#iqcRcCommit').dispatchEvent('click',{detail:1});
+ ok('late compatibility click does not create a second preview or reset confirmation',await page.locator('#iqc31SubmitConfirm').isChecked()&&await page.locator('#iqc31SubmitPreview').count()===1);
+ await page.evaluate(()=>window.__restoreSnapshot());await page.locator('#iqc31SubmitBack').tap();
+ const touch={identifier:1,clientX:120,clientY:600};
+ await page.locator('#iqcRcCommit').dispatchEvent('touchstart',{touches:[touch],changedTouches:[touch]});
+ await page.locator('#iqcRcCommit').dispatchEvent('touchmove',{touches:[{...touch,clientY:640}],changedTouches:[{...touch,clientY:640}]});
+ await page.locator('#iqcRcCommit').dispatchEvent('touchend',{touches:[],changedTouches:[{...touch,clientY:640}]});
+ ok('scroll gesture over submit never opens preview or submits',await page.locator('#iqc31SubmitPreview').count()===0&&submits===0);
+ await page.locator('#iqcRcCommit').focus();await page.keyboard.press('Enter');await idle();await page.locator('#iqc31SubmitPreview ol').waitFor();
+ ok('keyboard activation still works',await page.locator('#iqc31SubmitPreview ol li').count()===2);await page.locator('#iqc31SubmitBack').click();
  await preview();mode='hold';await commit();await page.waitForFunction(()=>document.getElementById('iqc31SubmitMessage').textContent.includes('正在送至'));
  for(let i=0;i<40&&!hold;i++)await page.waitForTimeout(50);ok('busy state visible and double submission blocked',!!hold&&await page.locator('#iqcRcCommit').isDisabled()&&await page.locator('#iqcRcRegion').isDisabled()&&submits===1);
  let s=await snapshot();ok('one immutable pending record exists before network completion',s.batch.status==='QUEUED'&&s.submissions.length===1&&s.submissions[0].status==='PENDING');

@@ -1,7 +1,7 @@
-/* RC31.13 / IQC-W1-20260925. Loaded before intake/legacy click handlers. */
+/* RC31.14 / IQC-W2-20260926. Loaded before intake/legacy click handlers. */
 (function(){
   "use strict";
-  const BUILD="RC31.13 / IQC-W1-20260925",DB="ds_iqc_image_rc_v1",ACTIVE="ds_iqc_image_rc_active_batch";
+  const BUILD="RC31.14 / IQC-W2-20260926",DB="ds_iqc_image_rc_v1",ACTIVE="ds_iqc_image_rc_active_batch";
   const LOG="ds_iqc_ocr_rc31_diagnostics",LIB="https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js";
   const WORKER=new URL("./iqc-ocr-worker-rc31.js?v=20260924-9",document.currentScript.src).href;
   const CORE="https://cdn.jsdelivr.net/npm/tesseract.js-core@5.1.1";
@@ -310,9 +310,8 @@
     window.__DS_IQC_BATCHES31?.paint(!!operation);
     if($("iqc31Cancel"))$("iqc31Cancel").disabled=!operation||["cloud","review","edit_batch","submission"].includes(operation.kind);
     updateLive();
-    if($("iqcRcCommit"))$("iqcRcCommit").disabled=true;
-    if($("iqcRcSyncPending"))$("iqcRcSyncPending").disabled=true;
-    window.__DS_IQC_SUBMIT31?.paint();
+    if(window.__DS_IQC_SUBMIT31?.ready())window.__DS_IQC_SUBMIT31.paint();
+    else for(const id of ["iqcRcCommit","iqcRcSyncPending"])if($(id))$(id).disabled=true;
     text("iqcRcOcrBadge",operation?({local_ocr:"本機辨識中",save_photos:"保存照片中",cloud:"補辨識中"}[operation.kind]||"處理中"):"RC31｜本機辨識");
   }
   function installUi(){
@@ -324,7 +323,7 @@
     if(!$("iqc31Tools")){
       const style=document.createElement("style");style.textContent="#iqcImageRc [data-ocr31-photo]{grid-column:2 / 4;justify-self:start}#iqc31LogText{background:#08112f;color:#dbe8ff}#iqc31Tools{font-size:13px}#iqcRcAnalyze,#iqc31StartTop,#iqcImageRc [data-ocr31-photo]{touch-action:manipulation;min-height:48px;min-width:150px}";document.head.appendChild(style);
       const tools=document.createElement("div");tools.id="iqc31Tools";tools.className="iqc-rc-note";
-      tools.innerHTML='<strong>RC31.13 / IQC-W1-20260925</strong><p>可一次加入多張或分次補照片。辨識中請保持此頁開啟；切到背景會停止並保留照片。初次使用需下載辨識核心與英數字模型。</p><button id="iqc31Cancel" class="iqc-rc-btn" type="button">停止本輪辨識</button><details><summary>辨識紀錄</summary><p>紀錄不含帳密、照片或 CTN；保留最近 100 個處理事件。</p><button id="iqc31Copy" class="iqc-rc-btn" type="button">複製辨識紀錄</button><textarea id="iqc31LogText" readonly rows="7" style="width:100%;box-sizing:border-box;font-size:12px" aria-label="辨識紀錄"></textarea></details>';
+      tools.innerHTML='<strong>RC31.14 / IQC-W2-20260926</strong><p>可一次加入多張或分次補照片。辨識中請保持此頁開啟；切到背景會停止並保留照片。初次使用需下載辨識核心與英數字模型。</p><button id="iqc31Cancel" class="iqc-rc-btn" type="button">停止本輪辨識</button><details><summary>辨識紀錄</summary><p>紀錄不含帳密、照片或 CTN；保留最近 100 個處理事件。</p><button id="iqc31Copy" class="iqc-rc-btn" type="button">複製辨識紀錄</button><textarea id="iqc31LogText" readonly rows="7" style="width:100%;box-sizing:border-box;font-size:12px" aria-label="辨識紀錄"></textarea></details>';
       const review=document.createElement("p");review.textContent="請逐筆核對 CTN、RT 與數量；辨識結果仍可能有字元誤讀。";tools.appendChild(review);
       button.parentElement.insertAdjacentElement("afterend",tools);
       $("iqc31LogText").value=JSON.stringify(diagnosticSnapshot(),null,2);
@@ -336,7 +335,7 @@
       const style=document.createElement("style");style.textContent='#iqcImageRc .iqc-rc-top{gap:0 8px;padding:4px 0}#iqcImageRc .iqc-rc-top>div:first-child>small{display:none}#iqcImageRc .iqc-rc-top h2{font-size:16px}#iqc31Live{flex-basis:100%;display:flex;align-items:center;justify-content:space-between;gap:6px;min-width:0;font-size:12px;line-height:1.4}#iqc31LiveCount{min-width:0}#iqc31LiveDetails{flex:none}#iqc31LiveDetails summary{cursor:pointer;min-height:40px;display:flex;align-items:center;padding:0 5px;border-radius:8px;color:#c8dcf2}#iqc31LiveDetails summary::before{content:"▸";margin-right:4px}#iqc31LiveDetails[open] summary::before{content:"▾"}.iqc31-live-menu{position:absolute;left:0;right:0;top:100%;padding:10px;background:#101b42;border:1px solid #526394;border-radius:12px;box-shadow:0 8px 18px #02072288}#iqc31LivePhase{color:#c8dcf2;overflow-wrap:anywhere}#iqc31Live .iqc-rc-row{gap:5px;margin-top:8px}#iqc31Live button{min-height:42px;font-size:12px;padding:5px 8px}';document.head.appendChild(style);
       text("iqc31LivePhase",progressMessage);
     }
-    const heading=panel.querySelector(".iqc-rc-top h2");if(heading&&heading.textContent!=="📷 Honeywell 影像 RC31.13")heading.textContent="📷 Honeywell 影像 RC31.13";
+    const heading=panel.querySelector(".iqc-rc-top h2");if(heading&&heading.textContent!=="📷 Honeywell 影像 RC31.14")heading.textContent="📷 Honeywell 影像 RC31.14";
     const gallery=$("iqcRcGalleryInput");if(gallery)gallery.multiple=true;
     text("iqcHybridSyncBtn","補辨識缺漏（Cloud）");
     const hint=$("iqcHybridHint");if(hint&&!hint.dataset.rc31){hint.dataset.rc31="1";text("iqcHybridHint","RC31 先完成本機辨識；如有缺漏，再按「補辨識缺漏（Cloud）」。");}
@@ -397,13 +396,18 @@
     diagnostics:diagnosticSnapshot};
   // A native touch sequence may outlive its compatibility pointer sequence.
   // Start only on a completed stationary gesture, never on pointer/touch down.
-  const startAction=el=>{const button=el?.closest?.('#iqcRcAnalyze,#iqc31StartTop,[data-ocr31-photo]');return button&&!button.disabled?{button,photoId:button.dataset.ocr31Photo||'',key:button.dataset.ocr31Photo||'all'}:null;};
+  const actionSelector='#iqcRcAnalyze,#iqc31StartTop,[data-ocr31-photo],#iqcRcCommit,#iqcRcSyncPending,#iqc31SubmitAccept,#iqc31SubmitBack';
+  const actionKey=button=>button.matches('#iqcRcCommit,#iqcRcSyncPending,#iqc31SubmitAccept,#iqc31SubmitBack')?button.id:button.dataset.ocr31Photo||'all';
+  const startAction=el=>{const button=el?.closest?.(actionSelector);
+    const submit=button?.matches('#iqcRcCommit,#iqcRcSyncPending,#iqc31SubmitAccept,#iqc31SubmitBack');
+    return button&&!button.disabled?{button,submit,photoId:button.dataset.ocr31Photo||'',key:actionKey(button)}:null;};
   let finger=null,lastTap=null;
   function completeStart(e,f,x,y){
     if(!f)return;
     if(f.moved||Math.hypot(x-f.x,y-f.y)>14||Date.now()-f.at>1500){record({stage:'start_touch',outcome:'gesture_ignored'});return;}
     if(e.cancelable)e.preventDefault();e.stopImmediatePropagation();lastTap={key:f.key,at:Date.now()};
-    record({stage:'start_touch',outcome:'completed',source:e.type});requestStart(f.photoId);
+    record({stage:f.submit?'submit_touch':'start_touch',outcome:'completed',source:e.type});
+    if(f.submit)window.__DS_IQC_SUBMIT31?.activate(f.key);else requestStart(f.photoId);
   }
   document.addEventListener("pointerdown",e=>{
     const action=startAction(e.target);if(e.pointerType!=="touch"||!action)return;
@@ -435,7 +439,7 @@
   },true);
   document.addEventListener("click",e=>{
     const target=e.target.closest?.("button");if(!target)return;
-    if(target.matches('#iqcRcAnalyze,#iqc31StartTop,[data-ocr31-photo]')&&lastTap?.key===(target.dataset.ocr31Photo||"all")&&Date.now()-lastTap.at<700&&e.detail!==0){e.preventDefault();e.stopImmediatePropagation();return;}
+    if(target.matches(actionSelector)&&lastTap?.key===actionKey(target)&&Date.now()-lastTap.at<700&&e.detail!==0){e.preventDefault();e.stopImmediatePropagation();return;}
     if(target.id==="iqc31Copy"){
       e.preventDefault();const box=$("iqc31LogText");box.value=JSON.stringify(diagnosticSnapshot(),null,2);
       if(navigator.clipboard)navigator.clipboard.writeText(box.value).then(()=>text("iqc31Copy","已複製辨識紀錄")).catch(()=>{box.focus();box.select();});else{box.focus();box.select();}return;
