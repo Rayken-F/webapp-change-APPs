@@ -55,6 +55,13 @@ test('same RT with different status stays an explicit deduplicated conflict',()=
  const view=model.presentation(groups);assert.equal(view.conflicts.length,1);assert.equal(view.conflicts[0].choices.length,2);
  const updates=model.mergeReviews([photo('p1',header+'\nAB12CDE'),photo('p2','113374 CYLINDER MNT1 7209 TOTAL 1\nAB12CDE')],groups.map(g=>g.key),meta);assert.equal(updates.length,2);
 });
+
+test('a complete copy cannot hide ambiguous OCR in another photo from either screen or submit',()=>{
+ const photos=[photo('p1',header+'\nAB12CDE'),photo('p2',header+'\nAB12CDE\n113407 CYLINDER OCYL 7209 TOTAL 1\nAB12CDE')];
+ const groups=model.build(photos),before=JSON.stringify(groups),view=model.presentation(groups),resolved=model.resolve(groups);
+ assert.equal(view.conflicts.length,1);assert.match(view.conflicts[0].reason,/歸屬不明/);assert.deepEqual(view.conflicts[0].photoSeqs,[1,2]);
+ assert.ok(view.groups.every(g=>!g.ready));assert.equal(view.groups.flatMap(g=>g.displayCtns).length,0);assert.ok(resolved[0].problem);assert.equal(JSON.stringify(groups),before);
+});
 test('invalid/manual duplicate CTNs and RTs are rejected without changing source',()=>{
  const p=photo('p1','AB12CDE\nFG34HIJ');
  assert.throws(()=>model.updateReview(p,[{original:'AB12CDE',ctn:'AB12CDE'}],{rt:'unknown'}),/RT/);

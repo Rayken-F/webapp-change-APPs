@@ -56,7 +56,7 @@ let checks=0;const ok=(label,x)=>{assert.ok(x,label);console.log('PASS '+label);
  await page.waitForTimeout(200);
  const bounds=await page.locator('#iqc31SubmitPreview h3').boundingBox();
  ok('preview title is visible without test code scrolling to it',bounds.y>=0&&bounds.y+bounds.height<874);
- const mutations=await page.evaluate(()=>new Promise(resolve=>{let n=0;const o=new MutationObserver(()=>n++);for(const selector of ['.iqc-rc-top h2','#iqcRcCommit'])o.observe(document.querySelector(selector),{childList:true,attributes:true,attributeFilter:['disabled']});__DS_IQC_RC31.refresh().then(()=>setTimeout(()=>{o.disconnect();resolve(n);},1100));}));ok('refresh does not toggle preview disabled or repaint stable labels',mutations===0&&/RC31.14/.test(await page.locator('.iqc-rc-top h2').textContent()));
+ const mutations=await page.evaluate(()=>new Promise(resolve=>{let n=0;const o=new MutationObserver(()=>n++);for(const selector of ['.iqc-rc-top h2','#iqcRcCommit'])o.observe(document.querySelector(selector),{childList:true,attributes:true,attributeFilter:['disabled']});__DS_IQC_RC31.refresh().then(()=>setTimeout(()=>{o.disconnect();resolve(n);},1100));}));ok('refresh does not toggle preview disabled or repaint stable labels',mutations===0&&/RC31.15/.test(await page.locator('.iqc-rc-top h2').textContent()));
  await page.screenshot({path:path.join(out,'preview.png')});await page.locator('#iqc31SubmitBack').click();ok('returning to edit has no submission',submits===0&&(await snapshot()).submissions.length===0);
  await page.locator('#iqcRcRegion').selectOption('');await page.waitForFunction(async()=>!(await IqcSubmitStore31.snapshot(localStorage.getItem('ds_iqc_image_rc_active_batch'))).batch.regionCode);
  await page.locator('#iqcRcCommit').tap();await idle();
@@ -92,6 +92,31 @@ let checks=0;const ok=(label,x)=>{assert.ok(x,label);console.log('PASS '+label);
  mode='success';await page.locator('#iqcRcSyncPending').click();await idle();s=await snapshot();ok('missing receipt retry uses same frozen submission ID and payload',s.batch.status==='SYNCED'&&posted.at(-1).payload.submissionId===pendingId&&JSON.stringify(posted.at(-1).payload)===JSON.stringify(posted.at(-2).payload));
  await next();mode='reject';await preview();await commit();await idle();s=await snapshot();ok('confirmed rejection unlocks draft without claiming a receipt',s.batch.status==='DRAFT'&&s.submissions[0].status==='REJECTED'&&await page.locator('#iqcRcCommit').isEnabled());
  const before=submits;await preview();await page.evaluate(()=>new Promise(resolve=>{const q=indexedDB.open('ds_iqc_image_rc_v1',1);q.onsuccess=()=>{const db=q.result,tx=db.transaction('batches','readwrite'),st=tx.objectStore('batches'),r=st.get(localStorage.getItem('ds_iqc_image_rc_active_batch'));r.onsuccess=()=>st.put({...r.result,label:'Changed in second tab'});tx.oncomplete=()=>{db.close();resolve();};};}));await commit();await idle();ok('stale preview cannot freeze changed batch or send network request',submits===before&&/已變更/.test(await page.locator('#iqc31SubmitMessage').textContent()));await page.locator('#iqc31SubmitBack').click();
+ // Headerless repeats are collapsed by the screen but must use the same owner
+ // when previewing. Keep one additional RT and a count warning in the fixture.
+ await next();mode='success';await page.evaluate(async()=>{
+   const id=localStorage.getItem('ds_iqc_image_rc_active_batch');
+   await new Promise((resolve,reject)=>{const q=indexedDB.open('ds_iqc_image_rc_v1',1);q.onsuccess=()=>{const db=q.result,tx=db.transaction('photos','readwrite'),st=tx.objectStore('photos');
+     for(const [seq,text] of [[2,'AB12CDE\n113374 CYLINDER OCYL 7A44 TOTAL 17\nKL56MNP'],[3,'KL56MNP']])st.put({id:id+'_PHOTO'+seq,batchId:id,seq,status:'RECOGNIZED',updatedAt:new Date().toISOString(),ocrText:text,rc31Image:{type:'image/png',bytes:new Uint8Array([1,2,3]).buffer}});
+     tx.oncomplete=()=>{db.close();resolve();};tx.onabort=()=>reject(tx.error);};});await __DS_IQC_RC31.refresh();
+ });
+ const sources=(await snapshot()).photos;const seen=await page.locator('.iqc-ctn-grid .iqc-ctn-input').allTextContents();
+ ok('screen shows one copy of each resolved CTN across three photos',JSON.stringify([...seen].sort())===JSON.stringify(['AB12CDE','FG34HIJ','KL56MNP']));
+ await preview();const lines=await page.locator('#iqc31SubmitPreview ol li').allTextContents();
+ ok('preview agrees with displayed ownership and retains count warning',lines.length===3&&lines.some(t=>t.includes('AB12CDE')&&t.includes('113353'))&&lines.some(t=>t.includes('KL56MNP')&&t.includes('113374'))&&/17/.test(await page.locator('#iqc31SubmitPreview').textContent()));
+ await page.screenshot({path:path.join(out,'resolved-preview.png')});await page.locator('#iqc31SubmitBack').tap();await page.reload();await open();await preview();
+ ok('reload preserves every original photo and classification before submission',JSON.stringify((await snapshot()).photos)===JSON.stringify(sources));
+ await commit();await idle();s=await snapshot();
+ ok('resolved batch submits three unique CTNs once and verifies receipt',s.batch.status==='SYNCED'&&s.submissions[0].receipt.rowCount===3&&posted.at(-1).payload.items.length===3&&JSON.stringify(s.photos)===JSON.stringify(sources));
+ // A conflicting copy must remain visible and block the request entirely.
+ await next();await page.evaluate(async()=>{
+   const id=localStorage.getItem('ds_iqc_image_rc_active_batch');
+   await new Promise(resolve=>{const q=indexedDB.open('ds_iqc_image_rc_v1',1);q.onsuccess=()=>{const db=q.result,tx=db.transaction('photos','readwrite');tx.objectStore('photos').put({id:id+'_CONFLICT',batchId:id,seq:2,status:'RECOGNIZED',ocrText:'113374 CYLINDER OCYL 7209 TOTAL 1\nAB12CDE',rc31Image:{type:'image/png',bytes:new Uint8Array([1,2,3]).buffer}});tx.oncomplete=()=>{db.close();resolve();};};});await __DS_IQC_RC31.refresh();
+ });
+ const conflictBefore=submits;ok('real RT conflict is visible before preview',/AB12CDE/.test(await page.locator('#iqc31Conflicts').textContent()));
+ await page.locator('#iqcRcCommit').tap();await idle();
+ ok('conflict preview names source photos and sends nothing',/AB12CDE.*第 1 張.*第 2 張.*不同 RT/.test(await page.locator('#iqc31SubmitPreview [role="alert"]').textContent())&&submits===conflictBefore&&(await snapshot()).submissions.length===0);
+ await page.screenshot({path:path.join(out,'conflict.png')});await page.locator('#iqc31SubmitBack').tap();
  const scoped=await page.evaluate(()=>{const original=DS_PORTAL_BRIDGE.getSessionContext;window.DS_PORTAL_BRIDGE={...DS_PORTAL_BRIDGE,getSessionContext:()=>({...original(),profile:{...original().profile,user:{account:'OTHER'}}})};return DS_PORTAL_BRIDGE.getSessionContext().profile.user.account==='OTHER';});ok('identity fixture installed',scoped);
  // Completed batch remains owned by the original account even after another login.
  await page.locator('#iqc31BatchSelect').selectOption(posted[0].payload.batchId);await idle();const qbefore=queries;await page.locator('#iqcRcSyncPending').click();await idle();ok('another account cannot query/replay original account record',queries===qbefore&&/原送出帳號/.test(await page.locator('#iqc31SubmitMessage').textContent()));

@@ -13,19 +13,21 @@
       if(!['RECOGNIZED','NEEDS_REVIEW'].includes(p.status))throw Error(`第 ${p.seq} 張處理未完成，請先辨識完成。`);
     }
     const groups=review.build(snapshot.photos,review.legacyDecisions(snapshot.photos,legacy));
-    const byCtn=new Map(),warnings=[];
-    for(const g of groups){
-      for(const row of g.rows){
-        if(!/^[A-Z]{2}\d{2}[A-Z]{2}[A-Z0-9]$/.test(row.ctn))throw Error('請核對 CTN 格式：'+row.ctn);
-        if(!/^\d{5,8}$/.test(row.rt||'')||!row.status||row.status.length>50||row.groupAmbiguous||row.ambiguous&&!row.manual)throw Error(`${row.ctn} 的 RT／狀態或歸屬尚未完成，請手動歸類。`);
-        const item={ctn:row.ctn,rtNo:row.rt,cylinderStatus:row.status,plant:row.plant||''},old=byCtn.get(row.ctn);
-        if(old&&JSON.stringify(old)!==JSON.stringify(item))throw Error(`${row.ctn} 在來源照片有不同 RT／狀態／廠區，請先核對全部歸屬。`);
-        byCtn.set(row.ctn,item);
-      }
-      if(!g.expected||g.expected!==g.ctns.length)warnings.push(`RT ${g.rt}：去重後 ${g.ctns.length} 支，照片參考總量 ${g.expected||'未知'}，請確認實際數量。`);
-      warnings.push(...g.warnings);
+    const resolved=review.resolve(groups),items=[],warnings=[];
+    for(const row of resolved){
+      const source=row.photoSeqs.map(n=>'第 '+n+' 張').join('、'),prefix=`${row.ctn}（${source}）：`;
+      if(!/^[A-Z]{2}\d{2}[A-Z]{2}[A-Z0-9]$/.test(row.ctn))throw Error(prefix+'請核對 CTN 格式。');
+      if(row.problem)throw Error(prefix+row.problem);
+      if(!/^\d{5,8}$/.test(row.rt))throw Error(prefix+'RT 尚未完成，請手動歸類。');
+      if(!row.status||row.status.length>50)throw Error(prefix+'鋼瓶狀態尚未完成，請手動歸類。');
+      items.push({ctn:row.ctn,rtNo:row.rt,cylinderStatus:row.status,plant:row.plant});
     }
-    const items=[...byCtn.values()].sort((a,b)=>a.ctn.localeCompare(b.ctn));
+    // Do not warn about an empty RT group made solely of already resolved copies.
+    for(const g of review.presentation(groups).groups){
+      if(!g.expected||g.expected!==g.ctns.length)warnings.push(`RT ${g.rt}：去重後 ${g.ctns.length} 支，照片參考總量 ${g.expected||'未知'}，請確認實際數量。`);
+    }
+    groups.forEach(g=>warnings.push(...g.warnings));
+    items.sort((a,b)=>a.ctn.localeCompare(b.ctn));
     if(!items.length||items.length>500)throw Error('每批需有 1～500 筆已核對 CTN。');
     return {items,warnings:[...new Set(warnings)],duplicateCount:groups.reduce((n,g)=>n+g.rows.length,0)-items.length};
   }

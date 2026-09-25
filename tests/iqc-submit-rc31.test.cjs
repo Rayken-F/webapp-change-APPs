@@ -8,7 +8,29 @@ test('saved manual CTN and RT are used; duplicate photos count once',()=>{
   b.rc31Review={ctns:{AB12CDE:{ctn:'AB12CDE',rt:'113353',status:'OCYL',plant:'7209',expected:2}}};
   const d=m.draft(snap([a,b]));assert.equal(d.items.length,2);assert.equal(d.duplicateCount,1);
 });
-test('unassigned duplicate hidden in presentation still blocks submission',()=>assert.throws(()=>m.draft(snap([photo('a',first),photo('b','AB12CDE')])),/歸屬/));
+test('headerless duplicate uses its unique same-batch assignment without modifying sources',()=>{
+  const photos=[photo('a',first),photo('b','AB12CDE')],before=JSON.stringify(photos);
+  for(const order of [photos,[...photos].reverse()]){const d=m.draft(snap(order));assert.equal(d.items.length,2);assert.equal(d.duplicateCount,1);assert.deepEqual(d.items[0],{ctn:'AB12CDE',rtNo:'113353',cylinderStatus:'OCYL',plant:'7209'});assert.deepEqual(d.warnings,[]);}
+  assert.equal(JSON.stringify(photos),before);
+});
+test('manually assigned copy also resolves a headerless repeat while preserving review history',()=>{
+  const review=require('../ds-app-grinding-recovery-rc/iqc-ocr-review-model-rc31.js'),a=photo('a','AB12CDE'),b=photo('b','AB12CDE');
+  a.rc31Review=review.updateReview(a,[{original:'AB12CDE',ctn:'AB12CDE'}],{rt:'113353',status:'OCYL',plant:'7209',expected:1});
+  const before=JSON.stringify([a,b]),d=m.draft(snap([a,b]));assert.equal(d.items.length,1);assert.equal(d.duplicateCount,1);assert.equal(JSON.stringify([a,b]),before);
+});
+test('a distinct headerless CTN still requires classification with its source photo identified',()=>{
+  assert.throws(()=>m.draft(snap([photo('a',first),photo('b','AB12CDE\nKL56MNP')])),/KL56MNP.*第 2 張.*RT/);
+});
+test('same CTN conflicting status, plant or ambiguous OCR cannot use a complete copy to bypass review',()=>{
+  for(const text of ['113353 CYLINDER MNT1 7209 TOTAL 1\nAB12CDE','113353 CYLINDER OCYL 7A44 TOTAL 1\nAB12CDE',first+'\n113374 CYLINDER OCYL 7209 TOTAL 1\nAB12CDE']){
+    assert.throws(()=>m.draft(snap([photo('a',first),photo('b',text)])),/AB12CDE.*第 1 張.*第 2 張.*(不同|歸屬)/);
+  }
+});
+test('legacy review uses the same photo sequence as the screen regardless of IndexedDB key order',()=>{
+  const photos=[photo('a',first),photo('b','113374 CYLINDER OCYL 7209 TOTAL 1\nKL56MNP')];
+  const legacy={'113353|1|0':{status:'MNT1',plant:'7A44'}};
+  assert.deepEqual(m.draft(snap([...photos].reverse()),legacy),m.draft(snap(photos),legacy));
+});
 test('conflicting source assignment blocks all rows',()=>assert.throws(()=>m.draft(snap([photo('a',first),photo('b','113374 CYLINDER OCYL 7209 TOTAL 1\nAB12CDE')])),/不同 RT/));
 test('empty, missing region, failed image, and unfinished image are not submissions',()=>{
   assert.throws(()=>m.draft(snap([])),/空批次/);
@@ -18,7 +40,7 @@ test('empty, missing region, failed image, and unfinished image are not submissi
 });
 test('frozen batch and incomplete status are blocked',()=>{
   assert.throws(()=>m.draft({...snap([photo('a',first)]),batch:{status:'QUEUED'}}),/查收據/);
-  const a=photo('a','AB12CDE');a.rc31Review={ctns:{AB12CDE:{ctn:'AB12CDE',rt:'113353',status:'',plant:''}}};assert.throws(()=>m.draft(snap([a])),/歸屬/);
+  const a=photo('a','AB12CDE');a.rc31Review={ctns:{AB12CDE:{ctn:'AB12CDE',rt:'113353',status:'',plant:''}}};assert.throws(()=>m.draft(snap([a])),/第 1 張.*狀態/);
 });
 test('count discrepancy is shown for explicit manual confirmation, not silently dropped',()=>{
   const d=m.draft(snap([photo('a',first.replace('TOTAL 2','TOTAL 18'))]));assert.equal(d.items.length,2);assert.match(d.warnings[0],/18/);
