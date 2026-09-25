@@ -35,7 +35,7 @@
     }catch(e){abort(e);}
   },abort));}
   function updateBatch(batch){return transaction('readwrite',(tx,done,abort)=>{
-    const s=tx.objectStore('batches'),r=s.get(batch.id);r.onsuccess=()=>{try{if(!r.result)throw new Error('批次已移除，請重新開啟影像頁。');s.put(batch);done(batch);}catch(e){abort(e);}};
+    const s=tx.objectStore('batches'),r=s.get(batch.id);r.onsuccess=()=>{try{if(!r.result)throw new Error('批次已移除，請重新開啟影像頁。');if(r.result.status!=='DRAFT')throw new Error('本批已有送出紀錄，不能修改；請查收據／重試。');s.put(batch);done(batch);}catch(e){abort(e);}};
   });}
   // This result is a local selection check, NOT permission to create IQC records.
   // A future submitter must call it again immediately before queueing each payload.
@@ -49,5 +49,10 @@
       if(!--pending)done(result);
     },abort));
   });}
-  window.IqcBatchStore31={inspect,remove,updateBatch,preflight};
+  function deleteDraftPhoto(id){return transaction('readwrite',(tx,done,abort)=>{
+    const photos=tx.objectStore('photos'),r=photos.get(id);r.onsuccess=()=>{if(!r.result){done();return;}const b=tx.objectStore('batches').get(r.result.batchId);b.onsuccess=()=>{
+      if(!b.result||b.result.status!=='DRAFT'){abort(new Error('本批已送出或待確認，不能移除照片。'));return;}photos.delete(id);done();
+    };};
+  });}
+  window.IqcBatchStore31={inspect,remove,updateBatch,preflight,deleteDraftPhoto};
 })();
