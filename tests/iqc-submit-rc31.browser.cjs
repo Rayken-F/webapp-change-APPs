@@ -41,7 +41,7 @@ let checks=0;const ok=(label,x)=>{assert.ok(x,label);console.log('PASS '+label);
  const snapshot=()=>page.evaluate(()=>IqcSubmitStore31.snapshot(localStorage.getItem('ds_iqc_image_rc_active_batch')));
  async function seed(){await page.locator('#iqcRcRegion').selectOption('B3');await page.waitForTimeout(100);await page.evaluate(async()=>{
    const id=localStorage.getItem('ds_iqc_image_rc_active_batch');await new Promise((resolve,reject)=>{const q=indexedDB.open('ds_iqc_image_rc_v1',1);q.onsuccess=()=>{const db=q.result,tx=db.transaction('photos','readwrite');tx.objectStore('photos').put({id:id+'_PHOTO',batchId:id,seq:1,status:'RECOGNIZED',updatedAt:new Date().toISOString(),ocrText:'113353 CYLINDER OCYL 7209 TOTAL 2\nAB12CDE\nFG34HIJ',rc31Image:{type:'image/png',bytes:new Uint8Array([1,2,3]).buffer}});tx.oncomplete=()=>{db.close();resolve();};tx.onabort=()=>reject(tx.error);};});await __DS_IQC_RC31.refresh();});}
- const preview=async()=>{await page.locator('#iqcRcCommit').tap();await idle();await page.locator('#iqc31SubmitPreview ol').waitFor();};
+ const preview=async()=>{await page.locator('#iqcRcCommit').tap();await idle();await page.locator('#iqc31SubmitPreview table').waitFor();};
  const commit=async()=>{await page.locator('#iqc31SubmitConfirm').check();await page.locator('#iqc31SubmitAccept').tap();};
  const next=async()=>{await page.locator('#iqcRcNewBatch').click();await idle();await seed();};
  ok('empty batch cannot be submitted',await page.locator('#iqcRcCommit').isDisabled());
@@ -52,11 +52,11 @@ let checks=0;const ok=(label,x)=>{assert.ok(x,label);console.log('PASS '+label);
  await page.locator('#iqcRcCommit').tap();await page.locator('#iqc31SubmitPreview').waitFor();await idle();
  ok('one completed mobile tap opens preview even without a compatibility click',await page.locator('#iqc31SubmitPreview').count()===1&&submits===0);
  await page.evaluate(()=>{window.__dropSubmitClick=false;});
- ok('preview has exact CTNs and explicit unchecked confirmation',await page.locator('#iqc31SubmitPreview ol li').count()===2&&await page.locator('#iqc31SubmitAccept').isDisabled());
+ ok('preview has exact CTNs and explicit unchecked confirmation',await page.locator('#iqc31SubmitPreview tbody tr').count()===2&&await page.locator('#iqc31SubmitAccept').isDisabled());
  await page.waitForTimeout(200);
  const bounds=await page.locator('#iqc31SubmitPreview h3').boundingBox();
  ok('preview title is visible without test code scrolling to it',bounds.y>=0&&bounds.y+bounds.height<874);
- const mutations=await page.evaluate(()=>new Promise(resolve=>{let n=0;const o=new MutationObserver(()=>n++);for(const selector of ['.iqc-rc-top h2','#iqcRcCommit'])o.observe(document.querySelector(selector),{childList:true,attributes:true,attributeFilter:['disabled']});__DS_IQC_RC31.refresh().then(()=>setTimeout(()=>{o.disconnect();resolve(n);},1100));}));ok('refresh does not toggle preview disabled or repaint stable labels',mutations===0&&/RC31.15/.test(await page.locator('.iqc-rc-top h2').textContent()));
+ const mutations=await page.evaluate(()=>new Promise(resolve=>{let n=0;const o=new MutationObserver(()=>n++);for(const selector of ['.iqc-rc-top h2','#iqcRcCommit'])o.observe(document.querySelector(selector),{childList:true,attributes:true,attributeFilter:['disabled']});__DS_IQC_RC31.refresh().then(()=>setTimeout(()=>{o.disconnect();resolve(n);},1100));}));ok('refresh does not toggle preview disabled or repaint stable labels',mutations===0&&/RC31.16/.test(await page.locator('.iqc-rc-top h2').textContent()));
  await page.screenshot({path:path.join(out,'preview.png')});await page.locator('#iqc31SubmitBack').click();ok('returning to edit has no submission',submits===0&&(await snapshot()).submissions.length===0);
  await page.locator('#iqcRcRegion').selectOption('');await page.waitForFunction(async()=>!(await IqcSubmitStore31.snapshot(localStorage.getItem('ds_iqc_image_rc_active_batch'))).batch.regionCode);
  await page.locator('#iqcRcCommit').tap();await idle();
@@ -75,14 +75,18 @@ let checks=0;const ok=(label,x)=>{assert.ok(x,label);console.log('PASS '+label);
  await page.locator('#iqcRcCommit').dispatchEvent('touchmove',{touches:[{...touch,clientY:640}],changedTouches:[{...touch,clientY:640}]});
  await page.locator('#iqcRcCommit').dispatchEvent('touchend',{touches:[],changedTouches:[{...touch,clientY:640}]});
  ok('scroll gesture over submit never opens preview or submits',await page.locator('#iqc31SubmitPreview').count()===0&&submits===0);
- await page.locator('#iqcRcCommit').focus();await page.keyboard.press('Enter');await idle();await page.locator('#iqc31SubmitPreview ol').waitFor();
- ok('keyboard activation still works',await page.locator('#iqc31SubmitPreview ol li').count()===2);await page.locator('#iqc31SubmitBack').click();
+ await page.locator('#iqcRcCommit').focus();await page.keyboard.press('Enter');await idle();await page.locator('#iqc31SubmitPreview table').waitFor();
+ ok('keyboard activation still works',await page.locator('#iqc31SubmitPreview tbody tr').count()===2);await page.locator('#iqc31SubmitBack').click();
  await preview();mode='hold';await commit();await page.waitForFunction(()=>document.getElementById('iqc31SubmitMessage').textContent.includes('正在送至'));
  for(let i=0;i<40&&!hold;i++)await page.waitForTimeout(50);ok('busy state visible and double submission blocked',!!hold&&await page.locator('#iqcRcCommit').isDisabled()&&await page.locator('#iqcRcRegion').isDisabled()&&submits===1);
+ await page.waitForFunction(()=>/正在送至.*2 筆.*[1-9]\d* 秒/.test(document.getElementById('iqc31LiveCount').textContent));ok('fixed header shows network phase, row count and elapsed seconds',true);
  let s=await snapshot();ok('one immutable pending record exists before network completion',s.batch.status==='QUEUED'&&s.submissions.length===1&&s.submissions[0].status==='PENDING');
  const guarded=await page.evaluate(async s=>{let n=0;for(const f of [()=>IqcBatchStore31.updateBatch({...s.batch,regionCode:'OTHER'}),()=>IqcBatchStore31.deleteDraftPhoto(s.photos[0].id),()=>__DS_IQC_RC31.saveReview(s.photos[0].id,()=>({version:1}))])try{await f();}catch(_){n++;}return n;},s);ok('pending parent blocks metadata, deletion and manual changes',guarded===3);
  hold();await idle();await page.waitForFunction(()=>document.getElementById('iqc31SubmitMessage').textContent.includes('已寫入 2 筆'));s=await snapshot();
  ok('only verified complete receipt marks batch synced',s.batch.status==='SYNCED'&&s.submissions[0].receipt.rowCount===2);const original=s.submissions[0].submissionId;
+ ok('verified completion is selected in history with immutable rows',await page.locator('#iqc31History').getAttribute('aria-pressed')==='true'&&await page.locator('#iqc31HistoryReceipt tbody tr').count()===2&&!await page.locator('#iqcRcCommit').isVisible());
+ await page.locator('#iqc31Working').click();await idle();ok('completed batch is absent from working list and no empty replacement is created',await page.locator('#iqc31BatchSelect option[value="'+s.batch.id+'"]').count()===0&&(await page.evaluate(()=>__DS_IQC_RC31.listBatches())).length===1);
+ await page.locator('#iqc31History').click();await idle();
  await page.screenshot({path:path.join(out,'receipt.png')});await page.locator('#iqcRcSyncPending').click();await idle();ok('receipt query never resubmits completed batch',submits===1&&queries===1);
  await page.reload();await open();s=await snapshot();ok('reload preserves photos, immutable payload and receipt',s.photos.length===1&&s.submissions[0].submissionId===original&&s.batch.status==='SYNCED');
  await next();mode='lose';await preview();await commit();await idle();s=await snapshot();const lostId=s.submissions[0].submissionId;
@@ -102,12 +106,42 @@ let checks=0;const ok=(label,x)=>{assert.ok(x,label);console.log('PASS '+label);
  });
  const sources=(await snapshot()).photos;const seen=await page.locator('.iqc-ctn-grid .iqc-ctn-input').allTextContents();
  ok('screen shows one copy of each resolved CTN across three photos',JSON.stringify([...seen].sort())===JSON.stringify(['AB12CDE','FG34HIJ','KL56MNP']));
- await preview();const lines=await page.locator('#iqc31SubmitPreview ol li').allTextContents();
+ await preview();const lines=await page.locator('#iqc31SubmitPreview tbody tr').allTextContents();
  ok('preview agrees with displayed ownership and retains count warning',lines.length===3&&lines.some(t=>t.includes('AB12CDE')&&t.includes('113353'))&&lines.some(t=>t.includes('KL56MNP')&&t.includes('113374'))&&/17/.test(await page.locator('#iqc31SubmitPreview').textContent()));
  await page.screenshot({path:path.join(out,'resolved-preview.png')});await page.locator('#iqc31SubmitBack').tap();await page.reload();await open();await preview();
  ok('reload preserves every original photo and classification before submission',JSON.stringify((await snapshot()).photos)===JSON.stringify(sources));
  await commit();await idle();s=await snapshot();
  ok('resolved batch submits three unique CTNs once and verifies receipt',s.batch.status==='SYNCED'&&s.submissions[0].receipt.rowCount===3&&posted.at(-1).payload.items.length===3&&JSON.stringify(s.photos)===JSON.stringify(sources));
+ const archivedId=s.batch.id,archivePayload=JSON.stringify(s.submissions[0]);
+ const blockedCleanup=await page.evaluate(async id=>{try{await IqcSubmitStore31.clearPhotos(id,'OTHER');return false;}catch(_){return true;}},archivedId);ok('another account cannot remove completed source photos',blockedCleanup);
+ // A failure midway through clearing must roll back images already updated.
+ await page.evaluate(()=>{window.__cursorUpdate=IDBCursor.prototype.update;let count=0;IDBCursor.prototype.update=function(v){if(++count===2){this.source.transaction?.abort();throw Error('Synthetic cleanup failure');}return window.__cursorUpdate.call(this,v);};});
+ const rollback=await page.evaluate(async id=>{try{await IqcSubmitStore31.clearPhotos(id,'TEST');return false;}catch(_){return (await __DS_IQC_RC31.readPhotos(id)).every(p=>!p.photosClearedAt);}},archivedId);
+ await page.evaluate(()=>{IDBCursor.prototype.update=window.__cursorUpdate;});ok('partial cleanup failure preserves every image in one atomic transaction',rollback);
+ page.once('dialog',d=>d.dismiss());await page.locator('#iqc31ClearPhotos').click();ok('cancelled cleanup retains photos',!!await page.evaluate(async id=>(await __DS_IQC_RC31.readPhoto(id)).blob?.size,s.photos[0].id));
+ page.once('dialog',d=>d.accept());await page.locator('#iqc31ClearPhotos').click();await idle();await page.waitForFunction(()=>document.getElementById('iqc31SubmitMessage').textContent.includes('已清除 3 張'));
+ s=await snapshot();ok('confirmed manual cleanup keeps receipt, payload and classification text',s.batch.photosClearedAt&&JSON.stringify(s.submissions[0])===archivePayload&&JSON.stringify(s.photos)===JSON.stringify(sources)&&!await page.evaluate(async id=>(await __DS_IQC_RC31.readPhoto(id)).blob,s.photos[0].id));
+ await page.reload();await open();ok('cleaned history survives reload and cannot reopen deleted images',await page.locator('#iqc31HistoryPhotos').isDisabled()&&await page.locator('#iqc31HistoryReceipt tbody tr').count()===3);
+ // Offline confirmation persists before attempting any network. Reload and retry
+ // use exactly that immutable request after a receipt lookup.
+ await next();await preview();const offlineBefore=submits;await context.setOffline(true);await commit();await idle();s=await snapshot();const offlineId=s.submissions[0].submissionId;
+ ok('offline commit keeps original photos and one pending record without sending',submits===offlineBefore&&s.batch.status==='QUEUED'&&/離線/.test(await page.locator('#iqc31LiveCount').textContent()));
+ const pendingCleanup=await page.evaluate(async id=>{try{await IqcSubmitStore31.clearPhotos(id,'TEST');return false;}catch(_){return true;}},s.batch.id);ok('pending batch never permits photo cleanup',pendingCleanup);
+ await context.setOffline(false);await page.reload();await open();await page.locator('#iqcRcSyncPending').click();await idle();s=await snapshot();ok('offline queue survives reload and completes using original ID',s.batch.status==='SYNCED'&&s.submissions[0].submissionId===offlineId&&submits===offlineBefore+1);
+ // 35 rows and both RT widths reproduce the reported crooked preview.
+ await next();await page.evaluate(async()=>{const id=localStorage.getItem('ds_iqc_image_rc_active_batch');await new Promise(resolve=>{const q=indexedDB.open('ds_iqc_image_rc_v1',1);q.onsuccess=()=>{const db=q.result,tx=db.transaction('photos','readwrite'),st=tx.objectStore('photos'),r=st.get(id+'_PHOTO');r.onsuccess=()=>st.put({...r.result,ocrText:'6064030 CYLINDER OCYL 7209 TOTAL 20\n'+Array.from({length:20},(_,i)=>'AB'+String(i).padStart(2,'0')+'AAA').join('\n')+'\n113353 CYLINDER OCYL 7209 TOTAL 15\n'+Array.from({length:15},(_,i)=>'CD'+String(i).padStart(2,'0')+'AAA').join('\n'),updatedAt:new Date().toISOString()});tx.oncomplete=()=>{db.close();resolve();};};});await __DS_IQC_RC31.refresh();});
+ await preview();const geometry=await page.locator('#iqc31SubmitPreview table').evaluate(t=>({rows:t.tBodies[0].rows.length,columns:[...t.tBodies[0].rows].map(r=>[...r.cells].map(c=>Math.round(c.getBoundingClientRect().x))),width:t.getBoundingClientRect().width,container:t.parentElement.clientWidth}));
+ ok('35-row preview aligns all four columns including 6/7-digit RTs',geometry.rows===35&&geometry.columns.every(c=>JSON.stringify(c)===JSON.stringify(geometry.columns[0]))&&geometry.width<=geometry.container+1);
+ await page.screenshot({path:path.join(out,'35-row-preview.png')});await commit();await idle();s=await snapshot();ok('large batch archives exact row count and immutable 35-row history',s.submissions[0].receipt.rowCount===35&&await page.locator('#iqc31HistoryReceipt tbody tr').count()===35);
+ await page.screenshot({path:path.join(out,'35-row-history.png')});
+ const historySeed=s;
+ await page.evaluate(async snapshot=>{
+   const records=[];for(let i=0;i<24;i++){const batch={...snapshot.batch,id:'IQCIMG_HISTORY_'+i,label:'歷史測試 '+i,createdAt:new Date(Date.now()-86400000-i*1000).toISOString()},r=structuredClone(snapshot.submissions[0]);r.batchId=batch.id;r.submissionId='IQCIMG_TEST_'+crypto.randomUUID();r.payload.batchId=batch.id;r.payload.submissionId=r.submissionId;r.payloadHash=[...new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(JSON.stringify(r.payload))))].map(x=>x.toString(16).padStart(2,'0')).join('');r.receipt={...r.receipt,submissionId:r.submissionId,payloadHash:r.payloadHash};batch.submissionId=r.submissionId;records.push({batch,r});}
+   await new Promise(resolve=>{const q=indexedDB.open('ds_iqc_image_rc_v1',1);q.onsuccess=()=>{const db=q.result,tx=db.transaction(['batches','submissions'],'readwrite');records.forEach(({batch,r})=>{tx.objectStore('batches').put(batch);tx.objectStore('submissions').put(r);});tx.oncomplete=()=>{db.close();resolve();};};});await __DS_IQC_BATCHES31.reload();
+ },historySeed);
+ ok('history selector paginates 20 completed batches without loading all CTN tables',await page.locator('#iqc31BatchSelect option').count()===20&&await page.locator('#iqc31HistoryNext').isEnabled());
+ await page.locator('#iqc31HistoryNext').click();await idle();ok('next history page selects a readable archived receipt',/第 2／/.test(await page.locator('#iqc31HistoryPage').textContent())&&await page.locator('#iqc31HistoryReceipt tbody tr').count()===35);
+ await page.locator('#iqc31HistoryPrev').click();await idle();
  // A conflicting copy must remain visible and block the request entirely.
  await next();await page.evaluate(async()=>{
    const id=localStorage.getItem('ds_iqc_image_rc_active_batch');
@@ -119,7 +153,7 @@ let checks=0;const ok=(label,x)=>{assert.ok(x,label);console.log('PASS '+label);
  await page.screenshot({path:path.join(out,'conflict.png')});await page.locator('#iqc31SubmitBack').tap();
  const scoped=await page.evaluate(()=>{const original=DS_PORTAL_BRIDGE.getSessionContext;window.DS_PORTAL_BRIDGE={...DS_PORTAL_BRIDGE,getSessionContext:()=>({...original(),profile:{...original().profile,user:{account:'OTHER'}}})};return DS_PORTAL_BRIDGE.getSessionContext().profile.user.account==='OTHER';});ok('identity fixture installed',scoped);
  // Completed batch remains owned by the original account even after another login.
- await page.locator('#iqc31BatchSelect').selectOption(posted[0].payload.batchId);await idle();const qbefore=queries;await page.locator('#iqcRcSyncPending').click();await idle();ok('another account cannot query/replay original account record',queries===qbefore&&/原送出帳號/.test(await page.locator('#iqc31SubmitMessage').textContent()));
+ await page.locator('#iqc31History').click();await idle();await page.locator('#iqc31BatchSelect').selectOption(posted[0].payload.batchId);await idle();const qbefore=queries;await page.locator('#iqcRcSyncPending').click();await idle();ok('another account cannot query/replay original account record',queries===qbefore&&/原送出帳號/.test(await page.locator('#iqc31SubmitMessage').textContent()));
  ok('no legacy formal endpoint write or photo upload',formalWrites===0&&posted.every(p=>!JSON.stringify(p).includes('rc31Image')&&!JSON.stringify(p).includes('operator')));
  ok('no uncaught frontend errors',errors.length===0);console.log(JSON.stringify({checks,submits,queries,formalWrites,errors,artifacts:out}));
  }finally{await browser.close();await new Promise(r=>server.close(r));}

@@ -1,7 +1,7 @@
-/* RC31.15 / IQC-W3-20260926. Loaded before intake/legacy click handlers. */
+/* RC31.16 / IQC-W4-20260926. Loaded before intake/legacy click handlers. */
 (function(){
   "use strict";
-  const BUILD="RC31.15 / IQC-W3-20260926",DB="ds_iqc_image_rc_v1",ACTIVE="ds_iqc_image_rc_active_batch";
+  const BUILD="RC31.16 / IQC-W4-20260926",DB="ds_iqc_image_rc_v1",ACTIVE="ds_iqc_image_rc_active_batch";
   const LOG="ds_iqc_ocr_rc31_diagnostics",LIB="https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js";
   const WORKER=new URL("./iqc-ocr-worker-rc31.js?v=20260924-9",document.currentScript.src).href;
   const CORE="https://cdn.jsdelivr.net/npm/tesseract.js-core@5.1.1";
@@ -126,7 +126,7 @@
     record({stage:kind,outcome:"started"});paint();return run;
   }
   function cancel(reason="USER_STOP"){
-    const run=operation;if(!run||run.kind==="cloud")return;
+    const run=operation;if(!run||run.kind==="cloud"||run.kind==="submission")return;
     record({stage:"cancel",reason});queuedStart=null;actionMessage="正在停止，照片保留";run.cancelled=true;run.abort.abort();stopPhoto("CANCELLED");engine.dispose("CANCELLED");progress("正在停止；已保存的照片與完成結果會保留。");
   }
   async function exclusive(run,work){
@@ -136,7 +136,7 @@
   async function refresh(list){const id=++refreshSequence,batch=activeBatch();if(!Array.isArray(list))list=batch?await photos(batch):[];
     if(id!==refreshSequence||batch!==activeBatch())return;
     if(progressBatch!==batch){progressBatch=batch;const done=list.filter(p=>p.status==="RECOGNIZED").length;batchProgress={done,total:list.length,failed:list.length-done};actionMessage="";}
-    try{const signature=batch+"|"+JSON.stringify(list.map(p=>[p.id,p.status,p.updatedAt]));if(signature!==viewSignature){viewSignature=signature;api()?.renderPhotos(list);}installUi();await window.__DS_IQC_META_GROUPING_V8?.refresh(list);window.__DS_IQC_BATCHES31?.refresh(list);await window.__DS_IQC_SUBMIT31?.refresh();paint();}
+    try{const signature=batch+"|"+JSON.stringify(list.map(p=>[p.id,p.status,p.updatedAt,p.photosClearedAt]));if(signature!==viewSignature){viewSignature=signature;api()?.renderPhotos(list);}installUi();await window.__DS_IQC_META_GROUPING_V8?.refresh(list);window.__DS_IQC_BATCHES31?.refresh(list);await window.__DS_IQC_SUBMIT31?.refresh();paint();}
     catch(_){record({stage:"render",outcome:"error",code:"UI_RENDER_ERROR"});}
   }
   async function finish(run){
@@ -144,7 +144,7 @@
     if(operation!==run)return;operation=null;currentPhoto=0;engine.release();
     if(run.cancelled)actionMessage="本輪已停止，照片保留";
     else if(run.kind==="review"){actionMessage=run.failed?"歸類未保存｜請查看表單提示後重試":"歸類已保存，可繼續操作";progress(actionMessage);}
-    else if(run.kind==="submission"){actionMessage="請查看下方預覽／送出結果";progress(actionMessage);}
+    else if(run.kind==="submission"){progress(actionMessage);}
     else if(run.failed&&run.kind!=="local_ocr")actionMessage="照片處理未完成｜展開進度查看原因";
     paint();
     record({stage:"released",kind:run.kind,outcome:run.cancelled?"cancelled":run.failed?"error":"ok"});
@@ -323,7 +323,7 @@
     if(!$("iqc31Tools")){
       const style=document.createElement("style");style.textContent="#iqcImageRc [data-ocr31-photo]{grid-column:2 / 4;justify-self:start}#iqc31LogText{background:#08112f;color:#dbe8ff}#iqc31Tools{font-size:13px}#iqcRcAnalyze,#iqc31StartTop,#iqcImageRc [data-ocr31-photo]{touch-action:manipulation;min-height:48px;min-width:150px}";document.head.appendChild(style);
       const tools=document.createElement("div");tools.id="iqc31Tools";tools.className="iqc-rc-note";
-      tools.innerHTML='<strong>RC31.15 / IQC-W3-20260926</strong><p>可一次加入多張或分次補照片。辨識中請保持此頁開啟；切到背景會停止並保留照片。初次使用需下載辨識核心與英數字模型。</p><button id="iqc31Cancel" class="iqc-rc-btn" type="button">停止本輪辨識</button><details><summary>辨識紀錄</summary><p>紀錄不含帳密、照片或 CTN；保留最近 100 個處理事件。</p><button id="iqc31Copy" class="iqc-rc-btn" type="button">複製辨識紀錄</button><textarea id="iqc31LogText" readonly rows="7" style="width:100%;box-sizing:border-box;font-size:12px" aria-label="辨識紀錄"></textarea></details>';
+      tools.innerHTML='<strong>RC31.16 / IQC-W4-20260926</strong><p>可一次加入多張或分次補照片。辨識中請保持此頁開啟；切到背景會停止並保留照片。初次使用需下載辨識核心與英數字模型。</p><button id="iqc31Cancel" class="iqc-rc-btn" type="button">停止本輪辨識</button><details><summary>辨識紀錄</summary><p>紀錄不含帳密、照片或 CTN；保留最近 100 個處理事件。</p><button id="iqc31Copy" class="iqc-rc-btn" type="button">複製辨識紀錄</button><textarea id="iqc31LogText" readonly rows="7" style="width:100%;box-sizing:border-box;font-size:12px" aria-label="辨識紀錄"></textarea></details>';
       const review=document.createElement("p");review.textContent="請逐筆核對 CTN、RT 與數量；辨識結果仍可能有字元誤讀。";tools.appendChild(review);
       button.parentElement.insertAdjacentElement("afterend",tools);
       $("iqc31LogText").value=JSON.stringify(diagnosticSnapshot(),null,2);
@@ -335,7 +335,7 @@
       const style=document.createElement("style");style.textContent='#iqcImageRc .iqc-rc-top{gap:0 8px;padding:4px 0}#iqcImageRc .iqc-rc-top>div:first-child>small{display:none}#iqcImageRc .iqc-rc-top h2{font-size:16px}#iqc31Live{flex-basis:100%;display:flex;align-items:center;justify-content:space-between;gap:6px;min-width:0;font-size:12px;line-height:1.4}#iqc31LiveCount{min-width:0}#iqc31LiveDetails{flex:none}#iqc31LiveDetails summary{cursor:pointer;min-height:40px;display:flex;align-items:center;padding:0 5px;border-radius:8px;color:#c8dcf2}#iqc31LiveDetails summary::before{content:"▸";margin-right:4px}#iqc31LiveDetails[open] summary::before{content:"▾"}.iqc31-live-menu{position:absolute;left:0;right:0;top:100%;padding:10px;background:#101b42;border:1px solid #526394;border-radius:12px;box-shadow:0 8px 18px #02072288}#iqc31LivePhase{color:#c8dcf2;overflow-wrap:anywhere}#iqc31Live .iqc-rc-row{gap:5px;margin-top:8px}#iqc31Live button{min-height:42px;font-size:12px;padding:5px 8px}';document.head.appendChild(style);
       text("iqc31LivePhase",progressMessage);
     }
-    const heading=panel.querySelector(".iqc-rc-top h2");if(heading&&heading.textContent!=="📷 Honeywell 影像 RC31.15")heading.textContent="📷 Honeywell 影像 RC31.15";
+    const heading=panel.querySelector(".iqc-rc-top h2");if(heading&&heading.textContent!=="📷 Honeywell 影像 RC31.16")heading.textContent="📷 Honeywell 影像 RC31.16";
     const gallery=$("iqcRcGalleryInput");if(gallery)gallery.multiple=true;
     text("iqcHybridSyncBtn","補辨識缺漏（Cloud）");
     const hint=$("iqcHybridHint");if(hint&&!hint.dataset.rc31){hint.dataset.rc31="1";text("iqcHybridHint","RC31 先完成本機辨識；如有缺漏，再按「補辨識缺漏（Cloud）」。");}
@@ -370,7 +370,10 @@
     catch(e){run.failed=true;progress(e.message||"批次操作未完成，請查看提示後重試。");throw e;}finally{await finish(run);}
   }
   window.__DS_IQC_RC31={build:BUILD,runBatch:requestStart,ingest,cancel,isBusy:()=>!!operation,workerLabel,refresh,
-    submissionOperation:async work=>{const run=claim("submission");if(!run)throw fail("OCR_BUSY");try{return await exclusive(run,work);}finally{await finish(run);}},
+    submissionStatus:value=>{actionMessage=value.includes('已寫入')?value.split('｜')[0]:value;progress(value);},
+    submissionTiming:(api,ms,server)=>{const phases={};for(const key of ['authMs','lockMs','storeMs','validationMs','writeMs'])if(Number.isFinite(server?.phases?.[key]))phases[key]=server.phases[key];record({stage:api==='iqc_image_submit'?'submit_roundtrip':'receipt_roundtrip',ms,server:server&&Number.isFinite(server.totalMs)?{totalMs:server.totalMs,phases}:null});},
+    clearBatch:()=>editBatch(()=>api().clearBatch()),
+    submissionOperation:async work=>{const run=claim("submission");if(!run)throw fail("OCR_BUSY");try{return await exclusive(run,work);}catch(e){run.failed=true;throw e;}finally{await finish(run);}},
     listBatches:()=>photoTransaction("readonly",(s,done)=>{const r=s.getAll();r.onsuccess=()=>done(r.result);},"batches"),
     inspectBatch:id=>window.IqcBatchStore31.inspect(id),
     checkSubmissionBatches:ids=>window.IqcBatchStore31.preflight(ids),
@@ -381,7 +384,7 @@
       // Select the next draft only after the complete local deletion commits.
       api().clearBatch();
       try{
-        const list=await window.__DS_IQC_RC31.listBatches();
+        const list=(await window.__DS_IQC_RC31.listBatches()).filter(b=>b.status!=="SYNCED");
         list.sort((a,b)=>String(b.createdAt).localeCompare(String(a.createdAt))||a.id.localeCompare(b.id));
         if(list.length)await api().selectBatch(list[0].id);
       }catch(_){throw new Error("本機批次與照片已移除；其餘批次讀取失敗，請重新開啟影像頁。");}
