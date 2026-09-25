@@ -1,4 +1,4 @@
-/* RC31.13: explicit test-only submission; no background replay or legacy endpoint. */
+/* RC31.14: explicit test-only submission; no background replay or legacy endpoint. */
 (function(){
   'use strict';
   const model=window.IqcSubmitModel31,store=window.IqcSubmitStore31;
@@ -7,6 +7,7 @@
   const configured=()=>/^https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec$/.test(endpoint);
   const esc=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const text=(el,value)=>{if(el&&el.textContent!==value)el.textContent=value;};
+  const disabled=(el,value)=>{if(el.disabled!==!!value)el.disabled=!!value;};
   let current=null,busy=false,epoch=0,preview=null,message='僅寫入獨立測試表，正式 IQC 保持不變。',messageBatch='';
   function context(){const c=window.DS_PORTAL_BRIDGE?.getSessionContext?.(),account=c?.profile?.user?.account;
     if(!c?.token||!account)throw Error('請先登入 DS 工作台。');
@@ -14,21 +15,22 @@
   const record=()=>current?.submissions.find(r=>r.status!=='REJECTED');
   const frozen=()=>current?.batch&&current.batch.id===active()&&current.batch.status!=='DRAFT';
   const ownRecord=()=>{const r=record();return r?.protocol===model.protocol&&r.environment===model.environment&&r.endpoint===endpoint?r:null;};
-  function note(value){message=value;messageBatch=active();text($('iqc31SubmitMessage'),value);}
+  function reveal(el){if(!el)return;el.tabIndex=-1;el.focus({preventScroll:true});el.scrollIntoView({block:'nearest',behavior:'instant'});}
+  function note(value,attention=false){message=value;messageBatch=active();text($('iqc31SubmitMessage'),value);if(attention)reveal($('iqc31SubmitMessage'));}
   async function refresh(){
     const n=++epoch,id=active();const next=id?await store.snapshot(id):null;
-    if(n!==epoch||id!==active())return;if(current?.batch?.id!==id){messageBatch='';message='僅寫入獨立測試表，正式 IQC 保持不變。';}if(preview&&preview.snapshot.batch.id!==id)closePreview();current=next;paint();
+    if(n!==epoch||id!==active())return;if(current?.batch?.id!==id){messageBatch='';message='僅寫入獨立測試表，正式 IQC 保持不變。';}if(preview&&preview.batchId!==id)closePreview();current=next;paint();
   }
   function paint(){
     if(!configured())return;
     const commit=$('iqcRcCommit'),sync=$('iqcRcSyncPending');if(!commit||!sync)return;
     if(!$('iqc31SubmitMessage')){
-      const n=document.createElement('p');n.id='iqc31SubmitMessage';n.className='iqc-rc-note';n.setAttribute('role','status');n.setAttribute('aria-live','polite');commit.after(n);
+      const n=document.createElement('p');n.id='iqc31SubmitMessage';n.className='iqc-rc-note';n.style.cssText='font-size:14px;color:#ffe4a3;overflow-wrap:anywhere';n.setAttribute('role','status');n.setAttribute('aria-live','polite');commit.before(n);
     }
     const ready=!!current?.batch&&current.batch.id===active(),r=ownRecord(),working=busy||ctl().isBusy();
     text($('iqcRcCommitHint'),'先預覽目前批次，核對 CTN／RT／狀態與數量後送到獨立測試表。日期與操作者由後端依登入身分建立。');
-    text(commit,'預覽並送出目前批次（測試）');commit.disabled=!configured()||working||!ready||!current.photos.length||frozen();
-    text(sync,'查收據／重試本批');sync.disabled=!configured()||working||!r;
+    text(commit,busy?'正在處理目前批次…':'預覽並送出目前批次（測試）');disabled(commit,!configured()||working||!ready||!current.photos.length||frozen());
+    text(sync,'查收據／重試本批');disabled(sync,!configured()||working||!r);
     commit.setAttribute('aria-busy',String(busy));sync.setAttribute('aria-busy',String(busy));
     if(messageBatch===active())text($('iqc31SubmitMessage'),message);
     else if(r?.status==='SYNCED')text($('iqc31SubmitMessage'),`測試表已寫入 ${r.receipt.rowCount} 筆｜${r.receipt.writtenAt}｜收據 ${r.receipt.receiptId}`);
@@ -38,7 +40,7 @@
     if(frozen()){
       ['iqcRcRegion','iqcRcAnalyze','iqc31StartTop','iqcRcCameraBtn','iqcRcGalleryBtn','iqc31BatchRename','iqc31BatchName','iqc31BatchRemove','iqcHybridSyncBtn'].forEach(id=>{if($(id))$(id).disabled=true;});
       $('iqcImageRc')?.querySelectorAll('[data-photo-delete],[data-ocr31-photo],[data-review-photo],[data-review-quality],[data-merge-rt]').forEach(b=>{b.disabled=true;});
-    }else if($('iqcRcRegion'))$('iqcRcRegion').disabled=working;
+    }else if($('iqcRcRegion'))disabled($('iqcRcRegion'),working||!ready);
   }
   async function digest(p){const bytes=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(JSON.stringify(p)));return [...new Uint8Array(bytes)].map(n=>n.toString(16).padStart(2,'0')).join('');}
   async function post(body,account,timeout=60000){
@@ -79,26 +81,37 @@
     }
   }
   async function operation(work){
-    if(busy||ctl().isBusy())return;busy=true;paint();
-    try{await ctl().submissionOperation(work);}catch(e){note(e.message||'本批尚未完成，資料仍保留。');}
+    if(busy||ctl().isBusy())return;busy=true;note('正在核對／處理目前批次，請稍候…');paint();
+    try{await ctl().submissionOperation(work);}catch(e){
+      const message=e.code==='OTHER_TAB_BUSY'?'另一個分頁正在處理此批次，請等該頁完成後再試。':e.message||'本批尚未完成，資料仍保留。';
+      if(preview&&!preview.data&&$('iqc31SubmitPreview')){
+        $('iqc31SubmitPreview').innerHTML='<h3>本批尚無法預覽</h3><p role="alert" style="color:#ffe4a3;overflow-wrap:anywhere">'+esc(message)+'</p><button id="iqc31SubmitBack" type="button" class="iqc-rc-btn">返回修改</button>';
+        $('iqc31SubmitPreview').setAttribute('aria-busy','false');reveal($('iqc31SubmitPreview'));
+      }
+      note(message,!$('iqc31SubmitPreview'));
+    }
     finally{busy=false;await refresh().catch(()=>{});await window.__DS_IQC_BATCHES31?.reload().catch(()=>note('批次清單尚未更新，請重新開啟影像頁；原資料保留。'));paint();}
   }
   function closePreview(){preview=null;$('iqc31SubmitPreview')?.remove();}
   async function openPreview(){
     if(!configured()){note('獨立測試後端尚未設定，資料保留本機。');return;}
+    if(busy||ctl().isBusy())return;
     if(window.__DS_IQC_REVIEW31?.allowLeave()===false)return;
+    closePreview();preview={batchId:active(),snapshot:null,data:null};
+    const panel=document.createElement('section');panel.id='iqc31SubmitPreview';panel.className='iqc-rc-card';panel.style.cssText='margin-top:14px;border-color:#e6ba58;scroll-margin-top:100px';
+    panel.setAttribute('aria-busy','true');panel.innerHTML='<h3>正在整理預覽…</h3><p role="status">正在讀取本機批次與歸類，尚未送出資料。</p>';
+    $('iqcRcCommit').parentElement.append(panel);reveal(panel);
     await operation(async()=>{
       context();const snapshot=await store.snapshot(active());let legacy={};try{legacy=JSON.parse(localStorage.getItem('ds_iqc_v8_meta_override_'+active())||'{}');}catch(_){}
       const data=model.draft(snapshot,legacy);
       const warning=[...data.warnings,...snapshot.photos.flatMap(p=>[...(p.rc31Quality?.unread||[]).map(r=>`第 ${p.seq} 張疑似漏讀：${r.raw}`),...(p.rc31Quality?.uncertain||[]).map(r=>`第 ${p.seq} 張請核對字元：${r.ctn}`)])];
-      closePreview();preview={snapshot,data};
-      const panel=document.createElement('section');panel.id='iqc31SubmitPreview';panel.className='iqc-rc-card';panel.style.cssText='margin-top:14px;border-color:#e6ba58;scroll-margin-top:100px';
+      preview={batchId:snapshot.batch.id,snapshot,data};
       panel.innerHTML=`<h3>本批送出預覽（獨立測試表）</h3><p>區域 ${esc(snapshot.batch.regionCode)}｜${data.items.length} 支｜重複 ${data.duplicateCount} 筆已合併</p>${warning.length?'<ul class="iqc-issue">'+warning.map(w=>'<li>'+esc(w)+'</li>').join('')+'</ul>':''}<div style="max-height:45vh;overflow:auto"><ol>${data.items.map(x=>`<li><strong>${esc(x.ctn)}</strong>　RT ${esc(x.rtNo)}　${esc(x.cylinderStatus)}</li>`).join('')}</ol></div><label style="display:flex;gap:10px;align-items:flex-start;margin:16px 0"><input id="iqc31SubmitConfirm" type="checkbox" style="width:22px;height:22px;flex:none"><span>已逐一核對 CTN 字元、歸屬與實際數量；確認送至測試表。</span></label><div class="iqc-rc-row"><button id="iqc31SubmitAccept" type="button" class="iqc-rc-btn good" disabled>確認送出測試批次</button><button id="iqc31SubmitBack" type="button" class="iqc-rc-btn">返回修改</button></div>`;
-      $('iqcRcCommit').parentElement.append(panel);panel.scrollIntoView({block:'start',behavior:'smooth'});
+      panel.setAttribute('aria-busy','false');reveal(panel);note('預覽已完成，請核對下方資料後再確認送出。');
     });
   }
   async function commit(){
-    if(!preview||!$('iqc31SubmitConfirm')?.checked)return;const saved=preview;
+    if(!preview?.data||!$('iqc31SubmitConfirm')?.checked)return;const saved=preview;
     await operation(async()=>{
       if(saved.snapshot.batch.id!==active())throw Error('目前批次已切換，請重新預覽。');
       const c=context(),p=model.payload(saved.snapshot,saved.data,'IQCIMG_TEST_'+crypto.randomUUID());
@@ -109,7 +122,8 @@
     });
   }
   function retry(){return operation(async()=>{const s=await store.snapshot(active()),r=s.submissions.find(r=>r.status!=='REJECTED');if(!r)throw Error('本批尚無送出紀錄。');await send(r,true);});}
+  function activate(id){if(busy||ctl().isBusy())return;if(id==='iqcRcCommit')return openPreview();if(id==='iqcRcSyncPending')return retry();if(id==='iqc31SubmitAccept')return commit();if(id==='iqc31SubmitBack'){closePreview();reveal($('iqcRcCommit'));}}
   document.addEventListener('change',e=>{if(e.target.id==='iqc31SubmitConfirm')$('iqc31SubmitAccept').disabled=!e.target.checked;});
-  document.addEventListener('click',e=>{const b=e.target.closest?.('#iqc31SubmitAccept,#iqc31SubmitBack');if(!b)return;e.preventDefault();if(busy)return;b.id==='iqc31SubmitAccept'?commit():closePreview();});
-  window.__DS_IQC_SUBMIT31={ready:configured,refresh,paint,openPreview,retry,frozen};
+  document.addEventListener('click',e=>{const b=e.target.closest?.('#iqc31SubmitAccept,#iqc31SubmitBack');if(!b)return;e.preventDefault();activate(b.id);});
+  window.__DS_IQC_SUBMIT31={ready:configured,refresh,paint,openPreview,retry,frozen,activate};
 })();
