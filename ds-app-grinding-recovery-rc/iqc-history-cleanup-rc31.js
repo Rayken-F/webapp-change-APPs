@@ -14,7 +14,7 @@
     if($('iqc31CleanupOptions')||!$('iqc31BatchActions'))return;
     const button=document.createElement('button');button.id='iqc31ClearAllHistoryPhotos';button.type='button';button.className='iqc-rc-btn danger';button.textContent='清除所有歷史照片';$('iqc31BatchActions').append(button);
     const box=document.createElement('div');box.id='iqc31CleanupOptions';box.style.marginTop='12px';
-    box.innerHTML='<label style="display:flex;gap:8px;align-items:center;font-size:14px"><input id="iqc31WeeklyCleanup" type="checkbox" style="appearance:auto;width:22px;height:22px;min-height:0;flex:none">每週自動清理歷史照片</label><p class="iqc-rc-note">僅清除此裝置、目前帳號已入帳批次的照片與縮圖，CTN、歸類及收據保留；照片清除後無法還原。預設關閉，啟用後每 7 天一次。頁面關閉時不執行，到期後於下次開啟影像頁且操作完成時補做。</p><p id="iqc31CleanupSchedule" class="iqc-rc-note"></p><p id="iqc31CleanupResult" class="iqc-rc-note" role="status" aria-live="polite"></p>';
+    box.innerHTML='<label style="display:flex;gap:8px;align-items:center;font-size:14px"><input id="iqc31WeeklyCleanup" type="checkbox" style="appearance:auto;width:22px;height:22px;min-height:0;flex:none">每週自動清理歷史照片</label><p id="iqc31CleanupSchedule" class="iqc-rc-note"></p><p id="iqc31CleanupResult" class="iqc-rc-note" role="status" aria-live="polite"></p>';
     $('iqc31BatchActions').after(box);
     const style=document.createElement('style');style.textContent='#iqc31BatchControls [hidden]{display:none!important}#iqc31CleanupResult{overflow-wrap:anywhere;color:#ffe4a3}';document.head.append(style);
   }
