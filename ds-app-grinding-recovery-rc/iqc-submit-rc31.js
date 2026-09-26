@@ -59,7 +59,6 @@
       const n=document.createElement('p');n.id='iqc31SubmitMessage';n.className='iqc-rc-note';n.style.cssText='font-size:14px;color:#ffe4a3;overflow-wrap:anywhere';n.setAttribute('role','status');n.setAttribute('aria-live','polite');commit.before(n);
     }
     const ready=!!current?.batch&&current.batch.id===active(),r=ownRecord(),working=busy||ctl().isBusy();
-    text($('iqcRcCommitHint'),'先預覽目前批次，核對 CTN／RT／狀態與數量後送到獨立測試表。日期與操作者由後端依登入身分建立。');
     text(commit,busy?'正在處理目前批次…':'預覽並送出目前批次（測試）');disabled(commit,!configured()||working||!ready||!current.photos.length||frozen());
     text(sync,'查收據／重試本批');disabled(sync,!configured()||working||!r);
     commit.setAttribute('aria-busy',String(busy));sync.setAttribute('aria-busy',String(busy));

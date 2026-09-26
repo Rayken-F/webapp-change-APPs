@@ -98,7 +98,7 @@ let checks=0;const ok=(label,x)=>{assert.ok(x,label);console.log('PASS '+label);
  ok('shared browser lock rejects cleanup without deleting any photos',(await assets()).find(p=>p.id==='LATER').has&&/另一分頁/.test(await page.locator('#iqc31CleanupResult').textContent()));
  await page.evaluate(()=>window.__releaseTabLock());
  await page.evaluate(()=>{const original=DS_PORTAL_BRIDGE.getSessionContext;window.__restoreContext=()=>DS_PORTAL_BRIDGE.getSessionContext=original;DS_PORTAL_BRIDGE.getSessionContext=()=>({...original(),profile:{...original().profile,user:{account:'OTHER'}}});__DS_IQC_CLEANUP31.render();});
- ok('another operator has separate default-off settings',!await page.locator('#iqc31WeeklyCleanup').isChecked()&&/已關閉/.test(await page.locator('#iqc31CleanupSchedule').textContent()));
+ ok('another operator has separate default-off settings',!await page.locator('#iqc31WeeklyCleanup').isChecked()&&await page.locator('#iqc31CleanupSchedule').textContent()===''&&!await page.locator('#iqc31CleanupSchedule').isVisible());
  await page.evaluate(()=>{window.__restoreContext();__DS_IQC_CLEANUP31.render();});
  await page.locator('#iqc31Working').click();await idle();
  ok('working returns new-batch action and hides cleanup-only controls',await page.locator('#iqcRcNewBatch').isVisible()&&!await page.locator('#iqc31ClearAllHistoryPhotos').isVisible());

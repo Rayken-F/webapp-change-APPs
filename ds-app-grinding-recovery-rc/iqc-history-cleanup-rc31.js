@@ -13,23 +13,27 @@
   function install(){
     if($('iqc31CleanupOptions')||!$('iqc31BatchActions'))return;
     const button=document.createElement('button');button.id='iqc31ClearAllHistoryPhotos';button.type='button';button.className='iqc-rc-btn danger';button.textContent='清除所有歷史照片';$('iqc31BatchActions').append(button);
-    const box=document.createElement('div');box.id='iqc31CleanupOptions';box.style.marginTop='12px';
-    box.innerHTML='<label style="display:flex;gap:8px;align-items:center;font-size:14px"><input id="iqc31WeeklyCleanup" type="checkbox" style="appearance:auto;width:22px;height:22px;min-height:0;flex:none">每週自動清理歷史照片</label><p id="iqc31CleanupSchedule" class="iqc-rc-note"></p><p id="iqc31CleanupResult" class="iqc-rc-note" role="status" aria-live="polite"></p>';
+    const option=document.createElement('label');option.id='iqc31WeeklyCleanupOption';
+    option.innerHTML='<input id="iqc31WeeklyCleanup" type="checkbox" style="appearance:auto;width:22px;height:22px;min-height:0;flex:none"><span>每週自動清理歷史照片</span>';$('iqc31BatchActions').append(option);
+    const box=document.createElement('div');box.id='iqc31CleanupOptions';
+    box.innerHTML='<p id="iqc31CleanupSchedule" class="iqc-rc-note"></p><p id="iqc31CleanupResult" class="iqc-rc-note" role="status" aria-live="polite"></p>';
     $('iqc31BatchActions').after(box);
-    const style=document.createElement('style');style.textContent='#iqc31BatchControls [hidden]{display:none!important}#iqc31CleanupResult{overflow-wrap:anywhere;color:#ffe4a3}';document.head.append(style);
+    const style=document.createElement('style');style.textContent='#iqc31BatchControls [hidden]{display:none!important}#iqc31CleanupResult{overflow-wrap:anywhere;color:#ffe4a3}#iqc31BatchActions.iqc31-history-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;align-items:stretch}#iqc31BatchActions.iqc31-history-actions>.iqc-rc-btn{min-width:0;padding:8px 5px;min-height:48px;font-size:clamp(11px,3.2vw,14px)}#iqc31WeeklyCleanupOption{display:flex;gap:6px;align-items:center;min-width:0;font-size:clamp(11px,3.2vw,14px);line-height:1.4}#iqc31CleanupOptions>p:empty{display:none}';document.head.append(style);
   }
   function render(asHistory=history,busy=ctl().isBusy()){
     history=asHistory;install();if(!$('iqc31CleanupOptions'))return;
     const a=account();if(lastAccount!==a){lastAccount=a;notice='';retryAt=0;}
-    $('iqc31ClearAllHistoryPhotos').hidden=!history;$('iqc31CleanupOptions').hidden=!history;
+    $('iqc31ClearAllHistoryPhotos').hidden=!history;$('iqc31WeeklyCleanupOption').hidden=!history;$('iqc31CleanupOptions').hidden=!history;
+    $('iqc31BatchActions').classList.toggle('iqc31-history-actions',history);
     $('iqc31ClearAllHistoryPhotos').disabled=busy||running||!a;
     $('iqc31WeeklyCleanup').disabled=busy||running||!a;
     try{const p=a?settings(a):{enabled:false};$('iqc31WeeklyCleanup').checked=p.enabled;
-      const schedule=!a?'請先登入工作台。':p.enabled?'已啟用｜下次清理：'+new Date(p.nextAt).toLocaleString('zh-TW',{hour12:false})+'（到期後開啟此頁執行）':'自動清理已關閉。';
+      const schedule=!a?'請先登入工作台。':p.enabled?'已啟用｜下次清理：'+new Date(p.nextAt).toLocaleString('zh-TW',{hour12:false})+'（到期後開啟此頁執行）':'';
       if($('iqc31CleanupSchedule').textContent!==schedule)$('iqc31CleanupSchedule').textContent=schedule;
+      $('iqc31CleanupSchedule').hidden=!schedule;
       const message=notice||p.lastResult||'';if($('iqc31CleanupResult').textContent!==message)$('iqc31CleanupResult').textContent=message;
       if(p.enabled&&p.nextAt<=Date.now()&&Date.now()>=retryAt&&shown()&&idle()&&!checkTimer)checkTimer=setTimeout(()=>{checkTimer=null;check();},0);
-    }catch(_){$('iqc31WeeklyCleanup').checked=false;$('iqc31CleanupSchedule').textContent='本機清理設定讀取失敗，未啟動自動清理。';}
+    }catch(_){$('iqc31WeeklyCleanup').checked=false;$('iqc31CleanupSchedule').hidden=false;$('iqc31CleanupSchedule').textContent='本機清理設定讀取失敗，未啟動自動清理。';}
   }
   function progress(value){notice=value;ctl().submissionStatus(value.split('。')[0]);render();}
   function valid(s,a){const r=s.submissions.find(r=>r.status==='SYNCED'),m=window.IqcSubmitModel31;
