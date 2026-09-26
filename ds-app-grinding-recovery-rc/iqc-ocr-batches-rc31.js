@@ -18,6 +18,8 @@
     $('iqcRcCommit').before(check,result);paint(controller.isBusy());
   }
   function paint(busy){
+    if($('iqcRcNewBatch'))$('iqcRcNewBatch').hidden=history;
+    window.__DS_IQC_CLEANUP31?.render(history,busy||removing);
     $('iqc31BatchControls')?.setAttribute('aria-busy',String(busy||removing));
     ['iqc31BatchName','iqc31BatchRename','iqcRcRegion','iqc31BatchRemove'].forEach(id=>{if($(id))$(id).disabled=busy||removing||!active()||history;});
     ['iqc31BatchSelect','iqc31Working','iqc31History','iqc31BatchPreflight'].forEach(id=>{if($(id))$(id).disabled=busy||removing;});
@@ -28,13 +30,14 @@
   }
   function render(){
     install();const select=$('iqc31BatchSelect');if(!select)return;const current=active();
-    if(shown!==current){history=batches.find(b=>b.id===current)?.status==='SYNCED';page=0;}
+    if(shown!==current){if(current)history=batches.find(b=>b.id===current)?.status==='SYNCED';page=0;}
     const filtered=batches.filter(b=>(b.status==='SYNCED')===history),lastPage=Math.max(0,Math.ceil(filtered.length/pageSize)-1);page=Math.min(page,lastPage);
     if(history&&current){const i=filtered.findIndex(b=>b.id===current);if(i>=0)page=Math.floor(i/pageSize);}
     const visible=history?filtered.slice(page*pageSize,(page+1)*pageSize):filtered;
     const next=JSON.stringify([current,history,page,visible.map(b=>[b.id,b.label,b.createdAt,b.status,b.rowCount,counts[b.id]])]);
     if(signature!==next){signature=next;select.replaceChildren(...visible.map(b=>{const o=document.createElement('option');o.value=b.id;o.textContent=label(b)+'｜'+(history?(b.rowCount??'?')+' 筆已入帳':b.status==='QUEUED'?'待確認':counts[b.id]?counts[b.id]+' 張':'空批次');return o;}));if(!visible.length){const o=document.createElement('option');o.value='';o.textContent=history?'尚無完成批次':'目前沒有進行中批次，請新增';select.appendChild(o);}select.value=current||'';}
     $('iqc31Working').setAttribute('aria-pressed',String(!history));$('iqc31History').setAttribute('aria-pressed',String(history));
+    const root=$('iqcImageRc');if(root&&root.dataset.history!==String(history))root.dataset.history=String(history);
     $('iqc31HistoryPage').textContent=`第 ${page+1}／${lastPage+1} 頁，共 ${filtered.length} 批`;
     if(shown!==current){shown=current;nameDirty=false;}
     if(!nameDirty)$('iqc31BatchName').value=batches.find(b=>b.id===current)?.label||'';
@@ -92,5 +95,5 @@
     const message=$('iqc31BatchMessage');message.textContent='正在儲存名稱…';
     try{await controller.renameBatch($('iqc31BatchName').value);nameDirty=false;message.textContent='批次名稱已儲存。';render();}catch(error){message.textContent=error.message||'名稱未保存，請重試。';}
   });
-  window.__DS_IQC_BATCHES31={refresh,reload,paint};
+  window.__DS_IQC_BATCHES31={refresh,reload,paint,isHistory:()=>history};
 })();

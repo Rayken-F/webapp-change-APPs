@@ -43,7 +43,7 @@
   `;document.head.append(s);}
   function history(r){
     const valid=r?.status==='SYNCED'&&model.receipt({ok:true,protocol:model.protocol,environment:model.environment,receipt:r.receipt},r),root=$('iqcImageRc');
-    if(!root)return;if(root.dataset.history!==String(!!valid))root.dataset.history=String(!!valid);
+    if(!root)return;const viewingHistory=!!valid||!!window.__DS_IQC_BATCHES31?.isHistory();if(root.dataset.history!==String(viewingHistory))root.dataset.history=String(viewingHistory);
     for(const id of ['iqcRcPhotoList','iqcRcResultList','iqcHybridSyncBtn'])$(id)?.closest('section.iqc-rc-card')?.classList.toggle('iqc31-work-only',id!=='iqcRcPhotoList'||!historyPhotos);
     $('iqcRcRegion')?.closest('.iqc-rc-grid')?.classList.add('iqc31-work-only');
     for(const id of ['iqcRcCommit','iqc31BatchPreflight','iqc31PreflightResult','iqcRcCommitHint'])$(id)?.classList.add('iqc31-work-only');
