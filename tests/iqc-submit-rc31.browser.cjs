@@ -43,7 +43,7 @@ let checks=0;const ok=(label,x)=>{assert.ok(x,label);console.log('PASS '+label);
    const id=localStorage.getItem('ds_iqc_image_rc_active_batch');await new Promise((resolve,reject)=>{const q=indexedDB.open('ds_iqc_image_rc_v1',1);q.onsuccess=()=>{const db=q.result,tx=db.transaction('photos','readwrite');tx.objectStore('photos').put({id:id+'_PHOTO',batchId:id,seq:1,status:'RECOGNIZED',updatedAt:new Date().toISOString(),ocrText:'113353 CYLINDER OCYL 7209 TOTAL 2\nAB12CDE\nFG34HIJ',rc31Image:{type:'image/png',bytes:new Uint8Array([1,2,3]).buffer}});tx.oncomplete=()=>{db.close();resolve();};tx.onabort=()=>reject(tx.error);};});await __DS_IQC_RC31.refresh();});}
  const preview=async()=>{await page.locator('#iqcRcCommit').tap();await idle();await page.locator('#iqc31SubmitPreview table').waitFor();};
  const commit=async()=>{await page.locator('#iqc31SubmitConfirm').check();await page.locator('#iqc31SubmitAccept').tap();};
- const next=async()=>{await page.locator('#iqcRcNewBatch').click();await idle();await seed();};
+ const next=async()=>{await page.locator('#iqc31Working').click();await idle();await page.locator('#iqcRcNewBatch').click();await idle();await seed();};
  ok('empty batch cannot be submitted',await page.locator('#iqcRcCommit').isDisabled());
  await seed();
  // Some mobile taps never produce the compatibility click. Exercise the completed
@@ -56,7 +56,7 @@ let checks=0;const ok=(label,x)=>{assert.ok(x,label);console.log('PASS '+label);
  await page.waitForTimeout(200);
  const bounds=await page.locator('#iqc31SubmitPreview h3').boundingBox();
  ok('preview title is visible without test code scrolling to it',bounds.y>=0&&bounds.y+bounds.height<874);
- const mutations=await page.evaluate(()=>new Promise(resolve=>{let n=0;const o=new MutationObserver(()=>n++);for(const selector of ['.iqc-rc-top h2','#iqcRcCommit'])o.observe(document.querySelector(selector),{childList:true,attributes:true,attributeFilter:['disabled']});__DS_IQC_RC31.refresh().then(()=>setTimeout(()=>{o.disconnect();resolve(n);},1100));}));ok('refresh does not toggle preview disabled or repaint stable labels',mutations===0&&/RC31.16/.test(await page.locator('.iqc-rc-top h2').textContent()));
+ const mutations=await page.evaluate(()=>new Promise(resolve=>{let n=0;const o=new MutationObserver(()=>n++);for(const selector of ['.iqc-rc-top h2','#iqcRcCommit'])o.observe(document.querySelector(selector),{childList:true,attributes:true,attributeFilter:['disabled']});__DS_IQC_RC31.refresh().then(()=>setTimeout(()=>{o.disconnect();resolve(n);},1100));}));ok('refresh does not toggle preview disabled or repaint stable labels',mutations===0&&/RC31.17/.test(await page.locator('.iqc-rc-top h2').textContent()));
  await page.screenshot({path:path.join(out,'preview.png')});await page.locator('#iqc31SubmitBack').click();ok('returning to edit has no submission',submits===0&&(await snapshot()).submissions.length===0);
  await page.locator('#iqcRcRegion').selectOption('');await page.waitForFunction(async()=>!(await IqcSubmitStore31.snapshot(localStorage.getItem('ds_iqc_image_rc_active_batch'))).batch.regionCode);
  await page.locator('#iqcRcCommit').tap();await idle();
