@@ -70,7 +70,7 @@
     if(!panel)return;
     if(window.__DS_IQC_RC31&&window.__DS_IQC_SUBMIT31?.ready()){
       const banner=panel.querySelector('.iqc-rc-banner');
-      if(banner&&!banner.dataset.dsTestIntake){banner.dataset.dsTestIntake='1';banner.textContent='RC31.17｜照片與辨識結果保留本機；目前批次經人工核對後，僅寫入獨立 IQC 測試表。';}
+      if(banner&&!banner.dataset.dsTestIntake){banner.dataset.dsTestIntake='1';banner.textContent='RC31.18｜照片與辨識結果保留本機；目前批次經人工核對後，僅寫入獨立 IQC 測試表。';}
       window.__DS_IQC_SUBMIT31.paint();return;
     }
     const banner=panel.querySelector(".iqc-rc-banner");
