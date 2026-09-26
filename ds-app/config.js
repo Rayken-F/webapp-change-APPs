@@ -15,6 +15,7 @@
     DAILY_REPORT_URL: "../ds-report-pwa/",
     GRINDING_URL: "../ds-report-pwa-beta/",
     IQC_CORRECTION_URL: "../DS-IQC-WIP/",
+    IQC_IMAGE_URL: "../DS-IQC-IMAGE/",
     OQC_SHIPPING_URL: "../DS-OQC-SHIPPING/",
     OQC_API_URL: "https://script.google.com/macros/s/AKfycby6gxD2dSO1GuP2v-zIVKQR9M5d3lI-2P48icrPoE-qAOskWK8rrtc7cVnFvh347NDTIw/exec",
 

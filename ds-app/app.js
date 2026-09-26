@@ -452,7 +452,7 @@ function applyAuthentication(result,preserveView){
   rememberVerifiedSession(result);
   hydrateUser();syncShellPermissions();showApp();hideLoading();
   // Remove frames whose permission was revoked while the app was suspended.
-  const modulePermissions={daily:"daily_report_enabled",grinding:"grinding_enabled",iqc:"iqc_correction_enabled",oqc:"stamp_shipping_enabled"};
+  const modulePermissions={daily:"daily_report_enabled",grinding:"grinding_enabled",iqc:"iqc_correction_enabled",oqc:"stamp_shipping_enabled",iqcImage:"iqc_image_enabled"};
   let activeRevoked=!permission("home_enabled")&&!$("homeModule").classList.contains("hidden");
   $("moduleFrameHost").querySelectorAll(".module-frame").forEach(frame=>{
     const key=modulePermissions[frame.dataset.moduleKey];
@@ -554,6 +554,7 @@ function renderMore(){
   const tools=[];
   // Grinding WIP 已有固定底部入口，不在「更多」重複顯示。
   if(permission("iqc_correction_enabled")) tools.push({key:"iqc",title:"IQC 異常處理",desc:"補建、修正、轉框與異常單",url:CFG.IQC_CORRECTION_URL,nav:"more"});
+  if(permission("iqc_image_enabled")) tools.push({key:"iqcImage",title:"IQC 影像辨識",desc:"Honeywell 照片辨識、歸類與 IQC 建檔",url:CFG.IQC_IMAGE_URL,nav:"more"});
   if(permission("stamp_shipping_enabled")) tools.push({key:"oqc",title:"OQC 庫存掃描／裝框",desc:"CTN 收錄、RT 更改與裝框歷史",url:CFG.OQC_SHIPPING_URL,nav:"more"});
   if(permission("inventory_enabled")) tools.push({title:"庫存盤點",desc:"中長期模組：現場實體庫存與盤點",disabled:true});
   if(permission("hr_enabled")) tools.push({title:"人事系統",desc:"已保留權限欄位，URL於整併時接入",disabled:true});
