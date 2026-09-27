@@ -4,8 +4,38 @@
 const clean=v=>String(v||" ").trim().toUpperCase();
   function normalizeCtn(raw){const original=clean(raw).replace(/[^A-Z0-9]/g,"");if(original.length!==7)return"";const a=original.split(""),lm={"0":"O","1":"I","2":"Z","5":"S","8":"B","6":"G"},dm={"O":"0","Q":"0","D":"0","I":"1","L":"1","Z":"2","S":"5","B":"8","G":"6","T":"7"};[0,1,4,5].forEach(i=>{if(/\d/.test(a[i])&&lm[a[i]])a[i]=lm[a[i]];});[2,3].forEach(i=>{if(/[A-Z]/.test(a[i])&&dm[a[i]])a[i]=dm[a[i]];});const value=a.join("");return /^[A-Z]{2}\d{2}[A-Z]{2}[A-Z0-9]$/.test(value)?value:"";}
   function normalizeRt(raw){const src=clean(raw).replace(/[^A-Z0-9]/g,""),map={"O":"0","Q":"0","D":"0","I":"1","L":"1","Z":"2","S":"5","B":"8","G":"6","T":"7"};const digits=src.split("").map(c=>/\d/.test(c)?c:(map[c]||"?")).join("");return /^\d{5,8}$/.test(digits)?digits:"";}
-  function readHeader(upper){const first=upper.match(/^\s*([A-Z0-9]{5,8})\b/);if(!first)return null;const rt=normalizeRt(first[1]);if(!rt)return null;const tokens=upper.match(/[A-Z0-9]+/g)||[];let marker=tokens.findIndex(t=>t==="CYLINDER"||t==="CYL"),status="",plant="";if(marker>=0){const a=String(tokens[marker+1]||""),b=String(tokens[marker+2]||"");if(/^[A-Z][A-Z0-9]{2,9}$/.test(a)&&!/^\d+$/.test(a))status=a;if(/^(?=.*\d)[A-Z0-9]{3,8}$/.test(b))plant=b;if(!plant&&/^(?=.*\d)[A-Z0-9]{3,8}$/.test(a)){plant=a;status="";}}else{const oi=tokens.findIndex((t,i)=>i>0&&/^(?:OCYL|MNT1|[A-Z]{2,5}\d{0,2})$/.test(t));if(oi<0)return null;status=String(tokens[oi]||"");const b=String(tokens[oi+1]||"");if(/^(?=.*\d)[A-Z0-9]{3,8}$/.test(b))plant=b;}const nums=upper.match(/\b\d{1,3}\b/g)||[];let expected=0;for(let i=nums.length-1;i>=0;i--){const n=Number(nums[i]);if(n>0&&n<=200){expected=n;break;}}return{rt,status,plant,expected};}
-  function parseText(text){const lines=String(text||"").split(/\r?\n/).map(x=>x.trim()).filter(Boolean),groups=[],leading=[];let current=null;for(const line of lines){const upper=line.toUpperCase().replace(/[|]/g," "),header=readHeader(upper);if(header){current={...header,ctns:[]};groups.push(current);continue;}if(/^RT[_\s]/.test(upper)||((upper.match(/_/g)||[]).length>=2))continue;const tokens=upper.split(/[^A-Z0-9]+/).filter(Boolean),ctns=[];tokens.forEach(token=>{const c=normalizeCtn(token);if(c&&!ctns.includes(c))ctns.push(c);});ctns.forEach(ctn=>{if(current){if(!current.ctns.includes(ctn))current.ctns.push(ctn);}else if(!leading.includes(ctn))leading.push(ctn);});}return{groups,leading};}
+  const headerWords=v=>clean(v).replace(/\bCYL[1I]NDER\b/g,"CYLINDER").replace(/[|]/g," ");
+  const markerStart=/^(?:CYLINDER|CYL|OCYL|VCYL|DCYL|MNT1)\b/;
+  function rtPrefix(value){
+    const match=headerWords(value).match(/^[^A-Z0-9]*(RT[\s:#-]+)?([0-9OQDILZSBGT]+(?:[ \t]+[0-9OQDILZSBGT]+)*)(?=\s|$)/);
+    if(!match)return null;const raw=match[2].trim(),rt=normalizeRt(raw);
+    // A CTN, date, plant or a word resembling digits is not an RT label.
+    if(!rt||(raw.match(/\d/g)||[]).length<4)return null;
+    return {rt,explicit:!!match[1],rest:headerWords(value).slice(match[0].length).trim()};
+  }
+  function readHeader(value){
+    const p=rtPrefix(value);if(!p||(!p.explicit&&!markerStart.test(p.rest)))return null;
+    const tokens=p.rest.match(/[A-Z0-9]+/g)||[];let index=/^(CYLINDER|CYL)$/.test(tokens[0]||"")?1:0,status="",plant="";
+    const a=tokens[index]||"",b=tokens[index+1]||"";
+    if(/^[A-Z][A-Z0-9]{2,9}$/.test(a)&&a!=="TOTAL")status=a;
+    if(status&&/^(?=.*\d)[A-Z0-9]{3,8}$/.test(b))plant=b;
+    if(!status&&/^(?=.*\d)[A-Z0-9]{3,8}$/.test(a))plant=a;
+    const nums=p.rest.match(/\b\d{1,3}\b/g)||[];let expected=0;
+    for(let i=nums.length-1;i>=0;i--){const n=Number(nums[i]);if(n>0&&n<=200){expected=n;break;}}
+    return {rt:p.rt,status,plant,expected};
+  }
+  function headerLines(text){
+    const lines=String(text||"").split(/\r?\n/).map(headerWords);
+    for(let i=0;i<lines.length;i++)for(let attempt=0;attempt<2;attempt++){
+      const p=rtPrefix(lines[i]);if(!p)break;
+      // Sparse OCR can separate the green RT from its black heading. Join only
+      // the immediately following non-empty heading, never across a CTN row.
+      let j=i+1;while(j<lines.length&&!lines[j])j++;
+      if(j<lines.length&&((!p.rest&&markerStart.test(lines[j]))||(/^(CYLINDER|CYL)$/.test(p.rest)&&/^(OCYL|VCYL|DCYL|MNT1)\b/.test(lines[j])))){lines[i]=lines[i]+" "+lines[j];lines[j]="";}else break;
+    }
+    return lines;
+  }
+  function parseText(text){const lines=headerLines(text),groups=[],leading=[];let current=null;for(const upper of lines){const header=readHeader(upper);if(header){current={...header,ctns:[]};groups.push(current);continue;}if(/^RT[_\s]/.test(upper)||((upper.match(/_/g)||[]).length>=2))continue;const tokens=upper.split(/[^A-Z0-9]+/).filter(Boolean),ctns=[];tokens.forEach(token=>{const c=normalizeCtn(token);if(c&&!ctns.includes(c))ctns.push(c);});ctns.forEach(ctn=>{if(current){if(!current.ctns.includes(ctn))current.ctns.push(ctn);}else if(!leading.includes(ctn))leading.push(ctn);});}return{groups,leading};}
   function sameGroup(a,b){if(!a||!b||a.rt!==b.rt)return false;if(a.status&&b.status&&a.status!==b.status)return false;if(a.plant&&b.plant&&a.plant!==b.plant)return false;return true;}
   function parseScore(parsed){const groups=parsed?.groups||[],expected=groups.filter(g=>g.expected>0).length,ctns=groups.reduce((n,g)=>n+(g.ctns||[]).length,0);return groups.length*100+expected*30+ctns*2;}
   function mergeParsedPasses(results){const passes=results.map(r=>({parsed:parseText(r?.data?.text||"")}));if(!passes.length)return"";passes.sort((a,b)=>parseScore(b.parsed)-parseScore(a.parsed));const skeleton=passes[0].parsed,groups=(skeleton.groups||[]).map(g=>({...g,ctns:Array.from(new Set(g.ctns||[]))})),candidates=new Map();const ensure=ctn=>{if(!candidates.has(ctn))candidates.set(ctn,{total:0,byGroup:new Map()});return candidates.get(ctn);};passes.forEach(({parsed})=>{(parsed.groups||[]).forEach(pg=>{const matches=groups.map((g,i)=>sameGroup(g,pg)?i:-1).filter(i=>i>=0);if(matches.length!==1)return;const gi=matches[0],dst=groups[gi];(pg.ctns||[]).forEach(ctn=>{const rec=ensure(ctn);rec.total++;rec.byGroup.set(gi,(rec.byGroup.get(gi)||0)+1);});if(!dst.expected&&pg.expected)dst.expected=pg.expected;if(!dst.status&&pg.status)dst.status=pg.status;if(!dst.plant&&pg.plant)dst.plant=pg.plant;});});groups.forEach((g,gi)=>{const selected=new Set(g.ctns),ranked=[];candidates.forEach((rec,ctn)=>{const here=rec.byGroup.get(gi)||0;if(!here)return;let bestOther=0;rec.byGroup.forEach((v,k)=>{if(k!==gi)bestOther=Math.max(bestOther,v);});if(bestOther>here)return;ranked.push({ctn,here,total:rec.total,conflict:bestOther===here&&bestOther>0});});ranked.sort((a,b)=>b.here-a.here||b.total-a.total||a.ctn.localeCompare(b.ctn));ranked.forEach(item=>{if(!item.conflict)selected.add(item.ctn);});g.ctns=Array.from(selected);});const lines=[],assigned=new Set(groups.flatMap(g=>g.ctns)),unassigned=new Set();passes.forEach(p=>p.parsed.leading.forEach(ctn=>{if(!assigned.has(ctn))unassigned.add(ctn);}));unassigned.forEach(ctn=>lines.push(ctn));groups.forEach(g=>{lines.push([g.rt,"CYLINDER",g.status||"UNKNOWN",g.plant||"UNKNOWN","TOTAL",String(g.expected||0)].join(" "));g.ctns.forEach(ctn=>lines.push(ctn));});return lines.join("\n");}
@@ -21,6 +51,40 @@ const clean=v=>String(v||" ").trim().toUpperCase();
     }
     if(leading.length)return {kind:"CONTINUATION",complete:false,groups,leading,found:leading.length,expected:0};
     return {kind:"NO_DATA",complete:false,groups,leading,found:0,expected:0};
+  }
+  function serialize(parsed){return [...parsed.leading,...parsed.groups.flatMap(g=>[[g.rt,"CYLINDER",g.status||"UNKNOWN",g.plant||"UNKNOWN","TOTAL",g.expected||0].join(" "),...g.ctns])].join("\n");}
+  // Keep metadata from another pass of this SAME photo when a later image
+  // transform improves CTN recall. Require exact CTN evidence; never borrow an
+  // RT from another photo or apply one heading to unrelated leading cylinders.
+  function restoreMetadata(text,results){
+    const parsed=parseText(text),evidence=new Map();
+    results.forEach(r=>parseText(r?.data?.text).groups.forEach(g=>g.ctns.forEach(ctn=>{
+      if(!evidence.has(ctn))evidence.set(ctn,[]);evidence.get(ctn).push(g);
+    })));
+    parsed.leading=parsed.leading.filter(ctn=>{
+      const choices=evidence.get(ctn)||[];if(!choices.length)return true;
+      const meta={ctns:[]};
+      for(const key of ['rt','status','plant']){
+        const values=[...new Set(choices.map(g=>g[key]).filter(v=>v&&v!=="UNKNOWN"))];if(values.length>1)return true;meta[key]=values[0]||"";
+      }
+      meta.expected=choices.find(g=>g.expected>0)?.expected||0;
+      let dst=parsed.groups.find(g=>sameGroup(g,meta));if(!dst){dst=meta;parsed.groups.push(dst);}
+      if(!dst.ctns.includes(ctn))dst.ctns.push(ctn);return false;
+    });
+    parsed.groups.forEach(g=>{
+      const choices=g.ctns.flatMap(ctn=>evidence.get(ctn)||[]).filter(other=>sameGroup(g,other));
+      for(const key of ['status','plant','expected']){
+        if(g[key]&&g[key]!=="UNKNOWN")continue;
+        const values=[...new Set(choices.map(other=>other[key]).filter(v=>v&&v!=="UNKNOWN"))];if(values.length===1)g[key]=values[0];
+      }
+    });
+    return serialize(parsed);
+  }
+  function needsHeaderPass(text,results){
+    if(!parseText(text).leading.length)return false;
+    // One bounded extra pass for a visible heading clue; plain continuation
+    // photos do not incur extra OCR work merely because they have no RT.
+    return results.some(r=>/\b(?:CYL[1I]NDER|CYL|OCYL|VCYL|DCYL|MNT1)\b|\bRT[\s:#-]+[0-9]/.test(clean(r?.data?.text)));
   }
   // Missing grouping metadata is a review task, not evidence that OCR must run again.
   // Retry only when no CTNs were extracted or a visible total indicates missing CTNs.
@@ -87,7 +151,7 @@ const clean=v=>String(v||" ").trim().toUpperCase();
     return {text:mergeParsedPasses(passes),unread,uncertain};
   }
 
-  function parseEvents(text){const events=[];String(text||"").split(/\r?\n/).map(x=>x.trim()).filter(Boolean).forEach((line,lineIndex)=>{const upper=clean(line).replace(/[|]/g," "),h=readHeader(upper);if(h){events.push({type:"header",rt:h.rt,expected:h.expected,line:upper,lineIndex});return;}if(/^RT[_\s]/.test(upper)||((upper.match(/_/g)||[]).length>=2))return;upper.split(/[^A-Z0-9]+/).filter(Boolean).forEach(token=>{const ctn=normalizeCtn(token);if(ctn)events.push({type:"ctn",ctn,raw:token,corrected:ctn!==token,lineIndex});});});return events;}
+  function parseEvents(text){const events=[];headerLines(text).forEach((upper,lineIndex)=>{const h=readHeader(upper);if(h){events.push({type:"header",rt:h.rt,expected:h.expected,line:upper,lineIndex});return;}if(/^RT[_\s]/.test(upper)||((upper.match(/_/g)||[]).length>=2))return;upper.split(/[^A-Z0-9]+/).filter(Boolean).forEach(token=>{const ctn=normalizeCtn(token);if(ctn)events.push({type:"ctn",ctn,raw:token,corrected:ctn!==token,lineIndex});});});return events;}
 
 
   async function createBitmap(blob){if(typeof createImageBitmap==="function"){try{return await createImageBitmap(blob,{imageOrientation:"from-image"});}catch(_){ }}return new Promise((resolve,reject)=>{const img=new Image(),url=URL.createObjectURL(blob);img.onload=()=>{URL.revokeObjectURL(url);resolve(img);};img.onerror=()=>{URL.revokeObjectURL(url);reject(Object.assign(new Error("DECODE_ERROR"),{code:"DECODE_ERROR"}));};img.src=url;});}
@@ -138,6 +202,18 @@ const clean=v=>String(v||" ").trim().toUpperCase();
       return await new Promise(resolve=>canvas.toBlob(resolve,'image/png'));
     }finally{source?.close?.();if(small)small.width=small.height=1;if(canvas)canvas.width=canvas.height=1;}
   }
-const api={parseText,normalizeCtn,parseEvents,mergeParsedPasses,structuralState,qualityLabel,needsSparse,needsHighContrast,ctnRows,needsRowCheck,reconcileRows,preprocessForOcr,makeVariant,makeScreenReadable,makeTextRegion};
+  // Enlarge the upper screen without trimming the left edge where Honeywell
+  // displays green RT digits. The red channel preserves their contrast.
+  async function makeHeaderRegion(blob){
+    let source,canvas;try{
+      source=await createBitmap(blob);const sw=source.width||source.naturalWidth,sh=source.height||source.naturalHeight,ch=Math.ceil(sh*.5),scale=Math.min(2,2000/sw);
+      canvas=document.createElement('canvas');canvas.width=Math.round(sw*scale)+32;canvas.height=Math.round(ch*scale)+32;
+      const ctx=canvas.getContext('2d',{willReadFrequently:true,alpha:false});ctx.fillStyle='white';ctx.fillRect(0,0,canvas.width,canvas.height);ctx.drawImage(source,0,0,sw,ch,16,16,canvas.width-32,canvas.height-32);
+      const pixels=ctx.getImageData(0,0,canvas.width,canvas.height),d=pixels.data;
+      for(let i=0;i<d.length;i+=4){const v=d[i];d[i]=d[i+1]=d[i+2]=v;}
+      ctx.putImageData(pixels,0,0);return await new Promise(resolve=>canvas.toBlob(resolve,'image/png'));
+    }finally{source?.close?.();if(canvas)canvas.width=canvas.height=1;}
+  }
+const api={parseText,normalizeCtn,parseEvents,mergeParsedPasses,restoreMetadata,needsHeaderPass,structuralState,qualityLabel,needsSparse,needsHighContrast,ctnRows,needsRowCheck,reconcileRows,preprocessForOcr,makeVariant,makeScreenReadable,makeTextRegion,makeHeaderRegion};
 if(typeof module==="object"&&module.exports)module.exports=api;else window.IqcOcrRules31=api;
 })();
