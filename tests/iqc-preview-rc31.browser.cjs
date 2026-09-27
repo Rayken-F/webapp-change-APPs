@@ -1,6 +1,6 @@
 const fs=require('fs'),http=require('http'),path=require('path'),assert=require('assert/strict');
 const {chromium,webkit}=require(process.env.PLAYWRIGHT_MODULE||'playwright');
-const root=path.resolve(__dirname,'..'),artifacts=fs.mkdtempSync(path.join(require('os').tmpdir(),'iqc-rc3122-preview-'));console.log('ARTIFACTS '+artifacts);let checks=0;
+const root=path.resolve(__dirname,'..'),artifacts=fs.mkdtempSync(path.join(require('os').tmpdir(),'iqc-rc3123-preview-'));console.log('ARTIFACTS '+artifacts);let checks=0;
 const ok=(label,value)=>{assert.ok(value,label);checks++;console.log('PASS '+label)};
 const dbPhotos=page=>page.evaluate(()=>new Promise((resolve,reject)=>{const r=indexedDB.open('ds_iqc_image_rc_v1',1);r.onerror=()=>reject(r.error);r.onsuccess=()=>{const db=r.result,tx=db.transaction('photos'),q=tx.objectStore('photos').index('batchId').getAll(localStorage.getItem('ds_iqc_image_rc_active_batch'));q.onsuccess=()=>resolve(q.result.sort((a,b)=>a.seq-b.seq).map(({blob,...p})=>p));tx.oncomplete=()=>db.close();};}));
 (async()=>{
@@ -82,7 +82,7 @@ const dbPhotos=page=>page.evaluate(()=>new Promise((resolve,reject)=>{const r=in
  await page.locator('#iqc31ReviewEditor [data-preview-photo]').tap();
  await page.locator('#iqc31PhotoPreview img').evaluate(img=>img.decode());
  const fits=()=>page.evaluate(()=>{const panel=document.getElementById('iqc31PhotoPreview').getBoundingClientRect(),image=document.querySelector('#iqc31PhotoPreview img').getBoundingClientRect(),close=document.querySelector('[data-preview-close]').getBoundingClientRect();return image.top>=panel.top&&image.left>=panel.left&&image.right<=panel.right+1&&close.bottom<=panel.bottom&&close.top>=image.bottom;});
- ok('saved CTN correction opens its photo with the close button below',await fits());
+ ok('saved CTN correction opens an inline centered photo with close below',await fits()&&await page.evaluate(()=>{const p=document.getElementById('iqc31PhotoPreview'),img=p.querySelector('img').getBoundingClientRect(),box=p.getBoundingClientRect();return p.parentElement.id==='iqc31ReviewEditor'&&getComputedStyle(p).position==='static'&&!p.hasAttribute('aria-modal')&&Math.abs((img.left+img.right-box.left-box.right)/2)<2;}));
  await page.screenshot({path:path.join(artifacts,'after-edit-preview.png')});
  const changes=await page.evaluate(async()=>{let mutations=0;const o=new MutationObserver(records=>mutations+=records.length);o.observe(document.getElementById('iqc31PhotoPreview'),{attributes:true,subtree:true});for(let i=0;i<200;i++){visualViewport.dispatchEvent(new Event('resize'));visualViewport.dispatchEvent(new Event('scroll'));}await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));o.disconnect();return mutations;});
  ok('unchanged viewport events do not repeatedly rewrite viewer geometry',changes===0);
@@ -92,10 +92,10 @@ const dbPhotos=page=>page.evaluate(()=>new Promise((resolve,reject)=>{const r=in
  await page.locator('[aria-label="核對 CTN"]').first().fill('AB72CDE');
  await page.evaluate(()=>{window.__previewViewport={height:350,width:402,offsetTop:120,offsetLeft:0};for(const key of Object.keys(window.__previewViewport))Object.defineProperty(visualViewport,key,{configurable:true,get:()=>window.__previewViewport[key]});document.querySelector('#iqc31ReviewEditor [data-preview-photo]').click();});
  await page.locator('#iqc31PhotoPreview img').waitFor();
- ok('opening from focused input moves focus out of the editing keyboard',await page.evaluate(()=>document.activeElement.hasAttribute('data-preview-close')));
+ ok('opening from focused input dismisses editing without forcing focus to a modal',await page.evaluate(()=>!document.activeElement.matches('input,textarea,select')&&document.querySelector('#iqc31PhotoPreview').getAttribute('role')==='region'));
  ok('photo and close button fit the reduced keyboard viewport',await fits());
  await page.evaluate(()=>{window.__previewViewport.height=874;window.__previewViewport.offsetTop=0;visualViewport.dispatchEvent(new Event('resize'));});
- await page.waitForFunction(()=>document.getElementById('iqc31PhotoPreview').clientHeight===874);
+ await page.waitForTimeout(100);
  ok('viewer follows keyboard dismissal without scrolling or losing the form',await fits());
  await page.locator('[data-preview-close]').tap();
  ok('unsaved CTN text remains in the same editor after viewing',await page.locator('[aria-label="核對 CTN"]').first().inputValue()==='AB72CDE'&&JSON.stringify((await dbPhotos(page))[5].rc31Review)===JSON.stringify(saved.rc31Review));
@@ -103,7 +103,7 @@ const dbPhotos=page=>page.evaluate(()=>new Promise((resolve,reject)=>{const r=in
  await context.setOffline(true);
  await page.locator('#iqc31ReviewEditor [data-preview-photo]').tap();await page.locator('#iqc31PhotoPreview img').waitFor();
  ok('photo opens offline without any OCR or backend request',await fits());
- await page.setViewportSize({width:874,height:402});await page.waitForFunction(()=>document.getElementById('iqc31PhotoPreview').clientHeight===402);
+ await page.setViewportSize({width:874,height:402});await page.waitForTimeout(100);
  ok('landscape photo keeps its close button visible',await fits());
  await page.keyboard.press('Escape');await context.setOffline(false);await page.setViewportSize({width:402,height:874});
  // A malformed image must have a bounded error state, never an invisible trap.
@@ -125,9 +125,32 @@ const dbPhotos=page=>page.evaluate(()=>new Promise((resolve,reject)=>{const r=in
  await page.locator('#iqc31ReviewEditor [data-preview-photo]').tap();
  await page.waitForFunction(()=>document.querySelector('#iqc31PhotoPreview [role="status"]')?.textContent.includes('逾時'),null,{timeout:18000});
  ok('stalled photo read times out with a working close button',await page.locator('[data-preview-close]').isVisible());
+ await page.locator('#iqcRcClose').tap();
+ ok('main close remains tappable while photo reading has failed',await page.locator('#iqcImageRc').isHidden()&&await page.locator('#iqc31PhotoPreview').count()===0);
+ await page.locator('#iqcImageRcTool').click();await idle();
+ await page.locator('[data-review-quality="'+selected.id+'"]').tap();
+ await page.locator('#iqc31ReviewEditor [data-preview-photo]').tap();
+ await page.locator('#iqcRcClose').tap();
+ ok('main close works before a stalled photo read completes',await page.locator('#iqcImageRc').isHidden()&&await page.locator('#iqc31PhotoPreview').count()===0);
+ await page.locator('#iqcImageRcTool').click();await idle();
+ await page.locator('[data-review-quality="'+selected.id+'"]').tap();
+ await page.locator('[aria-label="核對 CTN"]').first().fill('AB72CDE');
+ await page.locator('#iqc31ReviewEditor [data-preview-photo]').tap();
  await page.locator('[data-preview-close]').tap();await page.evaluate(()=>{window.__DS_IQC_RC31.readPhoto=window.__previewRead;});
  for(let i=0;i<5;i++){await page.locator('#iqc31ReviewEditor [data-preview-photo]').tap();await page.locator('#iqc31PhotoPreview img').waitFor();await page.locator('[data-preview-close]').tap();}
  ok('repeated open and close retains form, saved correction and original image',await page.locator('[aria-label="核對 CTN"]').first().inputValue()==='AB72CDE'&&await imageHash()===beforeHash);
+ // Gallery entry must use the same non-blocking flow, even with a live editor.
+ await page.locator('.iqc-photo [data-preview-photo]').first().tap();await page.locator('#iqc31PhotoPreview img').waitFor();
+ ok('gallery opens inline within the photo list and keeps main close usable',await page.evaluate(()=>document.getElementById('iqc31PhotoPreview').parentElement.id==='iqcRcPhotoList'));
+ await page.locator('#iqcRcClose').tap();
+ ok('main close removes an already loaded photo without blocking',await page.locator('#iqcImageRc').isHidden()&&await page.locator('#iqc31PhotoPreview').count()===0);
+ await page.locator('#iqcImageRcTool').click();await idle();
+ await page.locator('[data-review-quality="'+selected.id+'"]').tap();
+ await page.locator('#iqc31ReviewEditor [data-preview-photo]').tap();await page.locator('#iqc31PhotoPreview img').waitFor();
+ const closedBefore=await page.evaluate(()=>__DS_IQC_RC31.diagnostics().events.filter(e=>e.stage==='photo_preview'&&e.outcome==='closed').length);
+ await page.locator('[data-review-close]').tap();
+ await page.waitForFunction(n=>__DS_IQC_RC31.diagnostics().events.filter(e=>e.stage==='photo_preview'&&e.outcome==='closed').length>n,closedBefore);
+ ok('closing the editor also releases its embedded photo',await page.locator('#iqc31PhotoPreview').count()===0);
  await page.reload();await page.locator('#appShell').waitFor({state:'visible'});await page.locator('#navMore').click();await page.locator('#iqcImageRcTool').click();await idle();
  await page.locator('[data-review-quality="'+selected.id+'"]').tap();
  ok('reload preserves the saved correction and original OCR, not an unsaved draft',await page.locator('[aria-label="核對 CTN"]').first().inputValue()==='AB62CDE'&&(await dbPhotos(page))[5].ocrText===saved.ocrText);
