@@ -8,7 +8,10 @@ const clean=v=>String(v||" ").trim().toUpperCase();
   const markerStart=/^(?:CYLINDER|CYL|OCYL|VCYL|DCYL|MNT1)\b/;
   function rtPrefix(value){
     const match=headerWords(value).match(/^[^A-Z0-9]*(RT[\s:#-]+)?([0-9OQDILZSBGT]+(?:[ \t]+[0-9OQDILZSBGT]+)*)(?=\s|$)/);
-    if(!match)return null;const raw=match[2].trim(),rt=normalizeRt(raw);
+    if(!match)return null;const raw=match[2].trim(),parts=raw.split(/\s+/),rt=normalizeRt(raw);
+    // A complete RT beside a separate digit must not be concatenated with it.
+    // The positioned OCR path can distinguish a nearby split token from noise.
+    if(parts.length>1&&parts.some(p=>normalizeRt(p)))return null;
     // A CTN, date, plant or a word resembling digits is not an RT label.
     if(!rt||(raw.match(/\d/g)||[]).length<4)return null;
     return {rt,explicit:!!match[1],rest:headerWords(value).slice(match[0].length).trim()};
@@ -17,7 +20,7 @@ const clean=v=>String(v||" ").trim().toUpperCase();
     const p=rtPrefix(value);if(!p||(!p.explicit&&!markerStart.test(p.rest)))return null;
     const tokens=p.rest.match(/[A-Z0-9]+/g)||[];let index=/^(CYLINDER|CYL)$/.test(tokens[0]||"")?1:0,status="",plant="";
     const a=tokens[index]||"",b=tokens[index+1]||"";
-    if(/^[A-Z][A-Z0-9]{2,9}$/.test(a)&&a!=="TOTAL")status=a;
+    if((/^[A-Z][A-Z0-9]{2,9}$/.test(a)&&a!=="TOTAL")||(index===1&&/^\d{4}$/.test(a)&&/^(?=.*\d)[A-Z0-9]{3,8}$/.test(b)))status=a;
     if(status&&/^(?=.*\d)[A-Z0-9]{3,8}$/.test(b))plant=b;
     if(!status&&/^(?=.*\d)[A-Z0-9]{3,8}$/.test(a))plant=a;
     const nums=p.rest.match(/\b\d{1,3}\b/g)||[];let expected=0;
@@ -38,7 +41,7 @@ const clean=v=>String(v||" ").trim().toUpperCase();
   function parseText(text){const lines=headerLines(text),groups=[],leading=[];let current=null;for(const upper of lines){const header=readHeader(upper);if(header){current={...header,ctns:[]};groups.push(current);continue;}if(/^RT[_\s]/.test(upper)||((upper.match(/_/g)||[]).length>=2))continue;const tokens=upper.split(/[^A-Z0-9]+/).filter(Boolean),ctns=[];tokens.forEach(token=>{const c=normalizeCtn(token);if(c&&!ctns.includes(c))ctns.push(c);});ctns.forEach(ctn=>{if(current){if(!current.ctns.includes(ctn))current.ctns.push(ctn);}else if(!leading.includes(ctn))leading.push(ctn);});}return{groups,leading};}
   function sameGroup(a,b){if(!a||!b||a.rt!==b.rt)return false;if(a.status&&b.status&&a.status!==b.status)return false;if(a.plant&&b.plant&&a.plant!==b.plant)return false;return true;}
   function parseScore(parsed){const groups=parsed?.groups||[],expected=groups.filter(g=>g.expected>0).length,ctns=groups.reduce((n,g)=>n+(g.ctns||[]).length,0);return groups.length*100+expected*30+ctns*2;}
-  function mergeParsedPasses(results){const passes=results.map(r=>({parsed:parseText(r?.data?.text||"")}));if(!passes.length)return"";passes.sort((a,b)=>parseScore(b.parsed)-parseScore(a.parsed));const skeleton=passes[0].parsed,groups=(skeleton.groups||[]).map(g=>({...g,ctns:Array.from(new Set(g.ctns||[]))})),candidates=new Map();const ensure=ctn=>{if(!candidates.has(ctn))candidates.set(ctn,{total:0,byGroup:new Map()});return candidates.get(ctn);};passes.forEach(({parsed})=>{(parsed.groups||[]).forEach(pg=>{const matches=groups.map((g,i)=>sameGroup(g,pg)?i:-1).filter(i=>i>=0);if(matches.length!==1)return;const gi=matches[0],dst=groups[gi];(pg.ctns||[]).forEach(ctn=>{const rec=ensure(ctn);rec.total++;rec.byGroup.set(gi,(rec.byGroup.get(gi)||0)+1);});if(!dst.expected&&pg.expected)dst.expected=pg.expected;if(!dst.status&&pg.status)dst.status=pg.status;if(!dst.plant&&pg.plant)dst.plant=pg.plant;});});groups.forEach((g,gi)=>{const selected=new Set(g.ctns),ranked=[];candidates.forEach((rec,ctn)=>{const here=rec.byGroup.get(gi)||0;if(!here)return;let bestOther=0;rec.byGroup.forEach((v,k)=>{if(k!==gi)bestOther=Math.max(bestOther,v);});if(bestOther>here)return;ranked.push({ctn,here,total:rec.total,conflict:bestOther===here&&bestOther>0});});ranked.sort((a,b)=>b.here-a.here||b.total-a.total||a.ctn.localeCompare(b.ctn));ranked.forEach(item=>{if(!item.conflict)selected.add(item.ctn);});g.ctns=Array.from(selected);});const lines=[],assigned=new Set(groups.flatMap(g=>g.ctns)),unassigned=new Set();passes.forEach(p=>p.parsed.leading.forEach(ctn=>{if(!assigned.has(ctn))unassigned.add(ctn);}));unassigned.forEach(ctn=>lines.push(ctn));groups.forEach(g=>{lines.push([g.rt,"CYLINDER",g.status||"UNKNOWN",g.plant||"UNKNOWN","TOTAL",String(g.expected||0)].join(" "));g.ctns.forEach(ctn=>lines.push(ctn));});return lines.join("\n");}
+  function mergeParsedPasses(results){const passes=results.map(r=>({parsed:parseText(r?.data?.text||"")}));if(!passes.length)return"";passes.sort((a,b)=>parseScore(b.parsed)-parseScore(a.parsed));const skeleton=passes[0].parsed,groups=(skeleton.groups||[]).map(g=>({...g,ctns:Array.from(new Set(g.ctns||[]))})),candidates=new Map();const ensure=ctn=>{if(!candidates.has(ctn))candidates.set(ctn,{total:0,byGroup:new Map()});return candidates.get(ctn);};passes.forEach(({parsed})=>{(parsed.groups||[]).forEach(pg=>{const matches=groups.map((g,i)=>sameGroup(g,pg)?i:-1).filter(i=>i>=0);if(matches.length!==1)return;const gi=matches[0],dst=groups[gi];(pg.ctns||[]).forEach(ctn=>{const rec=ensure(ctn);rec.total++;rec.byGroup.set(gi,(rec.byGroup.get(gi)||0)+1);});if(!dst.expected&&pg.expected)dst.expected=pg.expected;if(!dst.status&&pg.status)dst.status=pg.status;if(!dst.plant&&pg.plant)dst.plant=pg.plant;});});groups.forEach((g,gi)=>{const selected=new Set(g.ctns),ranked=[];candidates.forEach((rec,ctn)=>{const here=rec.byGroup.get(gi)||0;if(!here)return;let bestOther=0;rec.byGroup.forEach((v,k)=>{if(k!==gi)bestOther=Math.max(bestOther,v);});if(bestOther>here)return;ranked.push({ctn,here,total:rec.total,conflict:bestOther===here&&bestOther>0});});ranked.sort((a,b)=>b.here-a.here||b.total-a.total||a.ctn.localeCompare(b.ctn));ranked.forEach(item=>{if(!item.conflict)selected.add(item.ctn);});g.ctns=Array.from(selected);});const lines=[],assigned=new Set(groups.flatMap(g=>g.ctns)),unassigned=new Set();passes.forEach(p=>[...p.parsed.leading,...p.parsed.groups.flatMap(g=>g.ctns)].forEach(ctn=>{if(!assigned.has(ctn))unassigned.add(ctn);}));unassigned.forEach(ctn=>lines.push(ctn));groups.forEach(g=>{lines.push([g.rt,"CYLINDER",g.status||"UNKNOWN",g.plant||"UNKNOWN","TOTAL",String(g.expected||0)].join(" "));g.ctns.forEach(ctn=>lines.push(ctn));});return lines.join("\n");}
 
   function structuralState(text){
     const parsed=parseText(text),groups=parsed.groups||[],leading=parsed.leading||[];
@@ -53,9 +56,8 @@ const clean=v=>String(v||" ").trim().toUpperCase();
     return {kind:"NO_DATA",complete:false,groups,leading,found:0,expected:0};
   }
   function serialize(parsed){return [...parsed.leading,...parsed.groups.flatMap(g=>[[g.rt,"CYLINDER",g.status||"UNKNOWN",g.plant||"UNKNOWN","TOTAL",g.expected||0].join(" "),...g.ctns])].join("\n");}
-  // Keep metadata from another pass of this SAME photo when a later image
-  // transform improves CTN recall. Require exact CTN evidence; never borrow an
-  // RT from another photo or apply one heading to unrelated leading cylinders.
+  // First retain exact-CTN metadata from this photo; then use positioned header
+  // boundaries to recover lower rows outside a crop. Never borrow another photo.
   function restoreMetadata(text,results){
     const parsed=parseText(text),evidence=new Map();
     results.forEach(r=>parseText(r?.data?.text).groups.forEach(g=>g.ctns.forEach(ctn=>{
@@ -78,7 +80,79 @@ const clean=v=>String(v||" ").trim().toUpperCase();
         const values=[...new Set(choices.map(other=>other[key]).filter(v=>v&&v!=="UNKNOWN"))];if(values.length===1)g[key]=values[0];
       }
     });
-    return serialize(parsed);
+    return restoreSpatialMetadata(serialize(parsed),results);
+  }
+  const ocrLines=r=>(r?.data?.blocks||[]).flatMap(b=>(b.paragraphs||[]).flatMap(p=>p.lines||[]));
+  const center=b=>(b.y0+b.y1)/2;
+  const known=v=>v&&v!=="UNKNOWN";
+  // Each header is a boundary on this photo, including headers whose RT failed
+  // to read. Unknown boundaries prevent cylinders leaking into the previous RT.
+  function spatialHeaders(results){
+    const headers=[];
+    for(const result of results){
+      if(result.rc31Space===false)continue;
+      const lines=ocrLines(result),words=lines.flatMap(line=>(line.words||[]).map(word=>({...word,line}))).filter(w=>w.bbox);
+      for(const anchor of words.filter(w=>/^(CYLINDER|CYL)$/.test(headerWords(w.text)))){
+        const a=anchor.bbox,h=a.y1-a.y0;if(h<=0)continue;
+        const near=words.filter(w=>Math.abs(center(w.bbox)-center(a))<h*1.2||w.line===anchor.line);
+        const left=near.filter(w=>w.bbox.x1<a.x0&&a.x0-w.bbox.x1<h*10&&w.bbox.y1-w.bbox.y0<h*1.8&&/^[0-9OQDILZSBGT]+$/.test(clean(w.text))).sort((x,y)=>y.bbox.x1-x.bbox.x1);
+        let rt="",rtBox=null;
+        if(left.length){
+          let raw=clean(left[0].text),box={...left[0].bbox};
+          for(let j=1;j<left.length&&j<3;j++){
+            const prev=left[j].bbox;if(box.x0-prev.x1>h*.6)break;
+            raw=clean(left[j].text)+raw;box.x0=prev.x0;box.y0=Math.min(box.y0,prev.y0);box.y1=Math.max(box.y1,prev.y1);
+          }
+          if(normalizeRt(raw)&&(raw.match(/\d/g)||[]).length>=4){rt=normalizeRt(raw);rtBox=box;}
+        }
+        const right=near.filter(w=>w.bbox.x0>=a.x1&&w.bbox.x0-a.x1<h*35&&!String(w.text).includes('_')).sort((x,y)=>x.bbox.x0-y.bbox.x0);
+        const tokens=right.map(w=>clean(w.text));
+        if(tokens[1]?.length===2&&tokens[2]?.length===2&&/^[A-Z0-9]{4}$/.test(tokens[1]+tokens[2])&&right[2].bbox.x0-right[1].bbox.x1<h*.8)tokens.splice(1,2,tokens[1]+tokens[2]);
+        const meta=readHeader((rt||'99999')+' CYLINDER '+tokens.join(' '))||{};meta.rt=rt;
+        let dst=headers.find(g=>sameRow(g.bbox,a));
+        if(!dst){dst={bbox:{...a},readings:[]};headers.push(dst);}
+        dst.readings.push({meta,rtBox,focused:!!result.rc31HeaderOnly});
+      }
+    }
+    for(const r of results){if(r.rc31RtReading){const dst=headers.find(h=>sameRow(h.bbox,r.rc31RtReading.bbox));if(dst&&r.rc31RtReading.rt)dst.readings.push({meta:{rt:r.rc31RtReading.rt},focused:true});}}
+    for(const header of headers){
+      header.meta={};header.conflict=false;
+      for(const key of ['rt','status','plant','expected']){
+        let rows=header.readings.filter(r=>known(r.meta[key]));
+        if(rows.some(r=>r.focused))rows=rows.filter(r=>r.focused);
+        const values=[...new Set(rows.map(r=>r.meta[key]))];
+        header.meta[key]=values.length===1?values[0]:key==='expected'?0:'';
+        if(values.length>1)header.conflict=true;
+      }
+    }
+    return headers.sort((a,b)=>center(a.bbox)-center(b.bbox));
+  }
+  function restoreSpatialMetadata(text,results){
+    const headers=spatialHeaders(results);if(!headers.length)return text;
+    const parsed=parseText(text),ctns=[...new Set([...parsed.leading,...parsed.groups.flatMap(g=>g.ctns)])];
+    const rows=results.filter(r=>r.rc31Space!==false&&!r.rc31HeaderOnly).flatMap(ctnRows).filter(r=>r.ctn&&r.bbox);
+    if(!rows.length)return text;
+    const leading=[],groups=headers.map(h=>({...h.meta,ctns:[]}));
+    for(const ctn of ctns){
+      const positions=rows.filter(r=>r.ctn===ctn),owners=new Set(positions.map(r=>headers.findLastIndex(h=>center(r.bbox)>center(h.bbox))));
+      if(!positions.length){const old=parsed.groups.find(g=>g.ctns.includes(ctn));if(old){let g=groups.find(g=>g.rt&&sameGroup(g,old));if(!g){g={...old,ctns:[]};groups.push(g);}g.ctns.push(ctn);}else leading.push(ctn);continue;}
+      const index=[...owners][0];
+      if(owners.size!==1||index<0||!groups[index].rt){leading.push(ctn);continue;}
+      groups[index].ctns.push(ctn);
+    }
+    return serialize({leading,groups:groups.filter(g=>g.ctns.length)});
+  }
+  function headerTargets(results){
+    const headers=spatialHeaders(results),rows=results.filter(r=>r.rc31Space!==false&&!r.rc31HeaderOnly).flatMap(ctnRows).filter(r=>r.ctn&&r.bbox);
+    return headers.filter((h,i)=>{
+      const below=new Set(rows.filter(r=>center(r.bbox)>center(h.bbox)&&(!headers[i+1]||center(r.bbox)<center(headers[i+1].bbox))).map(r=>r.ctn));
+      return !h.meta.rt||!h.meta.status||!h.meta.plant||!h.meta.expected||h.conflict||below.size>h.meta.expected;
+    }).slice(0,4);
+  }
+  function lateOnlyRows(results,height){
+    if(spatialHeaders(results).length)return false;
+    const rows=results.filter(r=>r.rc31Space!==false).flatMap(ctnRows).filter(r=>r.ctn&&r.bbox);
+    return height>0&&rows.length>0&&Math.min(...rows.map(r=>r.bbox.y0))>height*.5;
   }
   function needsHeaderPass(text,results){
     if(!parseText(text).leading.length)return false;
@@ -155,7 +229,7 @@ const clean=v=>String(v||" ").trim().toUpperCase();
 
 
   async function createBitmap(blob){if(typeof createImageBitmap==="function"){try{return await createImageBitmap(blob,{imageOrientation:"from-image"});}catch(_){ }}return new Promise((resolve,reject)=>{const img=new Image(),url=URL.createObjectURL(blob);img.onload=()=>{URL.revokeObjectURL(url);resolve(img);};img.onerror=()=>{URL.revokeObjectURL(url);reject(Object.assign(new Error("DECODE_ERROR"),{code:"DECODE_ERROR"}));};img.src=url;});}
-  async function preprocessForOcr(blob){let b=null,c=null;try{b=await createBitmap(blob);c=document.createElement("canvas");c.width=b.width;c.height=b.height;const ctx=c.getContext("2d",{willReadFrequently:true,alpha:false});ctx.drawImage(b,0,0);try{b.close?.();}catch(_){ }b=null;const im=ctx.getImageData(0,0,c.width,c.height),d=im.data;for(let i=0;i<d.length;i+=4){const y=.299*d[i]+.587*d[i+1]+.114*d[i+2],v=Math.max(0,Math.min(255,(y-128)*1.28+138));d[i]=d[i+1]=d[i+2]=v;}ctx.putImageData(im,0,0);return await new Promise(resolve=>c.toBlob(x=>resolve(x||blob),"image/jpeg",.86));}finally{try{b?.close?.();}catch(_){ }if(c){c.width=1;c.height=1;c.remove();}b=null;c=null;}}
+  async function preprocessForOcr(blob){let b=null,c=null;try{b=await createBitmap(blob);c=document.createElement("canvas");c.width=b.width;c.height=b.height;const ctx=c.getContext("2d",{willReadFrequently:true,alpha:false});ctx.drawImage(b,0,0);try{b.close?.();}catch(_){ }b=null;const im=ctx.getImageData(0,0,c.width,c.height),d=im.data;for(let i=0;i<d.length;i+=4){const y=.299*d[i]+.587*d[i+1]+.114*d[i+2],v=Math.max(0,Math.min(255,(y-128)*1.28+138));d[i]=d[i+1]=d[i+2]=v;}ctx.putImageData(im,0,0);return await new Promise(resolve=>c.toBlob(x=>resolve(Object.assign(x||blob,{rc31Height:c.height})),"image/jpeg",.86));}finally{try{b?.close?.();}catch(_){ }if(c){c.width=1;c.height=1;c.remove();}b=null;c=null;}}
   async function makeVariant(image){let src=null,canvas=null;try{src=await createBitmap(image);const sw=Number(src.width||src.naturalWidth||0),sh=Number(src.height||src.naturalHeight||0);if(!sw||!sh)throw new Error("影像尺寸無效");const sx=Math.round(sw*.04),sy=Math.round(sh*.06),cw=Math.round(sw*.92),ch=Math.round(sh*.92),scale=Math.min(1.5,2100/Math.max(cw,ch)),w=Math.max(1,Math.round(cw*scale)),h=Math.max(1,Math.round(ch*scale));canvas=document.createElement("canvas");canvas.width=w;canvas.height=h;const ctx=canvas.getContext("2d",{willReadFrequently:true,alpha:false});ctx.drawImage(src,sx,sy,cw,ch,0,0,w,h);try{src.close?.();}catch(_){ }src=null;const im=ctx.getImageData(0,0,w,h),d=im.data;for(let i=0;i<d.length;i+=4){const y=.299*d[i]+.587*d[i+1]+.114*d[i+2],v=y>182?255:(y>104?Math.min(255,Math.round((y-104)*3.1)):0);d[i]=d[i+1]=d[i+2]=v;}ctx.putImageData(im,0,0);return await new Promise(resolve=>canvas.toBlob(b=>resolve(b||image),"image/jpeg",.9));}finally{try{src?.close?.();}catch(_){ }if(canvas){canvas.width=1;canvas.height=1;canvas.remove();}src=null;canvas=null;}}
 
 
@@ -202,18 +276,32 @@ const clean=v=>String(v||" ").trim().toUpperCase();
       return await new Promise(resolve=>canvas.toBlob(resolve,'image/png'));
     }finally{source?.close?.();if(small)small.width=small.height=1;if(canvas)canvas.width=canvas.height=1;}
   }
-  // Enlarge the upper screen without trimming the left edge where Honeywell
-  // displays green RT digits. The red channel preserves their contrast.
-  async function makeHeaderRegion(blob){
+  // Focus the observed heading (or its RT token) at its original location.
+  // Only text-only fallback results use the former upper-half crop.
+  async function makeHeaderRegion(blob,target=null,digitsOnly=false){
     let source,canvas;try{
-      source=await createBitmap(blob);const sw=source.width||source.naturalWidth,sh=source.height||source.naturalHeight,ch=Math.ceil(sh*.5),scale=Math.min(2,2000/sw);
-      canvas=document.createElement('canvas');canvas.width=Math.round(sw*scale)+32;canvas.height=Math.round(ch*scale)+32;
-      const ctx=canvas.getContext('2d',{willReadFrequently:true,alpha:false});ctx.fillStyle='white';ctx.fillRect(0,0,canvas.width,canvas.height);ctx.drawImage(source,0,0,sw,ch,16,16,canvas.width-32,canvas.height-32);
+      source=await createBitmap(blob);const sw=source.width||source.naturalWidth,sh=source.height||source.naturalHeight;
+      let sx=0,sy=0,cw=sw,ch=Math.ceil(sh*.5);
+      if(target){const a=target.bbox,h=a.y1-a.y0,rtBox=target.readings.find(r=>r.rtBox)?.rtBox;
+        if(digitsOnly&&rtBox){const pad=h*.5;sx=Math.max(0,rtBox.x0-pad);sy=Math.max(0,rtBox.y0-pad);cw=Math.min(sw-sx,rtBox.x1+pad-sx);ch=Math.min(sh-sy,rtBox.y1+pad-sy);}
+        else{sx=Math.max(0,a.x0-h*10);sy=Math.max(0,a.y0-h*1.5);cw=Math.min(sw-sx,h*42);ch=Math.min(sh-sy,h*5);}
+      }
+      const scale=Math.min(target?3:2,2000/cw);
+      canvas=document.createElement('canvas');canvas.width=Math.round(cw*scale)+32;canvas.height=Math.round(ch*scale)+32;
+      const ctx=canvas.getContext('2d',{willReadFrequently:true,alpha:false});ctx.fillStyle='white';ctx.fillRect(0,0,canvas.width,canvas.height);ctx.drawImage(source,sx,sy,cw,ch,16,16,canvas.width-32,canvas.height-32);
       const pixels=ctx.getImageData(0,0,canvas.width,canvas.height),d=pixels.data;
       for(let i=0;i<d.length;i+=4){const v=d[i];d[i]=d[i+1]=d[i+2]=v;}
-      ctx.putImageData(pixels,0,0);return await new Promise(resolve=>canvas.toBlob(resolve,'image/png'));
+      ctx.putImageData(pixels,0,0);const image=await new Promise(resolve=>canvas.toBlob(resolve,'image/png'));
+      return {image,transform:{sx,sy,scaleX:(canvas.width-32)/cw,scaleY:(canvas.height-32)/ch,pad:16},target,digitsOnly};
     }finally{source?.close?.();if(canvas)canvas.width=canvas.height=1;}
   }
-const api={parseText,normalizeCtn,parseEvents,mergeParsedPasses,restoreMetadata,needsHeaderPass,structuralState,qualityLabel,needsSparse,needsHighContrast,ctnRows,needsRowCheck,reconcileRows,preprocessForOcr,makeVariant,makeScreenReadable,makeTextRegion,makeHeaderRegion};
+  function mapHeaderResult(result,region){
+    const t=region.transform,map=b=>({x0:(b.x0-t.pad)/t.scaleX+t.sx,x1:(b.x1-t.pad)/t.scaleX+t.sx,y0:(b.y0-t.pad)/t.scaleY+t.sy,y1:(b.y1-t.pad)/t.scaleY+t.sy});
+    for(const line of ocrLines(result)){if(line.bbox)line.bbox=map(line.bbox);for(const w of line.words||[])if(w.bbox)w.bbox=map(w.bbox);}
+    result.rc31HeaderOnly=true;
+    if(region.digitsOnly){const raw=clean(result.data?.text);result.rc31RtReading={bbox:region.target.bbox,rt:/^[0-9OQDILZSBGT]{5,8}$/.test(raw)&&(raw.match(/\d/g)||[]).length>=4?normalizeRt(raw):''};}
+    return result;
+  }
+const api={parseText,normalizeCtn,parseEvents,mergeParsedPasses,restoreMetadata,restoreSpatialMetadata,spatialHeaders,headerTargets,lateOnlyRows,mapHeaderResult,needsHeaderPass,structuralState,qualityLabel,needsSparse,needsHighContrast,ctnRows,needsRowCheck,reconcileRows,preprocessForOcr,makeVariant,makeScreenReadable,makeTextRegion,makeHeaderRegion};
 if(typeof module==="object"&&module.exports)module.exports=api;else window.IqcOcrRules31=api;
 })();
