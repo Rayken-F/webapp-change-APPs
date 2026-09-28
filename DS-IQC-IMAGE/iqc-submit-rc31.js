@@ -71,7 +71,7 @@ if(window.IqcProduction?.allowed){
     ['iqc31ClearPhotos','iqc31HistoryPhotos'].forEach(id=>{if($(id))disabled($(id),working||!!current?.batch?.photosClearedAt);});
     if(frozen()){
       ['iqcRcRegion','iqcRcAnalyze','iqc31StartTop','iqcRcCameraBtn','iqcRcGalleryBtn','iqc31BatchRename','iqc31BatchName','iqc31BatchRemove','iqcHybridSyncBtn'].forEach(id=>{if($(id))$(id).disabled=true;});
-      $('iqcImageRc')?.querySelectorAll('[data-photo-delete],[data-ocr31-photo],[data-review-photo],[data-review-quality],[data-merge-rt]').forEach(b=>{b.disabled=true;});
+      $('iqcImageRc')?.querySelectorAll('[data-photo-delete],[data-ocr31-photo],[data-review-photo],[data-review-quality],[data-merge-rt],[data-ctn-select],[data-ctn-remove-selected],[data-ctn-restore]').forEach(b=>{b.disabled=true;});
     }else if($('iqcRcRegion'))disabled($('iqcRcRegion'),working||!ready);
   }
   async function digest(p){const bytes=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(JSON.stringify(p)));return [...new Uint8Array(bytes)].map(n=>n.toString(16).padStart(2,'0')).join('');}
