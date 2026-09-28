@@ -9,7 +9,7 @@
     if(!snapshot.photos.length)throw Error('此為空批次，已排除，不建立待傳資料。');
     if(!snapshot.batch.regionCode)throw Error('請先選擇區域。');
     for(const p of snapshot.photos){
-      if(!review.candidates(p).length)throw Error(`第 ${p.seq} 張尚無 CTN，請辨識、補登或移除不需要的照片。`);
+      if(!review.candidates(p).length&&!review.excluded([p]).length)throw Error(`第 ${p.seq} 張尚無 CTN，請辨識、補登或移除不需要的照片。`);
       if(!['RECOGNIZED','NEEDS_REVIEW'].includes(p.status))throw Error(`第 ${p.seq} 張處理未完成，請先辨識完成。`);
     }
     const groups=review.build(snapshot.photos,review.legacyDecisions(snapshot.photos,legacy));
@@ -27,7 +27,7 @@
       if(!g.expected||g.expected!==g.ctns.length)warnings.push(`RT ${g.rt}：去重後 ${g.ctns.length} 支，照片參考總量 ${g.expected||'未知'}，請確認實際數量。`);
     }
     groups.forEach(g=>warnings.push(...g.warnings));
-    items.sort((a,b)=>a.ctn.localeCompare(b.ctn));
+    const order=review.presentation(groups).groups.flatMap(g=>g.displayCtns);items.sort((a,b)=>order.indexOf(a.ctn)-order.indexOf(b.ctn));
     if(!items.length||items.length>500)throw Error('每批需有 1～500 筆已核對 CTN。');
     return {items,warnings:[...new Set(warnings)],duplicateCount:groups.reduce((n,g)=>n+g.rows.length,0)-items.length};
   }
