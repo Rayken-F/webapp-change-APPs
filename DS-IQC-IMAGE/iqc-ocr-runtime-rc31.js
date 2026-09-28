@@ -1,8 +1,8 @@
 if(window.IqcProduction?.allowed){
-/* IQC V1.0 / 20260927. Loaded before intake/legacy click handlers. */
+/* IQC V1.1 / RC31.25-20260928. Loaded before intake/legacy click handlers. */
 (function(){
   "use strict";
-  const BUILD="IQC V1.0 / 20260927",DB=window.IqcProduction.key("ds_iqc_image_rc_v1"),ACTIVE=window.IqcProduction.key("ds_iqc_image_rc_active_batch");
+  const BUILD="IQC V1.1 / RC31.25-20260928",DB=window.IqcProduction.key("ds_iqc_image_rc_v1"),ACTIVE=window.IqcProduction.key("ds_iqc_image_rc_active_batch");
   const LOG=window.IqcProduction.key("ds_iqc_ocr_rc31_diagnostics"),LIB="https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js";
   const WORKER=new URL("./iqc-ocr-worker-rc31.js?v=20260924-9",document.currentScript.src).href;
   const CORE="https://cdn.jsdelivr.net/npm/tesseract.js-core@5.1.1";
@@ -210,35 +210,52 @@ if(window.IqcProduction?.allowed){
     const results=[];results.push(await recognize(image,"6"));check(run);
     let selected=results.slice(),quality=rules.reconcileRows(selected),merged=quality.text||String(results[0]?.data?.text||"");
     const checkpoint=()=>{
-      const value={text:merged,confidence:Math.max(...selected.map(r=>Number(r?.data?.confidence||0))),quality:{unread:quality.unread,uncertain:quality.uncertain},passes:results.map((r,i)=>({pass:i+1,text:String(r?.data?.text||""),confidence:Number(r?.data?.confidence||0)}))};
+      merged=rules.restoreMetadata(merged,results);
+      const value={text:merged,order:quality.order,confidence:Math.max(...selected.map(r=>Number(r?.data?.confidence||0))),quality:{unread:quality.unread,uncertain:quality.uncertain},passes:results.map((r,i)=>({pass:i+1,text:String(r?.data?.text||""),confidence:Number(r?.data?.confidence||0)}))};
       if(rules.structuralState(merged).found)run.partial=value;return value;
     };
     checkpoint();
-    if(rules.needsSparse(merged)||rules.needsRowCheck(results[0])){
+    if(rules.needsSparse(merged)||rules.needsRowCheck(results[0])||rules.needsHeaderPass(merged,results)){
       results.push(await recognize(image,"11"));check(run);selected=results.slice();quality=rules.reconcileRows(selected);merged=quality.text||merged;checkpoint();
     }
     // A few noise tokens must not suppress recovery of a severely degraded screen photo.
-    if(!rules.structuralState(merged).found||Math.max(...selected.map(r=>Number(r?.data?.confidence||0)))<35){
+    if(!rules.structuralState(merged).found||rules.lateOnlyRows(results,image.rc31Height)||(quality.unread.length>=2&&rules.spatialHeaders(results).length)||Math.max(...selected.map(r=>Number(r?.data?.confidence||0)))<35){
       const readable=await timed(run,"screen_cleanup",()=>rules.makeScreenReadable(photo.blob));check(run);
       if(readable){
         const clean=[await recognize(readable,"6")];results.push(clean[0]);check(run);
         if(rules.needsSparse(clean[0]?.data?.text)||rules.needsRowCheck(clean[0])){clean.push(await recognize(readable,"11"));results.push(clean[1]);check(run);}
         const reviewed=rules.reconcileRows(clean);
-        if(rules.structuralState(reviewed.text).found>rules.structuralState(merged).found){selected=clean;quality=reviewed;merged=quality.text;checkpoint();}
+        if(rules.structuralState(reviewed.text).found>rules.structuralState(merged).found){selected=selected.concat(clean);quality=rules.reconcileRows(selected);merged=quality.text;checkpoint();}
       }
     }
     // A reference total may span several photos. Once rows are extracted, do not
     // keep transforming the whole photo merely to fill a cross-photo quantity.
     if(rules.structuralState(merged).found===0){
       const variant=await timed(run,"contrast",()=>rules.makeVariant(image));check(run);
-      const result=await recognize(variant,"6");results.push(result);check(run);
+      const result=await recognize(variant,"6");result.rc31Space=false;results.push(result);check(run);
       if(rules.structuralState(result?.data?.text).found){selected=[result];quality=rules.reconcileRows(selected);merged=quality.text;checkpoint();}
     }
     if(rules.structuralState(merged).found===0){
       const region=await timed(run,"text_region",()=>rules.makeTextRegion(photo.blob));check(run);
-      if(region){const regionResults=[await recognize(region,"6")];results.push(regionResults[0]);check(run);
-        if(rules.structuralState(regionResults[0]?.data?.text).found===0){regionResults.push(await recognize(region,"11"));results.push(regionResults[1]);check(run);}
+      if(region){const regionResults=[await recognize(region,"6")];regionResults[0].rc31Space=false;results.push(regionResults[0]);check(run);
+        if(rules.structuralState(regionResults[0]?.data?.text).found===0){regionResults.push(await recognize(region,"11"));regionResults[1].rc31Space=false;results.push(regionResults[1]);check(run);}
         if(regionResults.some(r=>rules.structuralState(r?.data?.text).found)){selected=regionResults;quality=rules.reconcileRows(selected);merged=quality.text;checkpoint();}}
+    }
+    const targets=rules.headerTargets(results);
+    if(targets.length||(!rules.spatialHeaders(results).length&&rules.needsHeaderPass(merged,results))){
+      progress(`第 ${photo.seq} 張｜正在補讀 RT 標題…`);record({stage:"rt_header",outcome:"started"});
+      let passes=0;
+      for(const target of targets.length?targets:[null]){
+        const header=await timed(run,"rt_header_image",()=>rules.makeHeaderRegion(photo.blob,target));check(run);
+        if(header?.image){results.push(rules.mapHeaderResult(await recognize(header.image,"6"),header));passes++;check(run);checkpoint();}
+        const unresolved=target&&rules.headerTargets(results).find(h=>Math.abs(h.bbox.y0-target.bbox.y0)<(target.bbox.y1-target.bbox.y0));
+        if(unresolved&&!unresolved.meta.rt&&unresolved.readings.some(r=>r.rtBox)&&passes<4){
+          const digits=await timed(run,"rt_digits_image",()=>rules.makeHeaderRegion(photo.blob,unresolved,true));check(run);
+          results.push(rules.mapHeaderResult(await recognize(digits.image,"7"),digits));passes++;check(run);checkpoint();
+        }
+        if(passes>=4)break;
+      }
+      record({stage:"rt_header",outcome:"ok",unassigned:rules.parseText(merged).leading.length});
     }
     return checkpoint();
   }
@@ -277,14 +294,14 @@ if(window.IqcProduction?.allowed){
           if(!result.text.trim())throw fail("NO_TEXT");
           const found=rules.structuralState(result.text).found;
           await put({...original,ocrText:result.text,events:rules.parseEvents(result.text),status:found?"RECOGNIZED":"NEEDS_REVIEW",confidence:result.confidence,engineConfidence:result.confidence,
-            rc31RawPasses:result.passes,rc31Quality:result.quality,localFailure:found?"":"NO_CTN",ocrBuild:BUILD,updatedAt:now()});
+            rc31RawPasses:result.passes,rc31Quality:result.quality,rc31Order:result.order,localFailure:found?"":"NO_CTN",ocrBuild:BUILD,updatedAt:now()});
           if(found)done++;else failed++;record({stage:"photo_saved",outcome:found?"ok":"needs_review",candidates:found,passes:result.passes.length});await refresh();
         }catch(e){
           // Keep any earlier valid result. A failed retry must not erase it or its Cloud result.
           const keep=original.status==="RECOGNIZED"&&rules.structuralState(original.ocrText).found>0;
           const partial=!keep&&task.partial;
           const code=typeof e?.code==="string"?e.code:task.phase==="image"?"IMAGE_PREPROCESS_ERROR":"WORKER_ERROR";
-          const state={...(partial?{ocrText:partial.text,events:rules.parseEvents(partial.text),rc31RawPasses:partial.passes,rc31Quality:partial.quality,confidence:partial.confidence,ocrBuild:BUILD}:{}),status:keep?"RECOGNIZED":partial?"NEEDS_REVIEW":"LOCAL_FAILED",localFailure:code,updatedAt:now()};
+          const state={...(partial?{ocrText:partial.text,events:rules.parseEvents(partial.text),rc31RawPasses:partial.passes,rc31Quality:partial.quality,rc31Order:partial.order,confidence:partial.confidence,ocrBuild:BUILD}:{}),status:keep?"RECOGNIZED":partial?"NEEDS_REVIEW":"LOCAL_FAILED",localFailure:code,updatedAt:now()};
           // Record the primary failure before saving its status; a second storage
           // failure must not conceal the unreadable image behind WORKER_ERROR.
           failed++;record({stage:"photo_failed",outcome:"error",phase:task.phase,code});
@@ -307,13 +324,14 @@ if(window.IqcProduction?.allowed){
     text("iqcRcAnalyze",queuedStart?"已排定，保存後開始":operation?.kind==="local_ocr"?"辨識中…":operation?"保存／整理後開始辨識":"開始辨識");
     ["iqcRcAnalyze","iqc31StartTop"].forEach(id=>{if($(id)){$(id).disabled=false;$(id).setAttribute("aria-busy",String(!!operation));if(id!=="iqcRcAnalyze")text(id,$("iqcRcAnalyze").textContent);}});
     ["iqcRcNewBatch","iqcRcCameraBtn","iqcRcGalleryBtn","iqcRcCameraInput","iqcRcGalleryInput","iqcHybridSyncBtn"].forEach(id=>{if($(id))$(id).disabled=!!operation;});
-    panel.querySelectorAll("[data-photo-delete],[data-ocr31-photo],[data-review-photo],[data-review-quality],[data-merge-rt]").forEach(e=>{e.disabled=!!operation;});
+    panel.querySelectorAll("[data-photo-delete],[data-ocr31-photo],[data-review-photo],[data-review-quality],[data-merge-rt],[data-ctn-restore]").forEach(e=>{e.disabled=!!operation;});
     window.__DS_IQC_BATCHES31?.paint(!!operation);
     if($("iqc31Cancel"))$("iqc31Cancel").disabled=!operation||["cloud","review","edit_batch","submission"].includes(operation.kind);
     updateLive();
     if(window.__DS_IQC_SUBMIT31?.ready())window.__DS_IQC_SUBMIT31.paint();
     else for(const id of ["iqcRcCommit","iqcRcSyncPending"])if($(id))$(id).disabled=true;
-    text("iqcRcOcrBadge",operation?({local_ocr:"本機辨識中",save_photos:"保存照片中",cloud:"補辨識中"}[operation.kind]||"處理中"):"V1.0｜本機辨識");
+    window.__DS_IQC_REVIEW31?.paintSelection();
+    text("iqcRcOcrBadge",operation?({local_ocr:"本機辨識中",save_photos:"保存照片中",cloud:"補辨識中"}[operation.kind]||"處理中"):"V1.1｜本機辨識");
   }
   function installUi(){
     const button=$("iqcRcAnalyze"),panel=$("iqcImageRc");if(!button||!panel)return;
@@ -327,7 +345,7 @@ if(window.IqcProduction?.allowed){
       const style=document.createElement("style");style.textContent="#iqcImageRc [data-ocr31-photo]{grid-column:2 / 4;justify-self:start}#iqc31LogText{background:#08112f;color:#dbe8ff}#iqc31Tools{font-size:13px}#iqcImageRc #iqcRcAnalyze{display:none!important}#iqcRcAnalyze,#iqc31StartTop,#iqcImageRc [data-ocr31-photo]{touch-action:manipulation;min-height:48px;min-width:150px}";document.head.appendChild(style);
       style.textContent+='#iqcImageRc .iqc31-photo-actions{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;align-items:stretch}#iqcImageRc .iqc31-photo-actions>.iqc-rc-btn{min-width:0;min-height:52px;padding:8px 4px;font-size:clamp(11px,3.4vw,14px);line-height:1.4;white-space:normal;overflow-wrap:anywhere}';
       const tools=document.createElement("div");tools.id="iqc31Tools";tools.className="iqc-rc-note";
-      tools.innerHTML='<strong>IQC V1.0 / 20260927</strong><p>初次使用需下載辨識核心與英數字模型。</p><button id="iqc31Cancel" class="iqc-rc-btn" type="button">停止本輪辨識</button><details><summary>辨識紀錄</summary><p>紀錄不含帳密、照片或 CTN；保留最近 100 個處理事件。</p><button id="iqc31Copy" class="iqc-rc-btn" type="button">複製辨識紀錄</button><textarea id="iqc31LogText" readonly rows="7" style="width:100%;box-sizing:border-box;font-size:12px" aria-label="辨識紀錄"></textarea></details>';
+      tools.innerHTML='<strong>IQC V1.1 / RC31.25-20260928</strong><p>初次使用需下載辨識核心與英數字模型。</p><button id="iqc31Cancel" class="iqc-rc-btn" type="button">停止本輪辨識</button><details><summary>辨識紀錄</summary><p>紀錄不含帳密、照片或 CTN；保留最近 100 個處理事件。</p><button id="iqc31Copy" class="iqc-rc-btn" type="button">複製辨識紀錄</button><textarea id="iqc31LogText" readonly rows="7" style="width:100%;box-sizing:border-box;font-size:12px" aria-label="辨識紀錄"></textarea></details>';
       const review=document.createElement("p");review.textContent="請逐筆核對 CTN、RT 與數量；辨識結果仍可能有字元誤讀。";tools.appendChild(review);
       button.parentElement.insertAdjacentElement("afterend",tools);
       $("iqc31LogText").value=JSON.stringify(diagnosticSnapshot(),null,2);
@@ -339,7 +357,7 @@ if(window.IqcProduction?.allowed){
       const style=document.createElement("style");style.textContent='#iqcImageRc .iqc-rc-top{gap:0 8px;padding:4px 0}#iqcImageRc .iqc-rc-top>div:first-child>small{display:none}#iqcImageRc .iqc-rc-top h2{font-size:16px}#iqc31Live{flex-basis:100%;display:flex;align-items:center;justify-content:space-between;gap:6px;min-width:0;font-size:12px;line-height:1.4}#iqc31LiveCount{min-width:0}#iqc31LiveDetails{flex:none}#iqc31LiveDetails summary{cursor:pointer;min-height:40px;display:flex;align-items:center;padding:0 5px;border-radius:8px;color:#c8dcf2}#iqc31LiveDetails summary::before{content:"▸";margin-right:4px}#iqc31LiveDetails[open] summary::before{content:"▾"}.iqc31-live-menu{position:absolute;left:0;right:0;top:100%;padding:10px;background:#101b42;border:1px solid #526394;border-radius:12px;box-shadow:0 8px 18px #02072288}#iqc31LivePhase{color:#c8dcf2;overflow-wrap:anywhere}#iqc31Live .iqc-rc-row{gap:5px;margin-top:8px}#iqc31Live button{min-height:42px;font-size:12px;padding:5px 8px}';document.head.appendChild(style);
       text("iqc31LivePhase",progressMessage);
     }
-    const heading=panel.querySelector(".iqc-rc-top h2");if(heading&&heading.textContent!=="📷 Honeywell 影像 V1.0")heading.textContent="📷 Honeywell 影像 V1.0";
+    const heading=panel.querySelector(".iqc-rc-top h2");if(heading&&heading.textContent!=="📷 Honeywell 影像 V1.1")heading.textContent="📷 Honeywell 影像 V1.1";
     const gallery=$("iqcRcGalleryInput");if(gallery)gallery.multiple=true;
     text("iqcHybridSyncBtn","補辨識缺漏（Cloud）");
     const hint=$("iqcHybridHint");if(hint&&!hint.dataset.rc31){hint.dataset.rc31="1";text("iqcHybridHint","目前使用本機辨識，Cloud 輔助尚未啟用。");}
@@ -374,6 +392,7 @@ if(window.IqcProduction?.allowed){
     catch(e){run.failed=true;progress(e.message||"批次操作未完成，請查看提示後重試。");throw e;}finally{await finish(run);}
   }
   window.__DS_IQC_RC31={build:BUILD,runBatch:requestStart,ingest,cancel,isBusy:()=>!!operation,workerLabel,refresh,
+    previewEvent:(outcome,code,ms)=>record({stage:'photo_preview',outcome,code,ms}),
     submissionStatus:value=>{actionMessage=value.includes('已寫入')?value.split('｜')[0]:value;progress(value);},
     submissionTiming:(api,ms,server)=>{const phases={};for(const key of ['authMs','lockMs','storeMs','validationMs','writeMs'])if(Number.isFinite(server?.phases?.[key]))phases[key]=server.phases[key];record({stage:api==='iqc_image_submit'?'submit_roundtrip':'receipt_roundtrip',ms,server:server&&Number.isFinite(server.totalMs)?{totalMs:server.totalMs,phases}:null});},
     clearBatch:()=>editBatch(()=>api().clearBatch()),
@@ -396,6 +415,7 @@ if(window.IqcProduction?.allowed){
     batchCounts:ids=>photoTransaction("readonly",(s,done)=>{const result={};done(result);ids.forEach(id=>{const r=s.index("batchId").count(id);r.onsuccess=()=>{result[id]=r.result;};});}),
     selectBatch:id=>editBatch(()=>api().selectBatch(id)),renameBatch:name=>editBatch(()=>api().renameBatch(name),false),
     saveReview:(photoId,change)=>reviewOperation(list=>{const p=list.find(p=>p.id===photoId);if(!p)throw fail("PHOTO_MISSING");return [{id:p.id,updatedAt:p.updatedAt,review:change(p)}];}),
+    excludeCtn:(ctn,restore=false)=>reviewOperation(list=>{let legacy={};try{legacy=JSON.parse(localStorage.getItem(window.IqcProduction.key("ds_iqc_v8_meta_override_")+activeBatch())||'{}');}catch(_){}const model=window.IqcReviewModel31;return model.excludeReviews(list,ctn,restore,model.legacyDecisions(list,legacy));}),
     mergeReviews:(keys,meta)=>reviewOperation(list=>{let legacy={};try{legacy=JSON.parse(localStorage.getItem(window.IqcProduction.key("ds_iqc_v8_meta_override_")+activeBatch())||'{}');}catch(_){}const model=window.IqcReviewModel31;return model.mergeReviews(list,keys,meta,model.legacyDecisions(list,legacy));}),
     readPhotos:(batch=activeBatch())=>photos(batch),readPhoto:getPhoto,writePhoto:put,
     claimCloud(manual){if(!manual||operation)return false;return !!claim("cloud");},
