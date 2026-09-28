@@ -174,11 +174,11 @@ const dbPhotos=page=>page.evaluate(()=>new Promise((resolve,reject)=>{const r=in
  ok('uncertain corrected CTN is yellow in result and editor',await page.locator('[data-result-ctn="AB62CDE"]').evaluate(e=>getComputedStyle(e).backgroundColor==='rgb(255, 228, 154)')&&await page.locator('[data-review-key="AB12CDE"]').evaluate(e=>e.parentElement.classList.contains('iqc31-uncertain')));
  await page.locator('[data-review-close]').tap();
  await page.locator('[data-result-ctn="AB62CDE"]').scrollIntoViewIfNeeded();await page.screenshot({path:path.join(artifacts,'ctn-tools.png')});
- await page.locator('[data-ctn-remove="AB62CDE"]').tap();await idle();
+ await page.locator('[data-ctn-select="AB62CDE"]').tap();await page.locator('[data-ctn-select="AB62CDE"]').locator('xpath=ancestor::*[@data-ctn-group]').locator('[data-ctn-remove-selected]').tap();await idle();
  ok('removing corrected CTN updates results and preserves original OCR and photo',await page.locator('[data-result-ctn="AB62CDE"]').count()===0&&await imageHash()===beforeHash&&(await dbPhotos(page))[5].ocrText===saved.ocrText);
  await page.locator('#iqc31Excluded summary').tap();await page.locator('[data-ctn-restore="AB62CDE"]').tap();await idle();
  ok('undo restores the corrected value in its original position',await page.locator('[data-result-ctn="AB62CDE"]').count()===1&&(await dbPhotos(page))[5].rc31Review.ctns.AB12CDE.ctn==='AB62CDE');
- await page.locator('[data-ctn-remove="AB12CDE"]').tap();await idle();
+ await page.locator('[data-ctn-select="AB12CDE"]').tap();await page.locator('[data-ctn-select="AB12CDE"]').locator('xpath=ancestor::*[@data-ctn-group]').locator('[data-ctn-remove-selected]').tap();await idle();
  const removedPhotos=await dbPhotos(page);
  ok('one removal excludes every deduplicated occurrence in the batch',removedPhotos.filter(p=>p.rc31Review?.excluded?.AB12CDE).length===6&&await page.locator('[data-result-ctn="AB12CDE"]').count()===0);
  const submitCtns=await page.evaluate(async()=>IqcSubmitModel31.draft({batch:{id:'test',status:'DRAFT',regionCode:'TEST_REGION'},photos:await __DS_IQC_RC31.readPhotos()}).items.map(i=>i.ctn));
@@ -187,9 +187,37 @@ const dbPhotos=page=>page.evaluate(()=>new Promise((resolve,reject)=>{const r=in
  ok('removed candidates stay excluded after reload',await page.locator('[data-result-ctn="AB12CDE"]').count()===0&&(await dbPhotos(page)).filter(p=>p.rc31Review?.excluded?.AB12CDE).length===6);
  await page.locator('#iqc31Excluded summary').tap();await page.locator('[data-ctn-restore="AB12CDE"]').tap();await idle();
  ok('restoring duplicate CTN restores all sources and still displays it only once',await page.locator('[data-result-ctn="AB12CDE"]').count()===1&&(await dbPhotos(page)).every(p=>!p.rc31Review?.excluded?.AB12CDE));
+ // Six candidates make column direction and multi-selection visible in a small viewport.
+ await page.evaluate(()=>new Promise(resolve=>{const r=indexedDB.open('ds_iqc_image_rc_v1',1);r.onsuccess=()=>{const db=r.result,tx=db.transaction('photos','readwrite'),store=tx.objectStore('photos'),q=store.index('batchId').getAll(localStorage.getItem('ds_iqc_image_rc_active_batch'));q.onsuccess=()=>{const p=q.result.sort((a,b)=>a.seq-b.seq)[0];p.ocrText+='\nKL56MNP\nQR78STU\nUV90WXY';p.updatedAt=new Date().toISOString();store.put(p);};tx.oncomplete=()=>{db.close();resolve();};};}));
+ await page.evaluate(()=>__DS_IQC_RC31.refresh());await idle();
+ const group=page.locator('[data-ctn-group]').filter({has:page.locator('[data-ctn-select="AB12CDE"]')}),remove=group.locator('[data-ctn-remove-selected]');
+ ok('one shared remove button per group, no repeated per-CTN buttons',await page.locator('[data-ctn-remove]').count()===0&&await group.locator('[data-ctn-remove-selected]').count()===1&&await remove.isDisabled());
+ for(const width of [402,375,320]){
+  await page.setViewportSize({width,height:874});
+  ok('numbered two-column tiles fill left top-to-bottom before right at '+width+'px',await group.evaluate(g=>{const nodes=[...g.querySelectorAll('[data-result-ctn]')],boxes=nodes.map(n=>n.getBoundingClientRect()),n=Math.ceil(boxes.length/2),bound=g.getBoundingClientRect();return boxes.length===6&&nodes.every((node,i)=>node.querySelector('.iqc31-row-number').textContent===(i+1)+'.')&&boxes.every((b,i)=>b.left>=bound.left&&b.right<=bound.right&&Math.abs(b.left-boxes[i<n?0:n].left)<1)&&(boxes[1].top>boxes[0].top)&&Math.abs(boxes[0].top-boxes[n].top)<1&&boxes[n].left>boxes[0].right&&nodes.every(node=>node.querySelector('strong').getBoundingClientRect().right<=node.getBoundingClientRect().right); }));
+ }
+ await page.setViewportSize({width:402,height:874});
+ ok('shared remove is below count on the group upper-right',await group.evaluate(g=>{const b=g.querySelector('[data-ctn-remove-selected]').getBoundingClientRect(),badge=g.querySelector('.iqc-rc-status').getBoundingClientRect(),tile=g.querySelector('[data-ctn-select]').getBoundingClientRect();return b.top>=badge.bottom&&Math.abs(b.right-badge.right)<1&&b.bottom<tile.top;}));
+ ok('result DOM sequence still equals photo-based model sequence',await page.evaluate(()=>JSON.stringify([...document.querySelectorAll('[data-result-ctn]')].map(e=>e.dataset.resultCtn))===JSON.stringify(IqcReviewModel31.presentation(__DS_IQC_REVIEW31.getModel()).groups.flatMap(g=>g.displayCtns))));
+ await page.locator('[data-ctn-select="AB62CDE"]').tap();
+ ok('selected uncertain tile keeps yellow and exposes selection',await page.locator('[data-ctn-select="AB62CDE"]').evaluate(e=>e.getAttribute('aria-pressed')==='true'&&getComputedStyle(e).backgroundColor==='rgb(255, 228, 154)')&&await remove.textContent()==='移除所選（1）');
+ await page.locator('[data-ctn-select="AB62CDE"]').tap();ok('tap again cancels selection and disables empty removal',await remove.isDisabled());
+ await page.locator('[data-ctn-select="AB12CDE"]').tap();await page.locator('[data-ctn-select="FG34HIJ"]').tap();
+ ok('multiple selections share the same action with a count',await remove.textContent()==='移除所選（2）');
+ await group.scrollIntoViewIfNeeded();await page.screenshot({path:path.join(artifacts,'ctn-grid-selected.png')});
+ const beforeBulk=JSON.stringify(await dbPhotos(page));
+ await page.evaluate(()=>{const original=IDBObjectStore.prototype.put;let writes=0;window.__restorePut=()=>IDBObjectStore.prototype.put=original;IDBObjectStore.prototype.put=function(v,...args){if(this.name==='photos'&&v.rc31Review?.excluded?.FG34HIJ&&++writes===2)throw new DOMException('Synthetic quota failure','QuotaExceededError');return original.call(this,v,...args);};});
+ await remove.tap();await idle();await page.waitForFunction(()=>document.querySelector('#iqc31SaveNotice')&&!document.querySelector('#iqc31SaveNotice').hidden);
+ await page.evaluate(()=>window.__restorePut());
+ ok('mid-write failure rolls back every selected CTN and preserves retry selection',JSON.stringify(await dbPhotos(page))===beforeBulk&&await group.locator('[aria-pressed="true"]').count()===2&&!(await remove.isDisabled())&&!/已移除/.test(await page.locator('#iqc31SaveNotice').textContent()));
+ await remove.tap();await idle();
+ const bulkPhotos=await dbPhotos(page);
+ ok('one click removes both CTNs across all sources with one history entry per photo',bulkPhotos.every((p,i)=>p.rc31Review.history.length===JSON.parse(beforeBulk)[i].rc31Review.history.length+1)&&await page.locator('[data-result-ctn="AB12CDE"],[data-result-ctn="FG34HIJ"]').count()===0&&await imageHash()===beforeHash);
+ await page.locator('#iqc31Excluded summary').tap();await page.locator('[data-ctn-restore="AB12CDE"]').tap();await idle();await page.locator('#iqc31Excluded summary').tap();await page.locator('[data-ctn-restore="FG34HIJ"]').tap();await idle();
+ ok('both removed CTNs can be restored with six ordered candidates',await page.locator('[data-result-ctn]').count()===6&&(await dbPhotos(page)).every(p=>!p.rc31Review?.excluded?.AB12CDE&&!p.rc31Review?.excluded?.FG34HIJ));
  await page.evaluate(()=>new Promise(resolve=>{const r=indexedDB.open('ds_iqc_image_rc_v1',1);r.onsuccess=()=>{const db=r.result,tx=db.transaction('batches','readwrite'),s=tx.objectStore('batches'),q=s.get(localStorage.getItem('ds_iqc_image_rc_active_batch'));q.onsuccess=()=>s.put({...q.result,status:'PENDING'});tx.oncomplete=()=>{db.close();resolve();};};}));
  await page.evaluate(()=>__DS_IQC_RC31.refresh());await idle();
- ok('pending upload disables removal and storage rejects direct mutation',await page.locator('[data-ctn-remove]').first().isDisabled()&&await page.evaluate(()=>__DS_IQC_RC31.excludeCtn('AB12CDE').then(()=>false,()=>true))&&(await dbPhotos(page)).every(p=>!p.rc31Review?.excluded?.AB12CDE));
+ ok('pending upload disables removal and storage rejects direct mutation',await page.locator('[data-ctn-remove-selected]').first().isDisabled()&&await page.locator('[data-ctn-select]').first().isDisabled()&&await page.evaluate(()=>__DS_IQC_RC31.excludeCtn('AB12CDE').then(()=>false,()=>true))&&(await dbPhotos(page)).every(p=>!p.rc31Review?.excluded?.AB12CDE));
  ok('preview and correction tests do not write business data or upload photos',business===0&&cloudPhotos===0);
  ok('no uncaught errors',errors.length===0);
  fs.writeFileSync(path.join(artifacts,'preview-summary.json'),JSON.stringify({checks,errors,business,cloudPhotos,viewportMutations:changes,events},null,2));
