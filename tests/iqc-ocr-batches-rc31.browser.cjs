@@ -87,7 +87,7 @@ const dbPhotos=page=>page.evaluate(()=>new Promise((resolve,reject)=>{const r=in
  await start();const beforeB=await dbPhotos(page);
  await page.locator('#iqc31BatchSelect').selectOption(batchA);await idle();await page.waitForFunction(()=>document.getElementById('iqcRcPhotoCount').textContent==='5');
  ok('switch back restores original region, photos, OCR and saved review',(await batchMeta()).regionCode==='TEST_REGION'&&JSON.stringify(await dbPhotos(page))===JSON.stringify(beforeA));
- ok('duplicate summary reports distinct repeated CTNs and only one visible chip per CTN',/重複 2 個 CTN/.test(await page.locator('#iqc31DuplicateSummary').textContent())&&await page.locator('#iqcRcResultList .iqc-ctn-input').count()===2);
+ ok('duplicate summary reports distinct repeated CTNs and only one visible chip per CTN',/重複 2 個 CTN/.test(await page.locator('#iqc31DuplicateSummary').textContent())&&await page.locator('#iqcRcResultList [data-result-ctn]').count()===2);
  await page.locator('#iqc31BatchSelect').selectOption(batchB);await idle();await page.waitForFunction(()=>document.getElementById('iqcRcPhotoCount').textContent==='2');
  ok('OCR only changes the chosen batch and photo numbering restarts per batch',JSON.stringify(await dbPhotos(page))===JSON.stringify(beforeB)&&(await dbPhotos(page))[0].seq===1);
  await page.reload();await page.locator('#appShell').waitFor({state:'visible'});await page.locator('#navMore').click();await page.locator('#iqcImageRcTool').click();await idle();
@@ -96,7 +96,7 @@ const dbPhotos=page=>page.evaluate(()=>new Promise((resolve,reject)=>{const r=in
  // Set realistic source metadata and two independent per-CTN warnings.
  await page.evaluate(()=>new Promise(resolve=>{const r=indexedDB.open('ds_iqc_image_rc_v1',1);r.onsuccess=()=>{const db=r.result,tx=db.transaction('photos','readwrite'),s=tx.objectStore('photos'),q=s.index('batchId').getAll(localStorage.getItem('ds_iqc_image_rc_active_batch'));q.onsuccess=()=>{const list=q.result.sort((a,b)=>a.seq-b.seq);list.forEach((p,i)=>{p.ocrText=i?'AB12CDE\nFG34HIJ':'113374 CYLINDER OCYL 7209 TOTAL 2\nAB12CDE\nFG34HIJ';p.rc31Quality={unread:[],uncertain:i?[]:[{ctn:'AB12CDE',reason:'LOW_CONFIDENCE'},{ctn:'FG34HIJ',reason:'CONFLICT',alternatives:['FG34HIJ','FG34HII']}]};p.updatedAt=new Date().toISOString();s.put(p);});};tx.oncomplete=()=>{db.close();resolve();};};}));
  await page.evaluate(()=>window.__DS_IQC_RC31.refresh());
- ok('unassigned repeated CTNs disappear from lower lists without losing source candidates',await page.locator('#iqcRcResultList .iqc-ctn-input').count()===2&&!/待歸類/.test(await page.locator('#iqcRcResultList').textContent())&&await page.evaluate(()=>window.__DS_IQC_REVIEW31.getModel().flatMap(g=>g.rows).length===4));
+ ok('unassigned repeated CTNs disappear from lower lists without losing source candidates',await page.locator('#iqcRcResultList [data-result-ctn]').count()===2&&!/待歸類/.test(await page.locator('#iqcRcResultList').textContent())&&await page.evaluate(()=>window.__DS_IQC_REVIEW31.getModel().flatMap(g=>g.rows).length===4));
  await page.locator('[data-review-quality]').first().click();
  ok('character warnings are separate list items for each CTN',await page.locator('[data-character-warnings] li').count()===2&&(await page.locator('[data-character-warnings] li').nth(1).textContent()).includes('FG34HIJ'));
  await page.locator('[data-review-close]').click();
@@ -127,7 +127,7 @@ const dbPhotos=page=>page.evaluate(()=>new Promise((resolve,reject)=>{const r=in
  ok('retry saves once and restores the group buttons again',await page.locator('#iqcRcResultList [data-review-photo]:disabled').count()===0&&(await dbPhotos(page)).at(-1).rc31Review.history.length===2);
  ok('successful retry shows the toast again',await notice.isVisible());
  await page.locator('[data-review-close]').click();
- ok('true status conflict displays each CTN once in an explicit conflict list',await page.locator('#iqc31Conflicts .iqc31-conflict-ctn').count()===2&&await page.locator('#iqcRcResultList .iqc-ctn-input').count()===0&&/尚未決定/.test(await page.locator('#iqc31Conflicts').textContent()));
+ ok('true status conflict displays each CTN once in an explicit conflict list',await page.locator('#iqc31Conflicts .iqc31-conflict-ctn').count()===2&&await page.locator('#iqcRcResultList [data-result-ctn]').count()===0&&/尚未決定/.test(await page.locator('#iqc31Conflicts').textContent()));
  await page.locator('[data-merge-rt]').first().click();await page.locator('[data-merge-key]').evaluateAll(es=>es.forEach(e=>e.checked=true));await page.locator('[data-merge-field="status"]').fill('OCYL');await page.locator('[data-merge-field="plant"]').fill('7209');await page.locator('[data-merge-field="expected"]').fill('2');
  const beforeMerge=await dbPhotos(page);
  await page.evaluate(()=>{window.__mergeWrites=0;IDBObjectStore.prototype.put=function(v,...args){if(this.name==='photos'&&v.rc31Review&&++window.__mergeWrites===2)throw new DOMException('Synthetic second-photo failure','UnknownError');return window.__putBeforeFailure.call(this,v,...args);};});
@@ -135,7 +135,7 @@ const dbPhotos=page=>page.evaluate(()=>new Promise((resolve,reject)=>{const r=in
  ok('a second-photo save failure rolls back the whole multi-photo reconciliation',JSON.stringify(await dbPhotos(page))===JSON.stringify(beforeMerge)&&await page.locator('#iqcRcResultList [data-review-photo]:disabled').count()===0);
  ok('a new failed merge clears any preceding success notice',!await notice.isVisible());
  await page.evaluate(()=>{IDBObjectStore.prototype.put=window.__putBeforeFailure;});await page.locator('[data-merge-save]').click();await idle();await page.waitForFunction(()=>!document.getElementById('iqc31ReviewEditor'));
- ok('explicit reconciliation keeps source histories, restores controls and removes resolved conflict',await page.locator('#iqc31Conflicts').count()===0&&await page.locator('#iqcRcResultList .iqc-ctn-input').count()===2&&await page.locator('#iqcRcResultList [data-review-photo]:disabled').count()===0);
+ ok('explicit reconciliation keeps source histories, restores controls and removes resolved conflict',await page.locator('#iqc31Conflicts').count()===0&&await page.locator('#iqcRcResultList [data-result-ctn]').count()===2&&await page.locator('#iqcRcResultList [data-review-photo]:disabled').count()===0);
  ok('successful multi-photo reconciliation also shows the toast',await notice.isVisible()&&await notice.textContent()==='歸類保存成功');
  await page.locator('#iqcRcResultList [data-review-photo]').first().click();await page.locator('#iqc31Review_rt').fill('113407');
  page.once('dialog',d=>d.dismiss());await page.locator('#iqc31BatchSelect').selectOption(batchA);

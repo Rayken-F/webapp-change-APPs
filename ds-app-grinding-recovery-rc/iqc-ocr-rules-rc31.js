@@ -222,7 +222,8 @@ const clean=v=>String(v||" ").trim().toUpperCase();
         if(!uncertain.some(r=>r.ctn===slot.ctn))uncertain.push({ctn:slot.ctn,alternatives,reason:alternatives.length>1?'CONFLICT':/[O0S5]$/.test(slot.ctn)?'AMBIGUOUS_END':'LOW_CONFIDENCE'});
       }
     });
-    return {text:mergeParsedPasses(passes),unread,uncertain};
+    const order=[...new Set(slots.filter(s=>s.ctn&&s.bbox).sort((a,b)=>a.bbox.y0-b.bbox.y0||a.bbox.x0-b.bbox.x0).map(s=>s.ctn))];
+    return {text:mergeParsedPasses(passes),unread,uncertain,order};
   }
 
   function parseEvents(text){const events=[];headerLines(text).forEach((upper,lineIndex)=>{const h=readHeader(upper);if(h){events.push({type:"header",rt:h.rt,expected:h.expected,line:upper,lineIndex});return;}if(/^RT[_\s]/.test(upper)||((upper.match(/_/g)||[]).length>=2))return;upper.split(/[^A-Z0-9]+/).filter(Boolean).forEach(token=>{const ctn=normalizeCtn(token);if(ctn)events.push({type:"ctn",ctn,raw:token,corrected:ctn!==token,lineIndex});});});return events;}

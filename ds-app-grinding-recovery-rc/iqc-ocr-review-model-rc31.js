@@ -7,7 +7,23 @@
   const clean=v=>String(v||"").trim().toUpperCase();
   const field=v=>['UNKNOWN','-'].includes(clean(v))?'':clean(v);
   const validCtn=v=>/^[A-Z]{2}\d{2}[A-Z]{2}[A-Z0-9]$/.test(v);
-  function candidates(photo){
+  // Merge overlapping photo/pass sequences without moving supplemental reads to
+  // the end. Conflicting evidence cannot introduce a cycle or duplicate a CTN.
+  function sequenceOrder(values,sequences){
+    const nodes=[...new Set(values)],edges=new Map(nodes.map(v=>[v,new Set()]));
+    const reaches=(from,to,seen=new Set())=>{if(from===to)return true;if(seen.has(from))return false;seen.add(from);return [...edges.get(from)].some(v=>reaches(v,to,seen));};
+    for(const raw of sequences){const seq=[...new Set(raw.filter(v=>edges.has(v)))];for(let i=1;i<seq.length;i++)if(!reaches(seq[i],seq[i-1]))edges.get(seq[i-1]).add(seq[i]);}
+    const degree=new Map(nodes.map(v=>[v,0]));edges.forEach(next=>next.forEach(v=>degree.set(v,degree.get(v)+1)));
+    const result=[];while(result.length<nodes.length){const v=nodes.find(v=>degree.get(v)===0);if(v===undefined)break;result.push(v);degree.set(v,-1);edges.get(v).forEach(n=>degree.set(n,degree.get(n)-1));}return result;
+  }
+  function photoOrder(photo,values){
+    const aliases=new Map();(photo.rc31Quality?.uncertain||[]).forEach(r=>(r.alternatives||[]).forEach(v=>{if(!values.includes(v))aliases.set(v,r.ctn);}));
+    const read=text=>rules.parseEvents(text||'').filter(e=>e.type==='ctn').map(e=>aliases.get(e.ctn)||e.ctn).filter(v=>values.includes(v));
+    const passes=(photo.rc31RawPasses||[]).map(p=>read(p.text)).sort((a,b)=>b.length-a.length);
+    return sequenceOrder(values,[photo.rc31Order||[],photo.rc31Review?.retainedOrder||[],...passes,read(photo.ocrText)]);
+  }
+  function needsCheck(photo,row){return (photo.rc31Quality?.uncertain||[]).some(w=>[w.ctn,...(w.alternatives||[])].some(v=>v===row.original||v===row.ctn));}
+  function candidates(photo,{includeExcluded=false}={}){
     const parsed=rules.parseText(photo.ocrText||""),map=new Map();
     const add=(original,meta)=>{
       const old=map.get(original);
@@ -15,15 +31,17 @@
       map.set(original,{original,ctn:original,rt:meta.rt||"",status:field(meta.status),plant:field(meta.plant),expected:Number(meta.expected)||0});
     };
     parsed.leading.forEach(ctn=>add(ctn,{}));parsed.groups.forEach(g=>g.ctns.forEach(ctn=>add(ctn,g)));
+    Object.entries(photo.rc31Review?.retained||{}).forEach(([original,row])=>{if(!map.has(original))map.set(original,{...row,original});});
     // OCR retries must not silently delete a previously reviewed candidate.
     Object.entries(photo.rc31Review?.ctns||{}).forEach(([original,review])=>{
       const row=map.get(original)||{original,ctn:original,stale:!review.added};map.set(original,{...row,...review,manual:true});
     });
-    return [...map.values()];
+    const order=photoOrder(photo,[...map.keys()]),excluded=photo.rc31Review?.excluded||{};
+    return order.map((original,index)=>({...map.get(original),order:index,needsCheck:needsCheck(photo,map.get(original)),excluded:!!(excluded[original]||Object.values(excluded).some(r=>r.ctn===map.get(original).ctn))})).filter(r=>includeExcluded||!r.excluded);
   }
   function build(photos,legacyDecisions=[]){
     const groups=[],byKey=new Map(),rows=[];
-    photos.forEach(photo=>candidates(photo).forEach(raw=>{
+    photos.slice().sort((a,b)=>Number(a.seq)-Number(b.seq)).forEach(photo=>candidates(photo).forEach(raw=>{
       let row={...raw};
       if(!row.manual){const older=legacyDecisions.find(d=>d.original===row.original&&d.photoIds.includes(photo.id));if(older)row={...row,...older.review,legacy:true};}
       row.status=field(row.status);row.plant=field(row.plant);row.photoId=photo.id;row.seq=Number(photo.seq)||0;
@@ -52,7 +70,7 @@
     });
     const owners=new Map();groups.forEach(g=>g.ctns.forEach(ctn=>{if(!owners.has(ctn))owners.set(ctn,[]);owners.get(ctn).push(g);}));
     owners.forEach(list=>{if(list.filter(g=>g.rt).length>1)list.forEach(g=>g.warnings.push("同一 CTN 的 RT／狀態／廠區有衝突，請依來源照片核對歸屬。"));});
-    groups.forEach(g=>{g.overlapCount=g.rows.length-g.ctns.length;g.warnings=[...new Set(g.warnings)];g.ready=!!g.rt&&!!g.status&&!!g.plant&&g.expected>0&&g.ctns.length===g.expected&&!g.warnings.length;});
+    groups.forEach(g=>{g.ctns=sequenceOrder(g.ctns,g.photoIds.map(id=>g.rows.filter(r=>r.photoId===id).sort((a,b)=>a.order-b.order).map(r=>r.ctn)));g.overlapCount=g.rows.length-g.ctns.length;g.warnings=[...new Set(g.warnings)];g.ready=!!g.rt&&!!g.status&&!!g.plant&&g.expected>0&&g.ctns.length===g.expected&&!g.warnings.length;});
     return groups;
   }
   // Share the CTN ownership decision between display and submission. Missing
@@ -84,6 +102,7 @@
         owner.displayCtns.push(ctn);owners.filter(g=>g!==owner).forEach(g=>g.collapsed++);
       }
     });
+    display.forEach(g=>g.displayCtns.sort((a,b)=>g.ctns.indexOf(a)-g.ctns.indexOf(b)));
     return {groups:display.filter(g=>g.displayCtns.length||g.conflictCount),conflicts,duplicates,repeatedRows,unique:resolved.length};
   }
   function updateReview(photo,selection,meta,{clear=false}={}){
@@ -101,7 +120,17 @@
     const previous=photo.rc31Review||{},ctns={...(previous.ctns||{})},at=new Date().toISOString();
     const before={};selection.forEach(x=>{before[x.original]=ctns[x.original]||null;if(clear)delete ctns[x.original];else ctns[x.original]={...values,ctn:clean(x.ctn),added:!!(x.added||ctns[x.original]?.added),at};});
     const proposed=all.map(x=>ctns[x.original]?.ctn||x.original).concat(selection.filter(x=>!available.has(x.original)).map(x=>clean(x.ctn)));if(!clear&&new Set(proposed).size!==proposed.length)throw new Error("修改後與同張其他 CTN 重複，請先核對。");
-    return {ctns,history:[...(previous.history||[]),{at,action:clear?"CLEAR":"ASSIGN",originals:selection.map(x=>x.original),before,after:clear?null:values}]};
+    return {...previous,ctns,history:[...(previous.history||[]),{at,action:clear?"CLEAR":"ASSIGN",originals:selection.map(x=>x.original),before,after:clear?null:values}]};
+  }
+  function excluded(photos){return [...new Set(photos.flatMap(p=>Object.values(p.rc31Review?.excluded||{}).map(r=>r.ctn)))];}
+  function excludeReviews(photos,ctn,restore=false,legacy=[]){
+    const updates=[],at=new Date().toISOString(),rows=build(photos,legacy).flatMap(g=>g.rows);
+    for(const p of photos){const previous=p.rc31Review||{},removed={...(previous.excluded||{})},retained={...(previous.retained||{})};let originals=[];
+      if(restore){originals=Object.keys(removed).filter(k=>removed[k].ctn===ctn);originals.forEach(k=>delete removed[k]);}
+      else {const matches=rows.filter(r=>r.photoId===p.id&&r.ctn===ctn);originals=matches.map(r=>r.original);matches.forEach(r=>{removed[r.original]={...r,at};retained[r.original]={...r};});}
+      if(originals.length)updates.push({id:p.id,updatedAt:p.updatedAt,review:{...previous,retained,retainedOrder:photoOrder(p,[...new Set([...candidates(p,{includeExcluded:true}).map(r=>r.original),...Object.keys(retained)])]),excluded:removed,history:[...(previous.history||[]),{at,action:restore?'RESTORE':'EXCLUDE',originals,ctn}]}});
+    }
+    if(!updates.length)throw Error('CTN 清單已變更，請重新查看後再操作。');return updates;
   }
   const normalizeCtn=rules.normalizeCtn,unknown=v=>!v||v==="UNKNOWN"||v==="-";
   function parseHeader(line){
@@ -184,5 +213,5 @@
     }
     return updates;
   }
-  return {candidates,build,resolve,presentation,updateReview,legacyDecisions,mergeReviews};
+  return {candidates,build,resolve,presentation,updateReview,legacyDecisions,mergeReviews,sequenceOrder,excluded,excludeReviews,needsCheck};
 });
