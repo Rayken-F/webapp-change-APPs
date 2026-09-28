@@ -125,9 +125,11 @@
   function excluded(photos){return [...new Set(photos.flatMap(p=>Object.values(p.rc31Review?.excluded||{}).map(r=>r.ctn)))];}
   function excludeReviews(photos,ctn,restore=false,legacy=[]){
     const updates=[],at=new Date().toISOString(),rows=build(photos,legacy).flatMap(g=>g.rows);
+    const requested=[...new Set(Array.isArray(ctn)?ctn:[ctn])],available=restore?excluded(photos):rows.map(r=>r.ctn);
+    if(!requested.length||requested.some(value=>!available.includes(value)))throw Error('CTN 清單已變更，請重新查看後再操作。');
     for(const p of photos){const previous=p.rc31Review||{},removed={...(previous.excluded||{})},retained={...(previous.retained||{})};let originals=[];
-      if(restore){originals=Object.keys(removed).filter(k=>removed[k].ctn===ctn);originals.forEach(k=>delete removed[k]);}
-      else {const matches=rows.filter(r=>r.photoId===p.id&&r.ctn===ctn);originals=matches.map(r=>r.original);matches.forEach(r=>{removed[r.original]={...r,at};retained[r.original]={...r};});}
+      if(restore){originals=Object.keys(removed).filter(k=>requested.includes(removed[k].ctn));originals.forEach(k=>delete removed[k]);}
+      else {const matches=rows.filter(r=>r.photoId===p.id&&requested.includes(r.ctn));originals=matches.map(r=>r.original);matches.forEach(r=>{removed[r.original]={...r,at};retained[r.original]={...r};});}
       if(originals.length)updates.push({id:p.id,updatedAt:p.updatedAt,review:{...previous,retained,retainedOrder:photoOrder(p,[...new Set([...candidates(p,{includeExcluded:true}).map(r=>r.original),...Object.keys(retained)])]),excluded:removed,history:[...(previous.history||[]),{at,action:restore?'RESTORE':'EXCLUDE',originals,ctn}]}});
     }
     if(!updates.length)throw Error('CTN 清單已變更，請重新查看後再操作。');return updates;

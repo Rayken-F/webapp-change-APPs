@@ -44,6 +44,20 @@ test('exclusion survives manual assignment and OCR retries; missing candidate ca
  p=apply([p],model.excludeReviews([p],A,true))[0];assert.deepEqual(model.candidates(p).map(r=>r.ctn),[A,B]);
 });
 test('stale removal and restoration reject instead of reporting a fake success',()=>{assert.throws(()=>model.excludeReviews([photo('a',1,[A])],B),/清單已變更/);assert.throws(()=>model.excludeReviews([photo('a',1,[A])],A,true),/清單已變更/);});
+
+test('multi-select removes all chosen CTNs in one update per photo and restores source order',()=>{
+ const photos=[photo('a',1,[A,B,C]),photo('b',2,[B,C,D])],before=JSON.stringify(photos),updates=model.excludeReviews(photos,[A,B,B]);
+ assert.deepEqual(updates.map(u=>u.id),['a','b']);const next=apply(photos,updates);
+ assert.deepEqual(draft(next).items.map(r=>r.ctn),[C,D]);assert.deepEqual(model.excluded(next),[A,B]);
+ const restored=apply(next,model.excludeReviews(next,[A,B],true));assert.deepEqual(draft(restored).items.map(r=>r.ctn),[A,B,C,D]);assert.equal(JSON.stringify(photos),before);
+});
+
+test('one stale selection or an empty selection rejects the entire multi-remove',()=>{
+ const photos=[photo('a',1,[A,B])],before=JSON.stringify(photos);
+ assert.throws(()=>model.excludeReviews(photos,[A,C]),/清單已變更/);assert.throws(()=>model.excludeReviews(photos,[]),/清單已變更/);
+ const next=apply(photos,model.excludeReviews(photos,A));assert.throws(()=>model.excludeReviews(next,[A,C],true),/清單已變更/);
+ assert.equal(JSON.stringify(photos),before);assert.deepEqual(model.excluded(next),[A]);
+});
 test('removing corrected legacy value excludes original key and keeps legacy assignment on restore',()=>{
  const photos=[photo('a',1,[A,B])],legacy=[{original:A,photoIds:['a'],review:{ctn:C,rt:'113374',status:'OCYL',plant:'7209'}}];
  const next=apply(photos,model.excludeReviews(photos,C,false,legacy));assert.deepEqual(model.build(next,legacy)[0].ctns,[B]);
