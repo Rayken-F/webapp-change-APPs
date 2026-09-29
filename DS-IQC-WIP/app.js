@@ -193,7 +193,7 @@ async function bootstrap(){
   const result=await Api.post("bootstrap",{});
   state.bootstrap=result;
   state.user=result.user;
-  $("versionPill").textContent=result.version+" · RT1 / AUTH-K2";
+  $("versionPill").textContent=result.version+" · IQC-X1";
   $("userPill").textContent=`${result.user.displayName}｜${result.user.role}`;
   $("reviewTabBtn").classList.toggle("hidden",!result.permissions.canReview);
   $("requestType").innerHTML=REQUEST_TYPES.map(item=>
@@ -258,6 +258,13 @@ function deriveSelectionFromResult(result){
       }
     }
   }
+  const downstream=(result.grinding||[]).find(row=>normalizeCtn(row.asset_ctn||row.source_ctn)===q);
+  if(downstream){
+    return {targetCtn:q,targetKind:downstream.tracking_type==="BUNDLE_LOT"?"bundle":"bottle",
+      sourceFrameCtn:normalizeCtn(downstream.source_frame_ctn),rt:downstream.rt||"",regionCode:downstream.region_code||"",downstream:true};
+  }
+  const current=(result.ctnCurrentState||[]).find(row=>normalizeCtn(row.ctn)===q&&['BOTTLE','BUNDLE'].includes(row.asset_type));
+  if(current)return {targetCtn:q,targetKind:current.asset_type==='BUNDLE'?'bundle':'bottle',sourceFrameCtn:normalizeCtn(current.source_frame_ctn),rt:current.rt||'',regionCode:current.region_code||'',downstream:true};
   if(q){
     return {targetCtn:q,targetKind:"generic",sourceFrameCtn:"",rt:""};
   }
@@ -429,10 +436,10 @@ async function refreshTransferCapacityPreview(){
       incoming_ctns:bottles
     });
     const cap=response.capacity||{};
-    box.innerHTML=
-      `目標框目前 <strong>${cap.currentQty??0}/18</strong> 支；`+
+    box.innerHTML=cap.maxQty===null?'虛擬來源框；補正來源歸屬，不移動目前製程框。':
+      `目標框未進站 <strong>${cap.currentQty??0}/${cap.maxQty??18}</strong> 支；`+
       `本次轉入 <strong>${cap.incomingQty??bottles.length}</strong> 支；`+
-      `完成後 <strong>${cap.projectedQty??"-"}/18</strong> 支；`+
+      `完成後 <strong>${cap.projectedQty??"-"}/${cap.maxQty??18}</strong> 支；`+
       `剩餘 <strong>${cap.remainingAfter??"-"}</strong> 格。`;
 
     box.classList.toggle("capacity-bad",!!cap.overCapacity);
@@ -463,6 +470,13 @@ function applySelectionStyles(){
 }
 
 function bindLookupInteractions(){
+  document.querySelectorAll(".js-select-downstream").forEach(btn=>{
+    btn.addEventListener("click",()=>{
+      setSelection({targetCtn:normalizeCtn(btn.dataset.ctn),targetKind:btn.dataset.kind,
+        sourceFrameCtn:normalizeCtn(btn.dataset.frame||""),rt:btn.dataset.rt||"",regionCode:btn.dataset.region||"",downstream:true});
+      if(isMobileRequestDrawer()) openMobileRequestPanel();
+    });
+  });
   document.querySelectorAll(".js-select-bundle").forEach(btn=>{
     btn.addEventListener("click",()=>{
       setSelection({targetCtn:normalizeCtn(btn.dataset.ctn),targetKind:"bundle",sourceFrameCtn:normalizeCtn(btn.dataset.frame||""),rt:btn.dataset.rt||""});
@@ -597,6 +611,7 @@ function renderGrindingRows(rows){
       <div class="lookup-section-title">
         <span>${escapeHtml(displayValue(row.asset_ctn||row.source_ctn))}</span>
         <span class="state-badge">${escapeHtml(displayValue(row.lifecycle_status||row.station_status))}</span>
+        <button type="button" class="mini-btn js-select-downstream" data-ctn="${escapeHtml(row.asset_ctn||row.source_ctn||'')}" data-kind="${row.tracking_type==='BUNDLE_LOT'?'bundle':'bottle'}" data-frame="${escapeHtml(row.source_frame_ctn||'')}" data-rt="${escapeHtml(row.rt||'')}" data-region="${escapeHtml(row.region_code||'')}">選用此 CTN</button>
       </div>
       <div class="lookup-info-grid">
         ${infoCell("目前站別",row.current_station)}
@@ -618,6 +633,7 @@ function renderCtnStateRows(rows){
         <small>${rows.length} 筆</small>
       </div>
       ${rows.map(row=>`
+        <button type="button" class="mini-btn js-select-downstream" data-ctn="${escapeHtml(row.ctn||'')}" data-kind="${row.asset_type==='BUNDLE'?'bundle':'bottle'}" data-frame="${escapeHtml(row.source_frame_ctn||'')}" data-rt="${escapeHtml(row.rt||'')}">選用 ${escapeHtml(row.ctn||'')}</button>
         <div class="lookup-info-grid" style="margin-top:8px">
           ${infoCell("CTN",row.ctn)}
           ${infoCell("狀態",row.status)}
@@ -629,6 +645,16 @@ function renderCtnStateRows(rows){
     </div>`;
 }
 
+function renderCrossStation(cross){
+  if(!cross)return '';
+  const changes=(cross.changes||[]).filter(c=>c.oldCtn!==c.newCtn).map(c=>`${c.oldCtn} → ${c.newCtn}（${c.requestId}）`);
+  return `<div class="lookup-section"><div class="lookup-section-title">跨站關聯</div>
+    ${changes.length?`<div class="panel-note">${changes.map(escapeHtml).join('<br>')}</div>`:''}
+    <div class="lookup-info-grid">${infoCell('日報關聯',`${cross.stationCount||0} 筆`)}${infoCell('OQC 關聯',`${cross.oqc?.length||0} 筆`)}</div>
+    ${(cross.stations||[]).map(r=>`<div class="request-meta">${escapeHtml(r.station)}｜${escapeHtml(r.date)}｜原 ${escapeHtml(r.originalCtn)}</div>`).join('')}
+    ${(cross.oqc||[]).map(r=>`<div class="request-meta">OQC ${escapeHtml(r.batchId)}｜${escapeHtml(r.packingStatus)}｜${escapeHtml(r.ctn)}</div>`).join('')}
+    <small>${escapeHtml(cross.note||'')}</small></div>`;
+}
 function renderRelatedRequests(rows){
   if(!Array.isArray(rows)||!rows.length){
     return '<div class="lookup-empty">沒有相關異常單</div>';
@@ -732,6 +758,7 @@ function renderLookup(result){
       </div>
 
       ${reasons}
+      ${renderCrossStation(result.crossStation)}
 
       <div class="lookup-sections">
         <div>
@@ -795,7 +822,7 @@ function requestTargetContext(type){
     return {
       targetCtn: sourceFrame || (selection.targetKind==="frame" ? selectedCtn : ""),
       kind:"frame",
-      label:"當前運輸框 CTN"
+      label:"補登來源框 CTN"
     };
   }
 
@@ -864,6 +891,16 @@ function renderRequestTargetField(type){
   return ctx;
 }
 
+let correctionRegionsTask=null;
+function loadCorrectionRegions(){
+  if(state.bootstrap?.regions?.length||correctionRegionsTask)return;
+  const account=state.user?.userId||state.user?.account;
+  correctionRegionsTask=Api.post('correction_regions',{}).then(result=>{
+    if(account!==(state.user?.userId||state.user?.account))return;
+    state.bootstrap.regions=result.regions||[];const el=$('requestAddRegion');
+    if(el){const selected=el.value||state.selection?.regionCode||'';el.innerHTML='<option value="">請選擇區域</option>'+state.bootstrap.regions.map(r=>`<option value="${escapeHtml(r.code)}">${escapeHtml(r.code+' '+r.name)}</option>`).join('');el.value=selected;}
+  }).catch(err=>{const el=$('requestAddRegion');if(el)el.innerHTML='<option value="">'+escapeHtml(err.message)+'；重開表單可重試</option>';}).finally(()=>{correctionRegionsTask=null;});
+}
 function renderRequestDynamicFields(){
   const wrap=$("requestDynamicFields");
   if(!wrap) return;
@@ -904,17 +941,17 @@ function renderRequestDynamicFields(){
     case "ADD_MISSING_BOTTLE":
       html=`
         <div class="field">
-          <label>當前運輸框 CTN</label>
-          <div class="static-display ${sourceFrame?"":"muted"}">${escapeHtml(sourceFrame || "請先查詢或選用運輸框")}</div>
+          <label for="requestAddSourceFrame">補登來源框 CTN（可留空）</label>
+          <input id="requestAddSourceFrame" maxlength="7" value="${escapeHtml(sourceFrame)}" placeholder="留空時依既有來源或 RT 容量補登">
         </div>
         <div class="row">
           <div class="field">
             <label for="requestAddBottleCtn">待新增鋼瓶 CTN</label>
-            <input id="requestAddBottleCtn" maxlength="7" placeholder="請輸入待新增鋼瓶 CTN">
+            <input id="requestAddBottleCtn" maxlength="7" value="${escapeHtml(selection.targetKind==='bottle'?selection.targetCtn||'':'')}" placeholder="請輸入待新增鋼瓶 CTN">
           </div>
           <div class="field">
             <label for="requestAddBottleRt">待新增鋼瓶 RT</label>
-            <input id="requestAddBottleRt" inputmode="numeric" placeholder="請輸入 RT 料號">
+            <input id="requestAddBottleRt" inputmode="numeric" value="${escapeHtml(selection.targetKind==='bottle'?selection.rt||'':'')}" placeholder="請輸入 RT 料號">
           </div>
         </div>
         <div class="field">
@@ -923,7 +960,10 @@ function renderRequestDynamicFields(){
                  maxlength="50"
                  autocomplete="off"
                  placeholder="請輸入鋼瓶狀態（必填，最多 50 字）">
-          <div class="field-hint">沿用正式 IQC 規則：鋼瓶狀態必填，最多 50 字。</div>
+          <div class="field-hint">補登會保留既有站別與目前所在框。</div>
+        </div>
+        <div class="field"><label for="requestAddRegion">補登區域</label>
+          <select id="requestAddRegion"><option value="">請選擇區域</option>${(state.bootstrap?.regions||[]).map(r=>`<option value="${escapeHtml(r.code)}" ${r.code===selection.regionCode?'selected':''}>${escapeHtml(r.code+' '+r.name)}</option>`).join('')}</select>
         </div>`;
       break;
 
@@ -1006,6 +1046,7 @@ function renderRequestDynamicFields(){
   }
 
   wrap.innerHTML=html;
+  if(type==='ADD_MISSING_BOTTLE'&&state.user)loadCorrectionRegions();
 
   [
     "requestAddBottleCtn",
@@ -1109,7 +1150,9 @@ function collectRequestPayload(){
   let proposedValue={};
 
   if(requestType==="ADD_MISSING_BOTTLE"){
-    if(!sourceFrameCtn) throw new Error("請先查詢或選用當前運輸框 CTN");
+    sourceFrameCtn=assertValidCtn($("requestAddSourceFrame")?.value,"補登來源框 CTN",true);
+    const regionCode=String($("requestAddRegion")?.value||"");
+    if(!regionCode) throw new Error("請選擇補登區域");
     const newCtn=assertValidCtn(
       $("requestAddBottleCtn")?.value,
       "待新增鋼瓶 CTN"
@@ -1127,6 +1170,8 @@ function collectRequestPayload(){
       value:newCtn,
       ctn:newCtn,
       rt:newRt,
+      source_frame_ctn:sourceFrameCtn,
+      region_code:regionCode,
       bottle_status:newStatus
     };
 
@@ -1344,7 +1389,9 @@ function requestCard(request,reviewMode,isUnread=false){
   }
 
   let buttons="";
-  if(reviewMode&&request.status==="PENDING_REVIEW"){
+  if(reviewMode&&request.syncStatus?.pending){
+    buttons=`<div class="actions"><button class="btn" onclick="reviewRequest('${escapeHtml(request.requestId)}','APPROVE',true)">繼續同步</button>${request.syncStatus.phase==='ROLLED_BACK'?`<button class="btn danger" onclick="reviewRequest('${escapeHtml(request.requestId)}','REJECT')">駁回</button>`:''}</div>`;
+  }else if(reviewMode&&request.status==="PENDING_REVIEW"){
     buttons=`<div class="actions">
       <button class="btn" onclick="reviewRequest('${escapeHtml(request.requestId)}','APPROVE')">核准</button>
       <button class="btn danger" onclick="reviewRequest('${escapeHtml(request.requestId)}','REJECT')">駁回</button>
@@ -1378,6 +1425,8 @@ function requestCard(request,reviewMode,isUnread=false){
         </div>
       </div>
       <div class="request-meta">${detailLine}</div>
+      ${request.syncStatus?`<div class="request-meta" role="status">${request.syncStatus.pending?'跨站同步未完成':'跨站同步完成'}${request.syncStatus.error?'：'+escapeHtml(request.syncStatus.error):''}</div>`:''}
+      ${renderCrossStation(request.sourceSnapshot?.crossStation)}
       ${request.reviewNote?`<div class="request-meta">審核：${escapeHtml(request.reviewNote)}</div>`:""}
       ${buttons}
     </article>`;
@@ -1713,20 +1762,31 @@ function switchTab(tab){
   if(tab==="review") loadReview();
 }
 
-async function reviewRequest(requestId,action){
-  const note=prompt(action==="APPROVE"?"請輸入核准說明（可留空）":"請輸入駁回原因");
+const reviewingRequests=new Set();
+async function reviewRequest(requestId,action,resume=false){
+  if(reviewingRequests.has(requestId))return;
+  const note=resume?'':prompt(action==="APPROVE"?"請輸入核准說明（可留空）":"請輸入駁回原因");
   if(note===null) return;
+  reviewingRequests.add(requestId);
+  const card=Array.from(document.querySelectorAll('.request-card')).find(el=>el.dataset.requestId===requestId);
+  const buttons=card?Array.from(card.querySelectorAll('button')):[];
+  buttons.forEach(b=>b.disabled=true);
+  const status=document.createElement('p');status.setAttribute('role','status');status.className='request-meta';card?.appendChild(status);
+  const started=Date.now(),update=()=>{status.textContent=`正在核對並同步各站資料… ${Math.floor((Date.now()-started)/1000)} 秒；請保留此頁。`;};update();const timer=setInterval(update,1000);
   try{
     const response = await Api.post("review_request",{
       request_id:requestId,
       decision:action,
       review_note:note
     });
-    toast(response.message || (action==="APPROVE"?"已核准並套用異常修正":"已駁回異常單"));
+    toast(response.message || (action==="APPROVE"?"已核准並套用異常修正":"已駁回異常單"),!!response.pendingSync);
     await loadReview();
     await loadMyRequests();
   }catch(err){
+    status.textContent=err.message;await loadReview();
     toast(err.message,true);
+  }finally{
+    clearInterval(timer);reviewingRequests.delete(requestId);buttons.forEach(b=>b.disabled=false);
   }
 }
 window.reviewRequest=reviewRequest;

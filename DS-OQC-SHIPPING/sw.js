@@ -1,8 +1,8 @@
 'use strict';
-const CACHE='oqc-shipping-production-20260920-05';
+const CACHE='oqc-shipping-production-20260929-x1';
 const BASE=new URL('./',self.location.href).href;
 const PREPARATION=new URL('../ds-app/oqc-bootstrap.js?v=20260920-k9',self.location.href).href;
-const FILES=['./','index.html','domain-h2-g1.js?v=20260917-g1-01','rt-gate-g1.js?v=20260917-g1-02','rt-catalog-g12.js?v=20260917-g1-03','history-h1.js?v=20260920-k9','batch-removal-rm1.js?v=20260917-g1-01','../ds-app/oqc-bootstrap.js?v=20260920-k9'];
+const FILES=['identity-correction-x1.js?v=20260929-x1','correction-queue-x1.js?v=20260929-x1','./','index.html','domain-h2-g1.js?v=20260917-g1-01','rt-gate-g1.js?v=20260917-g1-02','rt-catalog-g12.js?v=20260917-g1-03','history-h1.js?v=20260920-k9','batch-removal-rm1.js?v=20260917-g1-01','../ds-app/oqc-bootstrap.js?v=20260920-k9'];
 self.addEventListener('install',event=>event.waitUntil(caches.open(CACHE).then(c=>c.addAll(FILES)).then(()=>self.skipWaiting())));
 self.addEventListener('activate',event=>event.waitUntil(self.clients.claim()));
 self.addEventListener('fetch',event=>{

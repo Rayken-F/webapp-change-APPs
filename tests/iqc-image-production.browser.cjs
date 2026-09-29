@@ -20,9 +20,10 @@ const env='IQC_IMAGE_PRODUCTION_V1';let checks=0;function ok(name,value){assert.
     if(body.api==='iqc_image_masters')Object.assign(result,{items:[{rtNo:'113353',description:'X40S',rtType:'loose',unit:'支'}],regions:[{code:'B3',label:'收貨區'}]});
     else if(body.api==='iqc_image_submit'){
      submits++;const p=body.payload;assert.equal(p.environment,env);assert.match(p.submissionId,/^IQCIMG_PROD_/);assert.equal(body.session_token,'FIXTURE');
-     const receipt=receipts.get(p.submissionId)||{receiptId:crypto.randomUUID(),submissionId:p.submissionId,payloadHash:crypto.createHash('sha256').update(JSON.stringify(p)).digest('hex'),account,station:'IQC',sheetName:'IQC_Log',startRow:2,endRow:p.items.length+1,rowCount:p.items.length,writtenAt:'2026-09-27 16:30:00',environment:env};receipts.set(p.submissionId,receipt);
+     const normalized={...p,items:p.items.slice().sort((a,b)=>a.ctn.localeCompare(b.ctn))};
+     const receipt=receipts.get(p.submissionId)||{receiptId:crypto.randomUUID(),submissionId:p.submissionId,payloadHash:crypto.createHash('sha256').update(JSON.stringify(normalized)).digest('hex'),account,station:'IQC',sheetName:'IQC_Log',startRow:2,endRow:p.items.length+1,rowCount:p.items.length,writtenAt:'2026-09-27 16:30:00',environment:env};receipts.set(p.submissionId,receipt);
      if(mode==='lose')return route.abort();result.receipt=receipt;
-    }else if(body.api==='iqc_image_status'){result.receipt=receipts.get(body.submissionId)||null;result.found=!!result.receipt;}else throw Error('unexpected route');
+    }else if(body.api==='iqc_image_status'){result.receipt=receipts.get(body.submissionId)||null;result.found=!!result.receipt;if(result.receipt&&body.payloadHash!==result.receipt.payloadHash)result={...result,ok:false,receipt:null,code:'PAYLOAD_CONFLICT',message:'核對碼不符'};}else throw Error('unexpected route');
    }else if(['workstation_login','workstation_bootstrap','portal_profile'].includes(body.api))result={ok:true,sessionToken:'FIXTURE',user:{account,displayName:'測試人員',role:'ADMIN'},permissions:{home_enabled:true,iqc_image_enabled:allowed,daily_report_enabled:false}};
    return route.fulfill({contentType:'application/json',body:JSON.stringify(result)});
   });
@@ -33,7 +34,7 @@ const env='IQC_IMAGE_PRODUCTION_V1';let checks=0;function ok(name,value){assert.
   allowed=true;await page.reload();await page.locator('#appShell').waitFor({state:'visible'});await page.locator('#navMore').click();await page.getByText('IQC 影像辨識',{exact:true}).click();
   let frame=await page.locator('iframe[data-module-key="iqcImage"]').elementHandle().then(x=>x.contentFrame());await frame.locator('#iqcRcRegion option[value="B3"]').waitFor({state:'attached'});const idle=()=>frame.waitForFunction(()=>!__DS_IQC_RC31.isBusy());await idle();
   ok('independent permission opens image without daily permission',await frame.locator('#iqcImageRc').isVisible());
-  ok('production title and one start button',/V1\.1/.test(await frame.locator('.iqc-rc-top h2').textContent())&&await frame.getByRole('button',{name:'開始辨識',exact:true}).count()===1);
+  ok('production title and one start button',/V1\.2/.test(await frame.locator('.iqc-rc-top h2').textContent())&&await frame.getByRole('button',{name:'開始辨識',exact:true}).count()===1);
   const key=await frame.evaluate(()=>IqcProduction.key('ds_iqc_image_rc_active_batch'));
   const snap=()=>frame.evaluate(()=>IqcSubmitStore31.snapshot(localStorage.getItem(IqcProduction.key('ds_iqc_image_rc_active_batch'))));
   const batch=(await snap()).batch.id;
@@ -71,15 +72,19 @@ const env='IQC_IMAGE_PRODUCTION_V1';let checks=0;function ok(name,value){assert.
   await page.reload();await page.locator('#appShell').waitFor({state:'visible'});await page.locator('#navMore').click();await page.getByText('IQC 影像辨識',{exact:true}).click();frame=await page.locator('iframe[data-module-key="iqcImage"]').elementHandle().then(x=>x.contentFrame());await frame.locator('#iqcRcRegion option[value="B3"]').waitFor({state:'attached'});await idle();
   ok('formal reload retains old batch, correction, exclusions and photo',(await snap()).batch.id===batch&&await frame.locator('[data-result-ctn="AB62CDE"]').count()===1&&await frame.locator('[data-result-ctn="AB12CDE"]').count()===0&&await imageHash()===hash);
 
+  await frame.evaluate(()=>{const payload=IqcSubmitModel31.payload;IqcSubmitModel31.payload=(...args)=>{const p=payload(...args);return {...p,items:p.items.slice().reverse()};};});
   await frame.locator('#iqcRcCommit').tap();await frame.locator('#iqc31SubmitPreview table').waitFor();await idle();
   ok('preview has six reviewed rows with formal destination and no excluded CTN',await frame.locator('#iqc31SubmitPreview tbody tr').count()===6&&/正式 IQC/.test(await frame.locator('#iqc31SubmitPreview').textContent())&&!/AB12CDE/.test(await frame.locator('#iqc31SubmitPreview tbody').textContent()));
   ok('preview requires unchecked human confirmation',await frame.locator('#iqc31SubmitAccept').isDisabled());
   await page.screenshot({path:path.join(out,'production-preview.png')});
   mode='lose';await frame.locator('#iqc31SubmitConfirm').check();await frame.locator('#iqc31SubmitAccept').tap();await idle();
+  // Recreate a V1.1 pending record: preserve its photo-order payload and legacy hash.
+  const legacyHash=await frame.evaluate(async()=>{const id=localStorage.getItem(IqcProduction.key('ds_iqc_image_rc_active_batch')),s=await IqcSubmitStore31.snapshot(id),v=s.submissions[0];v.payloadHash=[...new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(JSON.stringify(v.payload))))].map(n=>n.toString(16).padStart(2,'0')).join('');delete v.canonicalPayloadHash;await new Promise((resolve,reject)=>{const r=indexedDB.open(IqcProduction.key('ds_iqc_image_rc_v1'),1);r.onsuccess=()=>{const db=r.result,tx=db.transaction('submissions','readwrite');tx.objectStore('submissions').put(v);tx.oncomplete=()=>{db.close();resolve();};tx.onabort=()=>reject(tx.error);};});return v.payloadHash;});
   // The accepted flow may immediately recover the receipt, or retain SENT_UNKNOWN until retry.
   mode='success';if((await snap()).submissions[0]?.status!=='SYNCED'){await frame.locator('#iqcRcSyncPending').tap();await idle();}
   await frame.waitForFunction(async()=>{const s=await IqcSubmitStore31.snapshot(localStorage.getItem(IqcProduction.key('ds_iqc_image_rc_active_batch')));return s.submissions[0]?.status==='SYNCED';});
   ok('lost response resolves to permanent receipt without duplicate write',submits===1&&receipts.size===1&&(await snap()).batch.status==='SYNCED');
+  const recovered=(await snap()).submissions[0];ok('legacy hash is preserved and canonical receipt recovered without changing payload order',recovered.payloadHash===legacyHash&&recovered.canonicalPayloadHash===recovered.receipt.payloadHash&&legacyHash!==recovered.receipt.payloadHash&&recovered.payload.items[0].ctn==='ZA12BCD');
   ok('request contains no photos or client identity',posts.filter(x=>x.api==='iqc_image_submit').every(x=>!JSON.stringify(x).includes('base64')&&!x.payload.operator&&!x.payload.date));
   await frame.locator('#iqc31History').click();await idle();
   ok('confirmed production batch appears in history',(await snap()).batch.id===batch&&/已入帳/.test(await frame.locator('#iqc31BatchSelect').textContent()));

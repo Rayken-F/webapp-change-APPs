@@ -74,7 +74,7 @@ if(window.IqcProduction?.allowed){
       $('iqcImageRc')?.querySelectorAll('[data-photo-delete],[data-ocr31-photo],[data-review-photo],[data-review-quality],[data-merge-rt],[data-ctn-select],[data-ctn-remove-selected],[data-ctn-restore]').forEach(b=>{b.disabled=true;});
     }else if($('iqcRcRegion'))disabled($('iqcRcRegion'),working||!ready);
   }
-  async function digest(p){const bytes=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(JSON.stringify(p)));return [...new Uint8Array(bytes)].map(n=>n.toString(16).padStart(2,'0')).join('');}
+  async function digest(p){const bytes=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(JSON.stringify(model.canonical(p))));return [...new Uint8Array(bytes)].map(n=>n.toString(16).padStart(2,'0')).join('');}
   async function post(body,account,timeout=60000){
     const c=context();if(c.account!==account)throw Error('登入帳號已變更，請使用原帳號查收據／重試。');
     const controller=new AbortController(),began=Date.now(),timer=setTimeout(()=>controller.abort(),timeout);
@@ -90,9 +90,11 @@ if(window.IqcProduction?.allowed){
   async function send(r,retry){
     if(r.protocol!==model.protocol||r.environment!==model.environment||r.endpoint!==endpoint)throw Error('舊版／其他環境送出紀錄不會重送。');
     if(context().account!==r.account)throw Error('請使用原送出帳號查收據／重試。');
+    const canonicalPayloadHash=await digest(r.payload);
+    if(r.canonicalPayloadHash!==canonicalPayloadHash)r=await store.update(r,{canonicalPayloadHash});
     if(retry){
       stage('正在查詢本批永久收據');
-      const d=await post({api:'iqc_image_status',protocol:model.protocol,environment:model.environment,submissionId:r.submissionId,payloadHash:r.payloadHash},r.account);
+      const d=await post({api:'iqc_image_status',protocol:model.protocol,environment:model.environment,submissionId:r.submissionId,payloadHash:r.canonicalPayloadHash||r.payloadHash},r.account);
       if(await accept(d,r))return;
       if(d.ok!==true||d.found||d.pending)throw Error(d.message||'收據尚未能核對，請稍後再查詢。');
       if(r.status==='SYNCED')throw Error('後端未找到既有收據，已停止重送，請交由 CG 核對。');
@@ -101,7 +103,7 @@ if(window.IqcProduction?.allowed){
     try{
       const data=await post({api:'iqc_image_submit',payload:r.payload},r.account);
       if(await accept(data,r))return;
-      if(data.confirmedRejected===true&&data.submissionId===r.submissionId&&data.payloadHash===r.payloadHash){
+      if(data.confirmedRejected===true&&data.submissionId===r.submissionId&&data.payloadHash===(r.canonicalPayloadHash||r.payloadHash)){
         await store.update(r,{status:'REJECTED',lastError:data.message});throw Error('後端未寫入：'+data.message+'；可修正本批後重新預覽。');
       }
       throw Error(data.message||'後端尚未提供完整收據。');

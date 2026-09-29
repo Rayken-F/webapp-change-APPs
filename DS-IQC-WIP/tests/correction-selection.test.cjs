@@ -31,3 +31,12 @@ test('existing request code retains display compatibility; bundle buttons escape
  const html=c.renderBundleCard({rows:[{ctn:'QA10AA1',rt:'224400'},{ctn:'QA10AA2',rt:'<unsafe>'}]});
  assert.equal((html.match(/js-select-bundle/g)||[]).length,2);assert.match(html,/data-rt="&lt;unsafe&gt;"/);
 });
+test('missing IQC still selects the downstream bottle and retains source frame instead of current process frame',()=>{
+ const {c,node}=setup();
+ c.testState.selection=c.deriveSelectionFromResult({normalizedQuery:'QA10AA1',iqc:{transportCards:[],bundleCards:[]},grinding:[{asset_ctn:'QA10AA1',tracking_type:'BOTTLE',rt:'113351',source_frame_ctn:'VT40LCY',current_frame_ctn:'SB10AA1',current_station:'HT'}]});
+ assert.equal(c.testState.selection.targetKind,'bottle');assert.equal(c.testState.selection.sourceFrameCtn,'VT40LCY');node('requestNewBottleCtn').value='QA10AA2';
+ const p=c.collectRequestPayload();assert.equal(p.old_value.rt,'113351');assert.equal(p.target_ctn,'QA10AA1');
+});
+test('CTN-state-only selection also exposes correction without an IQC card',()=>{
+ const {c}=setup();const v=c.deriveSelectionFromResult({normalizedQuery:'QA10AA1',iqc:{transportCards:[],bundleCards:[]},ctnCurrentState:[{ctn:'QA10AA1',asset_type:'BOTTLE',rt:'113351',source_frame_ctn:'VT40LCY'}]});assert.equal(v.targetKind,'bottle');assert.equal(v.rt,'113351');
+});

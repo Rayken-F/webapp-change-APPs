@@ -97,6 +97,7 @@
   }
 
   function timeoutForApi(api){
+    if(api === "review_request") return 120000;
     if(api === "login") return 20000;
     if(api === "create_request" || api === "review_request" || api === "close_request") return 25000;
     return 15000;
@@ -132,7 +133,7 @@
       return err;
     }
     if(api === "review_request" || api === "close_request"){
-      err.message = "後端結果待確認；請先更新異常單清單確認狀態，不要連續重複操作。";
+      err.message = "後端結果待確認；請更新異常單清單。若顯示跨站同步未完成，按同一張異常單的「繼續同步」，不要另建相同修正。";
       return err;
     }
     if(api === "login"){
