@@ -48,7 +48,7 @@
       <div class="grid">
         <article id="lookupPanel" class="panel">
           <h2>資料查詢</h2>
-          <p class="panel-note">可查 CTN、submission_id 或異常單號；同時比對 IQC_Log、CTN Current State 與 Grinding WIP。</p>
+          <p class="panel-note">可查新舊 CTN、submission_id 或異常單號，核對 IQC、目前站別、日報與 OQC 關聯。跨站修正 X1。</p>
           <div class="field">
             <label for="lookupQuery">查詢關鍵字</label>
             <input id="lookupQuery" placeholder="掃描 CTN 或輸入 submission_id">
@@ -66,7 +66,7 @@
             <button id="mobileRequestClose" class="mobile-request-close" type="button" aria-label="收合異常單" title="收合異常單">×</button>
           </div>
           <div id="requestPanelToast" class="drawer-toast hidden" role="alert" aria-live="assertive"></div>
-          <p class="panel-note">送出後先建立永久異常單；核准後由系統受控更新 IQC_Log，若已進 Grinding 則同步更新對應 WIP，並保留完整修正軌跡。</p>
+          <p class="panel-note">漏建 IQC 或 CTN／RT 打錯，已進噴砂、HT 也可提出修正。主管核准後同步相關站別，保留目前製程、數量與原收據。</p>
           <div class="field">
             <label for="requestType">異常類型</label>
             <select id="requestType"></select>
@@ -114,7 +114,7 @@
         <div class="result-head">
           <div>
             <h2>主管審核佇列</h2>
-            <p class="panel-note">高風險資料需先確認 Grinding／DCYL／HT 狀態；核准後會受控修改 IQC_Log，已進 Grinding 時同步 WIP。</p>
+            <p class="panel-note">核對新舊值與跨站關聯後核准；同步中斷可繼續同一異常單。來源運輸框更正不會移動目前製程框。</p>
           </div>
           <button id="refreshReviewBtn" class="btn secondary" type="button">更新</button>
         </div>
@@ -132,8 +132,8 @@
   </div>
 
   <div id="toast" class="toast hidden"></div>
-  <script src="./api.js?v=20260918-auth-k2"></script>
+  <script src="./api.js?v=20260929-iqc-x1"></script>
   <script src="./ds-shell-sso.js?v=20260918-auth-k2"></script>
-  <script src="./app.js?v=20260918-auth-k2"></script>
+  <script src="./app.js?v=20260929-iqc-x1"></script>
 </body>
 </html>

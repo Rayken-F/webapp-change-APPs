@@ -33,11 +33,13 @@ if(window.IqcProduction?.allowed){
     return {items,warnings:[...new Set(warnings)],duplicateCount:groups.reduce((n,g)=>n+g.rows.length,0)-items.length};
   }
   function payload(snapshot,draft,submissionId){return {protocol,environment,submissionId,batchId:snapshot.batch.id,regionCode:String(snapshot.batch.regionCode).trim().toUpperCase(),reviewed:true,items:draft.items};}
+  // Match the server's normalized identity without changing the photo display order.
+  function canonical(p){return {protocol,environment,submissionId:p.submissionId,batchId:p.batchId,regionCode:String(p.regionCode||'').trim().toUpperCase(),reviewed:true,items:p.items.map(x=>({ctn:String(x.ctn||'').trim().toUpperCase(),rtNo:String(x.rtNo||'').trim(),cylinderStatus:String(x.cylinderStatus||'').trim().toUpperCase(),plant:String(x.plant||'').trim().toUpperCase()})).sort((a,b)=>a.ctn.localeCompare(b.ctn))};}
   function receipt(data,record){
     const r=data?.receipt;
-    return !!(data?.ok===true&&!data.pending&&data.protocol===protocol&&data.environment===environment&&r?.environment===environment&&r.submissionId===record.submissionId&&r.payloadHash===record.payloadHash&&r.account===record.account&&r.station==='IQC'&&r.sheetName==='IQC_Log'&&r.receiptId&&r.writtenAt&&Number.isInteger(r.startRow)&&r.startRow>=2&&r.endRow===r.startRow+r.rowCount-1&&r.rowCount===record.payload.items.length);
+    return !!(data?.ok===true&&!data.pending&&data.protocol===protocol&&data.environment===environment&&r?.environment===environment&&r.submissionId===record.submissionId&&r.payloadHash===(record.canonicalPayloadHash||record.payloadHash)&&r.account===record.account&&r.station==='IQC'&&r.sheetName==='IQC_Log'&&r.receiptId&&r.writtenAt&&Number.isInteger(r.startRow)&&r.startRow>=2&&r.endRow===r.startRow+r.rowCount-1&&r.rowCount===record.payload.items.length);
   }
-  return {protocol,environment,draft,payload,receipt};
+  return {protocol,environment,draft,payload,canonical,receipt};
 });
 
 }
