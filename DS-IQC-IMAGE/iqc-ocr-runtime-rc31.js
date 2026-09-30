@@ -1,8 +1,8 @@
 if(window.IqcProduction?.allowed){
-/* IQC V1.2 / RECEIPT-20260929. Loaded before intake/legacy click handlers. */
+/* IQC V1.3 / MANUAL-20260930. Loaded before intake/legacy click handlers. */
 (function(){
   "use strict";
-  const BUILD="IQC V1.2 / RECEIPT-20260929",DB=window.IqcProduction.key("ds_iqc_image_rc_v1"),ACTIVE=window.IqcProduction.key("ds_iqc_image_rc_active_batch");
+  const BUILD="IQC V1.3 / MANUAL-20260930",DB=window.IqcProduction.key("ds_iqc_image_rc_v1"),ACTIVE=window.IqcProduction.key("ds_iqc_image_rc_active_batch");
   const LOG=window.IqcProduction.key("ds_iqc_ocr_rc31_diagnostics"),LIB="https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js";
   const WORKER=new URL("./iqc-ocr-worker-rc31.js?v=20260924-9",document.currentScript.src).href;
   const CORE="https://cdn.jsdelivr.net/npm/tesseract.js-core@5.1.1";
@@ -331,7 +331,7 @@ if(window.IqcProduction?.allowed){
     if(window.__DS_IQC_SUBMIT31?.ready())window.__DS_IQC_SUBMIT31.paint();
     else for(const id of ["iqcRcCommit","iqcRcSyncPending"])if($(id))$(id).disabled=true;
     window.__DS_IQC_REVIEW31?.paintSelection();
-    text("iqcRcOcrBadge",operation?({local_ocr:"本機辨識中",save_photos:"保存照片中",cloud:"補辨識中"}[operation.kind]||"處理中"):"V1.2｜本機辨識");
+    text("iqcRcOcrBadge",operation?({local_ocr:"本機辨識中",save_photos:"保存照片中",cloud:"補辨識中"}[operation.kind]||"處理中"):"V1.3｜本機辨識");
   }
   function installUi(){
     const button=$("iqcRcAnalyze"),panel=$("iqcImageRc");if(!button||!panel)return;
@@ -345,7 +345,7 @@ if(window.IqcProduction?.allowed){
       const style=document.createElement("style");style.textContent="#iqcImageRc [data-ocr31-photo]{grid-column:2 / 4;justify-self:start}#iqc31LogText{background:#08112f;color:#dbe8ff}#iqc31Tools{font-size:13px}#iqcImageRc #iqcRcAnalyze{display:none!important}#iqcRcAnalyze,#iqc31StartTop,#iqcImageRc [data-ocr31-photo]{touch-action:manipulation;min-height:48px;min-width:150px}";document.head.appendChild(style);
       style.textContent+='#iqcImageRc .iqc31-photo-actions{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;align-items:stretch}#iqcImageRc .iqc31-photo-actions>.iqc-rc-btn{min-width:0;min-height:52px;padding:8px 4px;font-size:clamp(11px,3.4vw,14px);line-height:1.4;white-space:normal;overflow-wrap:anywhere}';
       const tools=document.createElement("div");tools.id="iqc31Tools";tools.className="iqc-rc-note";
-      tools.innerHTML='<strong>IQC V1.2 / RECEIPT-20260929</strong><p>初次使用需下載辨識核心與英數字模型。</p><button id="iqc31Cancel" class="iqc-rc-btn" type="button">停止本輪辨識</button><details><summary>辨識紀錄</summary><p>紀錄不含帳密、照片或 CTN；保留最近 100 個處理事件。</p><button id="iqc31Copy" class="iqc-rc-btn" type="button">複製辨識紀錄</button><textarea id="iqc31LogText" readonly rows="7" style="width:100%;box-sizing:border-box;font-size:12px" aria-label="辨識紀錄"></textarea></details>';
+      tools.innerHTML='<strong>IQC V1.3 / MANUAL-20260930</strong><p>初次使用需下載辨識核心與英數字模型。</p><button id="iqc31Cancel" class="iqc-rc-btn" type="button">停止本輪辨識</button><details><summary>辨識紀錄</summary><p>紀錄不含帳密、照片或 CTN；保留最近 100 個處理事件。</p><button id="iqc31Copy" class="iqc-rc-btn" type="button">複製辨識紀錄</button><textarea id="iqc31LogText" readonly rows="7" style="width:100%;box-sizing:border-box;font-size:12px" aria-label="辨識紀錄"></textarea></details>';
       const review=document.createElement("p");review.textContent="請逐筆核對 CTN、RT 與數量；辨識結果仍可能有字元誤讀。";tools.appendChild(review);
       button.parentElement.insertAdjacentElement("afterend",tools);
       $("iqc31LogText").value=JSON.stringify(diagnosticSnapshot(),null,2);
@@ -357,7 +357,7 @@ if(window.IqcProduction?.allowed){
       const style=document.createElement("style");style.textContent='#iqcImageRc .iqc-rc-top{gap:0 8px;padding:4px 0}#iqcImageRc .iqc-rc-top>div:first-child>small{display:none}#iqcImageRc .iqc-rc-top h2{font-size:16px}#iqc31Live{flex-basis:100%;display:flex;align-items:center;justify-content:space-between;gap:6px;min-width:0;font-size:12px;line-height:1.4}#iqc31LiveCount{min-width:0}#iqc31LiveDetails{flex:none}#iqc31LiveDetails summary{cursor:pointer;min-height:40px;display:flex;align-items:center;padding:0 5px;border-radius:8px;color:#c8dcf2}#iqc31LiveDetails summary::before{content:"▸";margin-right:4px}#iqc31LiveDetails[open] summary::before{content:"▾"}.iqc31-live-menu{position:absolute;left:0;right:0;top:100%;padding:10px;background:#101b42;border:1px solid #526394;border-radius:12px;box-shadow:0 8px 18px #02072288}#iqc31LivePhase{color:#c8dcf2;overflow-wrap:anywhere}#iqc31Live .iqc-rc-row{gap:5px;margin-top:8px}#iqc31Live button{min-height:42px;font-size:12px;padding:5px 8px}';document.head.appendChild(style);
       text("iqc31LivePhase",progressMessage);
     }
-    const heading=panel.querySelector(".iqc-rc-top h2");if(heading&&heading.textContent!=="📷 Honeywell 影像 V1.2")heading.textContent="📷 Honeywell 影像 V1.2";
+    const heading=panel.querySelector(".iqc-rc-top h2");if(heading&&heading.textContent!=="📷 Honeywell 圖像 V1.3")heading.textContent="📷 Honeywell 圖像 V1.3";
     const gallery=$("iqcRcGalleryInput");if(gallery)gallery.multiple=true;
     text("iqcHybridSyncBtn","補辨識缺漏（Cloud）");
     const hint=$("iqcHybridHint");if(hint&&!hint.dataset.rc31){hint.dataset.rc31="1";text("iqcHybridHint","目前使用本機辨識，Cloud 輔助尚未啟用。");}
@@ -374,14 +374,14 @@ if(window.IqcProduction?.allowed){
     for(const u of updates){if(u.legacy){const p=await getPhoto(u.id);check(run);if(p&&!photoCodec.valid(p.rc31Image))await put(p);}}
     check(run);await photoTransaction("readwrite",(s,done,tx)=>{const br=tx.objectStore("batches").get(run.batch);br.onsuccess=()=>{if(!br.result||br.result.status!=="DRAFT"){tx.abort();return;}updates.forEach(u=>{const r=s.get(u.id);r.onsuccess=()=>{try{const p=r.result;
       if(run.cancelled||activeBatch()!==run.batch||!p||p.batchId!==run.batch||p.updatedAt!==u.updatedAt){s.transaction.abort();return;}
-      s.put({...p,rc31Review:u.review,updatedAt:u.savedAt});}catch(_){s.transaction.abort();}
+      s.put({...p,rc31Review:u.review,status:u.manualSupplement&&!['RECOGNIZED','NEEDS_REVIEW'].includes(p.status)?"NEEDS_REVIEW":p.status,updatedAt:u.savedAt});}catch(_){s.transaction.abort();}
     };});};},["photos","batches"]);
   }
   async function reviewOperation(work){const run=claim("review");if(!run)throw fail("OCR_BUSY");
     try{await exclusive(run,async()=>{const list=await photos(run.batch);check(run);const updates=work(list),savedAt=now();
       updates.forEach(u=>{u.savedAt=savedAt;u.legacy=!list.find(p=>p.id===u.id)?.rc31BytesStored;});
       await persistReviews(run,updates);record({stage:"manual_review",outcome:"saved",photos:updates.length,ms:Date.now()-run.started});
-      const next=list.map(p=>{const u=updates.find(u=>u.id===p.id);return u?{...p,rc31Review:u.review,updatedAt:savedAt}:p;});
+      const next=list.map(p=>{const u=updates.find(u=>u.id===p.id);return u?{...p,rc31Review:u.review,status:u.manualSupplement&&!["RECOGNIZED","NEEDS_REVIEW"].includes(p.status)?"NEEDS_REVIEW":p.status,updatedAt:savedAt}:p;});
       await refresh(next);
     });}catch(e){run.failed=true;record({stage:"manual_review",outcome:"error",code:e.code||"REVIEW_INVALID",ms:Date.now()-run.started});throw e;}
     finally{await finish(run);}
@@ -414,6 +414,7 @@ if(window.IqcProduction?.allowed){
     },true,"批次與本機照片已移除。"),
     batchCounts:ids=>photoTransaction("readonly",(s,done)=>{const result={};done(result);ids.forEach(id=>{const r=s.index("batchId").count(id);r.onsuccess=()=>{result[id]=r.result;};});}),
     selectBatch:id=>editBatch(()=>api().selectBatch(id)),renameBatch:name=>editBatch(()=>api().renameBatch(name),false),
+    addManualCtn:(photoId,text,meta,before)=>reviewOperation(list=>{let legacy={};try{legacy=JSON.parse(localStorage.getItem(window.IqcProduction.key("ds_iqc_v8_meta_override_")+activeBatch())||'{}');}catch(_){}const model=window.IqcReviewModel31;return [model.addManual(list,photoId,text,meta,before,model.legacyDecisions(list,legacy))];}),
     saveReview:(photoId,change)=>reviewOperation(list=>{const p=list.find(p=>p.id===photoId);if(!p)throw fail("PHOTO_MISSING");return [{id:p.id,updatedAt:p.updatedAt,review:change(p)}];}),
     excludeCtn:(ctn,restore=false)=>reviewOperation(list=>{let legacy={};try{legacy=JSON.parse(localStorage.getItem(window.IqcProduction.key("ds_iqc_v8_meta_override_")+activeBatch())||'{}');}catch(_){}const model=window.IqcReviewModel31;return model.excludeReviews(list,ctn,restore,model.legacyDecisions(list,legacy));}),
     mergeReviews:(keys,meta)=>reviewOperation(list=>{let legacy={};try{legacy=JSON.parse(localStorage.getItem(window.IqcProduction.key("ds_iqc_v8_meta_override_")+activeBatch())||'{}');}catch(_){}const model=window.IqcReviewModel31;return model.mergeReviews(list,keys,meta,model.legacyDecisions(list,legacy));}),

@@ -119,6 +119,16 @@
     .history-period-body{display:grid;gap:8px;max-height:320px;overflow:auto;padding:0 10px 10px;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
     .history-period[open] summary{border-bottom:1px solid rgba(255,255,255,.08);margin-bottom:9px}
     .history-period .history-item{margin:0}
+    .history-month-picker{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:8px;margin:12px 0}
+    .history-month-picker input{min-width:0;width:100%;font-size:16px}
+    .history-month-totals{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}
+    .history-month-totals strong{background:#ffffff0d;padding:9px;border-radius:10px}
+    .history-month-scroll{max-height:280px;overflow:auto;overscroll-behavior:contain;border:1px solid #ffffff22;border-radius:10px}
+    .history-month-scroll table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:12px;font-variant-numeric:tabular-nums}
+    .history-month-scroll th{position:sticky;top:0;background:#142a43;z-index:1}
+    .history-month-scroll th,.history-month-scroll td{padding:8px 3px;text-align:right;border-bottom:1px solid #ffffff15}
+    .history-month-scroll th:first-child,.history-month-scroll td:first-child{text-align:center}
+    .history-day{min-height:36px;border:0;background:transparent;color:#79e6ef;text-decoration:underline;font:inherit;cursor:pointer}
     @media(max-width:620px){.history-period-body{max-height:42vh}.history-period summary{padding:12px}}
     .asset-item{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:10px;align-items:center}
     .asset-item.selected{border-color:rgba(67,198,232,.75);background:rgba(67,198,232,.1)}
@@ -361,9 +371,14 @@
   <div id="historyModal" class="modal">
     <div class="modal-panel">
       <div class="row between modal-head">
-        <div class="modal-title">Grinding 歷史紀錄</div>
+        <div class="modal-title">Grinding 歷史紀錄 · H1</div>
         <button class="btn ghost" style="min-height:36px;padding:7px 10px" onclick="closeHistoryModal()">關閉</button>
       </div>
+      <label for="historyMonth">每月每日數量</label>
+      <div class="history-month-picker"><button class="btn ghost" onclick="changeHistoryMonth(-1)">上一月</button><input id="historyMonth" class="input" type="month" aria-label="統計月份" onchange="loadHistoryMonth()"><button class="btn ghost" onclick="changeHistoryMonth(1)">下一月</button></div>
+      <button class="btn cyan full" onclick="loadHistoryMonth()">查詢月份</button>
+      <div id="historyMonthly" aria-live="polite"></div>
+      <h3 id="historyDetailsHeading">交易明細</h3>
       <div class="toolbar" style="margin-top:8px">
         <button class="filter-btn active" data-history-days="7" onclick="setHistoryDays(7)">7天</button>
         <button class="filter-btn" data-history-days="30" onclick="setHistoryDays(30)">30天</button>
@@ -381,7 +396,8 @@
         <div class="field"><label>結束日期</label><div class="date-shell history-date-shell"><div id="historyEndDisplay" class="date-display"></div><input id="historyEndDate" type="date" aria-label="歷史結束日期"></div></div>
         <div class="field"><label>操作人員</label><input id="historyOperator" class="input" placeholder="全部人員"></div>
       </div>
-      <button class="btn cyan full" style="margin-top:11px" onclick="loadHistory(true)">查詢</button>
+      <button class="btn cyan full" style="margin-top:11px" onclick="loadHistory(true)">查詢明細</button>
+      <div id="historyCount" class="muted" role="status"></div>
       <div id="historyTimeline" class="history-list" style="max-height:45vh;overflow:auto;margin-top:12px"></div>
       <button id="historyMoreBtn" class="btn ghost full" style="margin-top:10px;display:none" onclick="loadHistory(false)">載入更多</button>
     </div>
@@ -2165,7 +2181,8 @@
     function openHistoryModal(){
       document.getElementById("historyModal").classList.add("show");
       document.body.classList.add("modal-open");
-      setHistoryDays(state.historyDays||7)
+      document.getElementById("historyMonth").value=document.getElementById("historyMonth").value||localYmd().slice(0,7);
+      loadHistoryMonth()
     }
     function closeHistoryModal(){document.getElementById("historyModal").classList.remove("show");document.body.classList.remove("modal-open")}
     function setHistoryDays(days){
@@ -2187,24 +2204,28 @@
         return `<article class="history-item"><div class="asset-name">${escapeHtml(historyActionLabel(item.actionType))}｜${escapeHtml(name||"-")}</div><div class="asset-sub">${escapeHtml(item.operatedAt||item.reportDate||"")}｜${Number(item.qty||0)} 支｜操作：${escapeHtml(item.operator||"-")}${item.note?`<br>${escapeHtml(item.note)}`:""}</div></article>`
       }).join(""):'<div class="empty">查無符合條件的歷史紀錄。</div>';
       document.getElementById("historyMoreBtn").style.display=state.historyHasMore?"block":"none"
+      document.getElementById("historyCount").textContent="已顯示 "+list.length+" 筆"+(state.historyHasMore?"，可載入更多。":"，此查詢已全部載入。");
     }
     async function loadHistory(reset){
-      if(reset){state.historyOffset=0;state.historyItems=[]}
-      document.getElementById("historyTimeline").innerHTML='<div class="empty">歷史讀取中…</div>';
+      if(!reset&&state.historyLoading)return;
+      if(reset){state.historyRequestId=(state.historyRequestId||0)+1;state.historyOffset=0;state.historyItems=[];state.historyHasMore=false;
+        state.historyFilters={start_date:document.getElementById("historyStartDate").value,end_date:document.getElementById("historyEndDate").value,type:document.getElementById("historyType").value,q:document.getElementById("historyQuery").value.trim(),operator:document.getElementById("historyOperator").value.trim()};
+        document.getElementById("historyTimeline").innerHTML='<div class="empty">歷史讀取中…</div>';}
+      const requestId=state.historyRequestId;
+      state.historyLoading=true;document.getElementById("historyMoreBtn").disabled=true;document.getElementById("historyCount").textContent='正在讀取明細…';
       try{
         const r=await fetchBetaWipHistory({
-          start_date:document.getElementById("historyStartDate").value,
-          end_date:document.getElementById("historyEndDate").value,
-          type:document.getElementById("historyType").value,
-          q:document.getElementById("historyQuery").value.trim(),
-          operator:document.getElementById("historyOperator").value.trim(),
+          ...state.historyFilters,
           offset:state.historyOffset,limit:50
         });
-        state.historyItems=reset?(r.items||[]):state.historyItems.concat(r.items||[]);
+        if(requestId!==state.historyRequestId)return;
+        if(r.ok===false||!Array.isArray(r.items))throw Error(r.message||"歷史回應不完整，請重試");
+        const seen=new Set();state.historyItems=(reset?(r.items||[]):state.historyItems.concat(r.items||[])).filter(item=>{const key=JSON.stringify(item);if(seen.has(key))return false;seen.add(key);return true;});
         state.historyOffset=r.nextOffset===null?state.historyOffset:Number(r.nextOffset||0);
         state.historyHasMore=!!r.hasMore;
         renderHistoryTimeline()
-      }catch(err){document.getElementById("historyTimeline").innerHTML='<div class="error-box">'+escapeHtml(err.message||"歷史讀取失敗")+'</div>'}
+      }catch(err){if(requestId===state.historyRequestId){renderHistoryTimeline();if(reset)document.getElementById("historyTimeline").innerHTML='<div class="empty">明細尚未讀取成功，請重新查詢。</div>';document.getElementById("historyCount").textContent=err.message||"歷史讀取失敗，請重試";}}
+      finally{if(requestId===state.historyRequestId){state.historyLoading=false;document.getElementById("historyMoreBtn").disabled=false;}}
     }
 
     function openLoadModal(){if(!selectedItems().length)return;document.getElementById("loadModal").classList.add("show");document.getElementById("loadFrameCtn").focus()}
@@ -2222,5 +2243,6 @@
     }
     window.addEventListener("DOMContentLoaded",init)
   </script>
+  <script src="./history-monthly-h1.js?v=20260930-1"></script>
 </body>
 </html>
