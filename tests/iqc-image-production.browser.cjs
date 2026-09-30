@@ -34,7 +34,7 @@ const env='IQC_IMAGE_PRODUCTION_V1';let checks=0;function ok(name,value){assert.
   allowed=true;await page.reload();await page.locator('#appShell').waitFor({state:'visible'});await page.locator('#navMore').click();await page.getByText('IQC 圖像辨識',{exact:true}).click();
   let frame=await page.locator('iframe[data-module-key="iqcImage"]').elementHandle().then(x=>x.contentFrame());await frame.locator('#iqcRcRegion option[value="B3"]').waitFor({state:'attached'});const idle=()=>frame.waitForFunction(()=>!__DS_IQC_RC31.isBusy());await idle();
   ok('independent permission opens image without daily permission',await frame.locator('#iqcImageRc').isVisible());
-  ok('production title and one start button',/V1\.3/.test(await frame.locator('.iqc-rc-top h2').textContent())&&await frame.getByRole('button',{name:'開始辨識',exact:true}).count()===1);
+  ok('production title and one start button',await frame.locator('.iqc-rc-top h2').textContent()==='📷 IQC 圖像辨識 V1.3'&&await frame.getByRole('button',{name:'開始辨識',exact:true}).count()===1);
   const key=await frame.evaluate(()=>IqcProduction.key('ds_iqc_image_rc_active_batch'));
   const snap=()=>frame.evaluate(()=>IqcSubmitStore31.snapshot(localStorage.getItem(IqcProduction.key('ds_iqc_image_rc_active_batch'))));
   const batch=(await snap()).batch.id;
@@ -51,7 +51,25 @@ const env='IQC_IMAGE_PRODUCTION_V1';let checks=0;function ok(name,value){assert.
   await frame.evaluate(id=>new Promise(resolve=>{const r=indexedDB.open(IqcProduction.key('ds_iqc_image_rc_v1'),1);r.onsuccess=()=>{const db=r.result,tx=db.transaction('photos','readwrite'),s=tx.objectStore('photos'),q=s.getAll();q.onsuccess=()=>q.result.forEach(p=>{delete p.rc31Order;if(p.id===id)p.rc31Quality={unread:[],uncertain:[{ctn:'AB12CDE',reason:'LOW_CONFIDENCE'}]};p.updatedAt=new Date().toISOString();s.put(p);});tx.oncomplete=()=>{db.close();resolve();};};}),first);
   await frame.evaluate(()=>__DS_IQC_RC31.refresh());await idle();
   ok('legacy formal photos retain their original ordered candidates',JSON.stringify(await frame.locator('[data-result-ctn]').evaluateAll(es=>es.map(e=>e.dataset.resultCtn)))===JSON.stringify(['AB12CDE','FG34HIJ','KL56MNP','QR78STU','UV90WXY','ZA12BCD']));
-  await frame.locator('[data-review-quality="'+first+'"]').tap();await frame.locator('[aria-label="核對 CTN"]').first().fill('AB62CDE');await frame.locator('[data-review-save]').tap();await idle();
+  const reviewOrigin=frame.locator('#iqcRcResultList [data-review-photo="'+first+'"]');
+  await reviewOrigin.evaluate(e=>e.scrollIntoView({block:'center'}));
+  const reviewPosition=await reviewOrigin.evaluate(e=>({top:e.getBoundingClientRect().top,scroll:document.getElementById('iqcImageRc').scrollTop}));
+  await reviewOrigin.tap();await frame.locator('[data-review-close]').tap();await frame.waitForTimeout(150);
+  ok('closing manual review returns to the clicked photo in the scrolled list',await reviewOrigin.evaluate((e,p)=>Math.abs(e.getBoundingClientRect().top-p.top)<3&&Math.abs(document.getElementById('iqcImageRc').scrollTop-p.scroll)<3,reviewPosition));
+  await reviewOrigin.tap();await frame.locator('#iqc31Review_rt').fill('113353');page.once('dialog',d=>d.dismiss());await frame.locator('[data-review-close]').tap();
+  ok('canceling discard stays in the unsaved manual form',await frame.locator('#iqc31ReviewEditor').isVisible());
+  page.once('dialog',d=>d.accept());await frame.locator('[data-review-close]').tap();await frame.waitForTimeout(100);
+  ok('confirmed discard also restores the original source position',await reviewOrigin.evaluate((e,p)=>Math.abs(e.getBoundingClientRect().top-p.top)<3,reviewPosition));
+  await frame.waitForTimeout(500); // Let the keyboard-resize restoration window finish before changing device width.
+  for(const width of [320,402,1365]){
+   await page.setViewportSize({width,height:874});await frame.waitForTimeout(60);
+   ok('group CTN actions stay horizontal and inside viewport at '+width+'px',await frame.locator('.iqc31-group-buttons').first().evaluate(row=>{const [a,b]=[...row.children].map(e=>e.getBoundingClientRect()),p=document.getElementById('iqcImageRc');return Math.abs(a.top-b.top)<1&&b.left>a.right&&a.height>=44&&b.height>=44&&a.left>=0&&b.right<=innerWidth&&p.scrollWidth<=p.clientWidth;}));
+   if(width===402){await frame.locator('.iqc31-group-heading').first().evaluate(e=>e.scrollIntoView({block:'center'}));await page.screenshot({path:path.join(out,'review-horizontal-actions.png')});}
+  }
+  await page.setViewportSize({width:402,height:874});
+  const qualityOrigin=frame.locator('[data-review-quality="'+first+'"]');await qualityOrigin.evaluate(e=>e.scrollIntoView({block:'center'}));
+  const qualityTop=await qualityOrigin.evaluate(e=>e.getBoundingClientRect().top);
+  await qualityOrigin.tap();await frame.locator('[aria-label="核對 CTN"]').first().fill('AB62CDE');await frame.locator('[data-review-save]').tap();await idle();
   await frame.locator('#iqc31ReviewEditor [data-preview-photo]').tap();await frame.locator('#iqc31PhotoPreview img').evaluate(img=>img.decode());
   ok('saved correction opens the original photo inline in the formal iframe',await frame.locator('#iqc31PhotoPreview').evaluate(p=>p.parentElement.id==='iqc31ReviewEditor'&&getComputedStyle(p).position==='static'&&!p.hasAttribute('aria-modal')));
   await frame.locator('[data-preview-zoom="1"]').tap();await frame.locator('[data-preview-zoom="1"]').tap();await frame.locator('.iqc31-photo-viewport').scrollIntoViewIfNeeded();
@@ -59,9 +77,14 @@ const env='IQC_IMAGE_PRODUCTION_V1';let checks=0;function ok(name,value){assert.
   await page.mouse.move(box.x+box.width*.6,box.y+box.height*.6);await page.mouse.down();await page.mouse.move(box.x+box.width*.6-30,box.y+box.height*.6-50,{steps:5});await page.mouse.up();
   ok('formal photo zoom and drag remain usable',await frame.locator('.iqc31-photo-viewport').evaluate((v,b)=>v.dataset.zoom==='2'&&v.scrollTop>b,before));
   await frame.locator('[data-preview-close]').tap();await frame.locator('[data-review-close]').tap();
+  await frame.waitForTimeout(150);
+  ok('saved correction and inline photo close return to original source after redraw',await qualityOrigin.evaluate((e,top)=>Math.abs(e.getBoundingClientRect().top-top)<3,qualityTop));
   ok('formal result retains corrected yellow CTN',await frame.locator('[data-result-ctn="AB62CDE"]').evaluate(e=>getComputedStyle(e).backgroundColor==='rgb(255, 228, 154)'));
   const group=frame.locator('[data-ctn-group]').filter({has:frame.locator('[data-ctn-select="AB12CDE"]')});
   ok('formal CTNs are column-first numbered with one group action',await group.evaluate(g=>{const tiles=[...g.querySelectorAll('[data-result-ctn]')],b=tiles.map(e=>e.getBoundingClientRect()),n=Math.ceil(b.length/2);return tiles.length===7&&tiles.every((e,i)=>e.querySelector('.iqc31-row-number').textContent===(i+1)+'.')&&b[1].top>b[0].top&&Math.abs(b[n].top-b[0].top)<1&&b[n].left>b[0].right&&g.querySelectorAll('[data-ctn-remove-selected]').length===1&&!g.querySelector('[data-ctn-remove]');}));
+  const savedGroupOrigin=group.locator('[data-review-photo]').first();await savedGroupOrigin.evaluate(e=>e.scrollIntoView({block:'center'}));const savedGroupTop=await savedGroupOrigin.evaluate(e=>e.getBoundingClientRect().top);
+  await savedGroupOrigin.tap();await frame.locator('[data-review-save]').tap();await idle();await frame.locator('[data-review-close]').tap();await frame.waitForTimeout(100);
+  ok('saved review returns to a replaced group button after result rerender',await savedGroupOrigin.evaluate((e,top)=>Math.abs(e.getBoundingClientRect().top-top)<3,savedGroupTop));
   await frame.locator('[data-ctn-select="AB12CDE"]').tap();await frame.locator('[data-ctn-select="FG34HIJ"]').tap();
   ok('formal group remove counts the selected CTNs',await group.locator('[data-ctn-remove-selected]').textContent()==='移除所選（2）');
   await group.locator('[data-ctn-remove-selected]').tap();await idle();
@@ -98,11 +121,13 @@ const env='IQC_IMAGE_PRODUCTION_V1';let checks=0;function ok(name,value){assert.
   await frame.locator('#iqcRcRegion').selectOption('B3');
   await frame.locator('#iqcRcGalleryInput').setInputFiles({name:'manual-fixture.png',mimeType:'image/png',buffer:Buffer.from(png,'base64')});await idle();
   const manualPhoto=(await snap()).photos[0].id;
-  await frame.locator('[data-review-photo="'+manualPhoto+'"]').tap();await frame.locator('[data-add-ctn-photo]').tap();
+  const manualOrigin=frame.locator('[data-review-photo="'+manualPhoto+'"]');await manualOrigin.evaluate(e=>e.scrollIntoView({block:'center'}));const manualOriginTop=await manualOrigin.evaluate(e=>e.getBoundingClientRect().top);
+  await manualOrigin.tap();await frame.locator('[data-add-ctn-photo]').tap();
   await frame.locator('#iqc31AddText').fill('XY12ABC\nXY34DEF');await frame.locator('#iqc31Add_rt').fill('113353');await frame.locator('#iqc31Add_status').fill('OCYL');await frame.locator('#iqc31Add_plant').fill('7209');
   await frame.locator('#iqc31AddPreview').tap();await frame.locator('#iqc31PhotoPreview img').evaluate(img=>img.decode());await frame.locator('[data-preview-close]').tap();
   await frame.locator('[data-add-manual-save]').tap();await idle();
   ok('manual supplement saves an unread photo and makes it reviewable',(await snap()).photos[0].status==='NEEDS_REVIEW'&&await frame.locator('[data-result-ctn]').count()===2);
+  await frame.waitForTimeout(100);ok('nested CTN supplement returns to original photo entry',await frame.locator('#iqcRcPhotoList [data-review-photo="'+manualPhoto+'"]').evaluate((e,top)=>Math.abs(e.getBoundingClientRect().top-top)<3,manualOriginTop));
   await frame.locator('[data-add-ctn-group]').tap();await frame.locator('#iqc31AddText').fill('XY56GHI');await frame.locator('#iqc31AddBefore').selectOption('XY34DEF');
   await frame.locator('#iqc31ReviewEditor').scrollIntoViewIfNeeded();await page.screenshot({path:path.join(out,'manual-add-form.png')});
   await frame.locator('[data-add-manual-save]').tap();await idle();

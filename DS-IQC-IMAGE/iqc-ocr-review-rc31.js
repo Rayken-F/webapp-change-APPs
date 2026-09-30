@@ -5,6 +5,36 @@ if(window.IqcProduction?.allowed){
   const model=window.IqcReviewModel31,$=id=>document.getElementById(id),controller=()=>window.__DS_IQC_RC31;
   const esc=v=>String(v??"").replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   let snapshot=[],groups=[],signature="",refreshId=0,saveNoticeTimer=0;
+
+  let reviewReturn=null,restoreVersion=0;
+  function rememberReviewPosition(trigger){
+    ++restoreVersion;
+    if($('iqc31ReviewEditor')&&reviewReturn?.batch===snapshot[0]?.batchId)return;
+    const panel=$('iqcImageRc'),target=trigger||document.activeElement;
+    const attr=['data-review-photo','data-review-quality','data-add-ctn-group','data-add-ctn-photo','data-merge-rt'].find(a=>target?.hasAttribute?.(a));
+    reviewReturn={batch:snapshot[0]?.batchId,scroll:panel.scrollTop,target:attr?target:null,attr,value:attr?target.getAttribute(attr):'',group:target?.closest?.('[data-ctn-group]')?.dataset.ctnGroup,scope:target?.closest?.('#iqcRcResultList')?'iqcRcResultList':'iqcRcPhotoList',offset:attr?target.getBoundingClientRect().top-panel.getBoundingClientRect().top:0};
+  }
+  function closeReview(){
+    const editor=$('iqc31ReviewEditor'),saved=reviewReturn,panel=$('iqcImageRc');
+    if(editor?.contains(document.activeElement))document.activeElement.blur();
+    editor?.remove();reviewReturn=null;const version=++restoreVersion;
+    if(!saved||saved.batch!==snapshot[0]?.batchId)return;
+    const restore=()=>{
+      if(version!==restoreVersion||saved.batch!==snapshot[0]?.batchId||$('iqc31ReviewEditor')||panel.classList.contains('hidden'))return;
+      let target=saved.target?.isConnected?saved.target:null;
+      if(!target&&saved.attr){
+        const matches=[...($(saved.scope)?.querySelectorAll('['+saved.attr+']')||[])].filter(e=>e.getAttribute(saved.attr)===saved.value);
+        target=matches.find(e=>e.closest('[data-ctn-group]')?.dataset.ctnGroup===saved.group)||matches[0];
+      }
+      panel.scrollTop=target?panel.scrollTop+target.getBoundingClientRect().top-panel.getBoundingClientRect().top-saved.offset:saved.scroll;
+    };
+    // Restore the same source anchor after list redraw and mobile keyboard resize.
+    restore();requestAnimationFrame(()=>{restore();requestAnimationFrame(restore);});
+    window.visualViewport?.addEventListener('resize',restore);
+    setTimeout(()=>window.visualViewport?.removeEventListener('resize',restore),450);
+  }
+  // A new gesture must win over any pending restoration from the last close.
+  for(const type of ['pointerdown','touchstart','wheel','keydown'])document.addEventListener(type,()=>{++restoreVersion;},{capture:true,passive:true});
   function hideSaveNotice(){clearTimeout(saveNoticeTimer);const notice=$("iqc31SaveNotice");if(notice)notice.hidden=true;}
   function showSaveNotice(message){
     hideSaveNotice();let notice=$("iqc31SaveNotice");
@@ -47,7 +77,7 @@ if(window.IqcProduction?.allowed){
     const view=model.presentation(groups);
     const repeated=view.duplicates?'<p id="iqc31DuplicateSummary" class="iqc-issue">本批重複 '+view.duplicates+' 個 CTN（多出 '+view.repeatedRows+' 筆），清單只列一次；原照片與歸類保留。</p>':'';
     const conflicts=view.conflicts.length?'<section id="iqc31Conflicts" class="iqc-group bad" data-ctn-group="CONFLICT"><div class="iqc-group-title"><strong>CTN 歸屬待核對</strong>'+removal()+'</div><p class="iqc-rc-note">以下 CTN 的來源資料有衝突或歸屬不明，只在此列一次；尚未決定正確歸屬，請依提示核對。</p>'+view.conflicts.map((c,i)=>'<div class="iqc-issue bad">'+ctnRow(c.ctn,i,true)+'<p>'+esc(c.reason)+'</p><ul>'+c.choices.map(x=>'<li>RT '+esc(x.rt)+'｜'+esc(x.status||'狀態待填')+'｜'+esc(x.plant||'廠區待填')+'</li>').join('')+'</ul><div class="iqc-rc-row">'+c.photoIds.map(id=>'<button type="button" class="iqc-rc-btn" data-review-photo="'+esc(id)+'">核對第 '+snapshot.find(p=>p.id===id)?.seq+' 張</button>').join('')+'</div></div>').join('')+'</section>':'';
-    host.innerHTML=repeated+conflicts+(view.groups.map(g=>`<section class="iqc-group ${g.ready?'good':'warn'} ds-iqc-v8-group" data-ctn-group="${esc(g.key)}"><div class="iqc-group-title"><div><strong>${g.rt?'RT '+esc(g.rt):'待歸類'}</strong><div class="iqc-group-sub">來源照片：${g.photoSeqs.map(n=>'第 '+n+' 張').join('、')}<br>狀態 ${esc(g.status||'待填')}｜廠區 ${esc(g.plant||'待填')}</div></div><div class="iqc31-group-actions"><span class="iqc-rc-status ${g.ready?'good':'warn'}">${g.ctns.length}/${g.expected||'?'} ${g.ready?'數量吻合':'需複查'}</span><button type="button" class="iqc-rc-btn" data-add-ctn-group="${esc(g.key)}" ${locked()?'disabled':''}>＋ 新增 CTN</button>${removal()}</div></div>${!g.rt?'<p class="iqc-issue">尚未確認這些 CTN 的 RT，請選「手動歸類」指定；所有候選 CTN 均保留。</p>':''}${g.warnings.map(w=>'<p class="iqc-issue bad">'+esc(w)+'</p>').join('')}<p class="iqc-rc-note">跨照片去重後 ${g.ctns.length} 支${g.overlapCount?`｜重疊 ${g.overlapCount} 筆已合併`:""}${g.expected?`｜${g.ctns.length<g.expected?"距參考總量少 "+(g.expected-g.ctns.length)+" 支":g.ctns.length>g.expected?"超過參考總量 "+(g.ctns.length-g.expected)+" 支":"與參考總量吻合"}`:"｜參考總量待確認"}</p>${g.collapsed?'<p class="iqc-rc-note">'+g.collapsed+' 個重複 CTN 已列在其他群組，此處不重列。</p>':''}${g.conflictCount?'<p class="iqc-issue bad">另有 '+g.conflictCount+' 個 CTN 歸屬衝突，請核對上方清單。</p>':''}<div class="iqc31-ctn-list" style="grid-template-rows:repeat(${Math.max(1,Math.ceil(g.displayCtns.length/2))},minmax(48px,auto))">${g.displayCtns.map((ctn,i)=>ctnRow(ctn,i)).join('')}</div><p class="iqc-rc-note">${g.rows.some(r=>r.manual)?'含人工歸類｜':''}${g.rows.some(r=>r.legacy)?'保留前版人工核對｜':''}數量吻合仍需核對字元。</p>${g.rt&&groups.filter(x=>x.rt===g.rt).length>1?'<p class="iqc-issue">同一 RT 尚有其他群組：狀態／廠區不同或尚未確定。請核對後合併。</p><button type="button" class="iqc-rc-btn" data-merge-rt="'+esc(g.rt)+'">核對並合併相同 RT</button>':''}<div class="iqc-rc-row">${g.photoIds.map(id=>'<button type="button" class="iqc-rc-btn" data-review-photo="'+esc(id)+'">手動歸類：第 '+snapshot.find(p=>p.id===id)?.seq+' 張</button>').join('')}</div></section>`).join('')||'<div class="iqc-empty">尚無 CTN 候選。請先辨識照片；沒有 RT 也能在此手動歸類。</div>');
+    host.innerHTML=repeated+conflicts+(view.groups.map(g=>`<section class="iqc-group ${g.ready?'good':'warn'} ds-iqc-v8-group" data-ctn-group="${esc(g.key)}"><div class="iqc-group-title iqc31-group-heading"><div><strong>${g.rt?'RT '+esc(g.rt):'待歸類'}</strong><div class="iqc-group-sub">來源照片：${g.photoSeqs.map(n=>'第 '+n+' 張').join('、')}<br>狀態 ${esc(g.status||'待填')}｜廠區 ${esc(g.plant||'待填')}</div></div><div class="iqc31-group-actions"><span class="iqc-rc-status ${g.ready?'good':'warn'}">${g.ctns.length}/${g.expected||'?'} ${g.ready?'數量吻合':'需複查'}</span><div class="iqc31-group-buttons"><button type="button" class="iqc-rc-btn" data-add-ctn-group="${esc(g.key)}" ${locked()?'disabled':''}>＋ 新增 CTN</button>${removal()}</div></div></div>${!g.rt?'<p class="iqc-issue">尚未確認這些 CTN 的 RT，請選「手動歸類」指定；所有候選 CTN 均保留。</p>':''}${g.warnings.map(w=>'<p class="iqc-issue bad">'+esc(w)+'</p>').join('')}<p class="iqc-rc-note">跨照片去重後 ${g.ctns.length} 支${g.overlapCount?`｜重疊 ${g.overlapCount} 筆已合併`:""}${g.expected?`｜${g.ctns.length<g.expected?"距參考總量少 "+(g.expected-g.ctns.length)+" 支":g.ctns.length>g.expected?"超過參考總量 "+(g.ctns.length-g.expected)+" 支":"與參考總量吻合"}`:"｜參考總量待確認"}</p>${g.collapsed?'<p class="iqc-rc-note">'+g.collapsed+' 個重複 CTN 已列在其他群組，此處不重列。</p>':''}${g.conflictCount?'<p class="iqc-issue bad">另有 '+g.conflictCount+' 個 CTN 歸屬衝突，請核對上方清單。</p>':''}<div class="iqc31-ctn-list" style="grid-template-rows:repeat(${Math.max(1,Math.ceil(g.displayCtns.length/2))},minmax(48px,auto))">${g.displayCtns.map((ctn,i)=>ctnRow(ctn,i)).join('')}</div><p class="iqc-rc-note">${g.rows.some(r=>r.manual)?'含人工歸類｜':''}${g.rows.some(r=>r.legacy)?'保留前版人工核對｜':''}數量吻合仍需核對字元。</p>${g.rt&&groups.filter(x=>x.rt===g.rt).length>1?'<p class="iqc-issue">同一 RT 尚有其他群組：狀態／廠區不同或尚未確定。請核對後合併。</p><button type="button" class="iqc-rc-btn" data-merge-rt="'+esc(g.rt)+'">核對並合併相同 RT</button>':''}<div class="iqc-rc-row">${g.photoIds.map(id=>'<button type="button" class="iqc-rc-btn" data-review-photo="'+esc(id)+'">手動歸類：第 '+snapshot.find(p=>p.id===id)?.seq+' 張</button>').join('')}</div></section>`).join('')||'<div class="iqc-empty">尚無 CTN 候選。請先辨識照片；沒有 RT 也能在此手動歸類。</div>');
     const removed=model.excluded(snapshot);if(removed.length){const details=document.createElement('details');details.id='iqc31Excluded';details.innerHTML='<summary>已移除 CTN（'+removed.length+'）</summary>'+removed.map(ctn=>'<div class="iqc31-ctn-row"><strong>'+esc(ctn)+'</strong><button type="button" class="iqc-rc-btn" data-ctn-restore="'+esc(ctn)+'" '+(locked()?'disabled':'')+'>復原</button></div>').join('');host.append(details);}
     const hint=$("iqcRcCommitHint");if(hint)hint.textContent="RC31.12：逐筆核對 RT／CTN／狀態／廠區／總量；本輪正式 IQC 寫入維持鎖定。";
   }
@@ -65,19 +95,19 @@ if(window.IqcProduction?.allowed){
     $('iqc31AddBefore').innerHTML='<option value="">放在此照片最後</option>'+rows.map((r,i)=>'<option value="'+esc(r.original)+'">在第 '+(i+1)+' 筆 '+esc(r.ctn)+' 前面</option>').join('');
     $('iqc31AddPreview').dataset.previewPhoto=id;
   }
-  function showAdd(groupKey,photoId){
+  function showAdd(groupKey,photoId,trigger){
     if(locked()||!allowLeave())return;
     const group=groups.find(g=>g.key===groupKey),id=photoId||group?.photoIds[0]||snapshot[0]?.id;
-    if(!id)return;hideSaveNotice();$('iqc31ReviewEditor')?.remove();
+    if(!id)return;rememberReviewPosition(trigger);hideSaveNotice();$('iqc31ReviewEditor')?.remove();
     const editor=document.createElement('section');editor.id='iqc31ReviewEditor';editor.className='iqc-rc-card';editor.dataset.addManual='1';
     editor.innerHTML='<div class="iqc-rc-row iqc-rc-between"><strong>新增漏辨識 CTN</strong><button type="button" class="iqc-rc-btn" data-review-close>關閉</button></div><div class="iqc-rc-field"><label for="iqc31AddPhoto">來源照片</label><select id="iqc31AddPhoto">'+snapshot.map(p=>'<option value="'+esc(p.id)+'"'+(p.id===id?' selected':'')+'>第 '+p.seq+' 張</option>').join('')+'</select></div><button id="iqc31AddPreview" type="button" class="iqc-rc-btn iqc31-view-original">查看原照片</button><div class="iqc-rc-field"><label for="iqc31AddText">漏辨識 CTN（每行一個）</label><textarea id="iqc31AddText" rows="3" placeholder="例如 AB12CDE" autocapitalize="characters" spellcheck="false" style="width:100%;box-sizing:border-box;font:inherit;font-size:16px;padding:12px;border:1px solid #58638a;border-radius:12px;background:#ffffff0d;color:#edf1ff;resize:vertical"></textarea></div><div class="iqc-rc-field"><label for="iqc31AddBefore">照片中的位置</label><select id="iqc31AddBefore"></select></div><div class="iqc-rc-grid">'+[['rt','RT（必填）'],['status','鋼瓶狀態'],['plant','廠區'],['expected','參考總量（未知留空）']].map(([key,label])=>'<div class="iqc-rc-field"><label for="iqc31Add_'+key+'">'+label+'</label><input id="iqc31Add_'+key+'" value="'+esc(group?.[key]||'')+'" '+(key==='rt'||key==='expected'?'inputmode="numeric"':'autocapitalize="characters"')+'></div>').join('')+'</div><p id="iqc31ReviewMessage" role="status"></p><button type="button" class="iqc-rc-btn good" data-add-manual-save>儲存新增 CTN</button>';
     $('iqcRcResultList').before(editor);addPositionOptions();editor.style.scrollMarginTop=(document.querySelector('#iqcImageRc .iqc-rc-top').offsetHeight+12)+'px';editor.scrollIntoView({block:'start'});
   }
 
-  function showEditor(photoId){
+  function showEditor(photoId,trigger){
     if(controller().isBusy())return;
     const p=snapshot.find(p=>p.id===photoId);if(!p)return;const candidates=groups.flatMap(g=>g.rows).filter(r=>r.photoId===p.id).sort((a,b)=>a.order-b.order);
-    $("iqc31ReviewEditor")?.remove();
+    rememberReviewPosition(trigger);$("iqc31ReviewEditor")?.remove();
     const editor=document.createElement('section');editor.id='iqc31ReviewEditor';editor.className='iqc-rc-card';editor.dataset.photoId=photoId;
     const same=candidates.length&&candidates.every(x=>x.rt===candidates[0].rt&&x.status===candidates[0].status&&x.plant===candidates[0].plant)?candidates[0]:{};
     editor.innerHTML=`<div class="iqc-rc-row iqc-rc-between"><strong>第 ${p.seq} 張｜手動歸類與核對</strong><button type="button" class="iqc-rc-btn" data-review-close>關閉</button></div><p class="iqc-rc-note">照片沒拍到 RT 也能指定到現有群組，或直接填入 RT。預設勾選整張；如有多個 RT，可分次勾選 CTN。人工設定只修改歸類，原照片與 OCR 文字保留。</p><div class="iqc-rc-field"><label for="iqc31TargetGroup">指定到現有 RT 群組（可選）</label><select id="iqc31TargetGroup"><option value="">自行填寫 RT 與資料</option>${groups.filter(g=>g.rt).map(g=>'<option value="'+esc(g.key)+'">RT '+esc(g.rt)+'｜'+esc(g.status||'狀態待填')+'｜'+esc(g.plant||'廠區待填')+'</option>').join('')}</select></div><div class="iqc-rc-grid" style="margin-top:10px">${[['rt','RT（必填）',same.rt||''],['status','鋼瓶狀態',same.status||''],['plant','廠區',same.plant||''],['expected','此 RT／狀態／廠區標籤總量（未知可留空）',same.expected||'']].map(([key,label,value])=>'<div class="iqc-rc-field"><label for="iqc31Review_'+key+'">'+label+'</label><input id="iqc31Review_'+key+'" value="'+esc(value)+'" '+(key==='rt'||key==='expected'?'inputmode="numeric"':'autocapitalize="characters"')+'></div>').join('')}</div><p>勾選本次要歸類的 CTN：</p><div class="iqc-rc-row"><button type="button" class="iqc-rc-btn" data-review-all="1">全選</button><button type="button" class="iqc-rc-btn" data-review-all="0">清除勾選</button></div><div class="rc31-review-candidates">${candidates.map(r=>'<label class="'+(r.needsCheck?'iqc31-uncertain':'')+'" style="display:flex;gap:10px;align-items:center;margin:8px 0"><input type="checkbox" checked data-review-key="'+esc(r.original)+'"><input class="iqc-ctn-input" aria-label="核對 CTN" value="'+esc(r.ctn)+'" style="flex:1;min-width:0" autocapitalize="characters"><small>'+esc((r.needsCheck?'需核對｜':'')+(r.manual?'人工':r.rt?'RT '+r.rt:'待歸類'))+'</small></label>').join('')}</div><div class="iqc-rc-field"><label for="iqc31ManualCtns">漏讀的 CTN（可補登，每行一個；已列出的不必重填）</label><textarea id="iqc31ManualCtns" rows="3" autocapitalize="characters" placeholder="請對照原照片輸入完整 CTN" style="width:100%;box-sizing:border-box;font:inherit;font-size:16px;padding:12px;border:1px solid #58638a;border-radius:12px;background:#ffffff0d;color:#edf1ff;resize:vertical"></textarea></div><details><summary>查看原始辨識文字</summary><pre style="white-space:pre-wrap;overflow-wrap:anywhere">${esc((p.rc31RawPasses||[]).map(r=>r.text).join("\n──\n")||p.ocrText||"尚無辨識文字")}</pre></details><p id="iqc31ReviewMessage" role="status"></p><div class="iqc-rc-row"><button class="iqc-rc-btn good" type="button" data-review-save>套用歸類</button><button class="iqc-rc-btn" type="button" data-review-clear>取消所選人工設定</button></div>`;
@@ -91,9 +121,9 @@ if(window.IqcProduction?.allowed){
     const preview=document.createElement('button');preview.type='button';preview.className='iqc-rc-btn iqc31-view-original';preview.dataset.previewPhoto=p.id;preview.textContent='查看原照片';(editor.querySelector('[data-character-warnings]')||editor.firstElementChild).after(preview);
     $("iqcRcResultList").before(editor);editor.style.scrollMarginTop=(document.querySelector('#iqcImageRc .iqc-rc-top').offsetHeight+12)+'px';editor.scrollIntoView({block:'start'});
   }
-  function showMerge(rt){
+  function showMerge(rt,trigger){
     if(controller().isBusy())return;const choices=groups.filter(g=>g.rt===rt);if(choices.length<2)return;
-    $("iqc31ReviewEditor")?.remove();const editor=document.createElement('section');editor.id='iqc31ReviewEditor';editor.className='iqc-rc-card';editor.dataset.mergeRt=rt;
+    rememberReviewPosition(trigger);$("iqc31ReviewEditor")?.remove();const editor=document.createElement('section');editor.id='iqc31ReviewEditor';editor.className='iqc-rc-card';editor.dataset.mergeRt=rt;
     const unique=key=>{const values=[...new Set(choices.map(g=>g[key]).filter(Boolean))];return values.length===1?values[0]:'';};
     editor.innerHTML=`<div class="iqc-rc-row iqc-rc-between"><strong>合併 RT ${esc(rt)}</strong><button type="button" class="iqc-rc-btn" data-review-close>關閉</button></div><p>勾選要合併的群組，再確認正確的狀態及廠區。相同 CTN 只計一次，來源照片和人工核對紀錄保留。</p>${choices.map(g=>'<label style="display:block;margin:12px 0"><input type="checkbox" data-merge-key="'+esc(g.key)+'"> 狀態 '+esc(g.status||'待填')+'｜廠區 '+esc(g.plant||'待填')+'｜'+g.ctns.length+' 支｜照片 '+g.photoSeqs.join('、')+'</label>').join('')}<div class="iqc-rc-grid">${[['status','合併後狀態'],['plant','合併後廠區'],['expected','合併後參考總量（未知留空）']].map(([key,label])=>'<div class="iqc-rc-field"><label>'+label+'</label><input data-merge-field="'+key+'" value="'+esc(key==='expected'?'':unique(key))+'" '+(key==='expected'?'inputmode="numeric"':'autocapitalize="characters"')+'></div>').join('')}</div><p class="iqc-rc-note">這是跨照片群組總量，不是單框的 16／18 支容量。若來源照片屬於不同狀態或廠區，請保留分組。</p><p id="iqc31ReviewMessage" role="status"></p><button type="button" class="iqc-rc-btn good" data-merge-save>確認資料並合併所選群組</button>`;
     $("iqcRcResultList").before(editor);editor.style.scrollMarginTop=(document.querySelector('#iqcImageRc .iqc-rc-top').offsetHeight+12)+'px';editor.scrollIntoView({block:'start'});
@@ -105,34 +135,34 @@ if(window.IqcProduction?.allowed){
   });
   document.addEventListener('click',async e=>{
     const button=e.target.closest?.('button');if(!button)return;
-    if(button.dataset.addCtnGroup||button.dataset.addCtnPhoto){showAdd(button.dataset.addCtnGroup,button.dataset.addCtnPhoto);return;}
+    if(button.dataset.addCtnGroup||button.dataset.addCtnPhoto){showAdd(button.dataset.addCtnGroup,button.dataset.addCtnPhoto,button);return;}
     if(button.hasAttribute('data-add-manual-save')){
       if(locked())return;const editor=$('iqc31ReviewEditor'),message=$('iqc31ReviewMessage'),photoId=$('iqc31AddPhoto').value,entered=$('iqc31AddText').value,before=$('iqc31AddBefore').value;
       const meta=Object.fromEntries(['rt','status','plant','expected'].map(key=>[key,$('iqc31Add_'+key).value]));
       editor.querySelectorAll('button,input,select,textarea').forEach(el=>el.disabled=true);message.textContent='正在保存新增 CTN…';
-      try{await controller().addManualCtn(photoId,entered,meta,before);editor.remove();showSaveNotice('CTN 新增成功');$('iqcRcResultList').scrollIntoView({block:'start'});}
+      try{await controller().addManualCtn(photoId,entered,meta,before);closeReview();showSaveNotice('CTN 新增成功');}
       catch(error){message.textContent=error.message||'新增未完成，請重試。';}
       finally{editor.querySelectorAll('button,input,select,textarea').forEach(el=>el.disabled=false);}return;
     }
     if(button.dataset.ctnSelect){if(locked())return;button.setAttribute('aria-pressed',String(button.getAttribute('aria-pressed')!=='true'));paintSelection();return;}
     if(button.hasAttribute('data-ctn-remove-selected')||button.dataset.ctnRestore){
       if(locked()||!allowLeave())return;const restore=!!button.dataset.ctnRestore,ctn=restore?button.dataset.ctnRestore:[...button.closest('[data-ctn-group]').querySelectorAll('[data-ctn-select][aria-pressed="true"]')].map(b=>b.dataset.ctnSelect);if(!restore&&!ctn.length)return;button.disabled=true;
-      try{await controller().excludeCtn(ctn,restore);$("iqc31ReviewEditor")?.remove();showSaveNotice(restore?'CTN 已復原':'已移除 '+ctn.length+' 筆 CTN，可在「已移除 CTN」復原');}
+      try{await controller().excludeCtn(ctn,restore);if($("iqc31ReviewEditor"))closeReview();showSaveNotice(restore?'CTN 已復原':'已移除 '+ctn.length+' 筆 CTN，可在「已移除 CTN」復原');}
       catch(error){showSaveNotice(error.message||'操作未完成，請重試。');}finally{button.disabled=!!locked();paintSelection();}return;
     }
-    if(button.dataset.mergeRt){showMerge(button.dataset.mergeRt);return;}
+    if(button.dataset.mergeRt){showMerge(button.dataset.mergeRt,button);return;}
     if(button.hasAttribute('data-merge-save')){
       hideSaveNotice();
       const editor=$("iqc31ReviewEditor"),message=$("iqc31ReviewMessage"),keys=[...editor.querySelectorAll('[data-merge-key]:checked')].map(e=>e.dataset.mergeKey);
       const meta={rt:editor.dataset.mergeRt,...Object.fromEntries([...editor.querySelectorAll('[data-merge-field]')].map(e=>[e.dataset.mergeField,e.value]))};
       editor.querySelectorAll('button,input').forEach(e=>e.disabled=true);message.textContent='正在保存合併結果…';
-      try{await controller().mergeReviews(keys,meta);editor.remove();$("iqcRcResultList").style.scrollMarginTop=(document.querySelector("#iqcImageRc .iqc-rc-top").offsetHeight+12)+"px";$("iqcRcResultList").scrollIntoView({block:'start'});showSaveNotice('歸類保存成功');}
+      try{await controller().mergeReviews(keys,meta);closeReview();showSaveNotice('歸類保存成功');}
       catch(error){message.textContent=error.message||'合併未完成，請重新核對。';}
       finally{editor.querySelectorAll('button,input').forEach(e=>e.disabled=false);}return;
     }
-    if(button.dataset.reviewPhoto){showEditor(button.dataset.reviewPhoto);return;}
-    if(button.dataset.reviewQuality){showEditor(button.dataset.reviewQuality);return;}
-    if(button.hasAttribute('data-review-close')){if(allowLeave())$("iqc31ReviewEditor")?.remove();return;}
+    if(button.dataset.reviewPhoto){showEditor(button.dataset.reviewPhoto,button);return;}
+    if(button.dataset.reviewQuality){showEditor(button.dataset.reviewQuality,button);return;}
+    if(button.hasAttribute('data-review-close')){if(allowLeave())closeReview();return;}
     if(button.dataset.reviewAll!==undefined){$("iqc31ReviewEditor").querySelectorAll('[data-review-key]').forEach(el=>el.checked=button.dataset.reviewAll==='1');return;}
     if(!button.hasAttribute('data-review-save')&&!button.hasAttribute('data-review-clear'))return;
     hideSaveNotice();
@@ -148,7 +178,7 @@ if(window.IqcProduction?.allowed){
   document.addEventListener('DOMContentLoaded',()=>{
     const style=document.createElement('style');style.textContent='#iqc31ReviewEditor{scroll-margin-top:70px}#iqc31ReviewEditor input[type=checkbox]{width:24px;height:24px;flex:none}#iqc31ReviewEditor input:not([type=checkbox]),#iqc31ReviewEditor select{font-size:16px;box-sizing:border-box}#iqc31ReviewMessage{color:#ffe4a3}';document.head.appendChild(style);
     style.textContent+='#iqc31SaveNotice{position:fixed;z-index:8;left:50%;top:50%;transform:translate(-50%,-50%);width:max-content;max-width:calc(100vw - 40px);box-sizing:border-box;padding:12px 18px;border:1px solid #60c998;border-radius:14px;background:#12392e;color:#d9ffeb;box-shadow:0 6px 24px #0006;font-size:15px;font-weight:700;line-height:1.5;text-align:center;pointer-events:none}#iqc31SaveNotice[hidden]{display:none}';
-    style.textContent+='.iqc31-view-original{display:block;margin:14px 0!important}.iqc31-ctn-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));grid-auto-flow:column;gap:8px}.iqc31-group-actions{display:flex;flex-direction:column;align-items:flex-end;gap:10px;flex:none}.iqc31-group-actions .iqc-rc-btn{min-height:44px;font-size:13px;padding:8px 10px}.iqc31-ctn-choice{position:relative;display:grid!important;grid-template-columns:auto minmax(0,1fr);column-gap:6px!important;row-gap:2px!important;width:100%;min-height:48px;background:#ffffff0d;color:#edf1ff;text-align:left;font-family:inherit;touch-action:manipulation}.iqc31-ctn-choice strong{white-space:nowrap;font-size:clamp(13px,4vw,16px)!important}.iqc31-ctn-choice small{grid-column:2}.iqc31-ctn-choice[aria-pressed="true"]{box-shadow:inset 0 0 0 2px #42c7f4}.iqc31-ctn-choice[aria-pressed="true"]:after{content:"✓";position:absolute;right:1px;top:0;font-size:12px;line-height:14px;background:#136480;color:#fff;border-radius:3px}.iqc31-ctn-choice:focus-visible{outline:2px solid #42c7f4;outline-offset:2px}.iqc31-ctn-row{display:flex;gap:8px;align-items:center;padding:8px;border:1px solid #58638a;border-radius:12px;min-width:0}.iqc31-ctn-row strong{font-size:16px;overflow-wrap:anywhere}.iqc31-ctn-row small{font-size:11px}.iqc31-ctn-row button{margin-left:auto;min-height:44px;padding:6px 10px;font-size:14px;flex:none}.iqc31-row-number{font-size:13px;min-width:1.5em}.iqc31-uncertain,.iqc31-uncertain input.iqc-ctn-input{background:#ffe49a!important;color:#302708!important;border-color:#dfb337!important}.rc31-review-candidates .iqc31-uncertain{padding:6px;border-radius:10px}.iqc31-uncertain .iqc-rc-btn{color:#302708;border-color:#8e7426;background:#fff8}#iqc31Excluded{margin-top:14px}#iqc31Excluded .iqc31-ctn-row{margin-top:8px}';
+    style.textContent+='.iqc31-view-original{display:block;margin:14px 0!important}.iqc31-ctn-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));grid-auto-flow:column;gap:8px}.iqc31-group-heading{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px}.iqc31-group-actions{display:contents}.iqc31-group-actions>.iqc-rc-status{justify-self:end;align-self:start}.iqc31-group-buttons{grid-column:1 / -1;display:flex;justify-content:flex-end;gap:8px;min-width:0}.iqc31-group-buttons>.iqc-rc-btn{white-space:nowrap;min-width:0}.iqc31-group-actions .iqc-rc-btn{min-height:44px;font-size:13px;padding:8px 10px}.iqc31-ctn-choice{position:relative;display:grid!important;grid-template-columns:auto minmax(0,1fr);column-gap:6px!important;row-gap:2px!important;width:100%;min-height:48px;background:#ffffff0d;color:#edf1ff;text-align:left;font-family:inherit;touch-action:manipulation}.iqc31-ctn-choice strong{white-space:nowrap;font-size:clamp(13px,4vw,16px)!important}.iqc31-ctn-choice small{grid-column:2}.iqc31-ctn-choice[aria-pressed="true"]{box-shadow:inset 0 0 0 2px #42c7f4}.iqc31-ctn-choice[aria-pressed="true"]:after{content:"✓";position:absolute;right:1px;top:0;font-size:12px;line-height:14px;background:#136480;color:#fff;border-radius:3px}.iqc31-ctn-choice:focus-visible{outline:2px solid #42c7f4;outline-offset:2px}.iqc31-ctn-row{display:flex;gap:8px;align-items:center;padding:8px;border:1px solid #58638a;border-radius:12px;min-width:0}.iqc31-ctn-row strong{font-size:16px;overflow-wrap:anywhere}.iqc31-ctn-row small{font-size:11px}.iqc31-ctn-row button{margin-left:auto;min-height:44px;padding:6px 10px;font-size:14px;flex:none}.iqc31-row-number{font-size:13px;min-width:1.5em}.iqc31-uncertain,.iqc31-uncertain input.iqc-ctn-input{background:#ffe49a!important;color:#302708!important;border-color:#dfb337!important}.rc31-review-candidates .iqc31-uncertain{padding:6px;border-radius:10px}.iqc31-uncertain .iqc-rc-btn{color:#302708;border-color:#8e7426;background:#fff8}#iqc31Excluded{margin-top:14px}#iqc31Excluded .iqc31-ctn-row{margin-top:8px}';
     const host=$("iqcRcPhotoList");if(host)new MutationObserver(photoButtons).observe(host,{childList:true});
   });
   window.__DS_IQC_META_GROUPING_V8={version:'RC31_REVIEW_S3',refresh,getModel:()=>groups};
