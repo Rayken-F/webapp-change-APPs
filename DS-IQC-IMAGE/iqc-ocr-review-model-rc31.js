@@ -21,7 +21,7 @@ if(window.IqcProduction?.allowed){
     const aliases=new Map();(photo.rc31Quality?.uncertain||[]).forEach(r=>(r.alternatives||[]).forEach(v=>{if(!values.includes(v))aliases.set(v,r.ctn);}));
     const read=text=>rules.parseEvents(text||'').filter(e=>e.type==='ctn').map(e=>aliases.get(e.ctn)||e.ctn).filter(v=>values.includes(v));
     const passes=(photo.rc31RawPasses||[]).map(p=>read(p.text)).sort((a,b)=>b.length-a.length);
-    return sequenceOrder(values,[photo.rc31Order||[],photo.rc31Review?.retainedOrder||[],...passes,read(photo.ocrText)]);
+    return sequenceOrder(values,[photo.rc31Review?.manualOrder||[],photo.rc31Order||[],photo.rc31Review?.retainedOrder||[],...passes,read(photo.ocrText)]);
   }
   function needsCheck(photo,row){return (photo.rc31Quality?.uncertain||[]).some(w=>[w.ctn,...(w.alternatives||[])].some(v=>v===row.original||v===row.ctn));}
   function candidates(photo,{includeExcluded=false}={}){
@@ -123,6 +123,26 @@ if(window.IqcProduction?.allowed){
     const proposed=all.map(x=>ctns[x.original]?.ctn||x.original).concat(selection.filter(x=>!available.has(x.original)).map(x=>clean(x.ctn)));if(!clear&&new Set(proposed).size!==proposed.length)throw new Error("修改後與同張其他 CTN 重複，請先核對。");
     return {...previous,ctns,history:[...(previous.history||[]),{at,action:clear?"CLEAR":"ASSIGN",originals:selection.map(x=>x.original),before,after:clear?null:values}]};
   }
+  function addManual(photos,photoId,text,meta,beforeOriginal='',legacy=[]){
+    const photo=photos.find(p=>p.id===photoId);if(!photo)throw Error('來源照片已變更，請重新選擇。');
+    const entered=String(text||'').toUpperCase().split(/[\s,;，；]+/).filter(Boolean);
+    if(!entered.length)throw Error('請輸入漏辨識的 CTN，每行一個。');
+    if(entered.some(ctn=>!validCtn(ctn)))throw Error('請輸入完整 CTN，例如 AB12CDE；每行一個。');
+    if(new Set(entered).size!==entered.length)throw Error('本次新增的 CTN 有重複，請核對。');
+    const current=build(photos,legacy).flatMap(g=>g.rows),removed=excluded(photos);
+    if(entered.some(ctn=>removed.includes(ctn)))throw Error('此 CTN 已移除，請先在「已移除 CTN」復原。');
+    if(entered.some(ctn=>current.some(row=>row.ctn===ctn)))throw Error('此 CTN 已在目前批次，請勿重複新增。');
+    if(new Set(current.map(r=>r.ctn)).size+entered.length>500)throw Error('每批最多 500 筆 CTN。');
+    const existing=candidates(photo,{includeExcluded:true});
+    if(entered.some(ctn=>existing.some(r=>r.original===ctn)))throw Error('此編號已是原辨識候選，請在核對清單修改或復原。');
+    const order=existing.map(r=>r.original),index=beforeOriginal?order.indexOf(beforeOriginal):order.length;
+    if(index<0)throw Error('照片排序已變更，請重新選擇新增位置。');
+    const review=updateReview(photo,entered.map(ctn=>({original:ctn,ctn,added:true})),meta);
+    order.splice(index,0,...entered);review.manualOrder=order;
+    const event=review.history[review.history.length-1];event.action='ADD';event.beforeOriginal=beforeOriginal;event.addedCtns=entered;
+    return {id:photo.id,updatedAt:photo.updatedAt,review,manualSupplement:true};
+  }
+
   function excluded(photos){return [...new Set(photos.flatMap(p=>Object.values(p.rc31Review?.excluded||{}).map(r=>r.ctn)))];}
   function excludeReviews(photos,ctn,restore=false,legacy=[]){
     const updates=[],at=new Date().toISOString(),rows=build(photos,legacy).flatMap(g=>g.rows);
@@ -216,7 +236,7 @@ if(window.IqcProduction?.allowed){
     }
     return updates;
   }
-  return {candidates,build,resolve,presentation,updateReview,legacyDecisions,mergeReviews,sequenceOrder,excluded,excludeReviews,needsCheck};
+  return {candidates,build,resolve,presentation,updateReview,legacyDecisions,mergeReviews,addManual,sequenceOrder,excluded,excludeReviews,needsCheck};
 });
 
 }
