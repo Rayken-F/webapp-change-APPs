@@ -6,6 +6,7 @@ const state={
   authUser:null,
   profile:null,
   priorities:[],
+  rtSchedule:null,
   homeLoaded:false,
   homeOwner:"",
   homeStatus:"正在讀取生產需求…",
@@ -576,6 +577,9 @@ function renderMore(){
 let homeTask=null;
 function resetHomeData(){
   state.priorities=[];state.rtMaster=[];state.rtMap=new Map();state.selectedRt=null;
+  state.rtSchedule=null;
+  const noteModal=$("rtNoteModal");if(noteModal){noteModal.classList.add("hidden");noteModal.setAttribute("aria-hidden","true");["rtNoteTitle","rtNoteContext","rtNoteText"].forEach(id=>$(id).textContent="");}
+  if($("rtScheduleStatus"))$("rtScheduleStatus").textContent="";
   state.homeLoaded=false;state.homeOwner="";state.homeStatus="正在讀取生產需求…";
 }
 function renderHomeLoadState(){
@@ -600,6 +604,7 @@ function loadHomeData(){
       onSlow:()=>{if(homeTask===task){state.homeStatus="生產需求仍在讀取，請稍候…";renderPriorities();}}});
     if(task.controller.signal.aborted||getToken()!==requestedToken||!state.profile)return;
     state.priorities=Array.isArray(result.priorities)?result.priorities:[];
+    state.rtSchedule=result.rtSchedule||null;
     state.homeLoaded=true;state.homeStatus="";
     if(!state.rtMaster.length&&Array.isArray(result.rtMaster)){
       state.rtMaster=result.rtMaster;
@@ -746,7 +751,22 @@ function bind(){
   $("userButton").addEventListener("click",()=>$("userMenu").classList.toggle("hidden"));
   $("logoutBtn").addEventListener("click",()=>endSession(""));
   $("addPriorityBtn").addEventListener("click",()=>openPriorityModal());
-  $("refreshPriorityBtn").addEventListener("click",async()=>{try{showLoading("重新整理","正在取得最新需求…");await loadHomeData();toast("已更新")}catch(err){toast(err.message,true)}finally{hideLoading()}});
+  $("refreshPriorityBtn").addEventListener("click",async()=>{
+    const token=getToken();let syncError="";
+    try{
+      showLoading("重新整理","正在取得最新需求…");
+      if(permission("production_priority_edit_enabled")&&state.rtSchedule?.syncEnabled){
+        const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),35000);
+        try{await portalPost("portal_rt_schedule_sync",{},{signal:controller.signal});}
+        catch(err){syncError=controller.signal.aborted?"郵件更新尚未確認":err.message||"排程更新失敗";}
+        finally{clearTimeout(timer);}
+      }
+      if(getToken()!==token)return;
+      await loadHomeData();
+      if(getToken()!==token)return;
+      toast(syncError?syncError+"；畫面顯示最後成功取得的排程。":"已更新",!!syncError);
+    }catch(err){if(getToken()===token)toast(err.message,true)}finally{hideLoading()}
+  });
   $("statusFilters").querySelectorAll("[data-status]").forEach(btn=>btn.addEventListener("click",()=>{state.filter=btn.dataset.status;$("statusFilters").querySelectorAll("[data-status]").forEach(x=>x.classList.toggle("active",x===btn));renderPriorities()}));
   $("closePriorityModal").addEventListener("click",closePriorityModal);
   $("priorityModal").addEventListener("click",e=>{if(e.target===$("priorityModal")) closePriorityModal()});
