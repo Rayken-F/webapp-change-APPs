@@ -1,8 +1,6 @@
 #homeModule .progress-strip{display:none!important}
 #homeModule .priority-section{margin-top:14px}
 .priority-card .ds-demand-metric{color:#fff;font-weight:900}
-.priority-card .ds-process-metric{color:#6fe4ff;font-weight:900}
-.priority-card .ds-loaded-metric{color:#89efb8;font-weight:900}
 .priority-card .priority-line1{gap:5px;padding-right:38px;flex-wrap:wrap}
 .priority-card .ds-demand-source,.priority-card .ds-plant{font-size:.8em;font-weight:850}
 .rt-schedule-card .priority-line1{padding-right:0;flex-wrap:nowrap;white-space:nowrap}
@@ -10,13 +8,18 @@
 .rt-schedule-card .priority-line1>.ds-demand-source{flex-shrink:1;min-width:0;overflow:hidden;text-overflow:ellipsis}
 .priority-card .rt-capacity-bundle{font-size:.85em}
 .priority-card .priority-line3{gap:7px}
-.priority-card{touch-action:pan-y;-webkit-touch-callout:none}
+.priority-card,#priorityList{touch-action:pan-y;-webkit-touch-callout:none}
+#homeModule #statusFilters{position:sticky;top:var(--rt-board-top,100px);scroll-margin-top:var(--rt-board-top,100px);z-index:29;background:#111d4a;padding:10px 4px;border-bottom:1px solid rgba(175,194,255,.25);box-shadow:0 8px 12px rgba(7,14,42,.22);scrollbar-width:none}
 .priority-card:focus-visible{outline:2px solid #9a91ff;outline-offset:2px}
 .rt-schedule-hint{color:#bcc9f2;font-size:13px;margin:12px 0 4px}
 #rtScheduleStatus{color:#bcc9f2;font-size:12px;margin-top:8px;overflow-wrap:anywhere}
 .rt-note-link{border:1px solid #8397cf;border-radius:12px;background:transparent;color:#e0e7ff;min-height:36px;padding:5px 12px;margin-left:auto}
 #rtNoteText{white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.65;font-size:17px}
 #rtNoteContext{color:#bcc9f2;font-size:13px}
+#rtNoteForm{display:grid;gap:12px}
+#rtNoteInput{width:100%;resize:vertical;min-height:130px;font-size:16px;color:#fff;background:#0d163a;border:1px solid #8794c1;border-radius:12px;padding:12px;line-height:1.6}
+#rtNoteForm small,#rtNoteAuthor{color:#bcc9f2;font-size:12px}
+#rtNoteStatus{white-space:pre-wrap;overflow-wrap:anywhere;color:#ffe499;line-height:1.5}
 #rtNoteModal{z-index:1800}
 #rtNoteModal .modal-sheet{padding-bottom:calc(24px + env(safe-area-inset-bottom,0px));overscroll-behavior:contain}
 @media(max-width:640px){.priority-card .priority-line1{font-size:15px;gap:4px}.priority-card .ds-demand-source,.priority-card .ds-plant{font-size:12.5px}.priority-card .priority-line3{font-size:12px;gap:6px}}

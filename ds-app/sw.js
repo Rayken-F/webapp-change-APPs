@@ -1,6 +1,6 @@
 "use strict";
 
-const CACHE="ds-app-shell-rt-schedule-p1-1-20261004";
+const CACHE="ds-app-shell-rt-schedule-p2-20261004";
 
 const STATIC=[
   "./",
