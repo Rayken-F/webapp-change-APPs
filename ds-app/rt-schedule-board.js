@@ -96,6 +96,7 @@
   list.addEventListener('contextmenu',e=>{const card=e.target.closest('[data-priority-id]');if(card&&!e.target.closest('button'))e.preventDefault();});
   list.addEventListener('click',e=>{const btn=e.target.closest('[data-note-id]');if(btn)showNote(btn.closest('[data-priority-id]'));});
   list.addEventListener('keydown',e=>{const card=e.target.closest('[data-priority-id]');if(card&&e.target===card&&['Enter',' '].includes(e.key)){e.preventDefault();showNote(card);}});
+  function number(value){return (typeof value!=='number'&&typeof value!=='string')||String(value).trim()===''||!Number.isFinite(Number(value))||Number(value)<0?'--':String(Number(value));}
   renderPriorities=function(){
     cancelPress();if(renderHomeLoadState())return;
     const rows=model.visible(state.priorities,state.filter),canEdit=permission('production_priority_edit_enabled');
@@ -109,7 +110,8 @@
         ${canEdit&&!item.readOnly?`<button class="edit-priority" data-edit-id="${escapeHtml(item.priorityId)}" type="button" aria-label="編輯 RT ${escapeHtml(item.rtNo)}">✎</button>`:''}
         <div class="priority-line1"><span>${escapeHtml(item.rtNo)}</span><span class="priority-divider">|</span><span class="rt-capacity${model.size(item)[0]===0?' rt-capacity-bundle':''}">${escapeHtml(item.capacity||'規格待確認')}</span><span class="priority-divider">|</span><span class="ds-demand-source" title="${escapeHtml(item.demandSource)}">${escapeHtml(item.demandSource)}</span><span class="priority-divider">|</span><span class="ds-plant">廠區：${escapeHtml(item.plantCode)}</span></div>
         <div class="priority-desc" title="${escapeHtml(item.description||'')}">${escapeHtml(item.description||'RT敘述待確認')}</div>
-        <div class="priority-line3"><span class="ds-demand-metric">${scheduled?'未完成量':'需求量'}：${escapeHtml(item.demandQty)}${escapeHtml(unit||'（單位待確認）')}</span>
+        <div class="priority-line3"><span class="ds-demand-metric">需求量：${number(item.demandQty)}${escapeHtml(unit||'（單位待確認）')}</span>
+        <span class="priority-divider">|</span><span class="ds-process-metric">製程中：${number(item.processQty??item.inProcessQty??item.wipQty)}ea</span><span class="priority-divider">|</span><span class="ds-loaded-metric">裝框：${number(item.loadedQty??item.frameQty??item.readyQty)}ea</span>
         <span class="status-badge">${escapeHtml(item.status)}</span>${item.note?`<button class="rt-note-link" type="button" data-note-id="${escapeHtml(item.priorityId)}">備註</button>`:''}</div>
       </article>`;
     }).join('');
@@ -119,6 +121,6 @@
   function measureTop(){if(topbar){const h=topbar.getBoundingClientRect().height;if(h>0)filters.style.setProperty('--rt-board-top',Math.ceil(h)+'px');}}
   if(topbar&&typeof ResizeObserver==='function')new ResizeObserver(measureTop).observe(topbar);
   window.addEventListener('resize',measureTop);measureTop();
-  window.__DS_RT_SCHEDULE_BOARD={version:'RT-SCHEDULE-P2-20261004',reset:resetNote};
+  window.__DS_RT_SCHEDULE_BOARD={version:'RT-SCHEDULE-P2.1-20261004',reset:resetNote};
   renderPriorities();
 })();

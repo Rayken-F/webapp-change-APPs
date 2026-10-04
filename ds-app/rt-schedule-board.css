@@ -1,6 +1,8 @@
 #homeModule .progress-strip{display:none!important}
 #homeModule .priority-section{margin-top:14px}
 .priority-card .ds-demand-metric{color:#fff;font-weight:900}
+.priority-card .ds-process-metric{color:#6fe4ff;font-weight:900}
+.priority-card .ds-loaded-metric{color:#89efb8;font-weight:900}
 .priority-card .priority-line1{gap:5px;padding-right:38px;flex-wrap:wrap}
 .priority-card .ds-demand-source,.priority-card .ds-plant{font-size:.8em;font-weight:850}
 .rt-schedule-card .priority-line1{padding-right:0;flex-wrap:nowrap;white-space:nowrap}
