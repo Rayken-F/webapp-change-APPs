@@ -94,7 +94,7 @@ async function portalPost(api,payload={},control={}){
   const text=await r.text();
   let data;
   try{data=JSON.parse(text)}catch(_){throw new Error("Portal API 回傳格式錯誤")}
-  if(!data.ok) throw new Error(data.message||"Portal API 執行失敗");
+  if(!data.ok){const error=new Error(data.message||"Portal API 執行失敗");if(api==="portal_rt_note_save"){error.code=data.code;error.item=data.item;}throw error;}
   return data;
 }
 function openExternal(url,label){
@@ -576,6 +576,7 @@ function renderMore(){
 }
 let homeTask=null;
 function resetHomeData(){
+  window.__DS_RT_SCHEDULE_BOARD?.reset();
   state.priorities=[];state.rtMaster=[];state.rtMap=new Map();state.selectedRt=null;
   state.rtSchedule=null;
   const noteModal=$("rtNoteModal");if(noteModal){noteModal.classList.add("hidden");noteModal.setAttribute("aria-hidden","true");["rtNoteTitle","rtNoteContext","rtNoteText"].forEach(id=>$(id).textContent="");}

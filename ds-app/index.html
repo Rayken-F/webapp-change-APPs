@@ -137,7 +137,7 @@
             <button class="filter-chip" data-status="7A39" type="button">7A39</button>
             <button class="filter-chip" data-status="Other" type="button">Other</button>
           </div>
-          <p class="rt-schedule-hint">長按 RT 小卡可查看備註；電腦可選取卡片後按 Enter。</p>
+          <p class="rt-schedule-hint">左右滑動切換廠區；長按 RT 小卡查看鼎世備註。</p>
           <div id="rtScheduleStatus" role="status"></div>
           <div id="homeLoadStatus" role="status" aria-live="polite"></div>
           <div id="priorityList" class="priority-list">
@@ -253,16 +253,23 @@
     <section class="modal-sheet" role="dialog" aria-modal="true" aria-labelledby="rtNoteTitle">
       <div class="modal-head"><h3 id="rtNoteTitle">RT 備註</h3><button id="closeRtNoteBtn" class="icon-btn" type="button" aria-label="關閉備註">×</button></div>
       <p id="rtNoteContext"></p><p id="rtNoteText"></p>
+      <form id="rtNoteForm" class="hidden">
+        <label for="rtNoteInput">鼎世人員備註</label>
+        <textarea id="rtNoteInput" maxlength="2000" rows="5" placeholder="填寫現場交辦或處理說明"></textarea>
+        <small>同 RT、廠區及需求來源共用；排程更新後仍保留。最多 2000 字。</small>
+        <div class="modal-actions"><button id="reloadRtNoteBtn" class="secondary-btn hidden" type="button">載入最新備註</button><button id="saveRtNoteBtn" class="primary-btn" type="submit">儲存備註</button></div>
+      </form>
+      <p id="rtNoteAuthor"></p><p id="rtNoteStatus" role="status" aria-live="polite"></p>
     </section>
   </div>
-  <link rel="stylesheet" href="rt-schedule-board.css?v=20261004-p1-1">
+  <link rel="stylesheet" href="rt-schedule-board.css?v=20261004-p2">
   <script src="config.js"></script>
   <script src="auth-bridge.js?v=20260919-k5"></script>
   <script src="auth-transport.js?v=20260919-k6"></script>
   <script src="oqc-bootstrap.js?v=20260920-k9"></script>
   <script src="rt-schedule-model.js?v=20261004-p1"></script>
-  <script src="app.js?v=20261004-rt-schedule-p1"></script>
-  <script src="rt-schedule-board.js?v=20261004-p1-1"></script>
+  <script src="app.js?v=20261004-rt-schedule-p2"></script>
+  <script src="rt-schedule-board.js?v=20261004-p2"></script>
   <script src="shell-ux.js?v=20260918-k2"></script>
 </body>
 </html>
