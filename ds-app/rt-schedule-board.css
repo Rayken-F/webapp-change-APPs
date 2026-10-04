@@ -5,6 +5,10 @@
 .priority-card .ds-loaded-metric{color:#89efb8;font-weight:900}
 .priority-card .priority-line1{gap:5px;padding-right:38px;flex-wrap:wrap}
 .priority-card .ds-demand-source,.priority-card .ds-plant{font-size:.8em;font-weight:850}
+.rt-schedule-card .priority-line1{padding-right:0;flex-wrap:nowrap;white-space:nowrap}
+.rt-schedule-card .priority-line1>span{flex-shrink:0}
+.rt-schedule-card .priority-line1>.ds-demand-source{flex-shrink:1;min-width:0;overflow:hidden;text-overflow:ellipsis}
+.priority-card .rt-capacity-bundle{font-size:.85em}
 .priority-card .priority-line3{gap:7px}
 .priority-card{touch-action:pan-y;-webkit-touch-callout:none}
 .priority-card:focus-visible{outline:2px solid #9a91ff;outline-offset:2px}
