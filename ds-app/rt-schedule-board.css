@@ -1,0 +1,18 @@
+#homeModule .progress-strip{display:none!important}
+#homeModule .priority-section{margin-top:14px}
+.priority-card .ds-demand-metric{color:#fff;font-weight:900}
+.priority-card .ds-process-metric{color:#6fe4ff;font-weight:900}
+.priority-card .ds-loaded-metric{color:#89efb8;font-weight:900}
+.priority-card .priority-line1{gap:5px;padding-right:38px;flex-wrap:wrap}
+.priority-card .ds-demand-source,.priority-card .ds-plant{font-size:.8em;font-weight:850}
+.priority-card .priority-line3{gap:7px}
+.priority-card{touch-action:pan-y;-webkit-touch-callout:none}
+.priority-card:focus-visible{outline:2px solid #9a91ff;outline-offset:2px}
+.rt-schedule-hint{color:#bcc9f2;font-size:13px;margin:12px 0 4px}
+#rtScheduleStatus{color:#bcc9f2;font-size:12px;margin-top:8px;overflow-wrap:anywhere}
+.rt-note-link{border:1px solid #8397cf;border-radius:12px;background:transparent;color:#e0e7ff;min-height:36px;padding:5px 12px;margin-left:auto}
+#rtNoteText{white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.65;font-size:17px}
+#rtNoteContext{color:#bcc9f2;font-size:13px}
+#rtNoteModal{z-index:1800}
+#rtNoteModal .modal-sheet{padding-bottom:calc(24px + env(safe-area-inset-bottom,0px));overscroll-behavior:contain}
+@media(max-width:640px){.priority-card .priority-line1{font-size:15px;gap:4px}.priority-card .ds-demand-source,.priority-card .ds-plant{font-size:12.5px}.priority-card .priority-line3{font-size:12px;gap:6px}}

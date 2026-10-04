@@ -1,0 +1,6 @@
+const assert=require('node:assert/strict'),{test}=require('node:test');
+const model=require('../rt-schedule-model.js');
+const item=(capacity,status='緊急',plantCode='7201')=>({capacity,status,plantCode,rtNo:'123456'});
+test('plant groups and priority order follow the requested sequence',()=>{const rows=[item('X10S','常態'),item('X10S','暫緩'),item('X10S','中等'),item('X10S'),item('X10S','緊急','7a39'),item('X10S','緊急','7A44')];assert.deepEqual(model.visible(rows,'7201').map(x=>x.status),['緊急','中等','暫緩','常態']);assert.equal(model.visible(rows,'7A39').length,1);assert.equal(model.visible(rows,'Other').length,1);assert.deepEqual(rows.map(x=>x.status).slice(0,2),['常態','暫緩']);});
+test('bundles use numeric cylinder count then capacity; loose cylinders follow numeric capacity',()=>{const caps=['X67S','16X40S','12X47S','X10S','12X40S','16X50S','X29A','12X44S','X16A','X40S','UNKNOWN'];assert.deepEqual(model.visible(caps.map(c=>item(c)),'ALL').map(x=>x.capacity),['12X40S','12X44S','12X47S','16X40S','16X50S','X10S','X16A','X29A','X40S','X67S','UNKNOWN']);});
+test('priority outranks bundle size and RT numbers break equal capacity ties numerically',()=>{const rows=[{...item('X10S'),rtNo:'9'},{...item('X10S'),rtNo:'10'},item('12X40S','中等')];assert.deepEqual(model.visible(rows,'ALL').map(x=>x.rtNo),['9','10','123456']);});

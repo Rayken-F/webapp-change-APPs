@@ -5,7 +5,7 @@ function setup(post){
  let now=Date.parse('2026-09-21T00:00:00Z'),serial=0,cleared=0,oqcCleared=0;
  const nodes=new Map(),saved=new Map([['token','verified-token']]),timers=new Map(),events={},winEvents={},calls=[];
  const classes=()=>{const values=new Set();return {add:x=>values.add(x),remove:x=>values.delete(x),contains:x=>values.has(x),toggle(x,on){if(on===undefined)on=!values.has(x);on?values.add(x):values.delete(x);}};};
- const node=id=>{if(!nodes.has(id))nodes.set(id,{classList:classes(),textContent:'',value:'',children:[],focus(){},style:{setProperty(){}},querySelector:()=>null,querySelectorAll(){return this.children;},replaceChildren(){this.children=[];cleared++;}});return nodes.get(id);};
+ const node=id=>{if(!nodes.has(id))nodes.set(id,{classList:classes(),setAttribute(k,v){this[k]=v;},textContent:'',value:'',children:[],focus(){},style:{setProperty(){}},querySelector:()=>null,querySelectorAll(){return this.children;},replaceChildren(){this.children=[];cleared++;}});return nodes.get(id);};
  const store={getItem:k=>saved.get(k)||null,setItem:(k,v)=>saved.set(k,v),removeItem:k=>saved.delete(k)};
  const c=vm.createContext({Date:class extends Date{static now(){return now;}},AbortController,URL,URLSearchParams,CustomEvent:class{},console,scrollTo(){},requestAnimationFrame(){},
   setTimeout(f,ms){timers.set(++serial,{f,at:now+ms});return serial;},clearTimeout(id){timers.delete(id);},sessionStorage:store,localStorage:store,location:{search:'',href:'https://fixture/ds-app/'},

@@ -1,12 +1,15 @@
 "use strict";
 
-const CACHE="ds-app-shell-iqc-review-ui-20261001";
+const CACHE="ds-app-shell-rt-schedule-p1-20261004";
 
 const STATIC=[
   "./",
   "./index.html",
   "./app.css",
   "./app.js",
+  "./rt-schedule-model.js",
+  "./rt-schedule-board.js",
+  "./rt-schedule-board.css",
   "./oqc-bootstrap.js",
   "./auth-transport.js",
   "./auth-bridge.js",
@@ -22,7 +25,6 @@ const STATIC=[
   "../ds-app-grinding-recovery-rc/rc-quickbar-keeper-v6.js",
   "../ds-app-grinding-recovery-rc/grinding-ui-safe-rc.js",
   "../ds-app-grinding-recovery-rc/operator-session-rc-v5.js",
-  "../ds-app-grinding-recovery-rc/home-production-focus-rc-v5.js",
   "./config.js",
   "./manifest.json",
   "./portal-gate.js",

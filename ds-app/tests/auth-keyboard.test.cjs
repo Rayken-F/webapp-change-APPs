@@ -5,7 +5,7 @@ const deferred=()=>{let resolve,reject;const promise=new Promise((a,b)=>{resolve
 function classes(){const values=new Set();return {add:x=>values.add(x),remove:x=>values.delete(x),contains:x=>values.has(x),toggle(x,on){if(on===undefined)on=!values.has(x);on?values.add(x):values.delete(x);}};}
 function setup(post){
  const nodes=new Map(),storage=new Map();let clears=0;
- const node=id=>{if(!nodes.has(id))nodes.set(id,{classList:classes(),focus(){},value:'',textContent:'',checked:false,disabled:false,children:[],querySelectorAll(){return this.children;},replaceChildren(){clears++;this.children=[];},style:{setProperty(){}}});return nodes.get(id);};
+ const node=id=>{if(!nodes.has(id))nodes.set(id,{classList:classes(),setAttribute(k,v){this[k]=v;},focus(){},value:'',textContent:'',checked:false,disabled:false,children:[],querySelectorAll(){return this.children;},replaceChildren(){clears++;this.children=[];},style:{setProperty(){}}});return nodes.get(id);};
  const store={getItem:k=>storage.get(k)||null,setItem:(k,v)=>storage.set(k,v),removeItem:k=>storage.delete(k)};
  const cfg={AUTH_TOKEN_KEY:'token',AUTH_API_URL:'https://auth.fixture',PORTAL_API_URL:'https://portal.fixture',AUTH_CLIENT_VERSION:'compatible',REMEMBER_ACCOUNT_KEY:'account',REMEMBER_ENABLED_KEY:'remember'};
  const c=vm.createContext({window:{DS_PORTAL_CONFIG:cfg,DsAuthTransport:{create:()=>({post})},dispatchEvent(){}},document:{body:{classList:classes()},getElementById:node,querySelectorAll:()=>[]},sessionStorage:store,localStorage:store,AbortController,setTimeout,clearTimeout,URL,URLSearchParams,location:{search:'',href:'https://fixture/ds-app/'},CustomEvent:class{},console,requestAnimationFrame(){},scrollTo(){}});
