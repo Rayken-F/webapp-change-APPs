@@ -313,6 +313,7 @@
 
       <section class="card">
         <div class="section-title">DCYL／轉 HT 最近紀錄</div>
+        <div class="muted">長按 DCYL 項目可返回 Grinding · R1</div>
         <div id="historyList" class="history-list"></div>
       </section>
     </section>
@@ -1648,12 +1649,12 @@
         const rows=groups[def.key];
         const qty=rows.reduce((sum,item)=>sum+Number(item.qty||0),0);
         const open=def.key==="today"||(!groups.today.length&&def.key===firstAvailable);
-        const body=rows.map(item=>`<article class="history-item"><div class="asset-name">${escapeHtml(item.assetCtn||`集束來源 ${item.sourceCtn}`)}</div><div class="asset-sub">${escapeHtml(isHtInGrinding(item)?"轉 HT（站內）":statusLabel(item.lifecycleStatus))}｜${Number(item.qty||0)} 支｜RT ${escapeHtml(item.rt||"-")}｜${escapeHtml(formatDispositionTime(item.updatedAt))}</div></article>`).join("");
+        const body=rows.map(item=>`<article class="history-item"${item.lifecycleStatus==="DCYL"?` data-dcyl-key="${escapeHtml(item.assetKey)}" tabindex="0" role="button" aria-label="${escapeHtml(item.assetCtn||item.sourceCtn)}，長按返回 Grinding；鍵盤按 Enter"`:""}><div class="asset-name">${escapeHtml(item.assetCtn||`集束來源 ${item.sourceCtn}`)}</div><div class="asset-sub">${escapeHtml(isHtInGrinding(item)?"轉 HT（站內）":statusLabel(item.lifecycleStatus))}｜${Number(item.qty||0)} 支｜RT ${escapeHtml(item.rt||"-")}｜${escapeHtml(formatDispositionTime(item.updatedAt))}</div></article>`).join("");
         return `<details class="history-period"${open?" open":""}><summary><span class="history-period-title">${def.label}</span><span class="history-period-count">${rows.length} 筆／${qty} 支</span></summary><div class="history-period-body">${body}</div></details>`
       }).join("")
     }
     function applyOptimisticDisposition(action,items,extra){
-      if(action==="TRANSFER_HT"||action==="CANCEL_HT"){renderSticky();return}
+      if(action==="TRANSFER_HT"||action==="CANCEL_HT"||action==="RETURN_FROM_DCYL"){renderSticky();return}
       if(!state.wip)return;
       const selectedMap={};
       items.forEach(item=>selectedMap[item.asset_key]=Number(item.qty||0));
@@ -1785,6 +1786,10 @@
     async function submitDisposition(action,extra){
       if(!ensureClientWriteAllowed())return;
       if(state.dispositionBusy)return;
+      if(state.pendingDisposition && state.pendingDisposition.status!=="backend_failed" &&
+         (action==="RETURN_FROM_DCYL" || state.pendingDisposition.payload?.action==="RETURN_FROM_DCYL")){
+        showToast("前一筆操作尚在確認，請等待同步完成後再操作。",true);return
+      }
       syncMetaFromInputs();
 
       const items=action==="RELEASE_TO_SANDBLAST"||
@@ -1833,7 +1838,7 @@
             daily:r.daily_summary||{}
           }
         }
-        if((action==="TRANSFER_HT"||action==="CANCEL_HT")&&Array.isArray(r.affected_assets)){
+        if((action==="TRANSFER_HT"||action==="CANCEL_HT"||action==="RETURN_FROM_DCYL")&&Array.isArray(r.affected_assets)){
           state.wip.grindingAssets=mergeAssetsByKey_(state.wip.grindingAssets,r.affected_assets);
           state.wip.dispositions=mergeAssetsByKey_(removeAssetKeys_(state.wip.dispositions,r.affected_assets.map(a=>a.assetKey)),r.affected_assets.filter(isHtInGrinding));
         }
@@ -2194,7 +2199,7 @@
       loadHistory(true)
     }
     function historyActionLabel(action){
-      const map={GRINDING_CHECK_IN:"進入 Grinding",LOAD_TO_FRAME:"入框",FRAME_READY_SANDBLAST:"完成待噴砂框",FRAME_CONTENT_CHANGED:"框內內容變更",FRAME_ITEM_RETURN_GRINDING:"退回 Grinding",DCYL:"DCYL",FRAME_ITEM_DCYL:"框內轉 DCYL",FRAME_ITEM_HT:"框內轉 HT",TRANSFER_HT:"轉 HT",CANCEL_HT:"取消轉 HT",HYDROTEST_MIGRATED_TO_HT:"舊水壓轉 HT",RELEASE_TO_SANDBLAST:"送往噴砂"};
+      const map={GRINDING_CHECK_IN:"進入 Grinding",LOAD_TO_FRAME:"入框",FRAME_READY_SANDBLAST:"完成待噴砂框",FRAME_CONTENT_CHANGED:"框內內容變更",FRAME_ITEM_RETURN_GRINDING:"退回 Grinding",RETURN_FROM_DCYL:"DCYL 返回 Grinding",DCYL:"DCYL",FRAME_ITEM_DCYL:"框內轉 DCYL",FRAME_ITEM_HT:"框內轉 HT",TRANSFER_HT:"轉 HT",CANCEL_HT:"取消轉 HT",HYDROTEST_MIGRATED_TO_HT:"舊水壓轉 HT",RELEASE_TO_SANDBLAST:"送往噴砂"};
       return map[action]||action||"-"
     }
     function renderHistoryTimeline(){
@@ -2244,5 +2249,6 @@
     window.addEventListener("DOMContentLoaded",init)
   </script>
   <script src="./history-monthly-h1.js?v=20260930-1"></script>
+  <script src="./dcyl-return-r1.js?v=20261006-1"></script>
 </body>
 </html>
