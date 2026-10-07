@@ -66,6 +66,7 @@ if(window.IqcProduction?.allowed){
     if(messageBatch===active())text($('iqc31SubmitMessage'),message);
     else if(r?.status==='SYNCED')text($('iqc31SubmitMessage'),`正式 IQC已寫入 ${r.receipt.rowCount} 筆｜${r.receipt.writtenAt}｜收據 ${r.receipt.receiptId}`);
     else if(r)text($('iqc31SubmitMessage'),busy?message:`本批待確認；原資料已固定。${r.lastError||'請按「查收據／重試本批」，不需重建批次。'}`);
+    else if(current?.batch?.status==='DRAFT'&&current.submissions.some(s=>s.status==='REJECTED'))text($('iqc31SubmitMessage'),'後端已拒絕，本批未入帳。可修正後重新預覽，或按「移除目前批次」。');
     else text($('iqc31SubmitMessage'),message);
     if(ready)text($('iqcRcPendingCount'),r&&r.status!=='SYNCED'?'1':'0');history(ready?r:null);
     ['iqc31ClearPhotos','iqc31HistoryPhotos'].forEach(id=>{if($(id))disabled($(id),working||!!current?.batch?.photosClearedAt);});
@@ -104,7 +105,7 @@ if(window.IqcProduction?.allowed){
       const data=await post({api:'iqc_image_submit',payload:r.payload},r.account);
       if(await accept(data,r))return;
       if(data.confirmedRejected===true&&data.submissionId===r.submissionId&&data.payloadHash===(r.canonicalPayloadHash||r.payloadHash)){
-        await store.update(r,{status:'REJECTED',lastError:data.message});throw Error('後端未寫入：'+data.message+'；可修正本批後重新預覽。');
+        await store.update(r,{status:'REJECTED',lastError:data.message});throw Error('後端未寫入：'+data.message+'；可修正本批後重新預覽，或按「移除目前批次」。');
       }
       throw Error(data.message||'後端尚未提供完整收據。');
     }catch(e){
