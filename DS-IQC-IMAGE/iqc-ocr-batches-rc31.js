@@ -82,8 +82,8 @@ if(window.IqcProduction?.allowed){
       try{
         const snapshot=await controller.inspectBatch(active());
         if(!snapshot.batch)throw new Error('此批次已不存在，請重新開啟影像頁。');
-        if(snapshot.protected)throw new Error('此批次已有待傳資料、送出紀錄或收據，不能移除。');
-        if(!confirm(`移除「${label(snapshot.batch)}」？\n將刪除本機 ${snapshot.photos.length} 張照片、辨識結果及人工歸類，無法復原。其他批次保留。`)){message.textContent='已取消移除，原批次保留。';return;}
+        if(snapshot.protected)throw new Error('此批次有尚未核對的送出紀錄或入帳收據，不能移除。');
+        if(!confirm(`移除「${label(snapshot.batch)}」？\n${snapshot.rejectedCount?'後端已確認未寫入；拒絕送出紀錄會保留供查核。\n':''}將刪除本機 ${snapshot.photos.length} 張照片、辨識結果及人工歸類，無法復原。其他批次保留。`)){message.textContent='已取消移除，原批次保留。';return;}
         message.textContent='正在移除批次及本機照片…';await controller.removeBatch(snapshot);
         for(const key of [window.IqcProduction.key("ds_iqc_v8_meta_override_"),window.IqcProduction.key("ds_iqc_hybrid_v15_local_attempted_"),window.IqcProduction.key("ds_iqc_hybrid_v15_local_evaluated_")])localStorage.removeItem(key+snapshot.batch.id);
         message.textContent='批次與本機照片已移除。';

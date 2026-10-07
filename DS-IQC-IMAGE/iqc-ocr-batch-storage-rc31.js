@@ -1,5 +1,5 @@
 if(window.IqcProduction?.allowed){
-/* RC31.12: local draft deletion and empty-batch preflight. No network or submission writes. */
+/* IQC V1.3.1: remove drafts after confirmed rejection; preserve submission evidence. */
 (function(){
   'use strict';
   const DB=window.IqcProduction.key("ds_iqc_image_rc_v1"),stores=['batches','photos','submissions'];
@@ -15,23 +15,38 @@ if(window.IqcProduction?.allowed){
       }catch(e){try{tx?.abort();}catch(_){}finish(e);}
     };
   });}
+  function rejected(record){
+    const model=window.IqcSubmitModel31,production=window.IqcProduction;
+    // REJECTED is saved only after the server confirms no write and its ID/hash match.
+    // Never treat a timeout, unknown status, or any receipt as a rejected submission.
+    return !!(model&&record.status==='REJECTED'&&!record.receipt&&record.submissionId&&record.payloadHash&&
+      record.protocol===model.protocol&&record.environment===model.environment&&
+      record.endpoint===production.endpoint&&record.account===production.owner);
+  }
   // Discard image bytes as the cursor advances; confirmation retains metadata only.
   function read(tx,id,done,abort){
-    const state={batch:null,photos:[],protected:false};let pending=3;
-    const ready=()=>{if(!--pending){state.photos.sort((a,b)=>a.id.localeCompare(b.id));done(state);}};
+    const state={batch:null,photos:[],submissions:[],rejectedCount:0,protected:false};let pending=3;
+    const ready=()=>{if(!--pending){
+      if(state.batch?.submissionId&&!state.submissions.some(r=>r.submissionId===state.batch.submissionId))state.protected=true;
+      state.photos.sort((a,b)=>a.id.localeCompare(b.id));done(state);
+    }};
     const b=tx.objectStore('batches').get(id);b.onsuccess=()=>{state.batch=b.result||null;state.protected=state.protected||!!(b.result?.status&&b.result.status!=='DRAFT');ready();};
     const p=tx.objectStore('photos').index('batchId').openCursor(IDBKeyRange.only(id));
     p.onsuccess=()=>{try{const c=p.result;if(!c){ready();return;}const v=c.value;state.photos.push({id:v.id,updatedAt:v.updatedAt||'',status:v.status||'',revision:JSON.stringify([v.ocrText,v.rc31Review,v.rc31Quality]),candidates:window.IqcReviewModel31.candidates(v).length});c.continue();}catch(e){abort(e);}};
-    const s=tx.objectStore('submissions').openCursor();s.onsuccess=()=>{const c=s.result;if(c){if(c.value.batchId===id)state.protected=true;c.continue();}else ready();};
+    const s=tx.objectStore('submissions').openCursor();s.onsuccess=()=>{const c=s.result;if(c){if(c.value.batchId===id){
+      state.submissions.push(c.value);
+      if(rejected(c.value))state.rejectedCount++;else state.protected=true;
+    }c.continue();}else ready();};
   }
-  const stamp=s=>JSON.stringify([s.batch,s.photos]);
+  const stamp=s=>JSON.stringify([s.batch,s.photos,s.submissions]);
   const inspect=id=>transaction('readonly',(tx,done,abort)=>read(tx,id,done,abort));
   function remove(snapshot){return transaction('readwrite',(tx,done,abort)=>read(tx,snapshot.batch.id,current=>{
     try{
       if(!current.batch)throw new Error('此批次已移除，請重新開啟影像頁。');
-      if(current.protected)throw new Error('此批次已有待傳資料、送出紀錄或收據，不能移除。');
+      if(current.protected)throw new Error('此批次有尚未核對的送出紀錄或入帳收據，不能移除。');
       if(stamp(current)!==stamp(snapshot))throw new Error('批次內容已變更，請重新確認後再移除。');
       current.photos.forEach(p=>tx.objectStore('photos').delete(p.id));
+      // Rejected submissions remain unchanged for audit; they are never replayed.
       tx.objectStore('batches').delete(current.batch.id);done(current.photos.length);
     }catch(e){abort(e);}
   },abort));}

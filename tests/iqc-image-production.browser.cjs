@@ -21,6 +21,7 @@ const env='IQC_IMAGE_PRODUCTION_V1';let checks=0;function ok(name,value){assert.
     else if(body.api==='iqc_image_submit'){
      submits++;const p=body.payload;assert.equal(p.environment,env);assert.match(p.submissionId,/^IQCIMG_PROD_/);assert.equal(body.session_token,'FIXTURE');
      const normalized={...p,items:p.items.slice().sort((a,b)=>a.ctn.localeCompare(b.ctn))};
+     if(mode==='reject')return route.fulfill({contentType:'application/json',body:JSON.stringify({...result,ok:false,confirmedRejected:true,submissionId:p.submissionId,payloadHash:crypto.createHash('sha256').update(JSON.stringify(normalized)).digest('hex'),message:'CTN 已存在於 IQC，不能重複建立。'})});
      const receipt=receipts.get(p.submissionId)||{receiptId:crypto.randomUUID(),submissionId:p.submissionId,payloadHash:crypto.createHash('sha256').update(JSON.stringify(normalized)).digest('hex'),account,station:'IQC',sheetName:'IQC_Log',startRow:2,endRow:p.items.length+1,rowCount:p.items.length,writtenAt:'2026-09-27 16:30:00',environment:env};receipts.set(p.submissionId,receipt);
      if(mode==='lose')return route.abort();result.receipt=receipt;
     }else if(body.api==='iqc_image_status'){result.receipt=receipts.get(body.submissionId)||null;result.found=!!result.receipt;if(result.receipt&&body.payloadHash!==result.receipt.payloadHash)result={...result,ok:false,receipt:null,code:'PAYLOAD_CONFLICT',message:'核對碼不符'};}else throw Error('unexpected route');
@@ -34,7 +35,7 @@ const env='IQC_IMAGE_PRODUCTION_V1';let checks=0;function ok(name,value){assert.
   allowed=true;await page.reload();await page.locator('#appShell').waitFor({state:'visible'});await page.locator('#navMore').click();await page.getByText('IQC 圖像辨識',{exact:true}).click();
   let frame=await page.locator('iframe[data-module-key="iqcImage"]').elementHandle().then(x=>x.contentFrame());await frame.locator('#iqcRcRegion option[value="B3"]').waitFor({state:'attached'});const idle=()=>frame.waitForFunction(()=>!__DS_IQC_RC31.isBusy());await idle();
   ok('independent permission opens image without daily permission',await frame.locator('#iqcImageRc').isVisible());
-  ok('production title and one start button',await frame.locator('.iqc-rc-top h2').textContent()==='📷 IQC 圖像辨識 V1.3'&&await frame.getByRole('button',{name:'開始辨識',exact:true}).count()===1);
+  ok('production title and one start button',await frame.locator('.iqc-rc-top h2').textContent()==='📷 IQC 圖像辨識 V1.3.1'&&await frame.getByRole('button',{name:'開始辨識',exact:true}).count()===1);
   const key=await frame.evaluate(()=>IqcProduction.key('ds_iqc_image_rc_active_batch'));
   const snap=()=>frame.evaluate(()=>IqcSubmitStore31.snapshot(localStorage.getItem(IqcProduction.key('ds_iqc_image_rc_active_batch'))));
   const batch=(await snap()).batch.id;
@@ -100,13 +101,21 @@ const env='IQC_IMAGE_PRODUCTION_V1';let checks=0;function ok(name,value){assert.
   ok('preview has six reviewed rows with formal destination and no excluded CTN',await frame.locator('#iqc31SubmitPreview tbody tr').count()===6&&/正式 IQC/.test(await frame.locator('#iqc31SubmitPreview').textContent())&&!/AB12CDE/.test(await frame.locator('#iqc31SubmitPreview tbody').textContent()));
   ok('preview requires unchecked human confirmation',await frame.locator('#iqc31SubmitAccept').isDisabled());
   await page.screenshot({path:path.join(out,'production-preview.png')});
+  mode='reject';await frame.locator('#iqc31SubmitConfirm').check();await frame.locator('#iqc31SubmitAccept').tap();await idle();
+  const rejectedBatch=await snap(),rejectedRecord=rejectedBatch.submissions[0];
+  ok('server-confirmed duplicate rejection restores a draft without a receipt',rejectedBatch.batch.status==='DRAFT'&&rejectedRecord.status==='REJECTED'&&!rejectedRecord.receipt&&receipts.size===0);
+  ok('rejected batch explains removal and enables its existing remove button',/移除目前批次/.test(await frame.locator('#iqc31SubmitMessage').textContent())&&await frame.locator('#iqc31BatchRemove').isEnabled());
+  page.once('dialog',d=>{assert.match(d.message(),/後端已確認未寫入/);d.dismiss();});await frame.locator('#iqc31BatchRemove').tap();await idle();
+  ok('canceling rejected-batch removal preserves photos and rejected evidence',JSON.stringify(await snap())===JSON.stringify(rejectedBatch));
+  // Keep this batch for the existing retry/receipt checks; exercise actual removal below.
+  await frame.locator('#iqcRcCommit').tap();await frame.locator('#iqc31SubmitPreview table').waitFor();await idle();
   mode='lose';await frame.locator('#iqc31SubmitConfirm').check();await frame.locator('#iqc31SubmitAccept').tap();await idle();
   // Recreate a V1.1 pending record: preserve its photo-order payload and legacy hash.
   const legacyHash=await frame.evaluate(async()=>{const id=localStorage.getItem(IqcProduction.key('ds_iqc_image_rc_active_batch')),s=await IqcSubmitStore31.snapshot(id),v=s.submissions[0];v.payloadHash=[...new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(JSON.stringify(v.payload))))].map(n=>n.toString(16).padStart(2,'0')).join('');delete v.canonicalPayloadHash;await new Promise((resolve,reject)=>{const r=indexedDB.open(IqcProduction.key('ds_iqc_image_rc_v1'),1);r.onsuccess=()=>{const db=r.result,tx=db.transaction('submissions','readwrite');tx.objectStore('submissions').put(v);tx.oncomplete=()=>{db.close();resolve();};tx.onabort=()=>reject(tx.error);};});return v.payloadHash;});
   // The accepted flow may immediately recover the receipt, or retain SENT_UNKNOWN until retry.
   mode='success';if((await snap()).submissions[0]?.status!=='SYNCED'){await frame.locator('#iqcRcSyncPending').tap();await idle();}
   await frame.waitForFunction(async()=>{const s=await IqcSubmitStore31.snapshot(localStorage.getItem(IqcProduction.key('ds_iqc_image_rc_active_batch')));return s.submissions[0]?.status==='SYNCED';});
-  ok('lost response resolves to permanent receipt without duplicate write',submits===1&&receipts.size===1&&(await snap()).batch.status==='SYNCED');
+  ok('lost response resolves to permanent receipt without duplicate write',submits===2&&receipts.size===1&&(await snap()).batch.status==='SYNCED');
   const recovered=(await snap()).submissions[0];ok('legacy hash is preserved and canonical receipt recovered without changing payload order',recovered.payloadHash===legacyHash&&recovered.canonicalPayloadHash===recovered.receipt.payloadHash&&legacyHash!==recovered.receipt.payloadHash&&recovered.payload.items[0].ctn==='ZA12BCD');
   ok('request contains no photos or client identity',posts.filter(x=>x.api==='iqc_image_submit').every(x=>!JSON.stringify(x).includes('base64')&&!x.payload.operator&&!x.payload.date));
   await frame.locator('#iqc31History').click();await idle();
@@ -142,6 +151,22 @@ const env='IQC_IMAGE_PRODUCTION_V1';let checks=0;function ok(name,value){assert.
   await page.screenshot({path:path.join(out,'manual-added-preview.png')});
   await frame.locator('#iqc31SubmitConfirm').check();await frame.locator('#iqc31SubmitAccept').tap();await idle();
   ok('manual CTNs reach backend payload and receipt',posts.filter(p=>p.api==='iqc_image_submit').at(-1).payload.items.some(r=>r.ctn==='XY56GHI'&&r.rtNo==='113353')&&(await snap()).submissions[0].receipt.rowCount===3);
+  const confirmedBatch=await snap();
+  await frame.locator('#iqc31Working').tap();await idle();await frame.locator('#iqcRcNewBatch').tap();await idle();
+  await frame.locator('#iqcRcRegion').selectOption('B3');
+  await frame.locator('#iqcRcGalleryInput').setInputFiles({name:'rejected-fixture.png',mimeType:'image/png',buffer:Buffer.from(png,'base64')});await idle();
+  const rejectedPhoto=(await snap()).photos[0].id;
+  await frame.locator('[data-review-photo="'+rejectedPhoto+'"]').tap();await frame.locator('[data-add-ctn-photo]').tap();
+  await frame.locator('#iqc31AddText').fill('XY12ABC');await frame.locator('#iqc31Add_rt').fill('113353');await frame.locator('#iqc31Add_status').fill('OCYL');await frame.locator('[data-add-manual-save]').tap();await idle();
+  await frame.locator('#iqcRcCommit').tap();await frame.locator('#iqc31SubmitPreview table').waitFor();await idle();
+  mode='reject';await frame.locator('#iqc31SubmitConfirm').check();await frame.locator('#iqc31SubmitAccept').tap();await idle();const discard=await snap();
+  await page.reload();await page.locator('#appShell').waitFor({state:'visible'});await page.locator('#navMore').click();await page.getByText('IQC 圖像辨識',{exact:true}).click();frame=await page.locator('iframe[data-module-key="iqcImage"]').elementHandle().then(x=>x.contentFrame());await frame.locator('#iqcRcRegion option[value="B3"]').waitFor({state:'attached'});await idle();
+  ok('existing rejected batch remains removable after reload',/本批未入帳/.test(await frame.locator('#iqc31SubmitMessage').textContent())&&await frame.locator('#iqc31BatchRemove').isEnabled());
+  const postsBeforeRemove=posts.length;page.once('dialog',d=>d.accept());await frame.locator('#iqc31BatchRemove').tap();await idle();await frame.waitForFunction(()=>document.getElementById('iqc31BatchControls').getAttribute('aria-busy')==='false');
+  const discarded=await frame.evaluate(id=>IqcSubmitStore31.snapshot(id),discard.batch.id);
+  ok('removal deletes rejected batch and photos but preserves its submission evidence',!discarded.batch&&discarded.photos.length===0&&JSON.stringify(discarded.submissions)===JSON.stringify(discard.submissions));
+  ok('removal never sends a backend request or affects accepted history',posts.length===postsBeforeRemove&&JSON.stringify(await frame.evaluate(id=>IqcSubmitStore31.snapshot(id),confirmedBatch.batch.id))===JSON.stringify(confirmedBatch));
+  ok('removed rejection no longer appears in current batch list',!(await frame.evaluate(()=>__DS_IQC_RC31.listBatches())).some(b=>b.id===discard.batch.id));
   allowed=false;await page.evaluate(()=>DS_PORTAL_BRIDGE.reauthenticate());await page.waitForFunction(()=>!document.querySelector('iframe[data-module-key="iqcImage"]'));
   ok('revoked permission removes existing image frame',await page.locator('iframe[data-module-key="iqcImage"]').count()===0);
   ok('no page runtime errors',errors.length===0);
