@@ -3,12 +3,13 @@
   else root.RegistrationModel = factory();
 })(typeof window === 'undefined' ? this : window, function() {
   'use strict';
-  const VERSION = 'CYL-REG-DEMO-0.2-20261021';
+  const VERSION = 'CYL-REG-DEMO-0.3-20261021';
   const LEGACY_VERSION = 'CYL-REG-DEMO-0.1-20261021';
+  const PREVIOUS_VERSION = 'CYL-REG-DEMO-0.2-20261021';
   const normalize = value => String(value || '').normalize('NFKC').toUpperCase().replace(/\s+/g, '');
   const id = () => globalThis.crypto.randomUUID();
   function row(sourceIndex = null) {
-    return { id: id(), sourceIndex, ctn: '', steel: '', rawCtn: '', rawSteel: '', ctnAlternatives: [], steelAlternatives: [], confirmed: false, edited: false, prefixApplied: false };
+    return { id: id(), sourceIndex, ctn: '', steel: '', rawCtn: '', rawSteel: '', ctnAlternatives: [], steelAlternatives: [], ctnSlashedZeros: 0, steelSlashedZeros: 0, ctnZeroReview: false, steelZeroReview: false, confirmed: false, edited: false, prefixApplied: false };
   }
   function issues(rows) {
     const ctn = new Map(), steel = new Map();
@@ -46,6 +47,9 @@
     r.rawCtn = String(ctn?.text ?? ctn ?? '').trim(); r.rawSteel = String(steel?.text ?? steel ?? '').trim();
     r.ctnAlternatives = Array.isArray(ctn?.alternatives) ? ctn.alternatives.map(normalize).slice(0,4) : [];
     r.steelAlternatives = Array.isArray(steel?.alternatives) ? steel.alternatives.map(normalize).slice(0,4) : [];
+    r.ctnSlashedZeros = Number.isInteger(ctn?.slashedZeros) ? Math.max(0,Math.min(16,ctn.slashedZeros)) : 0;
+    r.steelSlashedZeros = Number.isInteger(steel?.slashedZeros) ? Math.max(0,Math.min(16,steel.slashedZeros)) : 0;
+    r.ctnZeroReview = Number(ctn?.unverifiedZeros)>0; r.steelZeroReview = Number(steel?.unverifiedZeros)>0;
     r.ctn = normalize(r.rawCtn); r.steel = normalize(r.rawSteel);
     r.confirmed = false; return true;
   }
@@ -62,5 +66,5 @@
     const cross = q.map((p, i) => { const a = q[(i+1)%4], b = q[(i+2)%4]; return (a[0]-p[0])*(b[1]-a[1])-(a[1]-p[1])*(b[0]-a[0]); });
     return cross.every(v => v > .001) && q[0][1] < q[3][1] && q[1][1] < q[2][1];
   }
-  return { VERSION, LEGACY_VERSION, normalize, row, issues, applyPrefixes, applyCandidate, ready, csv, quadValid };
+  return { VERSION, LEGACY_VERSION, PREVIOUS_VERSION, normalize, row, issues, applyPrefixes, applyCandidate, ready, csv, quadValid };
 });

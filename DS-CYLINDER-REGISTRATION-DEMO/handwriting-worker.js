@@ -1,5 +1,5 @@
 'use strict';
-importScripts('handwriting-core.js');
+importScripts('handwriting-core.js','slashed-zero.js');
 const MODEL='https://huggingface.co/PaddlePaddle/en_PP-OCRv5_mobile_rec_onnx/resolve/3fafbc3b5dcf93dd72add9f48368be8a3a2cd33b/inference.onnx';
 const HASH='b5f833dfc5d0eb71da397b4efa06ebeee9b431b690a47d6af40d77d8eabc557f',BYTES=7848423;
 const CDN='https://cdn.jsdelivr.net/npm/onnxruntime-web@1.21.0/dist/';
@@ -34,10 +34,14 @@ self.onmessage=async event=>{
     if(type==='init'){await initialize();postMessage({id,result:true});}
     else if(type==='recognize'){
       if(!session)throw fault('NOT_READY');
-      const H=RegistrationHandwriting,raw=H.rgb(image),ink=H.blueInk(raw),results=[];
+      const H=RegistrationHandwriting,Z=RegistrationSlashedZero,raw=H.rgb(image),ink=H.blueInk(raw),results=[],zeros=Z.detect(ink||raw);
       for(const [source,variant] of [[raw,'原圖'],[ink,'藍筆去線']]){
         if(!source)continue;const input=H.tensor(source),tensor=new ort.Tensor('float32',input.data,input.dims);let output;
-        try{output=await session.run({[session.inputNames[0]]:tensor});results.push({...H.decode(output[session.outputNames[0]],chars),variant});}
+        try{
+          output=await session.run({[session.inputNames[0]]:tensor});const decoded=H.decode(output[session.outputNames[0]],chars);results.push({...decoded,variant});
+          const corrected=Z.apply(decoded,zeros,source.width,input.resizedWidth,input.dims[3],source===raw&&ink?ink.offsetX:0);
+          if(corrected)results.push({...corrected,variant:variant+'／斜線0'});
+        }
         finally{tensor.dispose();if(output)Object.values(output).forEach(t=>t.dispose());}
       }
       postMessage({id,result:H.choose(results,field)});
