@@ -61,12 +61,15 @@
   function crop(index, part='both') {
     if (!pixels || index==null) return null;
     const key=index+':'+part;if(cropCache.has(key))return cropCache.get(key);
-    const c=document.createElement('canvas'); c.width=part==='both'?1000:650;c.height=150;
-    const ctx=c.getContext('2d'), out=ctx.createImageData(c.width,c.height);
+    const c=document.createElement('canvas');
     // Exclude printed row numbers at the left of the steel column, not handwritten characters.
     const left=part==='steel'?state.split+.045:part==='ctn'?.012:0, right=part==='ctn'?state.split-.012:1;
     // Handwritten descenders can cross a printed rule. Retain a lower margin for review.
     const v0=(index+.04)/state.rowCount,v1=(index+1.20)/state.rowCount;
+    const a=point(left,v0),b=point(right,v1);
+    c.width=part==='both'?1000:Math.max(2,Math.round(Math.abs(b[0]-a[0])*pixels.width));
+    c.height=part==='both'?150:Math.max(2,Math.round(Math.abs(b[1]-a[1])*pixels.height));
+    const ctx=c.getContext('2d'), out=ctx.createImageData(c.width,c.height);
     for(let y=0;y<c.height;y++)for(let x=0;x<c.width;x++){
       const p=point(left+(right-left)*x/(c.width-1),v0+(v1-v0)*y/(c.height-1));
       const sx=Math.max(0,Math.min(pixels.width-1,Math.round(p[0]*(pixels.width-1)))),sy=Math.max(0,Math.min(pixels.height-1,Math.round(p[1]*(pixels.height-1))));
@@ -111,6 +114,7 @@
       card.append(fields,node('p','', 'problems'));
       const l=node('label',null,'check-label'),check=document.createElement('input');check.type='checkbox';check.addEventListener('change',()=>{r.ctn=M.normalize(r.ctn);r.steel=M.normalize(r.steel);r.confirmed=check.checked;updateChecks();save();});l.append(check,document.createTextNode('已對照原圖，完整編號與同列配對正確'));card.append(l);
       if(r.rawCtn||r.rawSteel)card.append(node('div','本機候選：'+(r.rawCtn||'未讀到')+' ／ '+(r.rawSteel||'未讀到'),'raw'));
+      for(const [field,label] of [['ctn','CTN'],['steel','鋼號']])if(r[field+'Alternatives']?.length>1)card.append(node('div',label+' 候選不同：'+r[field+'Alternatives'].join(' ／ ')+'；請對照原圖。','raw'));
       if(r.prefixApplied)card.append(node('div','已套用人員確認的共用前綴','raw'));
       root.append(card);
     });updateChecks();
@@ -164,28 +168,28 @@
     try{
       for(const r of work){
         if(stopping)break;status(`本機試辨識第 ${r.sourceIndex+1} 列／共 ${state.rowCount} 列。手寫候選須核對；可隨時停止。`);
-        const ctn=await RegistrationOcr.recognize(crop(r.sourceIndex,'ctn'));if(stopping)break;
-        const steel=await RegistrationOcr.recognize(crop(r.sourceIndex,'steel'));if(stopping)break;
+        const ctn=await RegistrationOcr.recognize(crop(r.sourceIndex,'ctn'),'ctn');if(stopping)break;
+        const steel=await RegistrationOcr.recognize(crop(r.sourceIndex,'steel'),'steel');if(stopping)break;
         const applied=M.applyCandidate(r,ctn,steel);completed++;$('progress').value=completed/work.length;
         // Do not rebuild editable rows during a running recognition; preserve focus and edits.
         if(applied){const card=$('row-'+r.id);for(const name of ['ctn','steel'])card.querySelector(`[data-field=${name}]`).value=r[name];}
         updateChecks();save();
       }
-      status(stopping?`已停止，保留 ${completed} 列候選與人工修改。`:`本機試辨識完成 ${completed} 列。這是印刷引擎基準結果，請逐列確認；空白與誤讀可直接修改。`);
+      status(stopping?`已停止，保留 ${completed} 列候選與人工修改。`:`本機手寫辨識完成 ${completed} 列。請核對完整編號與候選差異；前綴不會自動猜補。`);
     }catch(e){status(e.code==='CANCELLED'?'已停止，已完成的候選與人工修改保留。':'本機試辨識未完成（'+(e.code||'OCR_ERROR')+'）。原照片與已完成列保留，可重試或手動填寫。');}
-    finally{busy=false;controlsBusy(false);RegistrationOcr.release();renderRows();save();}
+    finally{busy=false;controlsBusy(false);$('engine-status').textContent='';RegistrationOcr.release();renderRows();save();}
   };
   $('stop').onclick=()=>{stopping=true;RegistrationOcr.stop();};
-  window.addEventListener('registration-ocr-progress',e=>{if(!busy)return;const v=e.detail;if(v.stage==='engine_progress')$('engine-status').textContent='引擎處理中 '+Math.round(Math.max(0,Math.min(1,Number(v.progress)||0))*100)+'%';else if(v.stage==='initialize')$('engine-status').textContent='準備本機模型（最多等候 60 秒）…';});
+  window.addEventListener('registration-ocr-progress',e=>{if(!busy)return;const v=e.detail;if(v.stage==='download')$('engine-status').textContent='準備手寫模型 '+Math.round(v.loaded/v.total*100)+'%';else if(v.stage==='initialize')$('engine-status').textContent='準備本機手寫模型；首次需下載，可按停止。';else if(v.stage==='prepare')$('engine-status').textContent='模型已就緒，正在本機準備辨識…';});
   $('close-viewer').onclick=()=>closeDialog($('viewer'));$('zoom-in').onclick=()=>{zoom=Math.min(5,zoom+.5);setZoom();};$('zoom-out').onclick=()=>{zoom=Math.max(1,zoom-.5);setZoom();};
   function download(name,type,content){const url=URL.createObjectURL(new Blob([content],{type})),a=node('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}
   $('csv').onclick=()=>{try{download('鋼瓶註冊-checklist.csv','text/csv;charset=utf-8',M.csv(state.rows));}catch(e){status(e.message);}};
   $('backup').onclick=()=>download('鋼瓶註冊-DEMO-草稿.json','application/json',JSON.stringify(state));
   function validateDraft(value) {
-    if(value?.version!==M.VERSION||!Array.isArray(value.rows)||value.rows.length>60||!M.quadValid(value.quad)||!Number.isInteger(value.rowCount)||value.rowCount<1||value.rowCount>60||!(value.split>=.2&&value.split<=.75))throw Error('草稿格式不相符');
+    if(![M.VERSION,M.LEGACY_VERSION].includes(value?.version)||!Array.isArray(value.rows)||value.rows.length>60||!M.quadValid(value.quad)||!Number.isInteger(value.rowCount)||value.rowCount<1||value.rowCount>60||!(value.split>=.2&&value.split<=.75))throw Error('草稿格式不相符');
     if(value.photo!==null&&(typeof value.photo!=='string'||value.photo.length>30*1024*1024||!/^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(value.photo)))throw Error('照片資料不正確');
     const result=fresh();Object.assign(result,{photo:value.photo,quad:value.quad,rowCount:value.rowCount,split:value.split});
-    result.rows=value.rows.map(r=>{if(r.sourceIndex!==null&&(!Number.isInteger(r.sourceIndex)||r.sourceIndex<0||r.sourceIndex>=value.rowCount))throw Error('紙本列不正確');const out=M.row(r.sourceIndex);for(const k of ['ctn','steel','rawCtn','rawSteel'])out[k]=String(r[k]||'').slice(0,200);for(const k of ['confirmed','edited','prefixApplied'])out[k]=r[k]===true;return out;});return result;
+    result.rows=value.rows.map(r=>{if(r.sourceIndex!==null&&(!Number.isInteger(r.sourceIndex)||r.sourceIndex<0||r.sourceIndex>=value.rowCount))throw Error('紙本列不正確');const out=M.row(r.sourceIndex);for(const k of ['ctn','steel','rawCtn','rawSteel'])out[k]=String(r[k]||'').slice(0,200);for(const k of ['ctnAlternatives','steelAlternatives'])out[k]=Array.isArray(r[k])?r[k].slice(0,4).map(v=>String(v).slice(0,60)):[];for(const k of ['confirmed','edited','prefixApplied'])out[k]=r[k]===true;return out;});return result;
   }
   $('restore').onchange=async()=>{const file=$('restore').files[0];$('restore').value='';if(!file)return;if(file.size>32*1024*1024){status('草稿檔案過大。');return;}if(hasWork()&&!confirm('匯入將取代目前草稿，確定繼續？'))return;const old=state;try{const next=validateDraft(JSON.parse(await file.text()));await decode(next.photo);state=next;render();save();status('草稿已匯入，請核對照片與清單。');}catch(e){state=old;await decode(old.photo);render();status('匯入失敗，原草稿保留：'+e.message);}};
   $('print').onclick=()=>{
