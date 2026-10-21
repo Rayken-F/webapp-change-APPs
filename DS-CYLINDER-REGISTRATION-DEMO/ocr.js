@@ -1,58 +1,35 @@
-/* Local baseline only. Reuses the IQC worker lifecycle; no portal or cloud requests. */
-(function() {
+/* Isolated local handwriting worker. Stopping terminates computation and pending downloads. */
+(function(){
   'use strict';
-  const { Engine, fault, workerFault } = window.IqcOcrEngine31;
-  const WORKER = new URL('../DS-IQC-IMAGE/iqc-ocr-worker-rc31.js', document.currentScript.src).href;
-  const LIB = 'https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js';
-  let engine;
-  function create(logger) {
-    let native, wrapper, dead = false, script, rejectLoad;
-    const terminate = () => {
-      dead = true;
-      if (script) { script.onload = script.onerror = null; script.remove(); script = null; rejectLoad?.(fault('CANCELLED')); }
-      try { native?.terminate(); } catch (_) {}
-      try { Promise.resolve(wrapper?.terminate()).catch(() => {}); } catch (_) {}
-    };
-    const library = window.Tesseract ? Promise.resolve() : new Promise((resolve, reject) => {
-      rejectLoad = reject; script = document.createElement('script'); script.src = LIB; script.crossOrigin = 'anonymous';
-      script.onload = () => { script.remove(); script = null; resolve(); };
-      script.onerror = () => reject(fault('LIB_LOAD')); document.head.appendChild(script);
-    });
-    const ready = library.then(() => {
-      if (dead) throw fault('CANCELLED');
-      return new Promise((resolve, reject) => {
-        const broken = error => { const e = workerFault(error); reject(e); terminate(); engine.dispose(e); };
-        const NativeWorker = window.Worker;
-        window.Worker = new Proxy(NativeWorker, { construct(target, args) {
-          const w = Reflect.construct(target, args);
-          if (String(args[0]) === WORKER) {
-            native = w;
-            w.addEventListener('message', event => {
-              if (event.data?.rc31WorkerFailure) { event.stopImmediatePropagation(); broken(event.data.error); }
-              else if (event.data?.status === 'reject') broken(event.data.data);
-            });
-            w.addEventListener('error', () => broken(fault('WORKER_CRASH')));
-          }
-          return w;
-        }});
-        let pending;
-        try {
-          pending = window.Tesseract.createWorker('eng', 1, {
-            workerPath: WORKER, workerBlobURL: false,
-            corePath: 'https://cdn.jsdelivr.net/npm/tesseract.js-core@5.1.1/tesseract-core-lstm.wasm.js',
-            langPath: 'https://cdn.jsdelivr.net/npm/@tesseract.js-data/eng@1.0.0/4.0.0_best_int',
-            cachePath: 'cylinder-registration-demo-eng-v1', logger, errorHandler: broken
-          });
-        } catch (e) { broken(e); } finally { window.Worker = NativeWorker; }
-        if (!native) { Promise.resolve(pending).then(w => w?.terminate()).catch(() => {}); reject(fault('WORKER_CAPTURE')); return; }
-        Promise.resolve(pending).then(w => { wrapper = w; if (dead) { terminate(); reject(fault('CANCELLED')); } else resolve(w); }, broken);
-      });
-    });
-    return { ready, terminate };
+  const URL_WORKER=new URL('handwriting-worker.js',document.currentScript.src).href;
+  let worker,ready,nextId=0,idle;const pending=new Map();
+  const fault=code=>Object.assign(new Error(code),{code});
+  function stop(code='CANCELLED'){
+    clearTimeout(idle);worker?.terminate();worker=null;ready=null;
+    for(const job of pending.values()){clearTimeout(job.timer);job.reject(fault(code));}pending.clear();
   }
-  engine = new Engine({ create, onEvent: e => window.dispatchEvent(new CustomEvent('registration-ocr-progress', { detail: e })) });
-  window.RegistrationOcr = {
-    recognize: async canvas => (await engine.recognize(canvas, '7'))?.data?.text || '',
-    stop: () => engine.dispose('CANCELLED'), release: () => engine.release()
+  function request(type,body={},timeout=45000){
+    return new Promise((resolve,reject)=>{const id=++nextId,timer=setTimeout(()=>stop(type==='init'?'MODEL_TIMEOUT':'OCR_TIMEOUT'),timeout);pending.set(id,{resolve,reject,timer});worker.postMessage({id,type,...body});});
+  }
+  function initialize(){
+    if(ready)return ready;
+    const current=worker=new Worker(URL_WORKER);
+    current.onmessage=({data})=>{
+      if(current!==worker)return;
+      if(data.type==='progress'){window.dispatchEvent(new CustomEvent('registration-ocr-progress',{detail:data}));return;}
+      const job=pending.get(data.id);if(!job)return;pending.delete(data.id);clearTimeout(job.timer);
+      if(data.error)job.reject(fault(data.error));else job.resolve(data.result);
+    };
+    current.onerror=()=>{if(current===worker)stop('WORKER_CRASH');};
+    current.onmessageerror=()=>{if(current===worker)stop('WORKER_CRASH');};
+    ready=request('init',{},180000).catch(e=>{if(current===worker)stop(e.code||'OCR_ERROR');throw e;});return ready;
+  }
+  window.RegistrationOcr={
+    async recognize(canvas,field='ctn'){
+      clearTimeout(idle);await initialize();
+      const image=canvas.getContext('2d',{willReadFrequently:true}).getImageData(0,0,canvas.width,canvas.height);
+      return request('recognize',{image:{width:image.width,height:image.height,data:image.data},field});
+    },
+    stop:()=>stop(),release:()=>{clearTimeout(idle);idle=setTimeout(()=>stop(),30000);}
   };
 })();
