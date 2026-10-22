@@ -43,6 +43,30 @@
     }
     return {data,dims:[1,3,h,w],resizedWidth:rw};
   }
+  function thicken(source,radius){
+    if(![1,2].includes(radius))throw Error('STROKE_RADIUS');
+    const s=rgb(source),{width:w,height:h}=s,data=new Uint8ClampedArray(s.data.length);
+    // Binarize and mildly dilate dark strokes with a round kernel. Keep original candidates.
+    for(let y=0;y<h;y++)for(let x=0;x<w;x++){
+      let value=255;
+      for(let yy=Math.max(0,y-radius);yy<=Math.min(h-1,y+radius);yy++)for(let xx=Math.max(0,x-radius);xx<=Math.min(w-1,x+radius);xx++)if((xx-x)**2+(yy-y)**2<=radius*radius&&s.data[(yy*w+xx)*3]<170)value=0;
+      const i=(y*w+x)*3;data[i]=data[i+1]=data[i+2]=value;
+    }
+    return {width:w,height:h,data};
+  }
+  function padded(source){
+    const s=rgb(source),pad=12,width=s.width+pad*2,height=s.height+pad*2,data=new Uint8ClampedArray(width*height*3).fill(255);
+    for(let y=0;y<s.height;y++)data.set(s.data.subarray(y*s.width*3,(y+1)*s.width*3),((y+pad)*width+pad)*3);
+    return {width,height,data};
+  }
+  function refine(base,checks,from,to,minimum){
+    const before=normalize(base.text),after=normalize(checks[0]?.text);
+    // Accept only two agreeing image rereads. Never replace a letter/digit from text alone.
+    if(checks.length!==2||checks.some(c=>!Number.isFinite(c.score)||c.score<minimum||normalize(c.text)!==after)||!before||!after||before===after||before.length!==after.length||!/^[A-Z0-9-]+$/.test(after))return base;
+    if([...before].some((c,i)=>c!==after[i]&&(c!==from||after[i]!==to)))return base;
+    return {...base,text:after,alternatives:[after,...(base.alternatives||[]),before].filter((v,i,a)=>a.indexOf(v)===i),glyphReview:true,
+      unverifiedZeros:Math.max(0,(after.match(/0/g)||[]).length-(base.slashedZeros||0))};
+  }
   function decode(pred,chars){
     if(pred.dims.length!==3||pred.dims[0]!==1||pred.dims[2]!==chars.length)throw Error('MODEL_FORMAT');
     const n=chars.length,steps=pred.dims[1],tokens=[];let last=0,text='',sum=0,count=0;
@@ -58,5 +82,5 @@
     const best=choices[0]||{text:'',score:0},alternatives=[...new Set(choices.map(r=>normalize(r.text)))];
     return {text:best.text,alternatives,slashedZeros:best.slashedZeros||0,unverifiedZeros:Math.max(0,(best.text.match(/0/g)||[]).length-(best.slashedZeros||0)),review:alternatives.length>1?'辨識候選不同，請核對':!best.text?'未讀到文字':best.score<.85?'字形不確定，請核對':'仍需對照原圖核對'};
   }
-  return {rgb,blueInk,tensor,decode,choose};
+  return {rgb,blueInk,tensor,decode,choose,thicken,padded,refine};
 });
