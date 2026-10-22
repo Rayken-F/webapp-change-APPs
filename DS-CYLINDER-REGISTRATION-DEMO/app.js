@@ -117,6 +117,7 @@
       for(const [field,label] of [['ctn','CTN'],['steel','鋼號']])if(r[field+'Alternatives']?.length>1)card.append(node('div',label+' 候選不同：'+r[field+'Alternatives'].join(' ／ ')+'；請對照原圖。','raw'));
       for(const [field,label] of [['ctn','CTN'],['steel','鋼號']])if(r[field+'SlashedZeros'])card.append(node('div',label+' 辨識時依斜線 0 字形產生候選（'+r[field+'SlashedZeros']+' 個），仍須對照原圖核對。','raw'));
       for(const [field,label] of [['ctn','CTN'],['steel','鋼號']])if(r[field+'ZeroReview'])card.append(node('div',label+' 原辨識候選含未確認斜線的 0，請特別核對 O／0。','hint'));
+      for(const [field,label] of [['ctn','CTN'],['steel','鋼號']])if(r[field+'GlyphReview'])card.append(node('div',label+' 已依兩次本機字形複核更新候選，原候選仍保留；請對照原圖確認。','hint'));
       if(r.prefixApplied)card.append(node('div','已套用人員確認的共用前綴','raw'));
       root.append(card);
     });updateChecks();
@@ -188,10 +189,10 @@
   $('csv').onclick=()=>{try{download('鋼瓶註冊-checklist.csv','text/csv;charset=utf-8',M.csv(state.rows));}catch(e){status(e.message);}};
   $('backup').onclick=()=>download('鋼瓶註冊-DEMO-草稿.json','application/json',JSON.stringify(state));
   function validateDraft(value) {
-    if(![M.VERSION,M.LEGACY_VERSION,M.PREVIOUS_VERSION].includes(value?.version)||!Array.isArray(value.rows)||value.rows.length>60||!M.quadValid(value.quad)||!Number.isInteger(value.rowCount)||value.rowCount<1||value.rowCount>60||!(value.split>=.2&&value.split<=.75))throw Error('草稿格式不相符');
+    if(![M.VERSION,M.LEGACY_VERSION,M.PREVIOUS_VERSION,M.ZERO_VERSION].includes(value?.version)||!Array.isArray(value.rows)||value.rows.length>60||!M.quadValid(value.quad)||!Number.isInteger(value.rowCount)||value.rowCount<1||value.rowCount>60||!(value.split>=.2&&value.split<=.75))throw Error('草稿格式不相符');
     if(value.photo!==null&&(typeof value.photo!=='string'||value.photo.length>30*1024*1024||!/^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(value.photo)))throw Error('照片資料不正確');
     const result=fresh();Object.assign(result,{photo:value.photo,quad:value.quad,rowCount:value.rowCount,split:value.split});
-    result.rows=value.rows.map(r=>{if(r.sourceIndex!==null&&(!Number.isInteger(r.sourceIndex)||r.sourceIndex<0||r.sourceIndex>=value.rowCount))throw Error('紙本列不正確');const out=M.row(r.sourceIndex);for(const k of ['ctn','steel','rawCtn','rawSteel'])out[k]=String(r[k]||'').slice(0,200);for(const k of ['ctnAlternatives','steelAlternatives'])out[k]=Array.isArray(r[k])?r[k].slice(0,4).map(v=>String(v).slice(0,60)):[];for(const k of ['ctnSlashedZeros','steelSlashedZeros'])out[k]=Number.isInteger(r[k])?Math.max(0,Math.min(16,r[k])):0;for(const k of ['confirmed','edited','prefixApplied','ctnZeroReview','steelZeroReview'])out[k]=r[k]===true;return out;});return result;
+    result.rows=value.rows.map(r=>{if(r.sourceIndex!==null&&(!Number.isInteger(r.sourceIndex)||r.sourceIndex<0||r.sourceIndex>=value.rowCount))throw Error('紙本列不正確');const out=M.row(r.sourceIndex);for(const k of ['ctn','steel','rawCtn','rawSteel'])out[k]=String(r[k]||'').slice(0,200);for(const k of ['ctnAlternatives','steelAlternatives'])out[k]=Array.isArray(r[k])?r[k].slice(0,4).map(v=>String(v).slice(0,60)):[];for(const k of ['ctnSlashedZeros','steelSlashedZeros'])out[k]=Number.isInteger(r[k])?Math.max(0,Math.min(16,r[k])):0;for(const k of ['confirmed','edited','prefixApplied','ctnZeroReview','steelZeroReview','ctnGlyphReview','steelGlyphReview'])out[k]=r[k]===true;return out;});return result;
   }
   $('restore').onchange=async()=>{const file=$('restore').files[0];$('restore').value='';if(!file)return;if(file.size>32*1024*1024){status('草稿檔案過大。');return;}if(hasWork()&&!confirm('匯入將取代目前草稿，確定繼續？'))return;const old=state;try{const next=validateDraft(JSON.parse(await file.text()));await decode(next.photo);state=next;render();save();status('草稿已匯入，請核對照片與清單。');}catch(e){state=old;await decode(old.photo);render();status('匯入失敗，原草稿保留：'+e.message);}};
   $('print').onclick=()=>{

@@ -1,6 +1,6 @@
-# 鋼瓶註冊系統 — 本機 DEMO 0.3
+# 鋼瓶註冊系統 — 本機 DEMO 0.4
 
-Build: `CYL-REG-DEMO-0.3-20261021`
+Build: `CYL-REG-DEMO-0.4-20261022`
 
 新鋼瓶註冊、註冊紙本辨識、checklist生成。
 
@@ -27,12 +27,15 @@ Build: `CYL-REG-DEMO-0.3-20261021`
 
 - DEMO 0.1 的 Tesseract 印刷引擎已由使用者回報辨識驗收失敗。自 DEMO 0.2 起改用支援英文手寫的 PaddleOCR `en_PP-OCRv5_mobile_rec`，不再載入 IQC 的辨識核心；正式 IQC 原碼不變。
 - 原圖與藍筆去除格線／相鄰列碎筆後各辨識一次，保留不同候選。格式相符優先，其次採有斜線字形證據的候選，再依模型分數排序；分數不是正確率，兩次相同也不能視為正確。黑筆僅走原圖，仍待不同紙本測試。
+- DEMO 0.4 針對 Y 被讀成 R：以藍筆去線影像二值化，再用半徑 1／2 像素的圓形範圍輕微加粗，各重新辨識一次。兩次同字數且整段結果一致、平均模型分數皆至少 0.65，差異只有 R → Y，才更新候選。沒有依列號、前綴或固定答案替換。
+- 針對 0 被讀成 6：增加官方 `PP-OCRv6_small_rec_onnx` 本機複核模型，對含 6 的候選重讀原圖與去線圖；黑筆用原圖及加白邊圖。兩次同字數且結果一致、分數皆至少 0.9，差異只有 6 → 0，才更新候選。其他差異不採用，原候選及斜線 0 證據保留，每列仍待人工確認。兩次複核不是兩個獨立正確率保證。
+- 複核模型固定 revision `b8f84f0b80c529de40b4fbb3544b84fa7233a513`，21,159,378 bytes，SHA-256 `5435fd747c9e0efe15a96d0b378d5bd157e9492ed8fd80edf08f30d02fa24634`。複核字典保留官方 ASCII 索引，非 ASCII 輸出標成無效字元而不刪除，避免錯誤拼成合法編號。兩個模型合計約 29 MB；舊模型已快取時僅新增下載約 21 MB。全部在 worker 的 WASM 執行，照片不傳到模型網站。
 - ONNX Runtime Web 1.21.0 在專用 worker 的 WASM 本機推論。模型 7,848,423 bytes，固定官方 revision `3fafbc3b5dcf93dd72add9f48368be8a3a2cd33b`，下載及快取讀回皆驗證 SHA-256。第一次從 Hugging Face 下載模型、jsDelivr 下載執行元件；只有 GET，沒有傳圖。初始化上限 180 秒、單欄上限 45 秒，停止會終止 worker，保留已完成列與手動修改。
-- 實際 16 列紙本已在桌面 Chromium 跑過；本版第 1、2 列的斜線 0 已成為數字 0 候選，第 7、11 列其他誤讀仍在。尚無使用者確認的完整答案表，不能公布正式正確率，也未達自動註冊標準。所有候選都待人工核對；原始照片、結果及對照表保存在私人驗證目錄。
+- 實際 16 列紙本已在桌面 Chromium 跑過；本版修正使用者確認的第 7 列 Y／R、第 11 列 0／6，其餘 14 列的 CTN／鋼號與 DEMO 0.3 相同，包含第 1、2 列斜線 0。這是同一張照片的回測，不代表其他書寫人的正確率或自動註冊資格；原始照片、結果及對照表保存在私人驗證目錄。
 - 完整填寫每格能消除「省略前綴」的不確定性，仍不能消除手寫字形差異。斜線 0 依圖像筆畫及位置產生候選；不依文字內容一律將 O／6 改 0，也不把 I 改 1，沒有硬編碼範例答案。
 - 目前依四角與等分列建立裁圖；保留底部邊界供查看跨線筆畫。嚴重彎曲、跨列或不同高度表格仍可能切錯，需人工重新框選／補列。未實作自動表格偵測或任意表格辨識。
 - CTN 暫沿用既有 7 碼格式。鋼號不指定固定長度，必須由人員確認完整值。只有單一草稿，換照片前會提醒先備份。多裝置／多分頁同步及正式帳號權限未接入。
-- DEMO 0.1／0.2 舊草稿可讀回與匯入，人工修改／已核對值不被新辨識覆蓋。模型更新不會清除 IndexedDB。
+- DEMO 0.1／0.2／0.3 舊草稿可讀回與匯入，人工修改／已核對值不被新辨識覆蓋。模型更新不會清除 IndexedDB。
 - CSV 檔案內容保留前導 0，但 Excel 自動推斷可能轉為數字；請以文字欄匯入，或使用列印版。
 - iPhone Safari、不同書寫人及新「完整填寫」照片仍待現場驗收；桌面 Chromium 手機視窗測試不代表 iPhone 實測。
 
@@ -45,4 +48,6 @@ node tests/cylinder-registration.browser.cjs
 
 瀏覽器測試可用 `PLAYWRIGHT_MODULE`、`EDGE_EXECUTABLE`、`REG_ARTIFACTS` 指定已安裝執行環境及產物目錄。包含本機保存、重整、補列、重複阻擋、前綴、停止、下載、原圖縮放與關閉還原捲動位置。真實紙本基準與照片另存私人驗證目錄，不混同合成測試。
 
-來源：[PaddleOCR 英文手寫模型說明](https://github.com/PaddlePaddle/PaddleOCR/blob/main/docs/version3.x/module_usage/text_recognition.en.md)、[官方 ONNX 權重](https://huggingface.co/PaddlePaddle/en_PP-OCRv5_mobile_rec_onnx)、[ONNX Runtime Web](https://onnxruntime.ai/docs/tutorials/web/)。模型與字典採 Apache-2.0，參閱 `MODEL-LICENSE.txt`。沒有啟用雲端辨識。
+DEMO 0.4：26 項單元／worker 測試及 27 項瀏覽器流程檢查通過。另以 24 組合成字樣測試 R／6，未出現新增誤改且指定 R／6 都保留；其中 22 組全文相符，另外 2 組仍有原模型的 0／O 混淆，不宣稱 24 組全文全對。原紙本 16 列桌面回測約 22 秒（含模型準備／下載），不是其他裝置或網路的保證。
+
+來源：[PaddleOCR 英文手寫模型說明](https://github.com/PaddlePaddle/PaddleOCR/blob/main/docs/version3.x/module_usage/text_recognition.en.md)、[主要模型](https://huggingface.co/PaddlePaddle/en_PP-OCRv5_mobile_rec_onnx)、[本機複核模型](https://huggingface.co/PaddlePaddle/PP-OCRv6_small_rec_onnx)、[ONNX Runtime Web](https://onnxruntime.ai/docs/tutorials/web/)。模型與字典採 Apache-2.0，參閱 `MODEL-LICENSE.txt`。沒有啟用雲端辨識。

@@ -24,6 +24,41 @@ test('model tensor uses BGR, aspect ratio and zero padding',()=>{
   const t=H.tensor({width:1,height:1,data:Uint8ClampedArray.of(255,0,0)});assert.deepEqual(t.dims,[1,3,48,320]);
   assert.equal(t.data[0],-1);assert.equal(t.data[2*48*320],1);assert.equal(t.data[48],0);
 });
+test('glyph rereads must agree above threshold and change only the designated ambiguity',()=>{
+  const base=H.choose([{text:'AR61BC2',score:.99}],'ctn'),snapshot=JSON.stringify(base);
+  const same=text=>[{text,score:.95},{text,score:.94}];
+  assert.equal(H.refine(base,same('AR61BC2'),'R','Y',.65),base,'genuine R stays R');
+  assert.equal(H.refine(base,same('AR61BC2'),'6','0',.9),base,'genuine 6 stays 6');
+  for(const text of ['AY01BC2','AY61BC','AY61BC2X','A�61BC2','AY61BZ2'])assert.equal(H.refine(base,same(text),'R','Y',.65),base,text);
+  assert.equal(H.refine(base,[{text:'AY61BC2',score:.99}],'R','Y',.65),base);
+  assert.equal(H.refine(base,[{text:'AY61BC2',score:.99},{text:'AR61BC2',score:.99}],'R','Y',.65),base);
+  assert.equal(H.refine(base,[{text:'AY61BC2',score:.99},{text:'AY61BC2',score:.64}],'R','Y',.65),base);
+  const revised=H.refine(base,same('AY61BC2'),'R','Y',.65);
+  assert.equal(revised.text,'AY61BC2');assert(revised.alternatives.includes('AR61BC2'));assert.equal(revised.glyphReview,true);assert.equal(JSON.stringify(base),snapshot);
+});
+test('second model zero review preserves prefix, zeros, slashed evidence and manual confirmation boundary',()=>{
+  const base={text:'6A0067',alternatives:['6A0067'],slashedZeros:2};
+  const revised=H.refine(base,[{text:'0A0067',score:.99},{text:'0A0067',score:.99}],'6','0',.9);
+  assert.equal(revised.text,'0A0067');assert.equal(revised.unverifiedZeros,1);assert.equal(revised.slashedZeros,2);
+  const r=M.row(0);M.applyCandidate(r,{text:'AB12CDE'},revised);assert.equal(r.steelGlyphReview,true);assert.equal(r.confirmed,false);
+  r.confirmed=true;assert.equal(M.applyCandidate(r,'AB12CDF','99'),false);assert.equal(r.steel,'0A0067');
+  for(const score of [NaN,Infinity,undefined])assert.equal(H.refine(base,[{text:'0A0067',score},{text:'0A0067',score:1}],'6','0',.9),base);
+});
+test('stroke reread copies source, uses circular bounds, and cannot invent ink on blank input',()=>{
+  const s={width:9,height:9,data:new Uint8Array(9*9*3).fill(255)};s.data.fill(30,(4*9+4)*3,(4*9+4)*3+3);const before=s.data.slice();
+  const a=H.thicken(s,1),b=H.thicken(s,2);
+  assert.deepEqual(s.data,before);assert.equal([...a.data].filter(v=>v===0).length,5*3);assert.equal([...b.data].filter(v=>v===0).length,13*3);
+  assert.throws(()=>H.thicken(s,8),/STROKE_RADIUS/);
+  assert.equal(H.thicken({...s,data:new Uint8Array(s.data.length).fill(255)},2).data.every(v=>v===255),true);
+  const padded=H.padded(s);assert.equal(padded.width,33);assert.equal(padded.data[((4+12)*33+4+12)*3],30);
+});
+test('review model dictionary retains explicit invalid characters instead of deleting unknown output',()=>{
+  const meta=JSON.parse(fs.readFileSync(path.join(__dirname,'../DS-CYLINDER-REGISTRATION-DEMO/handwriting-review-model.json'))),chars=Array(meta.size).fill('�');chars[0]='';
+  for(const [i,c]of meta.ascii)chars[i]=c;
+  const unknown=chars.indexOf('�'),data=new Float32Array(meta.size);data[unknown]=.99;
+  const decoded=H.decode({dims:[1,1,meta.size],data},chars);assert.equal(decoded.text,'�');
+  assert.equal(new Set(meta.ascii.map(v=>v[0])).size,meta.ascii.length);assert.equal(chars.length,18710);
+});
 function harness(){
   const workers=[],timers=new Map();let id=0;
   class Worker{constructor(){workers.push(this);}postMessage(m){this.sent??=[];this.sent.push(m);}terminate(){this.dead=true;}emit(data){this.onmessage({data});}}

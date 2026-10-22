@@ -10,7 +10,7 @@
   <script defer src="app.js"></script>
 </head>
 <body>
-  <header><div class="brand-mark" aria-hidden="true">CR</div><div><small>CYLINDER REGISTRATION</small><h1>鋼瓶註冊系統</h1><p>新鋼瓶註冊、註冊紙本辨識、checklist生成</p></div><span class="tag">本機 DEMO 0.3</span></header>
+  <header><div class="brand-mark" aria-hidden="true">CR</div><div><small>CYLINDER REGISTRATION</small><h1>鋼瓶註冊系統</h1><p>新鋼瓶註冊、註冊紙本辨識、checklist生成</p></div><span class="tag">本機 DEMO 0.4</span></header>
   <main>
     <section class="intro"><div><span class="eyebrow">PAPER → REVIEW → CHECKLIST</span><h2>一張紙本，逐支核對。</h2><p>每格寫完整 CTN 與鋼號，數字 0 畫斜線、字母 O 不畫線。保留原圖對照，核對完成後產生註冊清單。</p></div><div class="local-badge"><span>●</span> 照片留在本機<br><small>尚未連接正式註冊資料庫</small></div></section>
     <nav class="steps" aria-label="作業步驟"><a href="#intake"><b>01</b> 加入紙本</a><a href="#review"><b>02</b> 逐列核對</a><a href="#output"><b>03</b> 產生 checklist</a></nav>
@@ -25,7 +25,7 @@
           <p id="region-help" class="hint">框選 CTN 與鋼號兩欄的資料區，不含標題及底部備註。</p>
           <div class="fields"><label>紙本資料列數<input id="row-count" type="number" min="1" max="60" value="16"></label><label>CTN 欄寬 <span id="split-label">41%</span><input id="split" type="range" min="20" max="75" value="41"></label></div>
           <button id="build" class="primary wide">建立校對列</button>
-          <div class="engine-note"><b>本機手寫辨識</b><p>使用 PaddleOCR 手寫模型，比對原圖與藍筆去線結果，依圓圈及穿越斜線辨識數字 0。首次需下載約 8 MB 模型及執行元件，建議使用 Wi-Fi。照片不會上傳；每列仍需核對，前綴由人員確認。</p><div class="toolbar"><button id="recognize" disabled>試辨識未修改的列</button><button id="stop" hidden>停止</button></div><progress id="progress" max="1" value="0" hidden></progress><p id="engine-status" class="hint"></p></div>
+          <div class="engine-note"><b>本機手寫辨識</b><p>使用 PaddleOCR 手寫模型，比對原圖與藍筆去線結果，依圓圈及穿越斜線辨識數字 0。增加 Y／R、0／6 本機字形複核；首次需下載合計約 29 MB 模型及執行元件，建議使用 Wi-Fi。照片不會上傳；每列仍需核對，前綴由人員確認。</p><div class="toolbar"><button id="recognize" disabled>試辨識未修改的列</button><button id="stop" hidden>停止</button></div><progress id="progress" max="1" value="0" hidden></progress><p id="engine-status" class="hint"></p></div>
         </div>
         <div id="empty-photo" class="empty"><div class="paper-icon">▤</div><b>讓每支鋼瓶都有正確的對應</b><p>CTN ↔ 鋼瓶鋼號<br>按紙本由上到下逐列保存</p></div>
         <details id="prefix-section"><summary>舊紙本只寫尾碼？確認共用前綴</summary><p class="hint">只補 CTN 尾 3 碼／鋼號尾 6 碼。完整值不變，補全後須重新核對。</p><div class="fields"><label>CTN 前綴（4 碼）<input id="ctn-prefix" autocomplete="off" placeholder="請照原紙本確認"></label><label>鋼號前綴<input id="steel-prefix" autocomplete="off" placeholder="請照原紙本確認"></label></div><button id="apply-prefix">確認並補全尾碼</button></details>
@@ -34,12 +34,12 @@
       <section id="review" class="panel review-panel">
         <div class="section-title"><h2>02 <span>逐列核對</span></h2><button id="add">＋ 補一列</button></div>
         <div class="review-summary"><strong id="counts">0 / 0 已核對</strong><span>原列裁圖與完整編號對照</span></div>
-        <p class="hint">黃色表示待核對。注意 O／0、I／1、S／5；斜線 0 依字形產生候選；其餘字元不做文字替換，仍須核對。</p>
+        <p class="hint">黃色表示待核對。注意 O／0、I／1、S／5；斜線 0 依字形產生候選；Y／R、0／6 會依兩次圖像複核保留候選，仍須核對。</p>
         <div id="rows"><div class="empty">加入紙本後建立校對列，或直接手動補列。</div></div>
       </section>
     </div>
     <section id="output" class="panel output-panel"><div><span class="eyebrow">READY FOR REVIEW</span><h2>03 <span>產生 checklist</span></h2><p id="export-state">每列填寫並核對完成後即可輸出。</p><p class="hint">DEMO 清單：序號、CTN、鋼號、紙本列、核對狀態、現場註冊確認。列印版保留前導 0；CSV 匯入 Excel 時，編號欄請選「文字」。</p></div><div class="toolbar"><button id="print" disabled class="primary">預覽／列印 checklist</button><button id="csv" disabled>下載 CSV</button><button id="backup">匯出本機草稿</button><label class="button">匯入草稿<input id="restore" type="file" accept="application/json,.json"></label></div></section>
-    <footer>CYL-REG-DEMO-0.3-20261021 · 僅建立核對清單，尚未完成正式註冊</footer>
+    <footer>CYL-REG-DEMO-0.4-20261022 · 僅建立核對清單，尚未完成正式註冊</footer>
   </main>
   <dialog id="viewer"><div class="dialog-head"><h2 id="viewer-title">原列對照</h2><button id="close-viewer" aria-label="關閉原列對照">關閉</button></div><div class="toolbar"><button id="zoom-out" aria-label="縮小">－</button><span id="zoom-label">100%</span><button id="zoom-in" aria-label="放大">＋</button></div><p class="hint">放大後可滑動查看；關閉會回到原本核對位置。</p><div class="pan"><img id="crop-large" alt="該列 CTN 與鋼號原圖"></div></dialog>
   <dialog id="checklist-dialog"><div class="dialog-head"><h2>Checklist 預覽</h2><div class="toolbar"><button id="do-print" class="primary">列印／存為 PDF</button><button id="close-checklist">關閉</button></div></div><div id="print-sheet"></div></dialog>
