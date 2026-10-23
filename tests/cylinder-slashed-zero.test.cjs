@@ -20,8 +20,17 @@ test('O, unslashed zero, 6, 9, Q, 8, B, A and R are not converted solely by thei
   im=canvas();ellipse(im,44,35,17,18);ellipse(im,44,72,17,19);shapes.push(['8',im]);
   im=canvas();line(im,29,17,29,91);ellipse(im,41,35,12,18);ellipse(im,41,72,12,19);shapes.push(['B',im]);
   im=canvas();line(im,25,90,44,15);line(im,44,15,64,90);line(im,32,60,56,60);shapes.push(['A',im]);
+  im=canvas();line(im,60,15,28,63);line(im,28,63,72,63);line(im,58,12,58,94);shapes.push(['4',im]);
   im=canvas();line(im,29,17,29,91);ellipse(im,42,35,13,18);line(im,39,53,65,92);shapes.push(['R',im]);
   for(const [name,image]of shapes)for(const angle of [-20,-10,0,10,20])assert.equal(Z.detect(rotate(image,angle)).length,0,name+' rotated '+angle);
+});
+test('small gaps in A and 4 counters do not become crossed zeroes',()=>{
+  for(const angle of [-10,0,10]){
+    const a=canvas();line(a,30,96,42,15,1.5);line(a,42,15,58,75,1.5);line(a,33,56,55,56,1.5);a.data.fill(255,(55*a.width+33)*3,(55*a.width+38)*3);
+    assert.equal(Z.detect(rotate(a,angle)).length,0,'open A '+angle);
+    const four=canvas();line(four,60,15,28,63,1.5);line(four,28,63,72,63,1.5);line(four,58,12,58,94,1.5);for(let y=47;y<50;y++)four.data.fill(255,(y*four.width+33)*3,(y*four.width+42)*3);
+    assert.equal(Z.detect(rotate(four,angle)).length,0,'open 4 '+angle);
+  }
 });
 test('only spatially evidenced glyph changes, keeping genuine O/6/9 and the original candidate',()=>{
   const before={text:'AO69B',score:.9,tokens:[...'AO69B'].map((text,i)=>({text,position:(i+.5)/5}))};
@@ -53,6 +62,12 @@ test('near-vertical crossed zero works but joined nines are not a zero',()=>{
   const zero=canvas();ellipse(zero,44,58,12,20);line(zero,43,12,43,98);assert.equal(Z.detect(zero).length,1);
   const nines=canvas();ellipse(nines,32,30,12,12);ellipse(nines,54,30,12,12);line(nines,44,30,42,92);line(nines,66,30,64,84);assert.equal(Z.detect(nines).length,0);
   const copy=zero.data.slice(),cleaned=Z.clean(zero,Z.detect(zero));assert.deepEqual(zero.data,copy);assert.notDeepEqual(cleaned.data,copy);
+});
+test('tiny loop gaps are repaired within a crossed glyph without modifying the source or adding a text digit',()=>{
+  const zero=canvas();ellipse(zero,44,58,12,20,1.5);line(zero,43,12,43,98,1.5);
+  for(let y=56;y<=57;y++)for(const [l,r]of[[29,35],[53,59]])for(let x=l;x<=r;x++)zero.data.fill(255,(y*zero.width+x)*3,(y*zero.width+x)*3+3);
+  const before=zero.data.slice();assert.equal(Z.detect(zero,false).length,0);const boxes=Z.detect(zero);assert.equal(boxes.length,1);assert.match(boxes[0].reason,/^repaired-/);assert.deepEqual(zero.data,before);
+  assert.equal(Z.apply({text:'AB',tokens:[{text:'A',position:.1},{text:'B',position:.9}]},boxes,90,90,90),null);
 });
 test('a model zero without slash evidence remains explicitly marked for O/0 review',()=>{
   const selected=H.choose([{text:'26A00069',score:.99,slashedZeros:2}],'steel');assert.equal(selected.unverifiedZeros,1);

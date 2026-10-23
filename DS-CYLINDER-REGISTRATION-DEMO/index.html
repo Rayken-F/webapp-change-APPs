@@ -14,7 +14,7 @@
   <script defer src="app.js"></script>
 </head>
 <body>
-  <header><div class="brand-mark" aria-hidden="true">CR</div><div><small>CYLINDER REGISTRATION</small><h1>鋼瓶註冊系統</h1><p>新鋼瓶註冊、註冊紙本辨識、checklist生成</p></div><span class="tag">本機 DEMO 0.6</span></header>
+  <header><div class="brand-mark" aria-hidden="true">CR</div><div><small>CYLINDER REGISTRATION</small><h1>鋼瓶註冊系統</h1><p>新鋼瓶註冊、註冊紙本辨識、checklist生成</p></div><span class="tag">本機 DEMO 0.6.1</span></header>
   <main>
     <section class="intro"><div><span class="eyebrow">PAPER → REVIEW → REGISTER → CHECKLIST</span><h2>一張紙本，逐支核對。</h2><p>每格寫完整 CTN 與鋼號，數字 0 畫斜線、字母 O 不畫線。保留原圖對照，核對完成後逐支顯示條碼，再產生清單。</p></div><div class="local-badge"><span>●</span> 照片留在本機<br><small>尚未連接正式註冊資料庫</small></div></section>
     <nav class="steps" aria-label="作業步驟"><a href="#intake"><b>01</b> 加入紙本</a><a href="#review"><b>02</b> 逐列核對</a><a href="#registration"><b>03</b> 逐支註冊</a><a href="#output"><b>04</b> checklist</a></nav>
@@ -39,13 +39,13 @@
         <label class="batch-rt">本批 RT（手動填寫）<input id="batch-rt" type="text" maxlength="30" autocomplete="off" spellcheck="false" placeholder="請輸入本批 RT"><small id="rt-help">同批共用；修改 RT 後需重新完成逐支確認。</small></label>
         <div class="section-title"><h2>02 <span>逐列核對</span></h2><button id="add">＋ 補一列</button></div>
         <div class="review-summary"><strong id="counts">0 / 0 已核對</strong><span>原列裁圖與完整編號對照</span></div>
-        <p class="hint">黃色底卡表示字形信心不足、候選衝突或格式有問題。模型分數不是正確率；即使沒有黃底，也須逐列對照原圖。</p>
+        <p class="hint">黃色底卡表示字形信心不足、候選衝突或格式有問題。CTN 第 3、4 碼固定是數字。模型分數不是正確率；即使沒有黃底，也須逐列對照原圖。</p>
         <div id="rows"><div class="empty">加入紙本後建立校對列，或直接手動補列。</div></div>
       </section>
     </div>
     <section id="registration" class="panel output-panel"><div><span class="eyebrow">ONE CYLINDER AT A TIME</span><h2>03 <span>逐支註冊</span></h2><p id="registration-state">填寫 RT，逐列核對後開始。</p><p class="hint">每次顯示一組 CTN／鋼號條碼。完成註冊會保存此裝置的人工確認進度，尚未寫入正式資料庫。</p></div><button id="start-registration" class="primary" disabled>開始／繼續逐支註冊</button></section>
     <section id="output" class="panel output-panel"><div><span class="eyebrow">READY FOR REVIEW</span><h2>04 <span>產生 checklist</span></h2><p id="export-state">逐支註冊確認完成後才可輸出。</p><p class="hint">目前提供暫定清單，正式 checklist 範本待下一階段提供。包含 RT、CTN、鋼號、紙本列與本機確認時間。列印版保留前導 0；CSV 匯入 Excel 時，編號欄請選「文字」。</p></div><div class="toolbar"><button id="print" disabled class="primary">預覽／列印 checklist</button><button id="csv" disabled>下載 CSV</button><button id="backup">匯出本機草稿</button><label class="button">匯入草稿<input id="restore" type="file" accept="application/json,.json"></label></div></section>
-    <footer>CYL-REG-DEMO-0.6-20261024 · 本機人工確認與條碼 DEMO，尚未連接正式註冊資料庫</footer>
+    <footer>CYL-REG-DEMO-0.6.1-20261024 · 本機人工確認與條碼 DEMO，尚未連接正式註冊資料庫</footer>
   </main>
   <dialog id="viewer"><div class="dialog-head"><h2 id="viewer-title">原列對照</h2><button id="close-viewer" aria-label="關閉原列對照">關閉</button></div><div class="toolbar"><button id="zoom-out" aria-label="縮小">－</button><span id="zoom-label">100%</span><button id="zoom-in" aria-label="放大">＋</button></div><p class="hint">放大後可滑動查看；關閉會回到原本核對位置。</p><div class="pan"><img id="crop-large" alt="該列 CTN 與鋼號原圖"></div></dialog>
   <dialog id="checklist-dialog"><div class="dialog-head"><h2>Checklist 預覽</h2><div class="toolbar"><button id="do-print" class="primary">列印／存為 PDF</button><button id="close-checklist">關閉</button></div></div><div id="print-sheet"></div></dialog>

@@ -12,6 +12,15 @@ test('candidate selection never substitutes O/0, removes punctuation, or claims 
   const r=M.row(0);M.applyCandidate(r,letters,{text:'000123',alternatives:['000123','000I23']});assert.equal(r.steel,'000123');assert.equal(r.confirmed,false);
   r.edited=true;assert.equal(M.applyCandidate(r,{text:'ZZZ'},'999999'),false);assert.equal(r.ctn,'YPO');
 });
+test('full CTN requires digits in positions 3 and 4 when ranking observed candidates',()=>{
+  const picked=H.choose([{text:'ABJICDE',score:.99},{text:'AB21CDE',score:.64}],'ctn');
+  assert.equal(picked.text,'AB21CDE');assert(picked.alternatives.includes('ABJICDE'));
+  for(const text of ['ABOICDE','AB1ICDE','ABI1CDE'])assert.equal(H.choose([{text,score:.99}],'ctn').text,text,'no fabricated numeric substitutions');
+  assert.equal(H.choose([{text:'AB2ICDE',score:.6},{text:'AB2CDE',score:.99}],'ctn').text,'AB2ICDE','no shorter candidate replaces complete-length evidence when none passes positions');
+  assert.equal(H.choose([{text:'AB00OI0',score:.8}],'ctn').text,'AB00OI0','zeros and letters outside numeric positions stay intact');
+  assert.equal(H.choose([{text:'YPO',score:.9}],'ctn').text,'YPO','legacy suffix is not mistaken for full CTN positions');
+  assert.equal(H.choose([{text:'ABJICDE',score:.99},{text:'AB21CDE',score:.64}],'steel').text,'ABJICDE','CTN rule never constrains steel');
+});
 test('blue ink extraction removes disconnected adjacent-row fragments without changing source',()=>{
   const w=80,h=55,data=new Uint8ClampedArray(w*h*3).fill(255);
   const blue=(x,y)=>{const i=(y*w+x)*3;data[i]=40;data[i+1]=50;data[i+2]=100;};

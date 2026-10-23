@@ -77,7 +77,7 @@
     return {text:text.trim(),score:count?sum/count:0,tokens};
   }
   function choose(results,field){
-    const valid=t=>field==='ctn'?/^(?:[A-Z0-9]{3}|[A-Z0-9]{7})$/.test(normalize(t)):/^[A-Z0-9][A-Z0-9-]*$/.test(normalize(t));
+    const valid=t=>field==='ctn'?(/^(?:[A-Z0-9]{3}|[A-Z0-9]{2}[0-9]{2}[A-Z0-9]{3})$/.test(normalize(t))?2:/^[A-Z0-9]{7}$/.test(normalize(t))?1:0):/^[A-Z0-9][A-Z0-9-]*$/.test(normalize(t));
     const choices=results.filter(r=>r.text.trim()).sort((a,b)=>Number(valid(b.text))-Number(valid(a.text))||Number(!!b.slashedZeros)-Number(!!a.slashedZeros)||b.score-a.score);
     const best=choices[0]||{text:'',score:0},alternatives=[...new Set(choices.map(r=>normalize(r.text)))];
     return {text:best.text,score:best.score,alternatives,slashedZeros:best.slashedZeros||0,unverifiedZeros:Math.max(0,(best.text.match(/0/g)||[]).length-(best.slashedZeros||0)),review:alternatives.length>1?'辨識候選不同，請核對':!best.text?'未讀到文字':best.score<.85?'字形不確定，請核對':'仍需對照原圖核對'};
