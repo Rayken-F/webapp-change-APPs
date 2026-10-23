@@ -59,6 +59,13 @@ self.onmessage=async event=>{
         finally{tensor.dispose();if(output)Object.values(output).forEach(t=>t.dispose());}
       }
       let result=H.choose(results,field);
+      if(field==='ctn'&&/^[A-Z0-9]{7}$/i.test(result.text.replace(/\s/g,''))&&!/^[A-Z0-9]{2}[0-9]{2}[A-Z0-9]{3}$/i.test(result.text.replace(/\s/g,''))){
+        // Position rules rank observed candidates; they never turn I/O into 1/0 by text substitution.
+        for(const source of [raw,ink||H.padded(raw)])results.push({...await reread(source,reviewSession,reviewChars),variant:'CTN 數字位置複核'});
+        const reviewed=H.choose(results,field);
+        if(/^[A-Z0-9]{2}[0-9]{2}[A-Z0-9]{3}$/i.test(reviewed.text.replace(/\s/g,'')))result=reviewed;
+        else result={...result,alternatives:[...new Set([...result.alternatives,...reviewed.alternatives])].slice(0,4)};
+      }
       if(ink&&/R/i.test(result.text)){
         const checks=[];for(const radius of [1,2])checks.push(await reread(H.thicken(ink,radius)));
         result=H.refine(result,checks,'R','Y',.65);

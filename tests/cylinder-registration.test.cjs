@@ -17,6 +17,16 @@ test('blank prefix never inferred; invalid prefix rejected', () => {
   const a=make('CDE','001023');assert.equal(M.applyPrefixes([a],'',''),0);assert.equal(a.ctn,'CDE');
   assert.throws(()=>M.applyPrefixes([a],'12345',''));assert.throws(()=>M.applyPrefixes([a],'','=1'));
 });
+test('numeric CTN positions gate review, prefixes, completion and export without changing entered text',()=>{
+  for(const ctn of ['ABJICDE','AB2ICDE','ABI2CDE']){
+    const r={...make(ctn,'000123'),confirmed:true,registered:{rt:'001234',ctn,steel:'000123',at:new Date().toISOString()}};
+    assert(M.issues([r])[0].includes('CTN 第 3、4 碼必須是數字'));assert.equal(M.ready([r]),false);assert.equal(M.registered(r,'001234'),false);
+    assert.throws(()=>M.complete([r],'001234',0));assert.throws(()=>M.csv([r],'001234'));assert.equal(r.ctn,ctn);
+  }
+  const short=make('YPO','001023');assert.throws(()=>M.applyPrefixes([short],'AB2I','26A'),/第 3、4 碼/);assert.equal(short.ctn,'YPO');
+  M.applyPrefixes([short],'AB00','26A');assert.equal(short.ctn,'AB00YPO');assert.deepEqual(M.issues([short]),[[]]);
+  assert.deepEqual(M.issues([make('AB12CDE','ABJICDE')]),[[]],'steel has no CTN position rule');
+});
 test('handwriting candidates cannot overwrite edits or confirmation', () => {
   const r=make('','');assert.equal(M.applyCandidate(r,'ab12cde','000123'),true);assert.equal(r.confirmed,false);
   r.edited=true;assert.equal(M.applyCandidate(r,'ZZ99AAA','111111'),false);assert.equal(r.steel,'000123');

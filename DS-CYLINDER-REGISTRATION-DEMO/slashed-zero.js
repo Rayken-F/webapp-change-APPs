@@ -15,7 +15,14 @@
     }
     return out;
   }
-  function detect(source){
+  function closeGaps(mask,w,h,radius){
+    const expanded=new Uint8Array(mask.length),closed=new Uint8Array(mask.length),dirs=[];
+    for(let y=-radius;y<=radius;y++)for(let x=-radius;x<=radius;x++)if(x*x+y*y<=radius*radius)dirs.push([x,y]);
+    for(let y=0;y<h;y++)for(let x=0;x<w;x++)expanded[y*w+x]=dirs.some(([dx,dy])=>x+dx>=0&&x+dx<w&&y+dy>=0&&y+dy<h&&mask[(y+dy)*w+x+dx])?1:0;
+    for(let y=0;y<h;y++)for(let x=0;x<w;x++)closed[y*w+x]=dirs.every(([dx,dy])=>x+dx>=0&&x+dx<w&&y+dy>=0&&y+dy<h&&expanded[(y+dy)*w+x+dx])?1:0;
+    return closed;
+  }
+  function detect(source,repair=true){
     const {width:w,height:h,data}=source;
     if(!Number.isInteger(w)||!Number.isInteger(h)||w<1||h<1||w*h>2000000||data.length!==w*h*3)return [];
     const mask=Uint8Array.from({length:w*h},(_,i)=>(data[i*3]+data[i*3+1]+data[i*3+2])/3<170?1:0),found=[];
@@ -36,7 +43,22 @@
       if(holes.length===1){
         // Thick pen may fill one half. Require a narrow crossing extending beyond BOTH ends of the loop.
         const hole=holes[0];
-        if((hole.t-1)/gh>.18&&(gh-hole.b)/gh>.18&&tip(true)/gw<.55&&tip(false)/gw<.55&&hole.area/(gw*gh)>.01)reason='extended-slash';
+        const balanced=Math.abs(hole.cy-(hole.t+hole.b)/2)/(hole.b-hole.t+1)<.075;
+        if(balanced&&(hole.t-1)/gh>.18&&(gh-hole.b)/gh>.18&&hole.cy/gh>=.42&&hole.cy/gh<=.75&&tip(true)/gw<.55&&tip(false)/gw<.55&&hole.area/(gw*gh)>.01)reason='extended-slash';
+      }
+      if(!reason&&repair&&holes.length===0){
+        // Repair only tiny gaps within ONE connected glyph, never join neighbouring digits.
+        // The repaired shape must still pass the same loop/crossing test as an intact zero.
+        const pad=4,cw=gw+pad*2,ch=gh+pad*2,component=new Uint8Array(cw*ch);
+        for(const p of g.points)component[(Math.floor(p/w)-g.t+pad)*cw+p%w-g.l+pad]=1;
+        for(let radius=1;radius<=Math.min(3,Math.max(1,Math.round(gh*.04)))&&!reason;radius++){
+          const closed=closeGaps(component,cw,ch,radius),data=Uint8Array.from({length:cw*ch*3},(_,i)=>closed[Math.floor(i/3)]?30:255);
+          const matches=detect({width:cw,height:ch,data},false);
+          const cavities=regions(closed,cw,ch,false).filter(q=>q.l>0&&q.t>0&&q.r<cw-1&&q.b<ch-1&&q.area>=Math.max(3,g.area*.015));
+          const middle=cavities.length?(cavities.reduce((s,q)=>s+q.cy,0)/cavities.length-pad)/gh:0;
+          // A / 4 may close a counter above their crossbar. A repaired zero needs a central loop.
+          if(matches.length===1&&middle>=.46&&middle<=.75)reason='repaired-'+matches[0].reason;
+        }
       }
       if(reason)found.push({left:g.l,right:g.r,top:g.t,bottom:g.b,reason});
     }

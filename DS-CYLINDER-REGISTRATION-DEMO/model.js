@@ -3,7 +3,8 @@
   else root.RegistrationModel = factory();
 })(typeof window === 'undefined' ? this : window, function() {
   'use strict';
-  const VERSION = 'CYL-REG-DEMO-0.6-20261024';
+  const VERSION = 'CYL-REG-DEMO-0.6.1-20261024';
+  const FLOW_VERSION = 'CYL-REG-DEMO-0.6-20261024';
   const ALIGNMENT_VERSION = 'CYL-REG-DEMO-0.5-20261023';
   const GLYPH_VERSION = 'CYL-REG-DEMO-0.4-20261022';
   const LEGACY_VERSION = 'CYL-REG-DEMO-0.1-20261021';
@@ -26,6 +27,7 @@
       if (!c || !s) out.push('CTN 與鋼號都要填寫');
       // Never replace O/0, I/1 or remove leading zeroes in identifiers.
       if (c && !/^[A-Z0-9]{7}$/.test(c)) out.push('請填完整 7 碼 CTN');
+      if (/^[A-Z0-9]{7}$/.test(c) && !/^[0-9]{2}$/.test(c.slice(2,4))) out.push('CTN 第 3、4 碼必須是數字');
       if (s && !/^[A-Z0-9][A-Z0-9-]*$/.test(s)) out.push('鋼號含待確認字元');
       if (s.length>60) out.push('鋼號超過 60 碼，請核對');
       if (ctn.get(c) > 1) out.push('CTN 重複');
@@ -36,6 +38,7 @@
   function applyPrefixes(rows, ctnPrefix, steelPrefix) {
     const cp = normalize(ctnPrefix), sp = normalize(steelPrefix);
     if (cp && !/^[A-Z0-9]{4}$/.test(cp)) throw Error('CTN 共用前綴須為 4 碼英數字');
+    if (cp && !/^[0-9]{2}$/.test(cp.slice(2,4))) throw Error('CTN 前綴第 3、4 碼必須是數字');
     if (sp && !/^[A-Z0-9-]+$/.test(sp)) throw Error('請確認鋼號共用前綴');
     let changed = 0;
     for (const r of rows) {
@@ -73,7 +76,7 @@
     return reasons;
   }
   const rtValid=rt=>/^[A-Z0-9][A-Z0-9-]{0,29}$/.test(normalize(rt));
-  function registered(r,rt){const v=r.registered;return !!(r.confirmed&&v&&v.rt===normalize(rt)&&v.ctn===normalize(r.ctn)&&v.steel===normalize(r.steel)&&typeof v.at==='string'&&Number.isFinite(Date.parse(v.at)));}
+  function registered(r,rt){const v=r.registered;return !!(r.confirmed&&/^[A-Z0-9]{2}[0-9]{2}[A-Z0-9]{3}$/.test(normalize(r.ctn))&&v&&v.rt===normalize(rt)&&v.ctn===normalize(r.ctn)&&v.steel===normalize(r.steel)&&typeof v.at==='string'&&Number.isFinite(Date.parse(v.at)));}
   function complete(rows,rt,index){
     if(!rtValid(rt)||!ready(rows)||!rows[index])throw Error('請先填寫 RT 並逐列核對完整編號');
     const r=rows[index];if(!registered(r,rt))r.registered={rt:normalize(rt),ctn:normalize(r.ctn),steel:normalize(r.steel),at:new Date().toISOString()};
@@ -92,5 +95,5 @@
     const cross = q.map((p, i) => { const a = q[(i+1)%4], b = q[(i+2)%4]; return (a[0]-p[0])*(b[1]-a[1])-(a[1]-p[1])*(b[0]-a[0]); });
     return cross.every(v => v > .001) && q[0][1] < q[3][1] && q[1][1] < q[2][1];
   }
-  return { VERSION, ALIGNMENT_VERSION, GLYPH_VERSION, LEGACY_VERSION, PREVIOUS_VERSION, ZERO_VERSION, normalize, row, issues, applyPrefixes, applyCandidate, ready, confidence, rtValid, registered, complete, outputReady, csv, quadValid };
+  return { VERSION, FLOW_VERSION, ALIGNMENT_VERSION, GLYPH_VERSION, LEGACY_VERSION, PREVIOUS_VERSION, ZERO_VERSION, normalize, row, issues, applyPrefixes, applyCandidate, ready, confidence, rtValid, registered, complete, outputReady, csv, quadValid };
 });
