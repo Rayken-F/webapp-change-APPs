@@ -6,11 +6,13 @@
   <title>鋼瓶註冊系統 · DEMO</title>
   <link rel="stylesheet" href="style.css">
   <script defer src="model.js"></script>
+  <script defer src="alignment.js"></script>
   <script defer src="ocr.js"></script>
+  <script defer src="alignment-ui.js"></script>
   <script defer src="app.js"></script>
 </head>
 <body>
-  <header><div class="brand-mark" aria-hidden="true">CR</div><div><small>CYLINDER REGISTRATION</small><h1>鋼瓶註冊系統</h1><p>新鋼瓶註冊、註冊紙本辨識、checklist生成</p></div><span class="tag">本機 DEMO 0.4</span></header>
+  <header><div class="brand-mark" aria-hidden="true">CR</div><div><small>CYLINDER REGISTRATION</small><h1>鋼瓶註冊系統</h1><p>新鋼瓶註冊、註冊紙本辨識、checklist生成</p></div><span class="tag">本機 DEMO 0.5</span></header>
   <main>
     <section class="intro"><div><span class="eyebrow">PAPER → REVIEW → CHECKLIST</span><h2>一張紙本，逐支核對。</h2><p>每格寫完整 CTN 與鋼號，數字 0 畫斜線、字母 O 不畫線。保留原圖對照，核對完成後產生註冊清單。</p></div><div class="local-badge"><span>●</span> 照片留在本機<br><small>尚未連接正式註冊資料庫</small></div></section>
     <nav class="steps" aria-label="作業步驟"><a href="#intake"><b>01</b> 加入紙本</a><a href="#review"><b>02</b> 逐列核對</a><a href="#output"><b>03</b> 產生 checklist</a></nav>
@@ -19,9 +21,9 @@
       <section id="intake" class="panel source-panel">
         <div class="section-title"><h2>01 <span>註冊紙本</span></h2><button id="new" class="quiet">新紙本</button></div>
         <label class="upload">＋ 選擇照片<input id="file" type="file" accept="image/jpeg,image/png,image/webp"></label>
-        <p class="hint">可選相簿或拍照。清晰、平整、每格完整填寫，較容易核對。</p>
+        <p class="hint">載入後自動尋找表格，請先確認校正預覽。紙張平整、四邊完整入鏡，較容易對齊。</p>
         <div id="photo-wrap" hidden><div class="photo-stage"><img id="photo" alt="原始註冊紙本"><svg id="overlay" viewBox="0 0 1000 1000" preserveAspectRatio="none" aria-label="表格辨識範圍"></svg></div>
-          <div class="toolbar"><button id="set-region">設定表格四角</button><button id="sample-region" class="quiet">套用 DEMO 紙本版型</button></div>
+          <div class="toolbar"><button id="auto-align">重新自動對齊</button><button id="adjust-align">校正預覽／微調</button><button id="set-region" class="quiet">設定表格四角</button><button id="sample-region" class="quiet">套用 DEMO 紙本版型</button></div>
           <p id="region-help" class="hint">框選 CTN 與鋼號兩欄的資料區，不含標題及底部備註。</p>
           <div class="fields"><label>紙本資料列數<input id="row-count" type="number" min="1" max="60" value="16"></label><label>CTN 欄寬 <span id="split-label">41%</span><input id="split" type="range" min="20" max="75" value="41"></label></div>
           <button id="build" class="primary wide">建立校對列</button>
@@ -39,9 +41,19 @@
       </section>
     </div>
     <section id="output" class="panel output-panel"><div><span class="eyebrow">READY FOR REVIEW</span><h2>03 <span>產生 checklist</span></h2><p id="export-state">每列填寫並核對完成後即可輸出。</p><p class="hint">DEMO 清單：序號、CTN、鋼號、紙本列、核對狀態、現場註冊確認。列印版保留前導 0；CSV 匯入 Excel 時，編號欄請選「文字」。</p></div><div class="toolbar"><button id="print" disabled class="primary">預覽／列印 checklist</button><button id="csv" disabled>下載 CSV</button><button id="backup">匯出本機草稿</button><label class="button">匯入草稿<input id="restore" type="file" accept="application/json,.json"></label></div></section>
-    <footer>CYL-REG-DEMO-0.4-20261022 · 僅建立核對清單，尚未完成正式註冊</footer>
+    <footer>CYL-REG-DEMO-0.5-20261023 · 僅建立核對清單，尚未完成正式註冊</footer>
   </main>
   <dialog id="viewer"><div class="dialog-head"><h2 id="viewer-title">原列對照</h2><button id="close-viewer" aria-label="關閉原列對照">關閉</button></div><div class="toolbar"><button id="zoom-out" aria-label="縮小">－</button><span id="zoom-label">100%</span><button id="zoom-in" aria-label="放大">＋</button></div><p class="hint">放大後可滑動查看；關閉會回到原本核對位置。</p><div class="pan"><img id="crop-large" alt="該列 CTN 與鋼號原圖"></div></dialog>
   <dialog id="checklist-dialog"><div class="dialog-head"><h2>Checklist 預覽</h2><div class="toolbar"><button id="do-print" class="primary">列印／存為 PDF</button><button id="close-checklist">關閉</button></div></div><div id="print-sheet"></div></dialog>
+  <dialog id="alignment-dialog">
+    <div class="dialog-head"><h2>校正預覽</h2><button id="close-alignment">稍後再調</button></div>
+    <p id="alignment-message" class="hint" role="status"></p>
+    <div class="toolbar"><button id="align-corners">原圖四角</button><button id="align-grid">拉正格線</button><button id="align-zoom-out" aria-label="縮小校正圖">－</button><span id="align-zoom-label">100%</span><button id="align-zoom-in" aria-label="放大校正圖">＋</button></div>
+    <p id="alignment-help" class="hint"></p>
+    <div id="alignment-pan"><div id="alignment-stage"><canvas id="alignment-image"></canvas><svg id="alignment-overlay" aria-label="拖曳校正位置"></svg></div></div>
+    <div class="alignment-nudge"><label>微調位置<select id="align-target"></select></label><button id="align-left" aria-label="向左微調">←</button><button id="align-up" aria-label="向上微調">↑</button><button id="align-down" aria-label="向下微調">↓</button><button id="align-right" aria-label="向右微調">→</button></div>
+    <p class="hint">可放大後拖曳圓點，或選位置用箭頭微調。格線要落在紙本橫線上；每列的 CTN 與鋼號須配成同一支。</p>
+    <button id="accept-alignment" class="primary wide">確認對齊</button>
+  </dialog>
   <section id="print-output" aria-hidden="true"></section>
 </body></html>
