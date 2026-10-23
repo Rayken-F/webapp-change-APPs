@@ -1,8 +1,8 @@
 (function() {
   'use strict';
-  const M = window.RegistrationModel, $ = id => document.getElementById(id);
+  const A = window.RegistrationAlignment, M = window.RegistrationModel, $ = id => document.getElementById(id);
   const preset = [[.213,.126],[.681,.125],[.703,.627],[.207,.637]];
-  const fresh = () => ({ version:M.VERSION, photo:null, rows:[], quad:structuredClone(preset), split:.41, rowCount:16 });
+  const fresh = () => ({ version:M.VERSION, photo:null, rows:[], quad:structuredClone(preset), split:.41, rowCount:16, geometry:'perspective', rowLines:A.boundaries(16), alignmentConfirmed:false });
   let state = fresh(), pixels = null, busy = false, stopping = false, setting = false, corners = [], saveTimer, saving = false;
   let saveQueue = Promise.resolve(), saveRevision = 0, activeElement, returnY = 0, zoom = 1, db;
   const status = message => { $('status').textContent = message; };
@@ -35,15 +35,16 @@
     for (const [k,v] of Object.entries(attrs)) el.setAttribute(k, v); return el;
   }
   function interpolate(a, b, t) { return [a[0]+(b[0]-a[0])*t, a[1]+(b[1]-a[1])*t]; }
-  function point(u,v) { return interpolate(interpolate(state.quad[0],state.quad[3],v),interpolate(state.quad[1],state.quad[2],v),u); }
+  function point(u,v) { if(state.geometry==='perspective')return A.project(A.transform(state.quad),u,v);return interpolate(interpolate(state.quad[0],state.quad[3],v),interpolate(state.quad[1],state.quad[2],v),u); }
   function overlay() {
     const target = $('overlay'); target.replaceChildren();
     if (setting) {
       corners.forEach((p,i) => { target.append(svgElement('circle',{cx:p[0]*1000,cy:p[1]*1000,r:9})); const t=svgElement('text',{x:p[0]*1000+12,y:p[1]*1000,fill:'#ffffff','font-size':24}); t.textContent=i+1; target.append(t); }); return;
     }
+    if(!state.alignmentConfirmed&&!setting)return;
     target.append(svgElement('polygon',{points:state.quad.map(p=>p.map(n=>n*1000).join(',')).join(' ')}));
     for (let i=1;i<state.rowCount;i++) {
-      const a=point(0,i/state.rowCount), b=point(1,i/state.rowCount);
+      const a=point(0,state.rowLines[i]), b=point(1,state.rowLines[i]);
       target.append(svgElement('line',{x1:a[0]*1000,y1:a[1]*1000,x2:b[0]*1000,y2:b[1]*1000}));
     }
     const a=point(state.split,0),b=point(state.split,1);
@@ -65,13 +66,18 @@
     // Exclude printed row numbers at the left of the steel column, not handwritten characters.
     const left=part==='steel'?state.split+.045:part==='ctn'?.012:0, right=part==='ctn'?state.split-.012:1;
     // Handwritten descenders can cross a printed rule. Retain a lower margin for review.
-    const v0=(index+.04)/state.rowCount,v1=(index+1.20)/state.rowCount;
-    const a=point(left,v0),b=point(right,v1);
-    c.width=part==='both'?1000:Math.max(2,Math.round(Math.abs(b[0]-a[0])*pixels.width));
-    c.height=part==='both'?150:Math.max(2,Math.round(Math.abs(b[1]-a[1])*pixels.height));
+    const top=state.rowLines[index],bottom=state.rowLines[index+1],rowHeight=bottom-top;
+    const v0=top+.04*rowHeight,v1=bottom+.20*rowHeight;
+    const a=point(left,v0),b=point(right,v1),mapping=state.geometry==='perspective'?A.transform(state.quad):null;
+    c.width=part==='both'?1000:Math.max(2,Math.round((mapping?Math.hypot((point(right,v0)[0]-a[0])*pixels.width,(point(right,v0)[1]-a[1])*pixels.height):Math.abs(b[0]-a[0])*pixels.width)));
+    c.height=part==='both'?150:Math.max(2,Math.round((mapping?Math.hypot((point(left,v1)[0]-a[0])*pixels.width,(point(left,v1)[1]-a[1])*pixels.height):Math.abs(b[1]-a[1])*pixels.height)));
+    if(mapping&&part==='both'){
+      const rect=A.raster(pixels,[point(left,v0),point(right,v0),point(right,v1),point(left,v1)],c.width,c.height);
+      c.getContext('2d').putImageData(new ImageData(rect.data,c.width,c.height),0,0);cropCache.set(key,c);return c;
+    }
     const ctx=c.getContext('2d'), out=ctx.createImageData(c.width,c.height);
     for(let y=0;y<c.height;y++)for(let x=0;x<c.width;x++){
-      const p=point(left+(right-left)*x/(c.width-1),v0+(v1-v0)*y/(c.height-1));
+      const u=left+(right-left)*x/(c.width-1),v=v0+(v1-v0)*y/(c.height-1),p=mapping?A.project(mapping,u,v):point(u,v);
       const sx=Math.max(0,Math.min(pixels.width-1,Math.round(p[0]*(pixels.width-1)))),sy=Math.max(0,Math.min(pixels.height-1,Math.round(p[1]*(pixels.height-1))));
       const src=(sy*pixels.width+sx)*4,dst=(y*c.width+x)*4;out.data[dst]=pixels.data[src];out.data[dst+1]=pixels.data[src+1];out.data[dst+2]=pixels.data[src+2];out.data[dst+3]=255;
     }
@@ -96,7 +102,8 @@
     const count=state.rows.filter(r=>r.confirmed).length;$('counts').textContent=count+' / '+state.rows.length+' 已核對';
     const ready=M.ready(state.rows);$('print').disabled=$('csv').disabled=!ready||busy;
     $('export-state').textContent=ready?'逐列核對完成，可輸出 checklist。尚未寫入正式註冊系統。':`尚有 ${state.rows.length-count} 列待核對；先處理空值、重複與不確定字元。`;
-    $('recognize').disabled=!pixels||!state.rows.some(r=>r.sourceIndex!=null&&!r.edited&&!r.confirmed)||busy||setting;
+    $('build').disabled=busy||!state.alignmentConfirmed;
+    $('recognize').disabled=!state.alignmentConfirmed||!pixels||!state.rows.some(r=>r.sourceIndex!=null&&!r.edited&&!r.confirmed)||busy||setting;
   }
   function renderRows() {
     const root=$('rows');root.replaceChildren();
@@ -134,34 +141,50 @@
     if(!/^image\/(jpeg|png|webp)$/.test(file.type)||file.size>20*1024*1024){status('請使用 20 MB 以下的 JPEG／PNG／WebP 照片。');return;}
     if(hasWork()&&!confirm('改用新照片會取代目前草稿。需要時請先匯出草稿。確定繼續？'))return;
     const old=state;
-    try{const data=await readFile(file);await decode(data);state=fresh();state.photo=data;setting=false;corners=[];$('photo').parentElement.classList.remove('setting');render();save();status('照片已載入。確認四角、CTN 分欄與列數後，按「建立校對列」。');}
+    try{const data=await readFile(file);await decode(data);state=fresh();state.photo=data;setting=false;corners=[];$('photo').parentElement.classList.remove('setting');render();save();await autoAlign();}
     catch(e){state=old;await decode(old.photo);render();status('照片讀取失敗，原草稿保留。'+e.message);}
   });
+  function showAlignment(candidate,message,automatic=false){
+    RegistrationAligner.open(pixels,{quad:candidate.quad,split:candidate.split,rowLines:candidate.rowLines,rowCount:state.rowCount},next=>{
+      setting=false;corners=[];$('photo').parentElement.classList.remove('setting');$('region-help').textContent='框選 CTN 與鋼號兩欄的資料區，不含標題及底部備註。';
+      state.quad=next.quad;state.split=next.split;state.rowLines=next.rowLines;state.geometry='perspective';state.alignmentConfirmed=true;
+      configurationChanged();render();status('已確認對齊。可建立校對列；原有文字保留，裁圖變更後請重新核對。');
+    },message,automatic);
+  }
+  async function autoAlign(){
+    if(busy||!pixels)return;busy=true;controlsBusy(true);$('stop').hidden=true;$('progress').hidden=true;status('正在本機尋找表格與格線…');
+    let result;try{result=await RegistrationAligner.detect(pixels,state.rowCount);}catch(_){result={ok:false,reason:'自動對齊未完成，請手動設定四角'};}
+    finally{busy=false;controlsBusy(false);}
+    if(result.ok){status('已找到表格，請確認校正預覽。');showAlignment(result,'已找到資料格線。請核對第一列、最後一列及 CTN／鋼號分界，必要時切至原圖四角微調。',true);}
+    else{status(result.reason);showAlignment(state,result.reason+'。請框住 CTN＋鋼號的資料區，再查看拉正格線。');}
+  }
+  $('auto-align').onclick=autoAlign;
+  $('adjust-align').onclick=()=>{if(!busy&&pixels)showAlignment(state,'調整只在按「確認對齊」後套用；原照片與輸入文字保留。');};
   $('new').onclick=async()=>{if(hasWork()&&!confirm('建立新紙本會取代此瀏覽器的草稿，確定繼續？'))return;state=fresh();setting=false;corners=[];await decode(null);render();save();status('已建立空白草稿。');};
   $('set-region').onclick=()=>{setting=!setting;corners=[];$('photo').parentElement.classList.toggle('setting',setting);$('region-help').textContent=setting?'依序點選資料區：①左上 ②右上 ③右下 ④左下。再次按按鈕可取消。':'框選 CTN 與鋼號兩欄的資料區，不含標題及底部備註。';overlay();updateChecks();};
   $('overlay').addEventListener('click',e=>{
     if(!setting||busy)return;const r=$('overlay').getBoundingClientRect();corners.push([(e.clientX-r.left)/r.width,(e.clientY-r.top)/r.height]);overlay();
     if(corners.length!==4)return;
     if(!M.quadValid(corners)){corners=[];overlay();status('四角位置不正確。請依左上、右上、右下、左下重新點選。');return;}
-    state.quad=corners;corners=[];setting=false;$('photo').parentElement.classList.remove('setting');$('region-help').textContent='四角已更新。請查看裁圖有沒有跨列，必要時重新框選。';configurationChanged();status('範圍已更新，原核對標記已重設。');
+    state.quad=corners;state.geometry='perspective';state.rowLines=A.boundaries(state.rowCount);state.alignmentConfirmed=true;corners=[];setting=false;$('photo').parentElement.classList.remove('setting');$('region-help').textContent='四角已更新。請查看裁圖有沒有跨列，必要時重新框選。';configurationChanged();status('範圍已更新，原核對標記已重設。');
   });
-  $('sample-region').onclick=()=>{state.quad=structuredClone(preset);setting=false;corners=[];$('photo').parentElement.classList.remove('setting');configurationChanged();status('已套用這次 DEMO 紙本的兩欄範圍，請核對實際照片是否對齊。');};
+  $('sample-region').onclick=()=>{state.quad=structuredClone(preset);state.geometry='bilinear';state.rowLines=A.boundaries(state.rowCount);state.alignmentConfirmed=true;setting=false;corners=[];$('photo').parentElement.classList.remove('setting');configurationChanged();status('已套用這次 DEMO 紙本的兩欄範圍，請核對實際照片是否對齊。');};
   $('split').oninput=()=>{state.split=Number($('split').value)/100;$('split-label').textContent=Math.round(state.split*100)+'%';cropCache.clear();overlay();};
   $('split').onchange=configurationChanged;
   $('row-count').onchange=()=>{
     const n=Number($('row-count').value);if(!Number.isInteger(n)||n<1||n>60){$('row-count').value=state.rowCount;status('列數須為 1～60。');return;}
     if(state.rows.length){$('row-count').value=state.rowCount;status('已有校對列時請先保留草稿，再使用新紙本設定列數；漏列可用「補一列」。');return;}
-    state.rowCount=n;configurationChanged();
+    state.rowCount=n;state.rowLines=A.boundaries(n);state.alignmentConfirmed=false;configurationChanged();status('列數已更新，請重新確認校正預覽。');
   };
   $('build').onclick=()=>{
-    if(setting){status('請先完成或取消四角設定。');return;}
+    if(setting||!state.alignmentConfirmed){status('請先完成並確認對齊。');return;}
     if(state.rows.length&&!confirm('重新建立將清空目前校對欄位，確定繼續？'))return;
     state.rows=Array.from({length:state.rowCount},(_,i)=>M.row(i));renderRows();save();status(`已建立 ${state.rowCount} 列。可直接填寫，或使用本機試辨識取得候選。`);
   };
   $('add').onclick=()=>{if(state.rows.length>=60){status('本 DEMO 每張最多 60 列。');return;}state.rows.push(M.row());renderRows();save();$('rows').lastElementChild.querySelector('input').focus();};
   $('apply-prefix').onclick=()=>{try{const n=M.applyPrefixes(state.rows,$('ctn-prefix').value,$('steel-prefix').value);renderRows();save();status(`已補全 ${n} 列。請逐列確認前綴與配對是否正確。`);}catch(e){status(e.message);}};
   function controlsBusy(value) {
-    for(const id of ['new','file','build','add','apply-prefix','set-region','sample-region','split','row-count','restore'])$(id).disabled=value;
+    for(const id of ['new','file','build','add','apply-prefix','set-region','auto-align','adjust-align','sample-region','split','row-count','restore'])$(id).disabled=value;
     document.querySelectorAll('.remove-row').forEach(b=>b.disabled=value);
     $('stop').hidden=!value;$('progress').hidden=!value;updateChecks();
   }
@@ -189,9 +212,11 @@
   $('csv').onclick=()=>{try{download('鋼瓶註冊-checklist.csv','text/csv;charset=utf-8',M.csv(state.rows));}catch(e){status(e.message);}};
   $('backup').onclick=()=>download('鋼瓶註冊-DEMO-草稿.json','application/json',JSON.stringify(state));
   function validateDraft(value) {
-    if(![M.VERSION,M.LEGACY_VERSION,M.PREVIOUS_VERSION,M.ZERO_VERSION].includes(value?.version)||!Array.isArray(value.rows)||value.rows.length>60||!M.quadValid(value.quad)||!Number.isInteger(value.rowCount)||value.rowCount<1||value.rowCount>60||!(value.split>=.2&&value.split<=.75))throw Error('草稿格式不相符');
+    if(![M.VERSION,M.GLYPH_VERSION,M.LEGACY_VERSION,M.PREVIOUS_VERSION,M.ZERO_VERSION].includes(value?.version)||!Array.isArray(value.rows)||value.rows.length>60||!M.quadValid(value.quad)||!Number.isInteger(value.rowCount)||value.rowCount<1||value.rowCount>60||!(value.split>=.2&&value.split<=.75))throw Error('草稿格式不相符');
     if(value.photo!==null&&(typeof value.photo!=='string'||value.photo.length>30*1024*1024||!/^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(value.photo)))throw Error('照片資料不正確');
-    const result=fresh();Object.assign(result,{photo:value.photo,quad:value.quad,rowCount:value.rowCount,split:value.split});
+    const modern=value.version===M.VERSION;
+    if(modern&&(!A.validLines(value.rowLines,value.rowCount)||!['perspective','bilinear'].includes(value.geometry)||typeof value.alignmentConfirmed!=='boolean'))throw Error('校正資料不正確');
+    const result=fresh();Object.assign(result,{photo:value.photo,quad:value.quad,rowCount:value.rowCount,split:value.split,geometry:modern?value.geometry:'bilinear',rowLines:modern?value.rowLines:A.boundaries(value.rowCount),alignmentConfirmed:modern?value.alignmentConfirmed:true});
     result.rows=value.rows.map(r=>{if(r.sourceIndex!==null&&(!Number.isInteger(r.sourceIndex)||r.sourceIndex<0||r.sourceIndex>=value.rowCount))throw Error('紙本列不正確');const out=M.row(r.sourceIndex);for(const k of ['ctn','steel','rawCtn','rawSteel'])out[k]=String(r[k]||'').slice(0,200);for(const k of ['ctnAlternatives','steelAlternatives'])out[k]=Array.isArray(r[k])?r[k].slice(0,4).map(v=>String(v).slice(0,60)):[];for(const k of ['ctnSlashedZeros','steelSlashedZeros'])out[k]=Number.isInteger(r[k])?Math.max(0,Math.min(16,r[k])):0;for(const k of ['confirmed','edited','prefixApplied','ctnZeroReview','steelZeroReview','ctnGlyphReview','steelGlyphReview'])out[k]=r[k]===true;return out;});return result;
   }
   $('restore').onchange=async()=>{const file=$('restore').files[0];$('restore').value='';if(!file)return;if(file.size>32*1024*1024){status('草稿檔案過大。');return;}if(hasWork()&&!confirm('匯入將取代目前草稿，確定繼續？'))return;const old=state;try{const next=validateDraft(JSON.parse(await file.text()));await decode(next.photo);state=next;render();save();status('草稿已匯入，請核對照片與清單。');}catch(e){state=old;await decode(old.photo);render();status('匯入失敗，原草稿保留：'+e.message);}};

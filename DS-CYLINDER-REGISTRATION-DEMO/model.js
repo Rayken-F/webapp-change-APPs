@@ -3,7 +3,8 @@
   else root.RegistrationModel = factory();
 })(typeof window === 'undefined' ? this : window, function() {
   'use strict';
-  const VERSION = 'CYL-REG-DEMO-0.4-20261022';
+  const VERSION = 'CYL-REG-DEMO-0.5-20261023';
+  const GLYPH_VERSION = 'CYL-REG-DEMO-0.4-20261022';
   const LEGACY_VERSION = 'CYL-REG-DEMO-0.1-20261021';
   const PREVIOUS_VERSION = 'CYL-REG-DEMO-0.2-20261021';
   const ZERO_VERSION = 'CYL-REG-DEMO-0.3-20261021';
@@ -68,5 +69,5 @@
     const cross = q.map((p, i) => { const a = q[(i+1)%4], b = q[(i+2)%4]; return (a[0]-p[0])*(b[1]-a[1])-(a[1]-p[1])*(b[0]-a[0]); });
     return cross.every(v => v > .001) && q[0][1] < q[3][1] && q[1][1] < q[2][1];
   }
-  return { VERSION, LEGACY_VERSION, PREVIOUS_VERSION, ZERO_VERSION, normalize, row, issues, applyPrefixes, applyCandidate, ready, csv, quadValid };
+  return { VERSION, GLYPH_VERSION, LEGACY_VERSION, PREVIOUS_VERSION, ZERO_VERSION, normalize, row, issues, applyPrefixes, applyCandidate, ready, csv, quadValid };
 });
