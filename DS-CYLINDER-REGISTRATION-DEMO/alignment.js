@@ -92,5 +92,20 @@
       }
     }return best||fail();
   }
-  return {transform,project,inverse,boundaries,validLines,raster,mask,lines,detect};
+  function snap(source,quad,n,split,previous=boundaries(n)){
+    // Search the printed rules inside the user-confirmed area; do not use handwriting as a grid.
+    const width=700,height=Math.min(1800,Math.max(500,n*70)),rect=raster(source,quad,width,height),binary=mask(rect),scores=new Float32Array(height);
+    for(let y=2;y<height-2;y++){let hits=0;for(let x=12;x<width-12;x++){let hit=false;for(let d=-2;d<=2;d++)if(binary[(y+d)*width+x])hit=true;if(hit)hits++;}scores[y]=hits/(width-24);}
+    const peaks=[];for(let y=2;y<height-2;y++)if(scores[y]>.38&&scores[y]>=scores[y-1]&&scores[y]>=scores[y+1]){const last=peaks[peaks.length-1];if(last&&y-last.y<9){if(scores[y]>last.score){last.y=y;last.score=scores[y];}}else peaks.push({y,score:scores[y]});}
+    const rowLines=previous.slice(),matched=[],used=new Set(),gap=height/n;
+    for(let i=1;i<n;i++){
+      const target=i*gap,candidates=peaks.filter((p,j)=>!used.has(j)&&Math.abs(p.y-target)<gap*.6&&p.y>rowLines[i-1]*height+gap*.35&&p.y<(i+1)*gap-gap*.35).map(p=>({...p,index:peaks.indexOf(p),rank:p.score-Math.abs(p.y-target)/gap*.25})).sort((a,b)=>b.rank-a.rank);
+      if(candidates.length){rowLines[i]=candidates[0].y/(height-1);used.add(candidates[0].index);matched.push(i);}
+    }
+    if(!validLines(rowLines,n))return {rowLines:previous.slice(),split,matched:[],missing:n-1};
+    let best={score:0,x:split};
+    for(let x=Math.round(width*.2);x<width*.75;x++){let hits=0;for(let y=10;y<height-10;y++){let hit=false;for(let d=-2;d<=2;d++)if(binary[y*width+x+d])hit=true;if(hit)hits++;}const score=hits/(height-20);if(score>best.score)best={score,x:x/(width-1)};}
+    return {rowLines,split:best.score>.55?best.x:split,matched,missing:n-1-matched.length};
+  }
+  return {transform,project,inverse,boundaries,validLines,raster,mask,lines,detect,snap};
 });

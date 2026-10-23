@@ -25,18 +25,18 @@
       const nw=gw+2,nh=gh+2,local=new Uint8Array(nw*nh);
       for(const p of g.points)local[(Math.floor(p/w)-g.t+1)*nw+p%w-g.l+1]=1;
       const holes=regions(local,nw,nh,false).filter(q=>q.l>0&&q.t>0&&q.r<nw-1&&q.b<nh-1&&q.area>=Math.max(3,g.area*.015)).sort((a,b)=>b.area-a.area);
+      const tipRows=Math.max(2,Math.round(gh*.12));
+      const tip=top=>{let l=w,r=0;for(const p of g.points){const y=Math.floor(p/w),x=p%w;if(top?y<g.t+tipRows:y>g.b-tipRows){l=Math.min(l,x);r=Math.max(r,x);}}return r-l+1;};
       let reason='';
       if(holes.length===2){
         const [a,b]=holes,overlap=Math.min(a.b,b.b)-Math.max(a.t,b.t)+1,loopWidth=Math.max(a.r,b.r)-Math.min(a.l,b.l)+1;
         // A slash splits one loop sideways. Stacked counters in B/8 do not qualify.
-        if(Math.abs(a.cx-b.cx)/loopWidth>.18&&Math.abs(a.cy-b.cy)/gh<.45&&overlap/Math.min(a.b-a.t+1,b.b-b.t+1)>.15&&Math.min(a.area,b.area)/Math.max(a.area,b.area)>.14)reason='split-loop';
+        if(Math.abs(a.cx-b.cx)/loopWidth>.18&&Math.abs(a.cy-b.cy)/gh<.45&&(a.cy+b.cy)/2/gh>.23&&(a.cy+b.cy)/2/gh<.77&&overlap/Math.min(a.b-a.t+1,b.b-b.t+1)>.15&&Math.min(a.area,b.area)/Math.max(a.area,b.area)>.14&&tip(false)/gw<.7)reason='split-loop';
       }
       if(holes.length===1){
-        // Thick pen may fill one half. Require a narrow diagonal extending beyond BOTH ends of the loop.
-        const hole=holes[0],tipRows=Math.max(2,Math.round(gh*.12));
-        const tip=top=>{let l=w,r=0,sum=0,n=0;for(const p of g.points){const y=Math.floor(p/w),x=p%w;if(top?y<g.t+tipRows:y>g.b-tipRows){l=Math.min(l,x);r=Math.max(r,x);sum+=x;n++;}}return {span:r-l+1,center:sum/n};};
-        const top=tip(true),bottom=tip(false);
-        if((hole.t-1)/gh>.18&&(gh-hole.b)/gh>.18&&top.span/gw<.55&&bottom.span/gw<.55&&Math.abs(top.center-bottom.center)/gw>.18&&hole.area/(gw*gh)>.04)reason='extended-slash';
+        // Thick pen may fill one half. Require a narrow crossing extending beyond BOTH ends of the loop.
+        const hole=holes[0];
+        if((hole.t-1)/gh>.18&&(gh-hole.b)/gh>.18&&tip(true)/gw<.55&&tip(false)/gw<.55&&hole.area/(gw*gh)>.01)reason='extended-slash';
       }
       if(reason)found.push({left:g.l,right:g.r,top:g.t,bottom:g.b,reason});
     }
@@ -50,7 +50,8 @@
     for(const box of boxes){
       const l=box.left+offsetX,r=box.right+offsetX,margin=Math.min((r-l+1)*.18,3);
       const hits=tokens.map((t,i)=>({t,i})).filter(({t})=>t.text.trim()&&t.x>=l-Math.max(margin,t.radius)-1e-6&&t.x<=r+Math.max(margin,t.radius)+1e-6);
-      if(hits.length>1||hits.some(({i})=>used.has(i)))continue;
+      // CTC peaks are not glyph bounds: do not insert a new digit when there is no matching token.
+      if(hits.length!==1||hits.some(({i})=>used.has(i)))continue;
       if(hits.length)used.add(hits[0].i);
       additions.push({text:'0',x:(l+r)/2});
     }
@@ -58,5 +59,11 @@
     const text=[...tokens.filter((_,i)=>!used.has(i)),...additions].sort((a,b)=>a.x-b.x).map(t=>t.text).join('').trim();
     return {text,score:result.score,slashedZeros:additions.length};
   }
-  return {detect,apply};
+  function clean(source,boxes){
+    const {width:w,height:h}=source,data=new Uint8ClampedArray(source.data);
+    for(const box of boxes){const gw=box.right-box.left+1,gh=box.bottom-box.top+1,cx=(box.left+box.right)/2,cy=(box.top+box.bottom)/2,rx=gw*.40,ry=gh*.36,stroke=Math.max(1.4,gw*.11);
+      for(let y=box.top;y<=box.bottom;y++)for(let x=box.left;x<=box.right;x++){const d=Math.sqrt(((x-cx)/rx)**2+((y-cy)/ry)**2),v=Math.abs(d-1)<stroke/rx?30:255,k=(y*w+x)*3;data[k]=data[k+1]=data[k+2]=v;}
+    }return {width:w,height:h,data};
+  }
+  return {detect,apply,clean};
 });

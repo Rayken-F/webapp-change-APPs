@@ -72,7 +72,7 @@
     const n=chars.length,steps=pred.dims[1],tokens=[];let last=0,text='',sum=0,count=0;
     for(let i=0;i<steps;i++){
       let best=0;for(let j=1;j<n;j++)if(pred.data[i*n+j]>pred.data[i*n+best])best=j;
-      if(best&&best!==last){text+=chars[best];sum+=pred.data[i*n+best];count++;tokens.push({text:chars[best],position:(i+.5)/steps,step:1/steps});}last=best;
+      if(best&&best!==last){text+=chars[best];sum+=pred.data[i*n+best];count++;tokens.push({text:chars[best],position:(i+.5)/steps,step:1/steps,score:pred.data[i*n+best]});}last=best;
     }
     return {text:text.trim(),score:count?sum/count:0,tokens};
   }
@@ -80,7 +80,14 @@
     const valid=t=>field==='ctn'?/^(?:[A-Z0-9]{3}|[A-Z0-9]{7})$/.test(normalize(t)):/^[A-Z0-9][A-Z0-9-]*$/.test(normalize(t));
     const choices=results.filter(r=>r.text.trim()).sort((a,b)=>Number(valid(b.text))-Number(valid(a.text))||Number(!!b.slashedZeros)-Number(!!a.slashedZeros)||b.score-a.score);
     const best=choices[0]||{text:'',score:0},alternatives=[...new Set(choices.map(r=>normalize(r.text)))];
-    return {text:best.text,alternatives,slashedZeros:best.slashedZeros||0,unverifiedZeros:Math.max(0,(best.text.match(/0/g)||[]).length-(best.slashedZeros||0)),review:alternatives.length>1?'辨識候選不同，請核對':!best.text?'未讀到文字':best.score<.85?'字形不確定，請核對':'仍需對照原圖核對'};
+    return {text:best.text,score:best.score,alternatives,slashedZeros:best.slashedZeros||0,unverifiedZeros:Math.max(0,(best.text.match(/0/g)||[]).length-(best.slashedZeros||0)),review:alternatives.length>1?'辨識候選不同，請核對':!best.text?'未讀到文字':best.score<.85?'字形不確定，請核對':'仍需對照原圖核對'};
   }
-  return {rgb,blueInk,tensor,decode,choose,thicken,padded,refine};
+  function segments(source){
+    const {width:w,height:h}=source,bands=[];let start=-1,last=-1;
+    for(let x=0;x<w;x++){let n=0;for(let y=0;y<h;y++)if(source.data[(y*w+x)*3]<170)n++;
+      if(n>1){if(start<0)start=x;last=x;}else if(start>=0&&x-last>h*.45){bands.push([start,last]);start=-1;}}
+    if(start>=0)bands.push([start,last]);if(bands.length<2||bands.length>5)return [];
+    return bands.map(([left,right])=>{let top=h,bottom=0;for(let y=0;y<h;y++)for(let x=left;x<=right;x++)if(source.data[(y*w+x)*3]<170){top=Math.min(top,y);bottom=Math.max(bottom,y);}const pad=12,width=right-left+1+pad*2,height=bottom-top+1+pad*2,data=new Uint8ClampedArray(width*height*3).fill(255);for(let y=top;y<=bottom;y++)for(let x=left;x<=right;x++)for(let c=0;c<3;c++)data[((y-top+pad)*width+x-left+pad)*3+c]=source.data[(y*w+x)*3+c];return {width,height,data};});
+  }
+  return {rgb,blueInk,tensor,decode,choose,thicken,padded,refine,segments};
 });

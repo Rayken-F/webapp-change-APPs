@@ -32,9 +32,9 @@ test('only spatially evidenced glyph changes, keeping genuine O/6/9 and the orig
   const row=M.row(0);M.applyCandidate(row,selected,'000001');assert.equal(row.confirmed,false);
   row.edited=true;assert.equal(M.applyCandidate(row,{text:'ZZZ'},'000002'),false);
 });
-test('omitted slash-zero is inserted in its geometric position; multiple zeros retain order',()=>{
+test('unmatched CTC positions cannot invent extra zeros',()=>{
   const r={text:'ABCD',score:.8,tokens:[{text:'A',position:.1},{text:'B',position:.3},{text:'C',position:.65},{text:'D',position:.9}]};
-  assert.equal(Z.apply(r,[{left:40,right:50},{left:74,right:80}],100,100,100).text,'AB0C0D');
+  assert.equal(Z.apply(r,[{left:40,right:50},{left:74,right:80}],100,100,100),null);
   assert.equal(Z.apply(r,[{left:0,right:40}],100,100,100),null,'ambiguous multiple-token mapping is rejected');
 });
 test('model padding and blue-crop offset map glyph evidence back to the original image',()=>{
@@ -48,6 +48,11 @@ test('CTC pixel resolution does not insert an extra zero beside an already decod
 test('invalid, empty and connected oversized glyph regions provide no zero evidence',()=>{
   assert.deepEqual(Z.detect(canvas()),[]);assert.deepEqual(Z.detect({width:0,height:1,data:[]}),[]);
   const im=canvas();im.data.fill(0);assert.deepEqual(Z.detect(im),[]);
+});
+test('near-vertical crossed zero works but joined nines are not a zero',()=>{
+  const zero=canvas();ellipse(zero,44,58,12,20);line(zero,43,12,43,98);assert.equal(Z.detect(zero).length,1);
+  const nines=canvas();ellipse(nines,32,30,12,12);ellipse(nines,54,30,12,12);line(nines,44,30,42,92);line(nines,66,30,64,84);assert.equal(Z.detect(nines).length,0);
+  const copy=zero.data.slice(),cleaned=Z.clean(zero,Z.detect(zero));assert.deepEqual(zero.data,copy);assert.notDeepEqual(cleaned.data,copy);
 });
 test('a model zero without slash evidence remains explicitly marked for O/0 review',()=>{
   const selected=H.choose([{text:'26A00069',score:.99,slashedZeros:2}],'steel');assert.equal(selected.unverifiedZeros,1);

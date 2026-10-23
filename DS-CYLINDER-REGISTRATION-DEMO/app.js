@@ -2,7 +2,7 @@
   'use strict';
   const A = window.RegistrationAlignment, M = window.RegistrationModel, $ = id => document.getElementById(id);
   const preset = [[.213,.126],[.681,.125],[.703,.627],[.207,.637]];
-  const fresh = () => ({ version:M.VERSION, photo:null, rows:[], quad:structuredClone(preset), split:.41, rowCount:16, geometry:'perspective', rowLines:A.boundaries(16), alignmentConfirmed:false });
+  const fresh = () => ({ version:M.VERSION, photo:null, rt:'', rows:[], quad:structuredClone(preset), split:.41, rowCount:16, geometry:'perspective', rowLines:A.boundaries(16), alignmentConfirmed:false });
   let state = fresh(), pixels = null, busy = false, stopping = false, setting = false, corners = [], saveTimer, saving = false;
   let saveQueue = Promise.resolve(), saveRevision = 0, activeElement, returnY = 0, zoom = 1, db;
   const status = message => { $('status').textContent = message; };
@@ -67,7 +67,7 @@
     const left=part==='steel'?state.split+.045:part==='ctn'?.012:0, right=part==='ctn'?state.split-.012:1;
     // Handwritten descenders can cross a printed rule. Retain a lower margin for review.
     const top=state.rowLines[index],bottom=state.rowLines[index+1],rowHeight=bottom-top;
-    const v0=top+.04*rowHeight,v1=bottom+.20*rowHeight;
+    const v0=top+.04*rowHeight,v1=bottom+(part==='both'?.08:.20)*rowHeight;
     const a=point(left,v0),b=point(right,v1),mapping=state.geometry==='perspective'?A.transform(state.quad):null;
     c.width=part==='both'?1000:Math.max(2,Math.round((mapping?Math.hypot((point(right,v0)[0]-a[0])*pixels.width,(point(right,v0)[1]-a[1])*pixels.height):Math.abs(b[0]-a[0])*pixels.width)));
     c.height=part==='both'?150:Math.max(2,Math.round((mapping?Math.hypot((point(left,v1)[0]-a[0])*pixels.width,(point(left,v1)[1]-a[1])*pixels.height):Math.abs(b[1]-a[1])*pixels.height)));
@@ -94,14 +94,17 @@
   function updateChecks() {
     const errors=M.issues(state.rows);
     state.rows.forEach((r,i)=>{
-      if(errors[i].length)r.confirmed=false;
       const card=$('row-'+r.id);if(!card)return;
-      card.classList.toggle('confirmed',r.confirmed);card.querySelector('.problems').textContent=errors[i].join(' · ')|| (r.confirmed?'已核對完整編號與配對':'請對照原圖確認完整編號與同列配對');
-      const check=card.querySelector('input[type=checkbox]');check.checked=r.confirmed;check.disabled=errors[i].length>0||busy;
+      card.classList.toggle('confirmed',r.confirmed&&!errors[i].length);card.classList.toggle('low-confidence',errors[i].length>0||(!r.confirmed&&M.confidence(r).length>0));card.querySelector('.problems').textContent=errors[i].join(' · ')|| (r.confirmed?'已核對完整編號與配對':'請對照原圖確認完整編號與同列配對');
+      const check=card.querySelector('input[type=checkbox]');check.checked=r.confirmed&&!errors[i].length;check.disabled=errors[i].length>0||busy;
     });
-    const count=state.rows.filter(r=>r.confirmed).length;$('counts').textContent=count+' / '+state.rows.length+' 已核對';
-    const ready=M.ready(state.rows);$('print').disabled=$('csv').disabled=!ready||busy;
-    $('export-state').textContent=ready?'逐列核對完成，可輸出 checklist。尚未寫入正式註冊系統。':`尚有 ${state.rows.length-count} 列待核對；先處理空值、重複與不確定字元。`;
+    const count=state.rows.filter((r,i)=>r.confirmed&&!errors[i].length).length;$('counts').textContent=count+' / '+state.rows.length+' 已核對';
+    const ready=M.ready(state.rows),outputReady=M.outputReady(state.rows,state.rt),registered=state.rows.filter(r=>M.registered(r,state.rt)).length;
+    $('print').disabled=$('csv').disabled=!outputReady||busy;
+    $('start-registration').disabled=!ready||!M.rtValid(state.rt)||busy;
+    $('registration-state').textContent=`${registered}／${state.rows.length} 支已完成本機註冊確認。`+(!M.rtValid(state.rt)?'請先填寫有效的 RT（英數字或連字號，最多 30 碼）。':!ready?'請先逐列核對。':'可開始／繼續逐支註冊。');
+    $('rt-help').textContent=state.rt&&!M.rtValid(state.rt)?'RT 請使用英數字或連字號，最多 30 碼。':'同批共用；修改 RT 後需重新完成逐支確認。';
+    $('export-state').textContent=outputReady?'本批已完成本機確認，可輸出暫定 checklist。':`尚有 ${state.rows.length-count} 列待核對、${state.rows.length-registered} 支待完成註冊確認。`;
     $('build').disabled=busy||!state.alignmentConfirmed;
     $('recognize').disabled=!state.alignmentConfirmed||!pixels||!state.rows.some(r=>r.sourceIndex!=null&&!r.edited&&!r.confirmed)||busy||setting;
   }
@@ -116,9 +119,10 @@
       const fields=node('div',null,'fields');
       for(const [name,label]of[['ctn','完整 CTN'],['steel','完整鋼瓶鋼號']]){
         const l=node('label',label),input=document.createElement('input');input.type='text';input.value=r[name];input.autocomplete='off';input.spellcheck=false;input.maxLength=60;input.dataset.field=name;
-        input.addEventListener('input',()=>{r[name]=input.value;r.edited=true;r.confirmed=false;updateChecks();save();});l.append(input);fields.append(l);
+        input.addEventListener('input',()=>{r[name]=input.value;r.edited=true;r.confirmed=false;r.registered=null;updateChecks();save();});l.append(input);fields.append(l);
       }
       card.append(fields,node('p','', 'problems'));
+      const reasons=M.confidence(r);if(reasons.length)card.append(node('div','優先核對：'+reasons.join('；'),'confidence-note'));
       const l=node('label',null,'check-label'),check=document.createElement('input');check.type='checkbox';check.addEventListener('change',()=>{r.ctn=M.normalize(r.ctn);r.steel=M.normalize(r.steel);r.confirmed=check.checked;updateChecks();save();});l.append(check,document.createTextNode('已對照原圖，完整編號與同列配對正確'));card.append(l);
       if(r.rawCtn||r.rawSteel)card.append(node('div','本機候選：'+(r.rawCtn||'未讀到')+' ／ '+(r.rawSteel||'未讀到'),'raw'));
       for(const [field,label] of [['ctn','CTN'],['steel','鋼號']])if(r[field+'Alternatives']?.length>1)card.append(node('div',label+' 候選不同：'+r[field+'Alternatives'].join(' ／ ')+'；請對照原圖。','raw'));
@@ -130,10 +134,10 @@
     });updateChecks();
   }
   function render() {
-    $('photo-wrap').hidden=!state.photo;$('empty-photo').hidden=!!state.photo;$('row-count').value=state.rowCount;$('split').value=state.split*100;$('split-label').textContent=Math.round(state.split*100)+'%';overlay();renderRows();
+    $('batch-rt').value=state.rt;$('photo-wrap').hidden=!state.photo;$('empty-photo').hidden=!!state.photo;$('row-count').value=state.rowCount;$('split').value=state.split*100;$('split-label').textContent=Math.round(state.split*100)+'%';overlay();renderRows();
   }
   function configurationChanged() {
-    cropCache.clear();state.rows.forEach(r=>{r.confirmed=false;});overlay();renderRows();save();
+    cropCache.clear();state.rows.forEach(r=>{r.confirmed=false;r.registered=null;});overlay();renderRows();save();
   }
   async function readFile(file) { return new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(reader.result);reader.onerror=()=>reject(Error('無法讀取檔案'));reader.readAsDataURL(file);}); }
   $('file').addEventListener('change',async()=>{
@@ -145,7 +149,7 @@
     catch(e){state=old;await decode(old.photo);render();status('照片讀取失敗，原草稿保留。'+e.message);}
   });
   function showAlignment(candidate,message,automatic=false){
-    RegistrationAligner.open(pixels,{quad:candidate.quad,split:candidate.split,rowLines:candidate.rowLines,rowCount:state.rowCount},next=>{
+    RegistrationAligner.open(pixels,{quad:candidate.quad,split:candidate.split,rowLines:candidate.rowLines,rowCount:state.rowCount,unmatched:candidate.unmatched||[]},next=>{
       setting=false;corners=[];$('photo').parentElement.classList.remove('setting');$('region-help').textContent='框選 CTN 與鋼號兩欄的資料區，不含標題及底部備註。';
       state.quad=next.quad;state.split=next.split;state.rowLines=next.rowLines;state.geometry='perspective';state.alignmentConfirmed=true;
       configurationChanged();render();status('已確認對齊。可建立校對列；原有文字保留，裁圖變更後請重新核對。');
@@ -166,7 +170,7 @@
     if(!setting||busy)return;const r=$('overlay').getBoundingClientRect();corners.push([(e.clientX-r.left)/r.width,(e.clientY-r.top)/r.height]);overlay();
     if(corners.length!==4)return;
     if(!M.quadValid(corners)){corners=[];overlay();status('四角位置不正確。請依左上、右上、右下、左下重新點選。');return;}
-    state.quad=corners;state.geometry='perspective';state.rowLines=A.boundaries(state.rowCount);state.alignmentConfirmed=true;corners=[];setting=false;$('photo').parentElement.classList.remove('setting');$('region-help').textContent='四角已更新。請查看裁圖有沒有跨列，必要時重新框選。';configurationChanged();status('範圍已更新，原核對標記已重設。');
+    const snapped=A.snap(pixels,corners,state.rowCount,state.split,A.boundaries(state.rowCount));const candidate={quad:corners,split:snapped.split,rowLines:snapped.rowLines,unmatched:Array.from({length:state.rowCount-1},(_,i)=>i+1).filter(i=>!snapped.matched.includes(i))};corners=[];setting=false;$('photo').parentElement.classList.remove('setting');overlay();showAlignment(candidate,`四角已拉正，自動貼齊 ${snapped.matched.length}／${state.rowCount-1} 條分界。請確認預覽，黃色圓點代表未找到的線。`,true);
   });
   $('sample-region').onclick=()=>{state.quad=structuredClone(preset);state.geometry='bilinear';state.rowLines=A.boundaries(state.rowCount);state.alignmentConfirmed=true;setting=false;corners=[];$('photo').parentElement.classList.remove('setting');configurationChanged();status('已套用這次 DEMO 紙本的兩欄範圍，請核對實際照片是否對齊。');};
   $('split').oninput=()=>{state.split=Number($('split').value)/100;$('split-label').textContent=Math.round(state.split*100)+'%';cropCache.clear();overlay();};
@@ -209,27 +213,30 @@
   window.addEventListener('registration-ocr-progress',e=>{if(!busy)return;const v=e.detail;if(v.stage==='download')$('engine-status').textContent='準備手寫模型 '+Math.round(v.loaded/v.total*100)+'%';else if(v.stage==='initialize')$('engine-status').textContent='準備本機手寫模型；首次需下載，可按停止。';else if(v.stage==='prepare')$('engine-status').textContent='模型已就緒，正在本機準備辨識…';});
   $('close-viewer').onclick=()=>closeDialog($('viewer'));$('zoom-in').onclick=()=>{zoom=Math.min(5,zoom+.5);setZoom();};$('zoom-out').onclick=()=>{zoom=Math.max(1,zoom-.5);setZoom();};
   function download(name,type,content){const url=URL.createObjectURL(new Blob([content],{type})),a=node('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}
-  $('csv').onclick=()=>{try{download('鋼瓶註冊-checklist.csv','text/csv;charset=utf-8',M.csv(state.rows));}catch(e){status(e.message);}};
+  $('csv').onclick=()=>{try{download('鋼瓶註冊-checklist.csv','text/csv;charset=utf-8',M.csv(state.rows,state.rt));}catch(e){status(e.message);}};
   $('backup').onclick=()=>download('鋼瓶註冊-DEMO-草稿.json','application/json',JSON.stringify(state));
   function validateDraft(value) {
-    if(![M.VERSION,M.GLYPH_VERSION,M.LEGACY_VERSION,M.PREVIOUS_VERSION,M.ZERO_VERSION].includes(value?.version)||!Array.isArray(value.rows)||value.rows.length>60||!M.quadValid(value.quad)||!Number.isInteger(value.rowCount)||value.rowCount<1||value.rowCount>60||!(value.split>=.2&&value.split<=.75))throw Error('草稿格式不相符');
+    if(![M.VERSION,M.ALIGNMENT_VERSION,M.GLYPH_VERSION,M.LEGACY_VERSION,M.PREVIOUS_VERSION,M.ZERO_VERSION].includes(value?.version)||!Array.isArray(value.rows)||value.rows.length>60||!M.quadValid(value.quad)||!Number.isInteger(value.rowCount)||value.rowCount<1||value.rowCount>60||!(value.split>=.2&&value.split<=.75))throw Error('草稿格式不相符');
     if(value.photo!==null&&(typeof value.photo!=='string'||value.photo.length>30*1024*1024||!/^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(value.photo)))throw Error('照片資料不正確');
-    const modern=value.version===M.VERSION;
+    const modern=[M.VERSION,M.ALIGNMENT_VERSION].includes(value.version);
     if(modern&&(!A.validLines(value.rowLines,value.rowCount)||!['perspective','bilinear'].includes(value.geometry)||typeof value.alignmentConfirmed!=='boolean'))throw Error('校正資料不正確');
-    const result=fresh();Object.assign(result,{photo:value.photo,quad:value.quad,rowCount:value.rowCount,split:value.split,geometry:modern?value.geometry:'bilinear',rowLines:modern?value.rowLines:A.boundaries(value.rowCount),alignmentConfirmed:modern?value.alignmentConfirmed:true});
-    result.rows=value.rows.map(r=>{if(r.sourceIndex!==null&&(!Number.isInteger(r.sourceIndex)||r.sourceIndex<0||r.sourceIndex>=value.rowCount))throw Error('紙本列不正確');const out=M.row(r.sourceIndex);for(const k of ['ctn','steel','rawCtn','rawSteel'])out[k]=String(r[k]||'').slice(0,200);for(const k of ['ctnAlternatives','steelAlternatives'])out[k]=Array.isArray(r[k])?r[k].slice(0,4).map(v=>String(v).slice(0,60)):[];for(const k of ['ctnSlashedZeros','steelSlashedZeros'])out[k]=Number.isInteger(r[k])?Math.max(0,Math.min(16,r[k])):0;for(const k of ['confirmed','edited','prefixApplied','ctnZeroReview','steelZeroReview','ctnGlyphReview','steelGlyphReview'])out[k]=r[k]===true;return out;});return result;
+    const result=fresh();Object.assign(result,{photo:value.photo,rt:typeof value.rt==='string'?value.rt.slice(0,30):'',quad:value.quad,rowCount:value.rowCount,split:value.split,geometry:modern?value.geometry:'bilinear',rowLines:modern?value.rowLines:A.boundaries(value.rowCount),alignmentConfirmed:modern?value.alignmentConfirmed:true});
+    result.rows=value.rows.map(r=>{if(r.sourceIndex!==null&&(!Number.isInteger(r.sourceIndex)||r.sourceIndex<0||r.sourceIndex>=value.rowCount))throw Error('紙本列不正確');const out=M.row(r.sourceIndex);for(const k of ['ctn','steel','rawCtn','rawSteel'])out[k]=String(r[k]||'').slice(0,200);for(const k of ['ctnAlternatives','steelAlternatives'])out[k]=Array.isArray(r[k])?r[k].slice(0,4).map(v=>String(v).slice(0,60)):[];for(const k of ['ctnSlashedZeros','steelSlashedZeros'])out[k]=Number.isInteger(r[k])?Math.max(0,Math.min(16,r[k])):0;for(const k of ['confirmed','edited','prefixApplied','ctnZeroReview','steelZeroReview','ctnGlyphReview','steelGlyphReview','ctnLowConfidence','steelLowConfidence'])out[k]=r[k]===true;for(const k of ['ctnScore','steelScore'])out[k]=Number.isFinite(r[k])?Math.max(0,Math.min(1,r[k])):null;if(value.version===M.VERSION&&r.registered){const v=r.registered;out.registered={rt:String(v.rt||''),ctn:String(v.ctn||''),steel:String(v.steel||''),at:String(v.at||'')};if(!M.registered(out,result.rt))out.registered=null;}return out;});return result;
   }
   $('restore').onchange=async()=>{const file=$('restore').files[0];$('restore').value='';if(!file)return;if(file.size>32*1024*1024){status('草稿檔案過大。');return;}if(hasWork()&&!confirm('匯入將取代目前草稿，確定繼續？'))return;const old=state;try{const next=validateDraft(JSON.parse(await file.text()));await decode(next.photo);state=next;render();save();status('草稿已匯入，請核對照片與清單。');}catch(e){state=old;await decode(old.photo);render();status('匯入失敗，原草稿保留：'+e.message);}};
   $('print').onclick=()=>{
-    if(!M.ready(state.rows)){status('請先完成核對。');return;}
-    const sheet=$('print-sheet');sheet.replaceChildren();sheet.append(node('h2','鋼瓶註冊 checklist'),node('p','DEMO · '+new Date().toLocaleDateString('zh-TW')+' · '+state.rows.length+' 支 · 紙本核對完成，正式註冊待確認'));
-    const table=node('table'),thead=node('thead'),head=node('tr');['序號','CTN','鋼瓶鋼號','紙本列','現場註冊確認'].forEach(v=>head.append(node('th',v)));thead.append(head);table.append(thead);const body=node('tbody');
-    state.rows.forEach((r,i)=>{const tr=node('tr');[i+1,M.normalize(r.ctn),M.normalize(r.steel),r.sourceIndex==null?'手動補列':r.sourceIndex+1,'□'].forEach(v=>tr.append(node('td',v)));body.append(tr);});table.append(body);sheet.append(table,node('p','填寫人員：________________　覆核人員：________________'),node('small','本清單不代表已登錄正式資料庫。'));
+    if(!M.outputReady(state.rows,state.rt)){status('請先完成逐支註冊確認。');return;}
+    const sheet=$('print-sheet');sheet.replaceChildren();sheet.append(node('h2','鋼瓶註冊 checklist'),node('p','DEMO · '+new Date().toLocaleDateString('zh-TW')+' · '+state.rows.length+' 支 · RT '+M.normalize(state.rt)+' · 本機人工確認完成，正式系統尚未寫入'));
+    const table=node('table'),thead=node('thead'),head=node('tr');['序號','RT','CTN','鋼瓶鋼號','紙本列','本機確認時間'].forEach(v=>head.append(node('th',v)));thead.append(head);table.append(thead);const body=node('tbody');
+    state.rows.forEach((r,i)=>{const tr=node('tr');[i+1,M.normalize(state.rt),M.normalize(r.ctn),M.normalize(r.steel),r.sourceIndex==null?'手動補列':r.sourceIndex+1,new Date(r.registered.at).toLocaleString('zh-TW')].forEach(v=>tr.append(node('td',v)));body.append(tr);});table.append(body);sheet.append(table,node('p','填寫人員：________________　覆核人員：________________'),node('small','本清單不代表已登錄正式資料庫。'));
     const printCopy=sheet.cloneNode(true);printCopy.removeAttribute('id');$('print-output').replaceChildren(printCopy);openDialog($('checklist-dialog'));
   };
   $('close-checklist').onclick=()=>closeDialog($('checklist-dialog'));$('do-print').onclick=()=>window.print();
   window.addEventListener('beforeunload',e=>{if(busy||saving){e.preventDefault();e.returnValue='';}});
   window.addEventListener('pagehide',()=>RegistrationOcr.stop());
   async function init(){try{db=await openDb();const cached=await new Promise((resolve,reject)=>{const r=db.transaction('draft').objectStore('draft').get('active');r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error);});if(cached){state=validateDraft(cached);await decode(state.photo);status('已恢復此瀏覽器上次的紙本與校對草稿。');}render();}catch(_){status('無法讀取本機草稿。請保留原照片，使用匯出草稿保存本輪結果。');render();}}
+  const registration=RegistrationFlow(()=>state,()=>{renderRows();save();});
+  $('start-registration').onclick=()=>registration.open();
+  $('batch-rt').oninput=()=>{const value=$('batch-rt').value;if(M.normalize(value)!==M.normalize(state.rt))state.rows.forEach(r=>{r.registered=null;});state.rt=value;updateChecks();save();};
   init();
 })();

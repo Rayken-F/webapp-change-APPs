@@ -1,7 +1,7 @@
 (function(){
   'use strict';
   const A=RegistrationAlignment,$=id=>document.getElementById(id),dialog=$('alignment-dialog');
-  let image,draft,accept,mode='corners',zoom=1,drag=null,returnY=0,focus,worker=null,ticket=0;
+  let image,draft,accept,mode='corners',zoom=1,drag=null,returnY=0,focus,worker=null,ticket=0,cornersDirty=false;
   const svg=(tag,attrs)=>{const el=document.createElementNS('http://www.w3.org/2000/svg',tag);Object.entries(attrs).forEach(([k,v])=>el.setAttribute(k,v));return el;};
   function overlay(){
     const canvas=$('alignment-image'),out=$('alignment-overlay'),w=canvas.width,h=canvas.height;
@@ -9,7 +9,7 @@
     const scale=w/Math.max(1,out.getBoundingClientRect().width),radius=10*scale;
     const handle=(p,index)=>{
       const chosen=String(index)===$('align-target').value;
-      out.append(svg('circle',{cx:p[0]*w,cy:p[1]*h,r:radius,class:'handle'+(chosen?' selected':''),'data-index':index}));
+      out.append(svg('circle',{cx:p[0]*w,cy:p[1]*h,r:radius,class:'handle'+(chosen?' selected':'')+(mode==='grid'&&draft.unmatched?.includes(index)?' unmatched':''),'data-index':index}));
       out.append(svg('circle',{cx:p[0]*w,cy:p[1]*h,r:22*scale,class:'hit','data-index':index}));
     };
     if(mode==='corners'){
@@ -32,6 +32,7 @@
     $('alignment-stage').style.width=(100*zoom)+'%';$('align-zoom-label').textContent=Math.round(100*zoom)+'%';overlay();
   }
   function changeMode(value){
+    if(value==='grid'&&cornersDirty)snap();
     mode=value;const select=$('align-target');select.replaceChildren();
     const option=(value,label)=>{const el=document.createElement('option');el.value=value;el.textContent=label;select.append(el);};
     if(mode==='corners'){['左上','右上','右下','左下'].forEach((s,i)=>option(i,s));$('alignment-help').textContent='只框 CTN＋鋼號的資料區：從第一列上緣到最後一列下緣，不含表頭、RT 欄或備註。';}
@@ -42,7 +43,7 @@
   function move(index,x,y){
     if(mode==='corners'){
       const q=draft.quad.map(p=>p.slice());q[Number(index)]=[Math.max(.002,Math.min(.998,x)),Math.max(.002,Math.min(.998,y))];
-      if(RegistrationModel.quadValid(q))draft.quad=q;
+      if(RegistrationModel.quadValid(q)){draft.quad=q;cornersDirty=true;}
     }else if(index==='split')draft.split=Math.max(.2,Math.min(.75,x));
     else {const i=Number(index),gap=.004;draft.rowLines[i]=Math.max(draft.rowLines[i-1]+gap,Math.min(draft.rowLines[i+1]-gap,y));}
     overlay();
@@ -57,17 +58,24 @@
     const r=out.getBoundingClientRect();move(index,p[0]+dx*2/r.width,p[1]+dy*2/r.height);
   };
   $('align-corners').onclick=()=>changeMode('corners');$('align-grid').onclick=()=>changeMode('grid');
+  function snap(){
+    const result=A.snap(image,draft.quad,draft.rowCount,draft.split,draft.rowLines);
+    draft.rowLines=result.rowLines;draft.split=result.split;cornersDirty=false;
+    $('alignment-message').textContent=`已自動貼齊 ${result.matched.length}／${draft.rowCount-1} 條內部分界。`+(result.missing?'未找到的線保留原位置，請檢查黃色圓點。':'請核對第一列、最後一列與兩欄分界後確認。');
+    draft.unmatched=Array.from({length:draft.rowCount-1},(_,i)=>i+1).filter(i=>!result.matched.includes(i));
+  }
+  $('align-snap').onclick=()=>{snap();changeMode('grid');};
   $('align-zoom-in').onclick=()=>{zoom=Math.min(3,zoom+.5);$('alignment-stage').style.width=(100*zoom)+'%';$('align-zoom-label').textContent=Math.round(100*zoom)+'%';overlay();};
   $('align-zoom-out').onclick=()=>{zoom=Math.max(1,zoom-.5);$('alignment-stage').style.width=(100*zoom)+'%';$('align-zoom-label').textContent=Math.round(100*zoom)+'%';overlay();};
   $('close-alignment').onclick=()=>dialog.close();
   dialog.addEventListener('close',()=>{drag=null;document.body.classList.remove('modal-open');focus?.focus({preventScroll:true});window.scrollTo(0,returnY);image=null;draft=null;});
   $('accept-alignment').onclick=()=>{
-    if(mode==='corners'){changeMode('grid');$('alignment-message').textContent='請再確認拉正後的格線與資料列一致，再按「確認對齊」。';return;}
+    if(mode==='corners'){changeMode('grid');return;}
     if(!RegistrationModel.quadValid(draft.quad)||!A.validLines(draft.rowLines,draft.rowCount))return;
     const result=structuredClone(draft),callback=accept;dialog.close();callback(result);
   };
   function open(source,settings,onAccept,message,automatic=false){
-    image=source;draft=structuredClone(settings);accept=onAccept;zoom=1;returnY=window.scrollY;focus=document.activeElement;
+    image=source;draft=structuredClone(settings);accept=onAccept;zoom=1;returnY=window.scrollY;focus=document.activeElement;cornersDirty=!automatic;
     $('alignment-message').textContent=message;dialog.showModal();document.body.classList.add('modal-open');changeMode(automatic?'grid':'corners');
   }
   function detect(source,rowCount){

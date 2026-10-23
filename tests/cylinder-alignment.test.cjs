@@ -1,15 +1,25 @@
 const {test}=require('node:test'),assert=require('node:assert/strict');
 const A=require('../DS-CYLINDER-REGISTRATION-DEMO/alignment');
-function photo(q,rows=16){
+function photo(q,rows=16,boundaries=A.boundaries(rows)){
   const width=640,height=800,data=new Uint8ClampedArray(width*height*4).fill(255),m=A.transform(q);
   function line(a,b){a=A.project(m,...a);b=A.project(m,...b);const count=Math.ceil(Math.hypot((a[0]-b[0])*width,(a[1]-b[1])*height)*2);
     for(let i=0;i<=count;i++){const x=Math.round((a[0]+(b[0]-a[0])*i/count)*width),y=Math.round((a[1]+(b[1]-a[1])*i/count)*height);for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){if(x+dx<0||x+dx>=width||y+dy<0||y+dy>=height)continue;const k=((y+dy)*width+x+dx)*4;data[k]=data[k+1]=data[k+2]=35;}}}
-  for(const x of [0,.18,.42,.76,1])line([x,0],[x,1]);for(let i=0;i<=rows;i++)line([0,i/rows],[1,i/rows]);return {width,height,data};
+  for(const x of [0,.18,.42,.76,1])line([x,0],[x,1]);for(const y of boundaries)line([0,y],[1,y]);return {width,height,data};
 }
 test('projective transform aligns all corners and round trips interior points',()=>{
   const q=[[.13,.14],[.81,.07],[.91,.85],[.06,.94]],m=A.transform(q),inv=A.inverse(m);
   for(const [i,p]of [[0,[0,0]],[1,[1,0]],[2,[1,1]],[3,[0,1]]])assert.ok(Math.hypot(...A.project(m,...p).map((v,j)=>v-q[i][j]))<1e-10);
   for(const p of [[.2,.3],[.7,.9],[.5,.5]])assert.ok(Math.hypot(...A.project(inv,...A.project(m,...p)).map((v,j)=>v-p[j]))<1e-10);
+});
+test('all uneven printed rules snap at once after perspective correction',()=>{
+  const q=[[.16,.12],[.86,.18],[.97,.88],[.05,.78]],m=A.transform(q),b=A.boundaries(16).map((v,i)=>i&&i<16?v+Math.sin(i)*.011:v);
+  const dataQuad=[[.18,0],[.76,0],[.76,1],[.18,1]].map(p=>A.project(m,...p)),result=A.snap(photo(q,16,b),dataQuad,16,.42);
+  assert.equal(result.matched.length,15);b.forEach((v,i)=>assert.ok(Math.abs(result.rowLines[i]-v)<.005,`boundary ${i}`));
+  assert.ok(Math.abs(result.split-(.42-.18)/(.76-.18))<.01);
+});
+test('snap with no reliable printed rules retains existing manual positions',()=>{
+  const p=[0,.2,.53,.81,1],image={width:400,height:600,data:new Uint8ClampedArray(400*600*4).fill(255)},result=A.snap(image,[[0,0],[1,0],[1,1],[0,1]],4,.42,p);
+  assert.equal(result.missing,3);assert.deepEqual(result.rowLines,p);assert.equal(result.split,.42);
 });
 test('nonuniform row boundaries reject overlaps, missing edges and non-finite data',()=>{
   assert.ok(A.validLines([0,.12,.5,.9,1],4));for(const v of [[0,.5,.49,1],[0,.5,NaN,1],[.1,.3,.5,1],[0,.3,.5,.9]])assert.equal(A.validLines(v,3),false);
