@@ -35,7 +35,18 @@ test('missing values, shorthand and formula-like input cannot pass export', () =
 });
 test('CSV retains leading zeros as string content and source ordering', () => {
   const rows=[make('AB12CDE','000123'),{...make('AB12CDF','000124'),sourceIndex:null}];rows.forEach(r=>r.confirmed=true);
-  assert.equal(M.ready(rows),true);const csv=M.csv(rows);assert.ok(csv.includes('"000123"'));assert.ok(csv.includes('"手動新增"'));assert.ok(csv.startsWith('\ufeff'));assert.ok(csv.indexOf('AB12CDE')<csv.indexOf('AB12CDF'));
+  assert.equal(M.ready(rows),true);rows.forEach((r,i)=>M.complete(rows,'001234',i));const csv=M.csv(rows,'001234');assert.ok(csv.includes('"000123"'));assert.ok(csv.includes('"001234"'));assert.ok(csv.includes('"手動新增"'));assert.ok(csv.startsWith('\ufeff'));assert.ok(csv.indexOf('AB12CDE')<csv.indexOf('AB12CDF'));
+});
+test('RT and exact reviewed identifiers bind registration; edits and re-review invalidate completion',()=>{
+  const rows=[make('AB12CDE','000123'),make('AB12CDF','000124')];rows.forEach(r=>r.confirmed=true);
+  assert.throws(()=>M.complete(rows,'',0));assert.equal(M.outputReady(rows,'001234'),false);
+  M.complete(rows,'001234',0);M.complete(rows,'001234',1);assert.equal(M.outputReady(rows,'001234'),true);
+  assert.equal(M.outputReady(rows,'001235'),false);rows[0].steel='000125';assert.equal(M.outputReady(rows,'001234'),false);
+  M.complete(rows,'001234',0);assert.equal(M.outputReady(rows,'001234'),true);rows[0].confirmed=false;assert.equal(M.outputReady(rows,'001234'),false);
+});
+test('uncertain, conflicting and missing model scores flag review without changing text',()=>{
+  const r=make('','');M.applyCandidate(r,{text:'AB12CDE',score:.99,alternatives:['AB12CDE']},{text:'000123',score:.98,alternatives:['000123']});assert.equal(M.confidence(r).length,0);
+  r.steelAlternatives.push('000124');assert.ok(M.confidence(r).some(s=>s.includes('候選')));r.steelAlternatives=[];r.ctnScore=.5;assert.ok(M.confidence(r).length);assert.equal(r.ctn,'AB12CDE');
 });
 test('four corner geometry rejects crossing, invalid, and upside-down quadrilaterals', () => {
   assert.equal(M.quadValid([[.2,.1],[.7,.1],[.75,.7],[.2,.8]]),true);

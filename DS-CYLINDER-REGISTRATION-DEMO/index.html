@@ -9,13 +9,15 @@
   <script defer src="alignment.js"></script>
   <script defer src="ocr.js"></script>
   <script defer src="alignment-ui.js"></script>
+  <script defer src="vendor/JsBarcode.code128-3.11.6.min.js"></script>
+  <script defer src="registration.js"></script>
   <script defer src="app.js"></script>
 </head>
 <body>
-  <header><div class="brand-mark" aria-hidden="true">CR</div><div><small>CYLINDER REGISTRATION</small><h1>鋼瓶註冊系統</h1><p>新鋼瓶註冊、註冊紙本辨識、checklist生成</p></div><span class="tag">本機 DEMO 0.5</span></header>
+  <header><div class="brand-mark" aria-hidden="true">CR</div><div><small>CYLINDER REGISTRATION</small><h1>鋼瓶註冊系統</h1><p>新鋼瓶註冊、註冊紙本辨識、checklist生成</p></div><span class="tag">本機 DEMO 0.6</span></header>
   <main>
-    <section class="intro"><div><span class="eyebrow">PAPER → REVIEW → CHECKLIST</span><h2>一張紙本，逐支核對。</h2><p>每格寫完整 CTN 與鋼號，數字 0 畫斜線、字母 O 不畫線。保留原圖對照，核對完成後產生註冊清單。</p></div><div class="local-badge"><span>●</span> 照片留在本機<br><small>尚未連接正式註冊資料庫</small></div></section>
-    <nav class="steps" aria-label="作業步驟"><a href="#intake"><b>01</b> 加入紙本</a><a href="#review"><b>02</b> 逐列核對</a><a href="#output"><b>03</b> 產生 checklist</a></nav>
+    <section class="intro"><div><span class="eyebrow">PAPER → REVIEW → REGISTER → CHECKLIST</span><h2>一張紙本，逐支核對。</h2><p>每格寫完整 CTN 與鋼號，數字 0 畫斜線、字母 O 不畫線。保留原圖對照，核對完成後逐支顯示條碼，再產生清單。</p></div><div class="local-badge"><span>●</span> 照片留在本機<br><small>尚未連接正式註冊資料庫</small></div></section>
+    <nav class="steps" aria-label="作業步驟"><a href="#intake"><b>01</b> 加入紙本</a><a href="#review"><b>02</b> 逐列核對</a><a href="#registration"><b>03</b> 逐支註冊</a><a href="#output"><b>04</b> checklist</a></nav>
     <div id="status" role="status" aria-live="polite">加入 JPEG／PNG 照片開始。第一版支援單張紙本。</div>
     <div class="workspace">
       <section id="intake" class="panel source-panel">
@@ -34,26 +36,33 @@
         <p id="save-state" class="hint">草稿自動保存在此瀏覽器。</p>
       </section>
       <section id="review" class="panel review-panel">
+        <label class="batch-rt">本批 RT（手動填寫）<input id="batch-rt" type="text" maxlength="30" autocomplete="off" spellcheck="false" placeholder="請輸入本批 RT"><small id="rt-help">同批共用；修改 RT 後需重新完成逐支確認。</small></label>
         <div class="section-title"><h2>02 <span>逐列核對</span></h2><button id="add">＋ 補一列</button></div>
         <div class="review-summary"><strong id="counts">0 / 0 已核對</strong><span>原列裁圖與完整編號對照</span></div>
-        <p class="hint">黃色表示待核對。注意 O／0、I／1、S／5；斜線 0 依字形產生候選；Y／R、0／6 會依兩次圖像複核保留候選，仍須核對。</p>
+        <p class="hint">黃色底卡表示字形信心不足、候選衝突或格式有問題。模型分數不是正確率；即使沒有黃底，也須逐列對照原圖。</p>
         <div id="rows"><div class="empty">加入紙本後建立校對列，或直接手動補列。</div></div>
       </section>
     </div>
-    <section id="output" class="panel output-panel"><div><span class="eyebrow">READY FOR REVIEW</span><h2>03 <span>產生 checklist</span></h2><p id="export-state">每列填寫並核對完成後即可輸出。</p><p class="hint">DEMO 清單：序號、CTN、鋼號、紙本列、核對狀態、現場註冊確認。列印版保留前導 0；CSV 匯入 Excel 時，編號欄請選「文字」。</p></div><div class="toolbar"><button id="print" disabled class="primary">預覽／列印 checklist</button><button id="csv" disabled>下載 CSV</button><button id="backup">匯出本機草稿</button><label class="button">匯入草稿<input id="restore" type="file" accept="application/json,.json"></label></div></section>
-    <footer>CYL-REG-DEMO-0.5-20261023 · 僅建立核對清單，尚未完成正式註冊</footer>
+    <section id="registration" class="panel output-panel"><div><span class="eyebrow">ONE CYLINDER AT A TIME</span><h2>03 <span>逐支註冊</span></h2><p id="registration-state">填寫 RT，逐列核對後開始。</p><p class="hint">每次顯示一組 CTN／鋼號條碼。完成註冊會保存此裝置的人工確認進度，尚未寫入正式資料庫。</p></div><button id="start-registration" class="primary" disabled>開始／繼續逐支註冊</button></section>
+    <section id="output" class="panel output-panel"><div><span class="eyebrow">READY FOR REVIEW</span><h2>04 <span>產生 checklist</span></h2><p id="export-state">逐支註冊確認完成後才可輸出。</p><p class="hint">目前提供暫定清單，正式 checklist 範本待下一階段提供。包含 RT、CTN、鋼號、紙本列與本機確認時間。列印版保留前導 0；CSV 匯入 Excel 時，編號欄請選「文字」。</p></div><div class="toolbar"><button id="print" disabled class="primary">預覽／列印 checklist</button><button id="csv" disabled>下載 CSV</button><button id="backup">匯出本機草稿</button><label class="button">匯入草稿<input id="restore" type="file" accept="application/json,.json"></label></div></section>
+    <footer>CYL-REG-DEMO-0.6-20261024 · 本機人工確認與條碼 DEMO，尚未連接正式註冊資料庫</footer>
   </main>
   <dialog id="viewer"><div class="dialog-head"><h2 id="viewer-title">原列對照</h2><button id="close-viewer" aria-label="關閉原列對照">關閉</button></div><div class="toolbar"><button id="zoom-out" aria-label="縮小">－</button><span id="zoom-label">100%</span><button id="zoom-in" aria-label="放大">＋</button></div><p class="hint">放大後可滑動查看；關閉會回到原本核對位置。</p><div class="pan"><img id="crop-large" alt="該列 CTN 與鋼號原圖"></div></dialog>
   <dialog id="checklist-dialog"><div class="dialog-head"><h2>Checklist 預覽</h2><div class="toolbar"><button id="do-print" class="primary">列印／存為 PDF</button><button id="close-checklist">關閉</button></div></div><div id="print-sheet"></div></dialog>
   <dialog id="alignment-dialog">
     <div class="dialog-head"><h2>校正預覽</h2><button id="close-alignment">稍後再調</button></div>
     <p id="alignment-message" class="hint" role="status"></p>
-    <div class="toolbar"><button id="align-corners">原圖四角</button><button id="align-grid">拉正格線</button><button id="align-zoom-out" aria-label="縮小校正圖">－</button><span id="align-zoom-label">100%</span><button id="align-zoom-in" aria-label="放大校正圖">＋</button></div>
+    <div class="toolbar"><button id="align-corners">原圖四角</button><button id="align-grid">拉正格線</button><button id="align-snap">自動貼齊格線</button><button id="align-zoom-out" aria-label="縮小校正圖">－</button><span id="align-zoom-label">100%</span><button id="align-zoom-in" aria-label="放大校正圖">＋</button></div>
     <p id="alignment-help" class="hint"></p>
     <div id="alignment-pan"><div id="alignment-stage"><canvas id="alignment-image"></canvas><svg id="alignment-overlay" aria-label="拖曳校正位置"></svg></div></div>
     <div class="alignment-nudge"><label>微調位置<select id="align-target"></select></label><button id="align-left" aria-label="向左微調">←</button><button id="align-up" aria-label="向上微調">↑</button><button id="align-down" aria-label="向下微調">↓</button><button id="align-right" aria-label="向右微調">→</button></div>
     <p class="hint">可放大後拖曳圓點，或選位置用箭頭微調。格線要落在紙本橫線上；每列的 CTN 與鋼號須配成同一支。</p>
     <button id="accept-alignment" class="primary wide">確認對齊</button>
+  </dialog>
+  <dialog id="registration-dialog" aria-labelledby="registration-title">
+    <div class="registration-top"><div class="dialog-head"><h2 id="registration-title">逐支註冊</h2><button id="close-registration" class="quiet">返回核對</button></div><div class="barcode-card rt-code"><b>RT <span id="registration-rt-value"></span></b><div class="barcode-scroll"><svg id="barcode-rt" aria-label="RT 一維碼"></svg></div></div><div class="registration-nav"><button id="registration-previous" class="quiet">上一支</button><span id="registration-position"></span><button id="registration-next" class="quiet">下一支</button></div></div>
+    <div id="registration-body"><div class="barcode-card"><b>CTN</b><strong id="registration-ctn-value"></strong><div class="barcode-scroll"><svg id="barcode-ctn" aria-label="CTN 一維碼"></svg></div></div><div class="barcode-card"><b>鋼瓶鋼號</b><strong id="registration-steel-value"></strong><div class="barcode-scroll"><svg id="barcode-steel" aria-label="鋼號一維碼"></svg></div></div><div id="registration-edit-fields" class="fields" hidden><label>修改 CTN<input id="registration-edit-ctn" type="text" maxlength="60" autocomplete="off" spellcheck="false"></label><label>修改鋼號<input id="registration-edit-steel" type="text" maxlength="60" autocomplete="off" spellcheck="false"></label></div><p id="registration-error" role="status"></p><p class="hint">條碼為 Code 128。長碼可左右滑動查看；「完成註冊」記錄本機人工確認，沒有送出正式註冊。</p></div>
+    <div class="registration-actions"><button id="complete-registration" class="primary">完成註冊</button><button id="edit-registration">人工即時修改</button></div>
   </dialog>
   <section id="print-output" aria-hidden="true"></section>
 </body></html>

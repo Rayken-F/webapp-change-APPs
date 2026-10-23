@@ -1,0 +1,44 @@
+const fs=require('fs'),path=require('path'),http=require('http'),assert=require('assert/strict');
+const {chromium}=require(process.env.PLAYWRIGHT_MODULE||'playwright');
+const root=path.resolve(__dirname,'..'),out=process.env.REG_ARTIFACTS||fs.mkdtempSync(path.join(require('os').tmpdir(),'registration-flow-'));
+fs.mkdirSync(out,{recursive:true});let checks=0;const ok=(label,value)=>{assert.ok(value,label);console.log('PASS '+label);checks++;};
+(async()=>{
+ const server=http.createServer((req,res)=>{const file=path.resolve(root,'.'+new URL(req.url,'http://local').pathname);if(!file.startsWith(root+path.sep))return res.writeHead(403).end();try{res.setHeader('Content-Type',file.endsWith('.js')?'text/javascript':file.endsWith('.css')?'text/css':'text/html');res.end(fs.readFileSync(file));}catch{res.writeHead(404).end();}});
+ await new Promise(r=>server.listen(0,'127.0.0.1',r));const base='http://127.0.0.1:'+server.address().port,browser=await chromium.launch({headless:true,executablePath:process.env.EDGE_EXECUTABLE});
+ try{
+  const context=await browser.newContext({viewport:{width:402,height:874},isMobile:true,hasTouch:true}),page=await context.newPage(),errors=[],external=[];
+  page.on('pageerror',e=>errors.push(e.message));page.on('dialog',d=>d.accept());await context.route('**/*',r=>{if(!r.request().url().startsWith(base)){external.push(r.request().url());return r.abort();}return r.continue();});
+  await page.goto(base+'/DS-CYLINDER-REGISTRATION-DEMO/index.html');
+  const draft=await page.evaluate(()=>({version:RegistrationModel.VERSION,photo:null,rt:'',quad:[[.1,.1],[.9,.1],[.9,.9],[.1,.9]],split:.4,rowCount:2,geometry:'perspective',rowLines:[0,.45,1],alignmentConfirmed:true,rows:[{...RegistrationModel.row(0),ctn:'AB12CDE',steel:'26A000123',ctnScore:.7,steelScore:.99},{...RegistrationModel.row(1),ctn:'AB12CDF',steel:'26A000124',ctnScore:.99,steelScore:.99}]}));
+  const restore=async d=>{await page.locator('#restore').setInputFiles({name:'test.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(d))});await page.locator('#status').filter({hasText:'草稿已匯入'}).waitFor();};
+  const saved=()=>page.locator('#save-state').filter({hasText:'草稿已保存'}).waitFor();
+  await restore(draft);ok('low score gets actual yellow card while confident row keeps normal background',await page.locator('.row-card').first().evaluate(e=>getComputedStyle(e).backgroundColor==='rgb(255, 230, 160)')&&await page.locator('.low-confidence').count()===1);
+  await page.screenshot({path:path.join(out,'yellow-mobile.png'),fullPage:true});
+  const checksUI=page.locator('.check-label input');await checksUI.nth(0).check();await checksUI.nth(1).check();
+  ok('review alone cannot start registration or export without RT',await page.locator('#start-registration').isDisabled()&&await page.locator('#print').isDisabled());
+  await page.locator('#batch-rt').fill('001234');await page.locator('#start-registration').click();
+  ok('one cylinder and three exact barcode values',await page.locator('#barcode-rt').getAttribute('data-value')==='001234'&&await page.locator('#barcode-ctn').getAttribute('data-value')==='AB12CDE'&&await page.locator('#barcode-steel').getAttribute('data-value')==='26A000123');
+  for(const field of ['rt','ctn','steel'])await page.locator('#barcode-'+field).screenshot({path:path.join(out,'barcode-'+field+'.png')});
+  await page.screenshot({path:path.join(out,'barcode-mobile.png')});
+  ok('RT and bottom actions fit phone viewport',await page.locator('.registration-top').evaluate(e=>e.getBoundingClientRect().top>=0)&&await page.locator('.registration-actions').evaluate(e=>e.getBoundingClientRect().bottom<=innerHeight+1));
+  await page.locator('#complete-registration').click();ok('completion advances to next cylinder and keeps RT',await page.locator('#barcode-ctn').getAttribute('data-value')==='AB12CDF'&&await page.locator('#barcode-rt').getAttribute('data-value')==='001234');
+  await page.locator('#complete-registration').evaluate(e=>e.click());ok('immediate second click cannot skip next cylinder',await page.locator('#registration-dialog').isVisible());
+  await page.locator('#close-registration').click();await saved();await page.reload();await page.locator('.row-card').nth(1).waitFor();
+  await page.locator('#start-registration').click();ok('reload resumes first uncompleted cylinder',await page.locator('#barcode-ctn').getAttribute('data-value')==='AB12CDF');
+  await page.locator('#edit-registration').click();await page.locator('#registration-edit-steel').fill('26A000125');
+  ok('typing edits immediately replaces current barcode and blocks completion',await page.locator('#barcode-steel').getAttribute('data-value')==='26A000125'&&await page.locator('#complete-registration').isDisabled());
+  await page.locator('#barcode-steel').screenshot({path:path.join(out,'barcode-edited-steel.png')});
+  await page.locator('#registration-edit-ctn').fill('AB12CDE');ok('duplicate edit hides invalid barcode and blocks confirmation',await page.locator('#barcode-ctn').isHidden()&&(await page.locator('#registration-error').textContent()).includes('重複'));
+  await page.locator('#edit-registration').click();ok('invalid edit cannot leave correction mode',await page.locator('#registration-edit-fields').isVisible());
+  await page.locator('#registration-edit-ctn').fill('AB12CDG');await page.locator('#edit-registration').click();await page.locator('#complete-registration').click();
+  ok('last completion unlocks checklist',!(await page.locator('#registration-dialog').isVisible())&&await page.locator('#print').isEnabled());
+  await page.locator('#print').click();ok('checklist uses current RT and corrected values',await page.locator('#print-sheet tbody tr').count()===2&&(await page.locator('#print-sheet').textContent()).includes('AB12CDG')&&(await page.locator('#print-sheet').textContent()).includes('26A000125')&&(await page.locator('#print-sheet').textContent()).includes('001234'));await page.locator('#close-checklist').click();
+  const download=page.waitForEvent('download');await page.locator('#backup').click();const backup=JSON.parse(fs.readFileSync(await(await download).path(),'utf8'));await restore(backup);ok('backup retains registration snapshot and leading zero RT',await page.locator('#print').isEnabled()&&await page.locator('#batch-rt').inputValue()==='001234');
+  await page.locator('#batch-rt').fill('001235');ok('changing batch RT invalidates all completion snapshots',await page.locator('#print').isDisabled()&&(await page.locator('#registration-state').textContent()).startsWith('0／2'));
+  const old={...backup,version:'CYL-REG-DEMO-0.5-20261023'};delete old.rt;await restore(old);ok('0.5 migration preserves reviewed text and nonuniform geometry, without inventing registration',await page.locator('[data-field=ctn]').last().inputValue()==='AB12CDG'&&await checksUI.last().isChecked()&&await page.locator('#batch-rt').inputValue()===''&&await page.locator('#print').isDisabled());
+  const moved=await page.evaluate(()=>new Promise(resolve=>{const r=indexedDB.open('ds-cylinder-registration-demo-v1');r.onsuccess=()=>{const t=r.result.transaction('draft').objectStore('draft').get('active');t.onsuccess=()=>resolve(t.result);};}));
+  await saved();ok('model scores are not presented as guaranteed accuracy',!(await page.locator('#review').textContent()).includes('準確率 99'));
+  ok('no outgoing network or browser errors',external.length===0&&errors.length===0);
+  fs.writeFileSync(path.join(out,'checks.json'),JSON.stringify({checks,errors,external},null,2));console.log(JSON.stringify({checks,out}));
+ }finally{await browser.close();await new Promise(r=>server.close(r));}
+})().catch(e=>{console.error(e);process.exitCode=1;});

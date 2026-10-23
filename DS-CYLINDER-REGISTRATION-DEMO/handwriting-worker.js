@@ -67,6 +67,30 @@ self.onmessage=async event=>{
         const checks=[];for(const source of [raw,ink||H.padded(raw)])checks.push(await reread(source,reviewSession,reviewChars));
         result=H.refine(result,checks,'6','0',.9);
       }
+      const groups=ink&&field==='steel'&&zeros.length?H.segments(ink):[],groupResults=[];
+      for(const group of groups){
+        const boxes=Z.detect(group),clean=boxes.length?Z.clean(group,boxes):null,options=[];
+        for(const source of [group,clean])if(source)for(const [engine,dictionary]of[[session,chars],[reviewSession,reviewChars]]){
+          const decoded=await reread(source,engine,dictionary),text=decoded.text.toUpperCase().replace(/\s+/g,'');
+          if(/^[A-Z0-9-]+$/.test(text))options.push({...decoded,text,clean:source===clean});
+          if(source===group&&boxes.length){
+            const input=H.tensor(group),corrected=Z.apply(decoded,boxes,group.width,input.resizedWidth,input.dims[3]);
+            if(corrected&&/^[A-Z0-9-]+$/.test(corrected.text))options.push({...corrected,clean:false,evidence:true,alreadyZero:corrected.text===text&&corrected.slashedZeros===boxes.length});
+          }
+        }
+        // If the original image already reads every evidenced zero, do not let a normalized-zero
+        // reread change unrelated digits (for example the neighbouring 7 into 1).
+        const preserved=options.filter(o=>o.alreadyZero&&o.score>=.65);
+        const ranked=preserved.length?preserved:options;
+        ranked.sort((a,b)=>{const rank=r=>r.score+Math.min(2,options.filter(o=>o.text===r.text).length-1)*.08+(r.evidence?.12:0)+(r.clean&&((r.text.match(/0/g)||[]).length>=boxes.length)? .08:0);return rank(b)-rank(a);});
+        const best=ranked[0];if(!best){groupResults.length=0;break;}
+        groupResults.push({...best,agree:options.filter(o=>o.text===best.text).length,zeros:boxes.length,options:options.map(o=>o.text)});
+      }
+      if(groupResults.length){
+        const text=groupResults.map(g=>g.text).join(''),score=Math.min(...groupResults.map(g=>g.score)),valid=field==='ctn'?/^(?:[A-Z0-9]{3}|[A-Z0-9]{7})$/.test(text):/^[A-Z0-9-]+$/.test(text);
+        const base=result.text.replace(/\s/g,''),numeric=/^\d+$/.test(base);
+        if(valid&&score>=.65&&!(numeric&&(/[A-Z]/.test(text)||result.glyphReview)))result={...result,text,score,slashedZeros:groupResults.reduce((s,g)=>s+g.zeros,0),alternatives:[text,...result.alternatives].filter((v,i,a)=>a.indexOf(v)===i).slice(0,4),segmented:true,lowConfidence:groupResults.some(g=>g.agree<2||g.score<.9),groups:groupResults.map(g=>({text:g.text,score:g.score,options:g.options,zeros:g.zeros}))};
+      }
       postMessage({id,result});
     }else throw fault('REQUEST');
   }catch(e){postMessage({id,error:e.code||'OCR_ERROR'});}finally{busy=false;}
