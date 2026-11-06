@@ -29,7 +29,7 @@
       codes();$('registration-body').scrollTop=0;
     }
     for(const field of ['ctn','steel'])$('registration-edit-'+field).addEventListener('input',()=>{
-      const r=getState().rows[index];r[field]=$('registration-edit-'+field).value;r.edited=true;r.confirmed=false;r.registered=null;onChange();codes();
+      const r=getState().rows[index];M.edit(r,field,$('registration-edit-'+field).value);onChange();codes();
     });
     $('edit-registration').onclick=()=>{
       if(editing){
