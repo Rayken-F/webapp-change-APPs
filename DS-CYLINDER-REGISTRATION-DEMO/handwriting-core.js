@@ -1,5 +1,5 @@
 /* Pure preprocessing/CTC routines. No model answers, network or business data. */
-(function(root,factory){if(typeof module==='object'&&module.exports)module.exports=factory();else root.RegistrationHandwriting=factory();})(typeof self==='undefined'?this:self,function(){
+(function(root,factory){if(typeof module==='object'&&module.exports)module.exports=factory(require('./rules.js'));else root.RegistrationHandwriting=factory(root.RegistrationRules);})(typeof self==='undefined'?this:self,function(R){
   'use strict';
   const normalize=v=>String(v||'').normalize('NFKC').toUpperCase().replace(/\s+/g,'');
   function rgb(source){
@@ -72,15 +72,35 @@
     const n=chars.length,steps=pred.dims[1],tokens=[];let last=0,text='',sum=0,count=0;
     for(let i=0;i<steps;i++){
       let best=0;for(let j=1;j<n;j++)if(pred.data[i*n+j]>pred.data[i*n+best])best=j;
-      if(best&&best!==last){text+=chars[best];sum+=pred.data[i*n+best];count++;tokens.push({text:chars[best],position:(i+.5)/steps,step:1/steps,score:pred.data[i*n+best]});}last=best;
+      if(best&&best!==last){text+=chars[best];sum+=pred.data[i*n+best];count++;const options=[];for(let j=1;j<n;j++){const score=pred.data[i*n+j];if(score>=.05&&/^[A-Za-z0-9]$/.test(chars[j]))options.push({text:chars[j].toUpperCase(),score});}options.sort((a,b)=>b.score-a.score);tokens.push({text:chars[best],position:(i+.5)/steps,step:1/steps,score:pred.data[i*n+best],options:options.slice(0,5)});}last=best;
     }
     return {text:text.trim(),score:count?sum/count:0,tokens};
   }
+  function constrain(decoded,field){
+    // Substitute only alternatives actually present in that glyph's CTC distribution.
+    // Never insert/delete a glyph or infer a missing prefix from a format rule.
+    const tokens=(decoded.tokens||[]).filter(t=>normalize(t.text)),length=tokens.length;
+    if(!length||tokens.some(t=>normalize(t.text).length!==1)||!R.allowed(field,0,length))return null;
+    let changed=false,sum=0;const chosen=[];
+    for(let i=0;i<length;i++){
+      const t=tokens[i],allowed=R.allowed(field,i,length),text=normalize(t.text);
+      if(allowed.test(text)){chosen.push(text);sum+=t.score;continue;}
+      const alt=(t.options||[]).find(o=>allowed.test(o.text)&&o.score>=.05&&o.score>=t.score*.15);
+      if(!alt)return null;
+      chosen.push(alt.text);sum+=alt.score;changed=true;
+    }
+    return changed?{text:chosen.join(''),score:sum/length,glyphReview:true,lowConfidence:true}:null;
+  }
   function choose(results,field){
-    const valid=t=>field==='ctn'?(/^(?:[A-Z0-9]{3}|[A-Z0-9]{2}[0-9]{2}[A-Z0-9]{3})$/.test(normalize(t))?2:/^[A-Z0-9]{7}$/.test(normalize(t))?1:0):/^[A-Z0-9][A-Z0-9-]*$/.test(normalize(t));
-    const choices=results.filter(r=>r.text.trim()).sort((a,b)=>Number(valid(b.text))-Number(valid(a.text))||Number(!!b.slashedZeros)-Number(!!a.slashedZeros)||b.score-a.score);
+    const choices=results.filter(r=>r.text.trim());
+    const agreement=r=>Math.min(2,choices.filter(v=>normalize(v.text)===normalize(r.text)).length-1)*.03;
+    choices.sort((a,b)=>R.rank(b.text,field)-R.rank(a.text,field)||(b.score+agreement(b))-(a.score+agreement(a)));
     const best=choices[0]||{text:'',score:0},alternatives=[...new Set(choices.map(r=>normalize(r.text)))];
-    return {text:best.text,score:best.score,alternatives,slashedZeros:best.slashedZeros||0,unverifiedZeros:Math.max(0,(best.text.match(/0/g)||[]).length-(best.slashedZeros||0)),review:alternatives.length>1?'辨識候選不同，請核對':!best.text?'未讀到文字':best.score<.85?'字形不確定，請核對':'仍需對照原圖核對'};
+    const text=normalize(best.text),length=text.length,last=best.tokens?.filter(t=>normalize(t.text)).at(-1);
+    const lastReview=field==='ctn'&&([3,7].includes(length))&&((last&&last.score<.9)||alternatives.some(v=>v.length===length&&v.slice(0,-1)===text.slice(0,-1)&&v.at(-1)!==text.at(-1)));
+    return {text:best.text,score:best.score,alternatives,glyphReview:!!best.glyphReview,lastReview:!!lastReview,
+      lowConfidence:!!best.lowConfidence||best.score<.9||alternatives.length>1,
+      review:alternatives.length>1?'辨識候選不同，請核對':!best.text?'未讀到文字':'仍需對照原圖核對'};
   }
   function segments(source){
     const {width:w,height:h}=source,bands=[];let start=-1,last=-1;
@@ -89,5 +109,5 @@
     if(start>=0)bands.push([start,last]);if(bands.length<2||bands.length>5)return [];
     return bands.map(([left,right])=>{let top=h,bottom=0;for(let y=0;y<h;y++)for(let x=left;x<=right;x++)if(source.data[(y*w+x)*3]<170){top=Math.min(top,y);bottom=Math.max(bottom,y);}const pad=12,width=right-left+1+pad*2,height=bottom-top+1+pad*2,data=new Uint8ClampedArray(width*height*3).fill(255);for(let y=top;y<=bottom;y++)for(let x=left;x<=right;x++)for(let c=0;c<3;c++)data[((y-top+pad)*width+x-left+pad)*3+c]=source.data[(y*w+x)*3+c];return {width,height,data};});
   }
-  return {rgb,blueInk,tensor,decode,choose,thicken,padded,refine,segments};
+  return {rgb,blueInk,tensor,decode,constrain,choose,thicken,padded,refine,segments};
 });

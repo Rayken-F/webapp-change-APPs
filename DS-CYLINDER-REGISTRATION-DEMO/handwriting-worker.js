@@ -1,5 +1,5 @@
 'use strict';
-importScripts('handwriting-core.js','slashed-zero.js');
+importScripts('rules.js','handwriting-core.js');
 const MODEL='https://huggingface.co/PaddlePaddle/en_PP-OCRv5_mobile_rec_onnx/resolve/3fafbc3b5dcf93dd72add9f48368be8a3a2cd33b/inference.onnx';
 const HASH='b5f833dfc5d0eb71da397b4efa06ebeee9b431b690a47d6af40d77d8eabc557f',BYTES=7848423;
 const REVIEW_MODEL='https://huggingface.co/PaddlePaddle/PP-OCRv6_small_rec_onnx/resolve/b8f84f0b80c529de40b4fbb3544b84fa7233a513/inference.onnx';
@@ -48,56 +48,17 @@ self.onmessage=async event=>{
     if(type==='init'){await initialize();postMessage({id,result:true});}
     else if(type==='recognize'){
       if(!session)throw fault('NOT_READY');
-      const H=RegistrationHandwriting,Z=RegistrationSlashedZero,raw=H.rgb(image),ink=H.blueInk(raw),results=[],zeros=Z.detect(ink||raw);
-      for(const [source,variant] of [[raw,'原圖'],[ink,'藍筆去線']]){
-        if(!source)continue;const input=H.tensor(source),tensor=new ort.Tensor('float32',input.data,input.dims);let output;
-        try{
-          output=await session.run({[session.inputNames[0]]:tensor});const decoded=H.decode(output[session.outputNames[0]],chars);results.push({...decoded,variant});
-          const corrected=Z.apply(decoded,zeros,source.width,input.resizedWidth,input.dims[3],source===raw&&ink?ink.offsetX:0);
-          if(corrected)results.push({...corrected,variant:variant+'／斜線0'});
+      if(!['ctn','steel'].includes(field))throw fault('REQUEST');
+      const H=RegistrationHandwriting,raw=H.rgb(image),ink=H.blueInk(raw),results=[];
+      // Both fields use the original pixels and the same ordinary-zero recognition path.
+      // The independent model also rereads valid CTNs: a valid last character can still be wrong.
+      for(const source of [raw,ink||H.padded(raw)]){
+        for(const [engine,dictionary]of [[session,chars],[reviewSession,reviewChars]]){
+          const decoded=await reread(source,engine,dictionary);results.push(decoded);
+          const constrained=H.constrain(decoded,field);if(constrained)results.push(constrained);
         }
-        finally{tensor.dispose();if(output)Object.values(output).forEach(t=>t.dispose());}
       }
-      let result=H.choose(results,field);
-      if(field==='ctn'&&/^[A-Z0-9]{7}$/i.test(result.text.replace(/\s/g,''))&&!/^[A-Z0-9]{2}[0-9]{2}[A-Z0-9]{3}$/i.test(result.text.replace(/\s/g,''))){
-        // Position rules rank observed candidates; they never turn I/O into 1/0 by text substitution.
-        for(const source of [raw,ink||H.padded(raw)])results.push({...await reread(source,reviewSession,reviewChars),variant:'CTN 數字位置複核'});
-        const reviewed=H.choose(results,field);
-        if(/^[A-Z0-9]{2}[0-9]{2}[A-Z0-9]{3}$/i.test(reviewed.text.replace(/\s/g,'')))result=reviewed;
-        else result={...result,alternatives:[...new Set([...result.alternatives,...reviewed.alternatives])].slice(0,4)};
-      }
-      if(ink&&/R/i.test(result.text)){
-        const checks=[];for(const radius of [1,2])checks.push(await reread(H.thicken(ink,radius)));
-        result=H.refine(result,checks,'R','Y',.65);
-      }
-      if(/6/.test(result.text)){
-        const checks=[];for(const source of [raw,ink||H.padded(raw)])checks.push(await reread(source,reviewSession,reviewChars));
-        result=H.refine(result,checks,'6','0',.9);
-      }
-      const groups=ink&&field==='steel'&&zeros.length?H.segments(ink):[],groupResults=[];
-      for(const group of groups){
-        const boxes=Z.detect(group),clean=boxes.length?Z.clean(group,boxes):null,options=[];
-        for(const source of [group,clean])if(source)for(const [engine,dictionary]of[[session,chars],[reviewSession,reviewChars]]){
-          const decoded=await reread(source,engine,dictionary),text=decoded.text.toUpperCase().replace(/\s+/g,'');
-          if(/^[A-Z0-9-]+$/.test(text))options.push({...decoded,text,clean:source===clean});
-          if(source===group&&boxes.length){
-            const input=H.tensor(group),corrected=Z.apply(decoded,boxes,group.width,input.resizedWidth,input.dims[3]);
-            if(corrected&&/^[A-Z0-9-]+$/.test(corrected.text))options.push({...corrected,clean:false,evidence:true,alreadyZero:corrected.text===text&&corrected.slashedZeros===boxes.length});
-          }
-        }
-        // If the original image already reads every evidenced zero, do not let a normalized-zero
-        // reread change unrelated digits (for example the neighbouring 7 into 1).
-        const preserved=options.filter(o=>o.alreadyZero&&o.score>=.65);
-        const ranked=preserved.length?preserved:options;
-        ranked.sort((a,b)=>{const rank=r=>r.score+Math.min(2,options.filter(o=>o.text===r.text).length-1)*.08+(r.evidence?.12:0)+(r.clean&&((r.text.match(/0/g)||[]).length>=boxes.length)? .08:0);return rank(b)-rank(a);});
-        const best=ranked[0];if(!best){groupResults.length=0;break;}
-        groupResults.push({...best,agree:options.filter(o=>o.text===best.text).length,zeros:boxes.length,options:options.map(o=>o.text)});
-      }
-      if(groupResults.length){
-        const text=groupResults.map(g=>g.text).join(''),score=Math.min(...groupResults.map(g=>g.score)),valid=field==='ctn'?/^(?:[A-Z0-9]{3}|[A-Z0-9]{7})$/.test(text):/^[A-Z0-9-]+$/.test(text);
-        const base=result.text.replace(/\s/g,''),numeric=/^\d+$/.test(base);
-        if(valid&&score>=.65&&!(numeric&&(/[A-Z]/.test(text)||result.glyphReview)))result={...result,text,score,slashedZeros:groupResults.reduce((s,g)=>s+g.zeros,0),alternatives:[text,...result.alternatives].filter((v,i,a)=>a.indexOf(v)===i).slice(0,4),segmented:true,lowConfidence:groupResults.some(g=>g.agree<2||g.score<.9),groups:groupResults.map(g=>({text:g.text,score:g.score,options:g.options,zeros:g.zeros}))};
-      }
+      const result=H.choose(results,field);
       postMessage({id,result});
     }else throw fault('REQUEST');
   }catch(e){postMessage({id,error:e.code||'OCR_ERROR'});}finally{busy=false;}

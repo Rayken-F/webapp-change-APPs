@@ -37,7 +37,7 @@ test('only spatially evidenced glyph changes, keeping genuine O/6/9 and the orig
   assert.equal(Z.apply(before,[],100,100,100),null);
   const after=Z.apply(before,[{left:20,right:39}],100,100,100);
   assert.equal(after.text,'A069B');assert.equal(after.slashedZeros,1);assert.equal(before.text,'AO69B');
-  const selected=H.choose([before,after],'steel');assert.equal(selected.text,'A069B');assert(selected.alternatives.includes('AO69B'));
+  const selected=H.choose([before,after],'steel');assert.equal(selected.text,'AO69B','retired slash metadata no longer overrides ordinary model ranking');assert(selected.alternatives.includes('AO69B'));
   const row=M.row(0);M.applyCandidate(row,selected,'000001');assert.equal(row.confirmed,false);
   row.edited=true;assert.equal(M.applyCandidate(row,{text:'ZZZ'},'000002'),false);
 });
@@ -69,8 +69,8 @@ test('tiny loop gaps are repaired within a crossed glyph without modifying the s
   const before=zero.data.slice();assert.equal(Z.detect(zero,false).length,0);const boxes=Z.detect(zero);assert.equal(boxes.length,1);assert.match(boxes[0].reason,/^repaired-/);assert.deepEqual(zero.data,before);
   assert.equal(Z.apply({text:'AB',tokens:[{text:'A',position:.1},{text:'B',position:.9}]},boxes,90,90,90),null);
 });
-test('a model zero without slash evidence remains explicitly marked for O/0 review',()=>{
-  const selected=H.choose([{text:'26A00069',score:.99,slashedZeros:2}],'steel');assert.equal(selected.unverifiedZeros,1);
-  const row=M.row(0);M.applyCandidate(row,{text:'AB0CDEF',slashedZeros:1,unverifiedZeros:0},selected);
-  assert.equal(row.ctnZeroReview,false);assert.equal(row.steelZeroReview,true);assert.equal(row.confirmed,false);
+test('ordinary zero does not require slash evidence or trigger a slash warning',()=>{
+  const selected=H.choose([{text:'26A00069',score:.99,slashedZeros:2}],'steel');assert.equal(selected.unverifiedZeros,undefined);
+  const row=M.row(0);M.applyCandidate(row,{text:'AB00CD0',score:.99},selected);
+  assert.equal(row.ctnZeroReview,false);assert.equal(row.steelZeroReview,false);assert.equal(row.confirmed,false);assert.equal(M.confidence(row).length,0);
 });

@@ -10,6 +10,7 @@
   const button = (text, action) => { const n = node('button', text); n.type = 'button'; n.addEventListener('click', action); return n; };
   const hasWork = () => state.photo || state.rows.length;
   const cropCache = new Map();
+  let scanTargetId='';
   function openDb() {
     return new Promise((resolve, reject) => {
       const request = indexedDB.open('ds-cylinder-registration-demo-v1', 1);
@@ -98,6 +99,12 @@
       card.classList.toggle('confirmed',r.confirmed&&!errors[i].length);card.classList.toggle('low-confidence',errors[i].length>0||(!r.confirmed&&M.confidence(r).length>0));card.querySelector('.problems').textContent=errors[i].join(' · ')|| (r.confirmed?'已核對完整編號與配對':'請對照原圖確認完整編號與同列配對');
       const check=card.querySelector('input[type=checkbox]');check.checked=r.confirmed&&!errors[i].length;check.disabled=errors[i].length>0||busy;
     });
+    state.rows.forEach(r=>{
+      const card=$('row-'+r.id);if(!card)return;
+      const reasons=M.confidence(r),note=card.querySelector('.confidence-note');note.textContent=reasons.length?'優先核對：'+reasons.join('；'):'';note.hidden=!reasons.length;
+      const badge=card.querySelector('.ctn-source');badge.textContent=r.ctnSource==='scanner'?'CTN 來源：掃描器 · 已保護，辨識不會覆蓋':r.ctnSource==='manual'?'CTN 來源：人工輸入／修改':'';badge.hidden=!badge.textContent;
+      card.querySelectorAll('.ctn-evidence').forEach(n=>{n.hidden=r.ctnSource==='scanner';});
+    });
     const count=state.rows.filter((r,i)=>r.confirmed&&!errors[i].length).length;$('counts').textContent=count+' / '+state.rows.length+' 已核對';
     const ready=M.ready(state.rows),outputReady=M.outputReady(state.rows,state.rt),registered=state.rows.filter(r=>M.registered(r,state.rt)).length;
     $('print').disabled=$('csv').disabled=!outputReady||busy;
@@ -106,7 +113,7 @@
     $('rt-help').textContent=state.rt&&!M.rtValid(state.rt)?'RT 請使用英數字或連字號，最多 30 碼。':'同批共用；修改 RT 後需重新完成逐支確認。';
     $('export-state').textContent=outputReady?'本批已完成本機確認，可輸出暫定 checklist。':`尚有 ${state.rows.length-count} 列待核對、${state.rows.length-registered} 支待完成註冊確認。`;
     $('build').disabled=busy||!state.alignmentConfirmed;
-    $('recognize').disabled=!state.alignmentConfirmed||!pixels||!state.rows.some(r=>r.sourceIndex!=null&&!r.edited&&!r.confirmed)||busy||setting;
+    $('recognize').disabled=!state.alignmentConfirmed||!pixels||!state.rows.some(r=>r.sourceIndex!=null&&(!M.locked(r,'ctn')||!M.locked(r,'steel')))||busy||setting;
   }
   function renderRows() {
     const root=$('rows');root.replaceChildren();
@@ -118,21 +125,52 @@
       const c=crop(r.sourceIndex);if(c){const pic=button('',()=>viewRow(r));pic.className='row-photo';pic.setAttribute('aria-label','放大紙本第 '+(r.sourceIndex+1)+' 列');pic.append(c);card.append(pic);}
       const fields=node('div',null,'fields');
       for(const [name,label]of[['ctn','完整 CTN'],['steel','完整鋼瓶鋼號']]){
-        const l=node('label',label),input=document.createElement('input');input.type='text';input.value=r[name];input.autocomplete='off';input.spellcheck=false;input.maxLength=60;input.dataset.field=name;
-        input.addEventListener('input',()=>{r[name]=input.value;r.edited=true;r.confirmed=false;r.registered=null;updateChecks();save();});l.append(input);fields.append(l);
+        const l=node('label',label),input=document.createElement('input');input.type='text';input.value=r[name];input.autocomplete='off';input.spellcheck=false;input.dataset.field=name;
+        input.addEventListener('input',()=>{M.edit(r,name,input.value);updateChecks();save();});l.append(input);fields.append(l);
       }
       card.append(fields,node('p','', 'problems'));
-      const reasons=M.confidence(r);if(reasons.length)card.append(node('div','優先核對：'+reasons.join('；'),'confidence-note'));
+      card.append(node('div','','ctn-source'),node('div','','confidence-note'));
       const l=node('label',null,'check-label'),check=document.createElement('input');check.type='checkbox';check.addEventListener('change',()=>{r.ctn=M.normalize(r.ctn);r.steel=M.normalize(r.steel);r.confirmed=check.checked;updateChecks();save();});l.append(check,document.createTextNode('已對照原圖，完整編號與同列配對正確'));card.append(l);
-      if(r.rawCtn||r.rawSteel)card.append(node('div','本機候選：'+(r.rawCtn||'未讀到')+' ／ '+(r.rawSteel||'未讀到'),'raw'));
-      for(const [field,label] of [['ctn','CTN'],['steel','鋼號']])if(r[field+'Alternatives']?.length>1)card.append(node('div',label+' 候選不同：'+r[field+'Alternatives'].join(' ／ ')+'；請對照原圖。','raw'));
-      for(const [field,label] of [['ctn','CTN'],['steel','鋼號']])if(r[field+'SlashedZeros'])card.append(node('div',label+' 辨識時依斜線 0 字形產生候選（'+r[field+'SlashedZeros']+' 個），仍須對照原圖核對。','raw'));
-      for(const [field,label] of [['ctn','CTN'],['steel','鋼號']])if(r[field+'ZeroReview'])card.append(node('div',label+' 原辨識候選含未確認斜線的 0，請特別核對 O／0。','hint'));
-      for(const [field,label] of [['ctn','CTN'],['steel','鋼號']])if(r[field+'GlyphReview'])card.append(node('div',label+' 已依兩次本機字形複核更新候選，原候選仍保留；請對照原圖確認。','hint'));
+      if(r.rawSteel)card.append(node('div','鋼號原候選：'+r.rawSteel,'raw'));
+      if(r.rawCtn)card.append(node('div','CTN 原候選：'+r.rawCtn,'raw ctn-evidence'));
+      for(const [field,label] of [['ctn','CTN'],['steel','鋼號']])if(r[field+'Alternatives']?.length>1)card.append(node('div',label+' 候選不同：'+r[field+'Alternatives'].join(' ／ ')+'；請對照原圖。',field==='ctn'?'raw ctn-evidence':'raw'));
+      for(const [field,label] of [['ctn','CTN'],['steel','鋼號']])if(r[field+'GlyphReview'])card.append(node('div',label+' 已依字形候選及格式規則篩選，原候選仍保留；請對照原圖確認。',field==='ctn'?'hint ctn-evidence':'hint'));
       if(r.prefixApplied)card.append(node('div','已套用人員確認的共用前綴','raw'));
       root.append(card);
-    });updateChecks();
+    });updateChecks();renderScanner();
   }
+  function renderScanner(){
+    const select=$('scan-target');select.replaceChildren();
+    if(!state.rows.some(r=>r.id===scanTargetId)){
+      scanTargetId=state.rows[0]?.id||'';$('scan-input').value='';
+      $('scan-status').textContent='請確認對應列，再掃描 CTN 條碼。';
+    }
+    state.rows.forEach((r,i)=>{const option=node('option',`${i+1} · ${r.sourceIndex==null?'手動新增':'紙本第 '+(r.sourceIndex+1)+' 列'} · ${r.ctn||'CTN 待掃描'}`);option.value=r.id;select.append(option);});
+    select.value=scanTargetId;
+    for(const id of ['scan-target','scan-input','scan-submit','scan-focus'])$(id).disabled=!state.rows.length;
+    const r=state.rows.find(r=>r.id===scanTargetId);
+    $('scan-pair').textContent=r?`目前對應鋼號：${r.steel||'待辨識／填寫'}。請核對紙本列序。`:'請先建立校對列，或按「補一列」。';
+  }
+  function submitScan(){
+    const input=$('scan-input');if(!input.value.trim())return;
+    const index=state.rows.findIndex(r=>r.id===scanTargetId),r=state.rows[index];
+    try{
+      const changed=M.scanCtn(state.rows.map(v=>({...v})),index,input.value);
+      if(!changed){$('scan-status').textContent='同一列已保存此 CTN，沒有重複新增。';input.value='';return;}
+      const next=M.normalize(input.value);
+      if(r.ctn&&M.normalize(r.ctn)!==next&&!confirm(`第 ${index+1} 列 CTN 將由 ${r.ctn} 改為 ${next}。確認這是同一列鋼瓶？`)){$('scan-status').textContent='已取消更換，原 CTN 保留。';return;}
+      M.scanCtn(state.rows,index,input.value);input.value='';
+      const advance=$('scan-advance').checked&&index+1<state.rows.length;
+      if(advance)scanTargetId=state.rows[index+1].id;
+      $('scan-status').textContent=`已保存第 ${index+1} 列：${r.ctn}。`+(advance?`下一筆對應第 ${index+2} 列。`:index===state.rows.length-1?'已到最後一列；請核對 CTN 與鋼號配對。':'停留在此列。');
+      renderRows();save();
+    }catch(e){$('scan-status').textContent=e.message;input.select();}
+    input.focus({preventScroll:true});
+  }
+  $('scan-submit').onclick=submitScan;
+  $('scan-focus').onclick=()=>{$('scan-input').focus();$('scan-input').select();};
+  $('scan-input').addEventListener('keydown',e=>{if((e.key==='Enter'||e.key==='Tab')&&!e.isComposing&&e.currentTarget.value.trim()){e.preventDefault();submitScan();}});
+  $('scan-target').onchange=()=>{scanTargetId=$('scan-target').value;$('scan-input').value='';$('scan-status').textContent='已切換對應列，請重新掃描這一列的 CTN。';renderScanner();};
   function render() {
     $('batch-rt').value=state.rt;$('photo-wrap').hidden=!state.photo;$('empty-photo').hidden=!!state.photo;$('row-count').value=state.rowCount;$('split').value=state.split*100;$('split-label').textContent=Math.round(state.split*100)+'%';overlay();renderRows();
   }
@@ -194,12 +232,12 @@
   }
   $('recognize').onclick=async()=>{
     if(busy||!pixels)return;busy=true;stopping=false;controlsBusy(true);
-    const work=state.rows.filter(r=>r.sourceIndex!=null&&!r.edited&&!r.confirmed);let completed=0;
+    const work=state.rows.filter(r=>r.sourceIndex!=null&&(!M.locked(r,'ctn')||!M.locked(r,'steel')));let completed=0;
     try{
       for(const r of work){
         if(stopping)break;status(`本機試辨識第 ${r.sourceIndex+1} 列／共 ${state.rowCount} 列。手寫候選須核對；可隨時停止。`);
-        const ctn=await RegistrationOcr.recognize(crop(r.sourceIndex,'ctn'),'ctn');if(stopping)break;
-        const steel=await RegistrationOcr.recognize(crop(r.sourceIndex,'steel'),'steel');if(stopping)break;
+        const ctn=M.locked(r,'ctn')?null:await RegistrationOcr.recognize(crop(r.sourceIndex,'ctn'),'ctn');if(stopping)break;
+        const steel=M.locked(r,'steel')?null:await RegistrationOcr.recognize(crop(r.sourceIndex,'steel'),'steel');if(stopping)break;
         const applied=M.applyCandidate(r,ctn,steel);completed++;$('progress').value=completed/work.length;
         // Do not rebuild editable rows during a running recognition; preserve focus and edits.
         if(applied){const card=$('row-'+r.id);for(const name of ['ctn','steel'])card.querySelector(`[data-field=${name}]`).value=r[name];}
@@ -216,12 +254,26 @@
   $('csv').onclick=()=>{try{download('鋼瓶註冊-checklist.csv','text/csv;charset=utf-8',M.csv(state.rows,state.rt));}catch(e){status(e.message);}};
   $('backup').onclick=()=>download('鋼瓶註冊-DEMO-草稿.json','application/json',JSON.stringify(state));
   function validateDraft(value) {
-    if(![M.VERSION,M.FLOW_VERSION,M.ALIGNMENT_VERSION,M.GLYPH_VERSION,M.LEGACY_VERSION,M.PREVIOUS_VERSION,M.ZERO_VERSION].includes(value?.version)||!Array.isArray(value.rows)||value.rows.length>60||!M.quadValid(value.quad)||!Number.isInteger(value.rowCount)||value.rowCount<1||value.rowCount>60||!(value.split>=.2&&value.split<=.75))throw Error('草稿格式不相符');
+    const supported=[M.VERSION,M.RULES_PREVIOUS_VERSION,M.FLOW_VERSION,M.ALIGNMENT_VERSION,M.GLYPH_VERSION,M.LEGACY_VERSION,M.PREVIOUS_VERSION,M.ZERO_VERSION];
+    if(!supported.includes(value?.version)||!Array.isArray(value.rows)||value.rows.length>60||!M.quadValid(value.quad)||!Number.isInteger(value.rowCount)||value.rowCount<1||value.rowCount>60||!(value.split>=.2&&value.split<=.75))throw Error('草稿格式不相符');
     if(value.photo!==null&&(typeof value.photo!=='string'||value.photo.length>30*1024*1024||!/^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(value.photo)))throw Error('照片資料不正確');
-    const modern=[M.VERSION,M.FLOW_VERSION,M.ALIGNMENT_VERSION].includes(value.version);
+    const modern=[M.VERSION,M.RULES_PREVIOUS_VERSION,M.FLOW_VERSION,M.ALIGNMENT_VERSION].includes(value.version);
     if(modern&&(!A.validLines(value.rowLines,value.rowCount)||!['perspective','bilinear'].includes(value.geometry)||typeof value.alignmentConfirmed!=='boolean'))throw Error('校正資料不正確');
     const result=fresh();Object.assign(result,{photo:value.photo,rt:typeof value.rt==='string'?value.rt.slice(0,30):'',quad:value.quad,rowCount:value.rowCount,split:value.split,geometry:modern?value.geometry:'bilinear',rowLines:modern?value.rowLines:A.boundaries(value.rowCount),alignmentConfirmed:modern?value.alignmentConfirmed:true});
-    result.rows=value.rows.map(r=>{if(r.sourceIndex!==null&&(!Number.isInteger(r.sourceIndex)||r.sourceIndex<0||r.sourceIndex>=value.rowCount))throw Error('紙本列不正確');const out=M.row(r.sourceIndex);for(const k of ['ctn','steel','rawCtn','rawSteel'])out[k]=String(r[k]||'').slice(0,200);for(const k of ['ctnAlternatives','steelAlternatives'])out[k]=Array.isArray(r[k])?r[k].slice(0,4).map(v=>String(v).slice(0,60)):[];for(const k of ['ctnSlashedZeros','steelSlashedZeros'])out[k]=Number.isInteger(r[k])?Math.max(0,Math.min(16,r[k])):0;for(const k of ['confirmed','edited','prefixApplied','ctnZeroReview','steelZeroReview','ctnGlyphReview','steelGlyphReview','ctnLowConfidence','steelLowConfidence'])out[k]=r[k]===true;for(const k of ['ctnScore','steelScore'])out[k]=Number.isFinite(r[k])?Math.max(0,Math.min(1,r[k])):null;if([M.VERSION,M.FLOW_VERSION].includes(value.version)&&r.registered){const v=r.registered;out.registered={rt:String(v.rt||''),ctn:String(v.ctn||''),steel:String(v.steel||''),at:String(v.at||'')};if(!M.registered(out,result.rt))out.registered=null;}return out;});return result;
+    result.rows=value.rows.map(r=>{
+      if(r.sourceIndex!==null&&(!Number.isInteger(r.sourceIndex)||r.sourceIndex<0||r.sourceIndex>=value.rowCount))throw Error('紙本列不正確');
+      const out=M.row(r.sourceIndex);
+      for(const k of ['ctn','steel','rawCtn','rawSteel'])out[k]=String(r[k]||'');
+      for(const k of ['ctnAlternatives','steelAlternatives'])out[k]=Array.isArray(r[k])?r[k].slice(0,8).map(String):[];
+      for(const k of ['confirmed','edited','prefixApplied','ctnEdited','steelEdited','ctnLastReview','ctnGlyphReview','steelGlyphReview','ctnLowConfidence','steelLowConfidence'])out[k]=r[k]===true;
+      if(value.version===M.VERSION&&['scanner','manual','prefix','ocr'].includes(r.ctnSource))out.ctnSource=r.ctnSource;
+      for(const k of ['ctnScore','steelScore'])out[k]=Number.isFinite(r[k])?Math.max(0,Math.min(1,r[k])):null;
+      if(M.issues([out])[0].length)out.confirmed=false;
+      if([M.VERSION,M.RULES_PREVIOUS_VERSION,M.FLOW_VERSION].includes(value.version)&&r.registered){const v=r.registered;out.registered={rt:String(v.rt||''),ctn:String(v.ctn||''),steel:String(v.steel||''),at:String(v.at||'')};if(!M.registered(out,result.rt))out.registered=null;}
+      return out;
+    });
+    M.issues(result.rows).forEach((errors,i)=>{if(errors.length){result.rows[i].confirmed=false;result.rows[i].registered=null;}});
+    return result;
   }
   $('restore').onchange=async()=>{const file=$('restore').files[0];$('restore').value='';if(!file)return;if(file.size>32*1024*1024){status('草稿檔案過大。');return;}if(hasWork()&&!confirm('匯入將取代目前草稿，確定繼續？'))return;const old=state;try{const next=validateDraft(JSON.parse(await file.text()));await decode(next.photo);state=next;render();save();status('草稿已匯入，請核對照片與清單。');}catch(e){state=old;await decode(old.photo);render();status('匯入失敗，原草稿保留：'+e.message);}};
   $('print').onclick=()=>{
