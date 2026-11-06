@@ -1,0 +1,22 @@
+{
+  "id": "CYL-ZERO-AB-1-20261025",
+  "purpose": "Artificial transcription-only identifiers; never register in a production system.",
+  "rows": [
+    { "ctn": "AB20KH0", "steel": "24B103008" },
+    { "ctn": "CD02KHO", "steel": "24B099080" },
+    { "ctn": "EF00Y06", "steel": "24B100067" },
+    { "ctn": "GH10R60", "steel": "24B100187" },
+    { "ctn": "JK01O0Q", "steel": "24B099073" },
+    { "ctn": "LM90QO0", "steel": "24B100046" },
+    { "ctn": "NP09YKR", "steel": "24B100024" },
+    { "ctn": "QR60R6Y", "steel": "24B099049" },
+    { "ctn": "ST06B08", "steel": "24B100035" },
+    { "ctn": "UV30D0O", "steel": "24B100042" },
+    { "ctn": "WX03YI1", "steel": "24B099036" },
+    { "ctn": "YZ80S05", "steel": "24B100072" },
+    { "ctn": "AC08YK9", "steel": "24B099164" },
+    { "ctn": "BD70YM5", "steel": "24B099014" },
+    { "ctn": "CE21R68", "steel": "24B163971" },
+    { "ctn": "DF21YRS", "steel": "24B267155" }
+  ]
+}
