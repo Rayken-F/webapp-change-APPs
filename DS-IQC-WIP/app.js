@@ -93,7 +93,7 @@ function toast(message,error){
     clearTimeout(toast.drawerTimer);
     toast.drawerTimer=setTimeout(()=>{
       drawerEl.classList.add("hidden");
-    },4200);
+    },7200);
     return;
   }
 
@@ -107,7 +107,7 @@ function toast(message,error){
   clearTimeout(toast.timer);
   toast.timer=setTimeout(()=>{
     globalEl.classList.add("hidden");
-  },3600);
+  },6600);
 }
 
 function normalizeCtn(value){
@@ -193,7 +193,7 @@ async function bootstrap(){
   const result=await Api.post("bootstrap",{});
   state.bootstrap=result;
   state.user=result.user;
-  $("versionPill").textContent=result.version+" · IQC-X1";
+  $("versionPill").textContent=result.version+" · IQC-X1 / T1";
   $("userPill").textContent=`${result.user.displayName}｜${result.user.role}`;
   $("reviewTabBtn").classList.toggle("hidden",!result.permissions.canReview);
   $("requestType").innerHTML=REQUEST_TYPES.map(item=>
