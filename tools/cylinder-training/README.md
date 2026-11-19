@@ -38,3 +38,48 @@ integration validation before any deployment.
 
 Do not commit photographs, labels, dataset manifests, predictions, weights,
 checkpoints, or private paths to this public repository.
+
+## Preprocessing audit and matched continuation
+
+The original pilot used fixed-width evaluation. The application instead keeps
+aspect ratio, reads both the original and blue-ink views, and ranks evidenced CTC
+alternatives with the field format. `analyze_preprocessing.py` measures those
+differences on P03 using the actual application JavaScript through a local Node
+stdio bridge. No photographs leave the computer.
+
+```text
+python analyze_preprocessing.py --dataset DATASET --paddleocr PADDLEOCR --weights WEIGHTS --pilot-run FIRST_PILOT --output PRIVATE_NEW_AUDIT --node NODE_EXECUTABLE
+```
+
+Optionally add `--steel-left-margin 48` to compare a uniform extra margin from
+the rectified source tables. The tool verifies historical crop geometry against
+the frozen image pixels first. New images and their derivation hashes go only
+to the new output directory; original crops, labels, exclusions, and writer
+splits remain unchanged. This correction does not test automatic table detection.
+
+The audit runs both the original pretrained weights and the frozen pilot candidate
+through four paths: raw, ink, both views, and both views with evidenced positional
+alternatives. It uses one V5 model, not the deployed V5+V6 ensemble. The positional
+decoder never inserts missing characters or substitutes from the answer labels.
+
+```text
+python train_matched.py --dataset DATASET --paddleocr PADDLEOCR --pilot-run FIRST_PILOT --run-dir PRIVATE_NEW_RUN --node NODE_EXECUTABLE
+```
+
+This second experiment starts from the frozen first-pilot candidate. It uniformly
+extends the steel crop 48 pixels left for P01-P03 and checks the starting model on
+these same revised validation inputs before any updates. Each training sample
+alternates raw/ink views across exactly two epochs, with aspect-preserving inputs,
+batch size 2, learning rate 0.0000025, and frozen batch-normalizer statistics.
+It adds no crop augmentation. Validation uses the same dual-view browser code.
+
+Selection prioritizes steel exact-string accuracy and requires neither steel nor
+CTN accuracy to fall below the starting-model result. If no checkpoint improves,
+the original candidate is retained and `new_weights_selected` is false. Outputs
+record source snapshots/hashes, crop provenance, the baseline, each epoch, raw-view
+and final-decoder metrics, and the selected checkpoint hash. They do not deploy
+or export a browser model. P04 images are never opened by either new tool.
+
+The v1 `holdout` command is not valid for this new profile: a future held-out check
+must freeze and use the same crop/preprocessing/decoder protocol for all compared
+models. Keep P04 untouched until that candidate and protocol are finalized.
