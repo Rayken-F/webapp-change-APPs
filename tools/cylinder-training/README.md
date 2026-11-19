@@ -154,6 +154,14 @@ images. The original two views remain in training. Augmented feature caches also
 require matching augmentation profiles and helper source hashes. These variations
 increase training views, not the number of real writers or independent samples.
 
+`--visual-tail` also adapts only the backbone's final `blocks6` group at learning
+rate 0.000001. Earlier visual layers and all running batch statistics stay fixed.
+It caches the output of `blocks5` rather than the pooled backbone output; caches
+from those stages cannot be mixed. The official sequence encoder's input detach
+is disabled only to allow gradients to reach that group, without changing forward
+values. Cached inference is again compared with the complete model, every selected
+parameter must receive finite gradients, and every frozen tensor must stay equal.
+
 Selection additionally rejects a checkpoint if any previously correct P03 string
 becomes wrong. All frozen weights and batch statistics are verified unchanged.
 Better training loss is not evidence of better recognition: report exact-string

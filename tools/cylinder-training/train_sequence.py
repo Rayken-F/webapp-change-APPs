@@ -17,15 +17,34 @@ from ctc_alignment import aligned_character_frames, focused_positions
 from augment_handwriting import PROFILES, varied_handwriting
 
 
-def configure_trainable(model):
+def configure_trainable(model, visual_tail=False):
     names = []
+    prefixes = ("head.ctc_encoder.", "head.ctc_head.fc.")
+    if visual_tail:
+        prefixes += ("backbone.blocks6.",)
     for name, parameter in model.named_parameters():
-        allowed = (name.startswith(("head.ctc_encoder.", "head.ctc_head.fc."))
+        allowed = (name.startswith(prefixes)
                    and not name.endswith(("._mean", "._variance")))
         parameter.stop_gradient = not allowed
         if allowed:
             names.append(name)
     return names
+
+
+def cached_visual_features(model, image, visual_tail):
+    if not visual_tail:
+        return model.backbone(image)
+    x = model.backbone.conv1(image)
+    for name in ('blocks2', 'blocks3', 'blocks4', 'blocks5'):
+        x = getattr(model.backbone, name)(x)
+    return x
+
+
+def sequence_logits(model, features, visual_tail):
+    if visual_tail:
+        import paddle.nn.functional as F
+        features = F.avg_pool2d(model.backbone.blocks6(features), [3, 2])
+    return model.head.ctc_head.fc(model.head.ctc_encoder(features))
 
 
 def main():
@@ -36,6 +55,7 @@ def main():
     parser.add_argument("--seed", type=int, default=20261121)
     parser.add_argument("--focus-weight", type=float, choices=[0.0, 0.05], default=0.05)
     parser.add_argument("--augment", action="store_true", help="Add fixed small width/slant variations to training only")
+    parser.add_argument("--visual-tail", action="store_true", help="Also adapt only the last visual block group")
     args = parser.parse_args()
     root, source, audit_dir, prior, out = [p.resolve() for p in
                                          (args.dataset, args.paddleocr, args.audit, args.prior_run, args.run_dir)]
@@ -90,7 +110,10 @@ def main():
     assert all(list(state[k].shape) == list(v.shape) for k, v in model.state_dict().items())
     model.set_state_dict(state)
     model.eval()  # Keep batch statistics and dropout fixed; gradients still train the selected weights.
-    trainable_names = configure_trainable(model)
+    if args.visual_tail:
+        # Official use_guide detaches visual input. Change gradient flow only, not inference math.
+        model.head.ctc_encoder.encoder.use_guide = False
+    trainable_names = configure_trainable(model, args.visual_tail)
     assert trainable_names and any(k.startswith("head.ctc_encoder.") for k in trainable_names)
     frozen_hashes = {k: hashlib.sha256(v.numpy().tobytes()).hexdigest() for k, v in state.items() if k not in trainable_names}
     out.mkdir(parents=True, exist_ok=False)
@@ -107,7 +130,10 @@ def main():
            "gradient_accumulation": 4, "ctc_loss": "normalized by label length",
            "focused_ce_weight": args.focus_weight, "focused_targets": "training 9/4 occurrences and final character",
            "alignment": "fixed legal CTC Viterbi path from initial model and P01/P02 labels only",
-           "teacher_kl_weight": 0.15, "teacher_temperature": 2, "backbone": "frozen",
+           "teacher_kl_weight": 0.15, "teacher_temperature": 2,
+           "backbone": "blocks6 only" if args.visual_tail else "frozen",
+           "learning_rate_visual_tail": 0.000001 if args.visual_tail else 0,
+           "feature_stage": "blocks5" if args.visual_tail else "pooled_backbone",
            "training_augmentation": list(map(list, PROFILES)) if args.augment else [],
            "batch_statistics_and_dropout": "eval mode; no width padding between encoder samples",
            "trainable_names": trainable_names, "source_hashes": hashes, "source_revision": SOURCE_REVISION,
@@ -118,7 +144,7 @@ def main():
     bridge = BrowserBridge(args.node)
     started, updates = time.time(), 0
     def logits(features):
-        return model.head.ctc_head.fc(model.head.ctc_encoder(features))
+        return sequence_logits(model, features, args.visual_tail)
     def progress(value):
         result = {**value, "seconds": time.time() - started, "updates": updates}
         write_json(out / "status.json", result)
@@ -131,6 +157,7 @@ def main():
             assert manifest["initial_sha256"] == sha(initial) and manifest["audit_sha256"] == run["audit_sha256"]
             assert manifest["cache_sha256"] == sha(cache_dir / "backbone.npz")
             assert manifest["source_revision"] == SOURCE_REVISION
+            assert manifest.get('feature_stage', 'pooled_backbone') == run['feature_stage']
             features = dict(np.load(cache_dir / "backbone.npz", allow_pickle=False))
             write_json(out / "reused-cache.json", {"path": str(cache_dir), "manifest_sha256": sha(cache_dir / "backbone-cache.json")})
         else:
@@ -143,7 +170,7 @@ def main():
                     for vi, view in enumerate(prepared["views"]):
                         key = f"{index:03d}-{vi}"
                         x = paddle.to_tensor(np.frombuffer(base64.b64decode(view["data"]), dtype="<f4").reshape(view["dims"]).copy())
-                        feature = model.backbone(x)
+                        feature = cached_visual_features(model, x, args.visual_tail)
                         features[key] = feature.numpy()
                         if index < 2 or index == len(rows) - 1:
                             np.testing.assert_allclose(F.softmax(logits(feature), axis=-1).numpy(), model(x).numpy(), rtol=1e-6, atol=1e-6)
@@ -152,7 +179,8 @@ def main():
             np.savez_compressed(out / "backbone.npz", **features)
             write_json(out / "backbone-cache.json", {"cache_sha256": sha(out / "backbone.npz"),
                        "initial_sha256": sha(initial), "audit_sha256": run["audit_sha256"],
-                       "source_revision": SOURCE_REVISION, "source_hashes": hashes, "holdout_used": False})
+                       "source_revision": SOURCE_REVISION, "source_hashes": hashes,
+                       "feature_stage": run['feature_stage'], "holdout_used": False})
         base_keys = {f"{i:03d}-{v}" for i in range(len(rows)) for v in (0, 1)}
         augmentation_keys = {f"{i:03d}-aug{a}-{v}" for i, row in enumerate(rows) if row['split'] == 'train'
                              for a in range(len(PROFILES)) for v in (0, 1)} if args.augment else set()
@@ -169,7 +197,7 @@ def main():
                                                     'rgb': base64.b64encode(rgb.tobytes()).decode('ascii')})
                             for vi, view in enumerate(prepared['views']):
                                 x = paddle.to_tensor(np.frombuffer(base64.b64decode(view['data']), dtype='<f4').reshape(view['dims']).copy())
-                                features[f'{index:03d}-aug{a}-{vi}'] = model.backbone(x).numpy()
+                                features[f'{index:03d}-aug{a}-{vi}'] = cached_visual_features(model, x, args.visual_tail).numpy()
                             if done <= 2:
                                 rgb.save(out / f'augmentation-preview-{done}-{a}.png')
                     if done % 16 == 0:
@@ -177,7 +205,7 @@ def main():
             np.savez_compressed(out / 'backbone.npz', **features)
             write_json(out / 'backbone-cache.json', {'cache_sha256': sha(out / 'backbone.npz'),
                        'initial_sha256': sha(initial), 'audit_sha256': run['audit_sha256'],
-                       'source_revision': SOURCE_REVISION, 'source_hashes': hashes,
+                       'source_revision': SOURCE_REVISION, 'source_hashes': hashes, 'feature_stage': run['feature_stage'],
                        'augmentation_profiles': list(map(list, PROFILES)), 'holdout_used': False})
         elif args.augment:
             assert manifest['augmentation_profiles'] == list(map(list, PROFILES))
@@ -233,9 +261,13 @@ def main():
                                               "frames": frames, "focused_positions": positions})
         write_json(out / "training-alignments.json", {"records": alignment_records, "validation_labels_used": False})
         loss_ctc = paddle.nn.CTCLoss(blank=0, reduction="none")
-        optimizer = paddle.optimizer.Adam(learning_rate=run["learning_rate_classifier"], parameters=[
+        parameter_groups = [
             {"params": [p for p in model.head.ctc_encoder.parameters() if not p.stop_gradient], "learning_rate": 0.2},
-            {"params": [p for p in model.head.ctc_head.parameters() if not p.stop_gradient]}], grad_clip=paddle.nn.ClipGradByGlobalNorm(1.0))
+            {"params": [p for p in model.head.ctc_head.parameters() if not p.stop_gradient]}]
+        if args.visual_tail:
+            parameter_groups.append({'params': [p for p in model.backbone.blocks6.parameters() if not p.stop_gradient], 'learning_rate': 0.1})
+        optimizer = paddle.optimizer.Adam(learning_rate=run["learning_rate_classifier"], parameters=parameter_groups,
+                                          grad_clip=paddle.nn.ClipGradByGlobalNorm(1.0))
         history, best_epoch = [], 0
         for epoch in range(1, run["epochs"] + 1):
             order = list(training)

@@ -7,6 +7,20 @@ from train_sequence import configure_trainable
 
 
 class FreezeTests(unittest.TestCase):
+    def test_visual_tail_excludes_early_layers_and_all_batch_statistics(self):
+        model = paddle.nn.Layer()
+        model.backbone = paddle.nn.Layer()
+        model.backbone.blocks5 = paddle.nn.Linear(4, 4)
+        model.backbone.blocks6 = paddle.nn.Sequential(paddle.nn.BatchNorm1D(4), paddle.nn.Linear(4, 3))
+        model.eval()
+        names = configure_trainable(model, visual_tail=True)
+        self.assertTrue(names)
+        self.assertTrue(all(n.startswith('backbone.blocks6.') for n in names))
+        self.assertFalse(any(n.endswith(('._mean', '._variance')) for n in names))
+        model.backbone.blocks6(model.backbone.blocks5(paddle.ones([2, 4]))).sum().backward()
+        self.assertTrue(all(p.grad is not None for p in model.parameters() if not p.stop_gradient))
+        self.assertTrue(all(p.grad is None for p in model.parameters() if p.stop_gradient))
+
     def test_optimizer_updates_weights_without_batch_statistics_or_backbone(self):
         model = paddle.nn.Layer()
         model.backbone = paddle.nn.Linear(4, 4)
