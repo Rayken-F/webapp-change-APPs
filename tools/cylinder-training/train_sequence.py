@@ -53,7 +53,9 @@ def main():
         parser.add_argument("--" + key, required=True, type=Path)
     parser.add_argument("--reuse-cache", type=Path)
     parser.add_argument("--seed", type=int, default=20261121)
-    parser.add_argument("--focus-weight", type=float, choices=[0.0, 0.05], default=0.05)
+    parser.add_argument("--focus-weight", type=float, choices=[0.0, 0.05, 0.2], default=0.05)
+    parser.add_argument("--epochs", type=int, choices=range(1, 7), default=6)
+    parser.add_argument("--learning-rate-scale", type=float, choices=[0.5, 1.0], default=1.0)
     parser.add_argument("--augment", action="store_true", help="Add fixed small width/slant variations to training only")
     parser.add_argument("--visual-tail", action="store_true", help="Also adapt only the last visual block group")
     args = parser.parse_args()
@@ -125,14 +127,16 @@ def main():
     snapshot.mkdir()
     for p in tracked:
         shutil.copy2(p, snapshot / p.name)
-    run = {"profile": "ctc-sequence-focus-v4", "seed": args.seed, "epochs": 6,
-           "learning_rate_encoder": 0.000002, "learning_rate_classifier": 0.00001,
+    run = {"profile": "ctc-sequence-focus-v5", "seed": args.seed, "epochs": args.epochs,
+           "learning_rate_encoder": 0.000002 * args.learning_rate_scale,
+           "learning_rate_classifier": 0.00001 * args.learning_rate_scale,
+           "learning_rate_scale": args.learning_rate_scale,
            "gradient_accumulation": 4, "ctc_loss": "normalized by label length",
            "focused_ce_weight": args.focus_weight, "focused_targets": "training 9/4 occurrences and final character",
            "alignment": "fixed legal CTC Viterbi path from initial model and P01/P02 labels only",
            "teacher_kl_weight": 0.15, "teacher_temperature": 2,
            "backbone": "blocks6 only" if args.visual_tail else "frozen",
-           "learning_rate_visual_tail": 0.000001 if args.visual_tail else 0,
+           "learning_rate_visual_tail": 0.000001 * args.learning_rate_scale if args.visual_tail else 0,
            "feature_stage": "blocks5" if args.visual_tail else "pooled_backbone",
            "training_augmentation": list(map(list, PROFILES)) if args.augment else [],
            "batch_statistics_and_dropout": "eval mode; no width padding between encoder samples",
@@ -220,11 +224,13 @@ def main():
         validation = [r for r in rows if r["split"] == "validation"]
         def evaluate(name, targets=validation):
             predictions = []
+            probabilities = {}
             with paddle.no_grad():
                 for row in targets:
                     outputs = []
                     for key in row["keys"]:
                         output = F.softmax(logits(paddle.to_tensor(features[key])), axis=-1).numpy()
+                        probabilities[key] = output
                         outputs.append({"dims": list(output.shape), "data": base64.b64encode(output.astype("<f4").tobytes()).decode("ascii")})
                     decoded = bridge.call({"type": "decode", "outputs": outputs, "characters": chars, "field": row["field"]})
                     picked = decoded["aspect_views_rules"]
@@ -236,6 +242,7 @@ def main():
                       "view_metrics": {v: summarize([{**p, "raw": p[v], "prediction": "".join(p[v].upper().split())}
                                                     for p in predictions]) for v in ("raw_view", "ink_view")}}
             write_json(out / (name + ".json"), result)
+            np.savez_compressed(out / (name + "-probabilities.npz"), **probabilities)
             return result
         baseline_result = evaluate("validation-baseline")
         prior_predictions = json.loads((prior / f"validation-epoch-{prior_result['selected_epoch']}.json").read_text(encoding="utf-8"))["predictions"]

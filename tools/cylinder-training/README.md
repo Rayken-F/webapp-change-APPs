@@ -178,3 +178,38 @@ alignment with explicit tie handling; this audit does not alter predictions.
 python compare_training_runs.py --baseline PRIVATE_BASELINE_JSON --run PRIVATE_COMPLETED_RUN --output PRIVATE_COMPARISON_JSON
 python -m unittest discover -s tools/cylinder-training -p test_error_audit.py
 ```
+
+## Continuing from a retained sequence checkpoint
+
+`--prior-run` also accepts a completed sequence run with a selected checkpoint.
+Its checksum and original validation outputs must match before training starts.
+New runs use a new private directory and never overwrite the prior checkpoint.
+`--epochs` permits one to six epochs, `--learning-rate-scale 0.5` halves all three
+learning rates, and `--focus-weight 0.2` strengthens the same training-only 9/4
+and final-character objective. These are explicit experiments, not recommended
+settings or a claim of improved accuracy. Record the chosen protocol before the
+run, including its seed, augmentation and fixed baseline. Selection still rejects
+any loss of a previously correct validation string.
+
+Validation now saves per-view probabilities beside each prediction file, including
+the initial baseline. These private arrays allow lossless diagnosis of decoding
+without rerunning or exporting a model. `audit_sequence_scores.py` compares the
+existing result with raw-symbol prefix-beam candidates and exact CTC path-sum
+likelihoods. It does not select or install a new application decoder. Blank frames
+and repeated symbols are included in the likelihood; greedy emitted-character
+averages are not full sequence probabilities. See the original
+[CTC paper](https://www.cs.toronto.edu/~graves/icml_2006.pdf).
+
+```text
+python audit_sequence_scores.py --predictions PRIVATE_VALIDATION_JSON --probabilities PRIVATE_VALIDATION_NPZ --audit CORRECTED_AUDIT --output PRIVATE_NEW_REPORT_JSON
+python -m unittest discover -s tools/cylinder-training -p test_ctc_beam.py
+```
+
+The diagnostic beam has width eight and considers eight leading symbols per
+frame, plus blank and the previous symbol. Pruning is approximate. It uses no
+answer labels, identifier lexicon, length bonus, or digit substitution to generate
+candidates. Label likelihoods are reported only after candidate generation as an
+error diagnostic. Cross-view likelihoods and the raw/ink views' confidence are not
+automatically calibrated probabilities. Do not choose the longest candidate or
+replace 4 with 9 solely to improve a known validation example. Keep unresolved
+view disagreements visible and preserve the independent final holdout.
