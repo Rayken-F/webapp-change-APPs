@@ -116,3 +116,57 @@ High CTC scores can accompany wrong strings. An ambiguous handwritten final
 `0`/`O` cannot be guaranteed correct by CTN format because both are allowed there.
 Retain disputed labels with an explicit review note rather than changing them
 to agree with the model or the copy template.
+
+## Sequence adaptation for confusions and missing characters
+
+`train_sequence.py` starts from a verified prior classifier-only candidate and
+the corrected audit inputs. The visual backbone stays frozen; the CTC sequence
+encoder and classifier may learn. Its six-epoch protocol uses encoder/classifier
+learning rates 0.000002/0.00001, four-view gradient accumulation, fixed batch
+statistics and dropout, normalized CTC loss, and teacher KL regularization.
+Each view keeps its own width throughout the sequence encoder.
+
+```text
+python train_sequence.py --dataset DATASET --paddleocr PADDLEOCR --audit CORRECTED_AUDIT --prior-run HEAD_ONLY_RUN --run-dir PRIVATE_NEW_RUN --node NODE_EXECUTABLE
+python -m unittest discover -s tools/cylinder-training -p test_ctc_alignment.py
+python -m unittest discover -s tools/cylinder-training -p test_sequence_freeze.py
+python -m unittest discover -s tools/cylinder-training -p test_augmentation.py
+```
+
+A legal CTC forced alignment is computed only for P01/P02 labels, using the
+initial model. An auxiliary cross-entropy term supervises real training `9`/`4`
+occurrences and the final character. Repeated characters must have separate
+frames. `ctc_alignment.py` is a training loss helper: it is not used to supply
+answers, change predicted digits, or align validation/test labels for training.
+Validation uses the unchanged browser raw/ink/rules path.
+
+The default focused-loss weight is 0.05. `--focus-weight 0` is an explicit
+controlled comparison with the same CTC/teacher objective and no focus term.
+`--reuse-cache PRIVATE_PREVIOUS_RUN` can reuse hashed, frozen backbone features
+only when the initial checkpoint, corrected input audit and PaddleOCR revision
+match. It does not resume optimizer updates. Runs preserve source snapshots,
+training-only alignments, per-view predictions, checkpoints and progress locally.
+
+`--augment` adds two fixed width/slant variations (0.9/-0.1 and 1.1/0.1) to each
+training field before the normal browser preprocessing. It expands the canvas
+to retain edge strokes, adds no characters, and never transforms validation
+images. The original two views remain in training. Augmented feature caches also
+require matching augmentation profiles and helper source hashes. These variations
+increase training views, not the number of real writers or independent samples.
+
+Selection additionally rejects a checkpoint if any previously correct P03 string
+becomes wrong. All frozen weights and batch statistics are verified unchanged.
+Better training loss is not evidence of better recognition: report exact-string
+counts, character errors, additions/omissions and regression cases separately.
+Keep P04 and export deferred. Repeated tuning on the small P03 set cannot establish
+performance on new handwriting or replace a later independent acceptance test.
+
+`compare_training_runs.py` compares completed runs with the same baseline labels,
+reports each field's exact counts, additions, omissions and 9/4 substitutions,
+and retains per-epoch changes locally. Edit counts use a minimum-distance
+alignment with explicit tie handling; this audit does not alter predictions.
+
+```text
+python compare_training_runs.py --baseline PRIVATE_BASELINE_JSON --run PRIVATE_COMPLETED_RUN --output PRIVATE_COMPARISON_JSON
+python -m unittest discover -s tools/cylinder-training -p test_error_audit.py
+```
