@@ -191,6 +191,20 @@ settings or a claim of improved accuracy. Record the chosen protocol before the
 run, including its seed, augmentation and fixed baseline. Selection still rejects
 any loss of a previously correct validation string.
 
+`--patience 2` ends a run after two consecutive epochs without an eligible
+improvement; zero (the default) keeps the full planned protocol. The result
+records planned/completed epochs and whether it stopped early. It never changes
+the baseline or accepts a regressed checkpoint. A manually interrupted run is
+not a completed experiment: preserve its last progress, completed validation
+epochs and interruption reason separately, and discard unsaved partial updates.
+
+An original-view comparison may reuse a verified augmented cache from the same
+initial weights and input audit. Only the exact original training/validation
+keys are retained; unknown or missing keys are rejected. Reused preprocessing
+hashes are checked, and six cached views are compared with fresh full-model
+inference. Different numbers of augmented views and optimizer updates must be
+reported; matching epoch counts alone does not make an equal-budget comparison.
+
 Validation now saves per-view probabilities beside each prediction file, including
 the initial baseline. These private arrays allow lossless diagnosis of decoding
 without rerunning or exporting a model. `audit_sequence_scores.py` compares the

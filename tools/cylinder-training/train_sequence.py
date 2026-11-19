@@ -47,6 +47,13 @@ def sequence_logits(model, features, visual_tail):
     return model.head.ctc_head.fc(model.head.ctc_encoder(features))
 
 
+def original_views_only(features, base_keys, augmentation_keys):
+    """Reuse verified original views without admitting unknown or held-out keys."""
+    if set(features) not in (base_keys, base_keys | augmentation_keys):
+        raise ValueError("Unexpected cached feature keys")
+    return {k: features[k] for k in sorted(base_keys)}
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     for key in ("dataset", "paddleocr", "audit", "prior-run", "run-dir", "node"):
@@ -56,6 +63,8 @@ def main():
     parser.add_argument("--focus-weight", type=float, choices=[0.0, 0.05, 0.2], default=0.05)
     parser.add_argument("--epochs", type=int, choices=range(1, 7), default=6)
     parser.add_argument("--learning-rate-scale", type=float, choices=[0.5, 1.0], default=1.0)
+    parser.add_argument("--patience", type=int, choices=[0, 1, 2, 3], default=0,
+                        help="Stop after this many epochs without an eligible improvement; zero disables")
     parser.add_argument("--augment", action="store_true", help="Add fixed small width/slant variations to training only")
     parser.add_argument("--visual-tail", action="store_true", help="Also adapt only the last visual block group")
     args = parser.parse_args()
@@ -131,6 +140,7 @@ def main():
            "learning_rate_encoder": 0.000002 * args.learning_rate_scale,
            "learning_rate_classifier": 0.00001 * args.learning_rate_scale,
            "learning_rate_scale": args.learning_rate_scale,
+           "early_stop_patience": args.patience,
            "gradient_accumulation": 4, "ctc_loss": "normalized by label length",
            "focused_ce_weight": args.focus_weight, "focused_targets": "training 9/4 occurrences and final character",
            "alignment": "fixed legal CTC Viterbi path from initial model and P01/P02 labels only",
@@ -186,8 +196,29 @@ def main():
                        "source_revision": SOURCE_REVISION, "source_hashes": hashes,
                        "feature_stage": run['feature_stage'], "holdout_used": False})
         base_keys = {f"{i:03d}-{v}" for i in range(len(rows)) for v in (0, 1)}
-        augmentation_keys = {f"{i:03d}-aug{a}-{v}" for i, row in enumerate(rows) if row['split'] == 'train'
-                             for a in range(len(PROFILES)) for v in (0, 1)} if args.augment else set()
+        known_augmentation_keys = {f"{i:03d}-aug{a}-{v}" for i, row in enumerate(rows) if row['split'] == 'train'
+                                   for a in range(len(PROFILES)) for v in (0, 1)}
+        augmentation_keys = known_augmentation_keys if args.augment else set()
+        if args.reuse_cache:
+            for p in tracked:
+                if p.name in ('browser_bridge.cjs', 'handwriting-core.js', 'rules.js'):
+                    assert manifest['source_hashes'][str(p.relative_to(repo))] == sha(p)
+            if not args.augment:
+                total_cached = len(features)
+                features = original_views_only(features, base_keys, known_augmentation_keys)
+                write_json(out / 'cache-subset.json', {'available_views': total_cached,
+                           'used_original_views': len(features), 'augmented_views_used': False})
+            with paddle.no_grad():
+                for index in (0, 1, len(rows) - 1):
+                    with Image.open(rows[index]['path']) as photo:
+                        rgb = photo.convert('RGB')
+                        prepared = bridge.call({'type': 'prepare', 'width': rgb.width, 'height': rgb.height,
+                                                'rgb': base64.b64encode(rgb.tobytes()).decode('ascii')})
+                    for vi, view in enumerate(prepared['views']):
+                        x = paddle.to_tensor(np.frombuffer(base64.b64decode(view['data']), dtype='<f4').reshape(view['dims']).copy())
+                        feature = paddle.to_tensor(features[f'{index:03d}-{vi}'])
+                        np.testing.assert_allclose(feature.numpy(), cached_visual_features(model, x, args.visual_tail).numpy(), rtol=1e-6, atol=1e-6)
+                        np.testing.assert_allclose(F.softmax(logits(feature), axis=-1).numpy(), model(x).numpy(), rtol=1e-6, atol=1e-6)
         if args.augment and not augmentation_keys.issubset(features):
             assert set(features) == base_keys
             augmented_rows = [(i, row) for i, row in enumerate(rows) if row['split'] == 'train']
@@ -275,7 +306,7 @@ def main():
             parameter_groups.append({'params': [p for p in model.backbone.blocks6.parameters() if not p.stop_gradient], 'learning_rate': 0.1})
         optimizer = paddle.optimizer.Adam(learning_rate=run["learning_rate_classifier"], parameters=parameter_groups,
                                           grad_clip=paddle.nn.ClipGradByGlobalNorm(1.0))
-        history, best_epoch = [], 0
+        history, best_epoch, stale_epochs = [], 0, 0
         for epoch in range(1, run["epochs"] + 1):
             order = list(training)
             rng.shuffle(order)
@@ -310,12 +341,15 @@ def main():
             if improved:
                 best, best_epoch = metrics, epoch
                 paddle.save(model.state_dict(), str(out / "best.pdparams"))
+            stale_epochs = 0 if improved else stale_epochs + 1
             paddle.save(model.state_dict(), str(out / "latest.pdparams"))
             event = {"epoch": epoch, "metrics": metrics, "previously_correct_lost": lost, "selected": improved,
                      "mean_losses_ctc_focus_kl": np.mean(losses, axis=0).tolist(), "updates": updates}
             history.append(event)
             write_json(out / "history.json", history)
             progress({"state": "epoch_complete", **event})
+            if args.patience and stale_epochs >= args.patience:
+                break
         selected = out / "best.pdparams" if best_epoch else initial
         final_state = model.state_dict()
         selected_state = paddle.load(str(selected))
@@ -327,6 +361,7 @@ def main():
                   "new_weights_selected": bool(best_epoch), "frozen_tensors_verified": len(frozen_hashes),
                   "training_records": len(train), "validation_records": len(validation),
                   "training_views": len(training), "training_augmentation": run['training_augmentation'],
+                  "planned_epochs": run['epochs'], "early_stopped": len(history) < run['epochs'],
                   "holdout_used": False, "exported": False, "deployed": False, "seconds": time.time() - started}
         write_json(out / "result.json", result)
         progress(result)
