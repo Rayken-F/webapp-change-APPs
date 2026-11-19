@@ -15,7 +15,8 @@ function handle(request) {
     const ink = H.blueInk(raw);
     return {inkFound: !!ink, views: [raw, ink || H.padded(raw)].map(source => {
       const input = H.tensor(source);
-      return {data: pack(input.data), dims: input.dims, resizedWidth: input.resizedWidth};
+      return {data: pack(input.data), dims: input.dims, resizedWidth: input.resizedWidth,
+        ...(request.includeImages ? {image: {width: source.width, height: source.height, rgb: pack(source.data)}} : {})};
     })};
   }
   if (request.type === 'decode') {

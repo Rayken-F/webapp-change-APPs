@@ -83,3 +83,36 @@ or export a browser model. P04 images are never opened by either new tool.
 The v1 `holdout` command is not valid for this new profile: a future held-out check
 must freeze and use the same crop/preprocessing/decoder protocol for all compared
 models. Keep P04 untouched until that candidate and protocol are finalized.
+
+## Label/crop audit and conservative continuation
+
+`audit_features.py` reads only P01/P02 training and P03 validation records, checks
+the frozen labels and crops, and records both view predictions, CTC alternatives,
+and frozen visual features. It verifies cached-feature inference against full
+model inference. `--training-crop-plan PRIVATE_PLAN` optionally restores reviewed
+bottom-clipped training crops from the original photograph using the recorded
+perspective transform. Each repair requires source and original-crop hashes;
+overlapping pixels must match the previous crop (at most one intensity level).
+No frozen crop, label, exclusion, or validation input is overwritten.
+
+```text
+python audit_features.py --dataset DATASET --paddleocr PADDLEOCR --pilot-run FIRST_PILOT --output PRIVATE_NEW_AUDIT --node NODE_EXECUTABLE --training-crop-plan PRIVATE_PLAN
+python train_frozen_head.py --dataset DATASET --audit PRIVATE_NEW_AUDIT --pilot-run FIRST_PILOT --run-dir PRIVATE_NEW_RUN --node NODE_EXECUTABLE
+python -m unittest discover -s tools/cylinder-training -p test_frozen_head.py
+```
+
+The head-only experiment freezes the backbone and sequence encoder. It trains
+only the final CTC linear weight and bias, using both views of each P01/P02 field
+in six epochs, batch size 8, learning rate 0.00005, true sequence lengths, and a
+small teacher KL penalty to limit drift. P03 is used only for validation/selection;
+its labels never participate in gradient updates. The best checkpoint must meet
+the same per-field no-regression gate. All other model tensors are verified equal
+to the starting checkpoint. Source snapshots, every epoch's predictions, original
+view metrics, final decoder metrics, and hashes are retained privately.
+
+A checkpoint is an intermediate training save, not an exported or ready model.
+Export and P04 evaluation are deferred until recognition is sufficiently stable.
+High CTC scores can accompany wrong strings. An ambiguous handwritten final
+`0`/`O` cannot be guaranteed correct by CTN format because both are allowed there.
+Retain disputed labels with an explicit review note rather than changing them
+to agree with the model or the copy template.
